@@ -1,6 +1,22 @@
 # شواهد اعتبارسنجی Launchlane
 
-بخش نخست، سابقه P0 است؛ بخش P1 پایین همین فایل شواهد جاری را نگه می‌دارد. نتایج bootstrap جای قابلیت محصول و fixture جای اتصال زنده نیست.
+شواهد جاری ابتدا و سابقه مراحل پیشین پایین‌تر ثبت شده‌اند. هر نتیجه به revision و شرایط خودش تعلق دارد؛ نتایج bootstrap جای قابلیت محصول و fixture جای اتصال زنده نیست.
+
+## چرخه زنده محدود و candidate جاری 869035a
+
+گزارش مستقل از چت در [controlled-live-cycle.md](evidence/controlled-live-cycle.md) است. سه release واقعی روی برنامه Node آزمایشی، 500 کنترل‌شده، تحلیل واقعی با دو فراخوانی/1653 توکن، تغییر نامرتبط همچنان 500 و اصلاح source دارای approval با پاسخ 200/live-v3 و release متناظر بررسی شدند. این cycle، env write، اصلاح خودکار کد توسط مدل یا پشتیبانی همه پروژه‌ها نیست. revision هر مرحله و حدود مصرف در همان گزارش ثبت‌اند.
+
+برنامه و نبودش بعد از حذف با API و پنل همان تیم تأیید شدند؛ مدت حدود 29 دقیقه و اختلاف موجودی ثبت‌شده حدود 1145.8 تومان بود. شبکه خالی آزمون باقی است و حذف آن از مسیر رسمی بررسی‌شده در دسترس نبود. credential پنل فقط برای همان ورود رسمی و بدون چاپ/تصویر رمز استفاده شد؛ نشست موقت مرورگر خارج شد. اتصال محصول refresh و selected app خالی شد. همه gateهای نصب خاموش ماندند. audit خصوصیِ readOnly، migrations 1–6 با حفظ checksumهای backup اولیه، شش attempt با 5 failed/1 succeeded و صفر اقدام unresolved را تأیید کرد؛ plaintext کلید provider در SQLite نبود.
+
+پس از candidate UI، lint/typecheck/build pass. domain تازه 81/81 و HTTP تازه 15/15؛ browser تازه 55 حالت/9 عرض و 19 حالت/4 عرض با provider مصنوعی و بدون external request، overflow، axe violation یا browser error در حالت‌های سنجیده‌شده گذشتند. مرور دستی تاریخچه واقعی با gateهای خاموش در 360/768/1280 نیز اجرا شد؛ client/content به‌ترتیب 345/345، 753/753 و 1265/1265 بودند. تصویر 768/1280 بلافاصله پس از تغییر viewport در سطح پنل برش داشت؛ پس از reload، screenshot خود tab ثبت و بررسی شد. این مشکل ثبت تصویر به‌عنوان overflow محصول گزارش نشد. تصاویر پاک‌سازی‌شده در `.artifacts/live-validation/` خصوصی‌اند؛ بررسی screen reader و کاربر تازه انجام نشده است.
+
+اسکیل‌های مؤثر: competition-agent-engineer برای انتخاب مرز زنده و oracle مستقل؛ ux-ui-agent-skills و vercel-react-best-practices برای حالت/بازخوانی و مرز server/client؛ writing-guidelines برای هم‌سطح‌کردن README و limits. عدد کیفیت kit، درصد آمادگی یا امتیاز داور از این‌ها ساخته نشده است. گام بعدی هسته، رفع/تطبیق نسخه Node و تنظیمات موردنیاز پیش از استفاده گسترده، سپس restart و review تازه است؛ توسعه دامنه/عملکرد/handoff مستقل باز می‌ماند.
+
+### نصب مستقل از کلون محلی تمیز
+
+commit `869035a7ede1ad3816c3473895bc72b1d16bcf24` با `git clone --no-hardlinks --single-branch --branch main` از مخزن محلی به پوشه موقت مستقل کپی شد. `.env.local`، `.data`، `.local` و `.artifacts` در ورودی clone وجود نداشتند؛ dependency یا state از checkout کاری کپی نشد. این آزمون clone مستقیم GitHub نیست؛ تغییرهای بعدی این مرحله فقط مستندات‌اند.
+
+روی Node 24.18.0، `npm ci`، `npm run setup:local`، `npm run lint`، `npm run typecheck`، `npm run build`، `npm run test:domain` تازه 81/81 و `npm run test:http` تازه 15/15 pass شدند؛ بدون fail/skip/cancel. setup کلید ورود و session تازه ساخت و هیچ کلیدی چاپ نکرد. production server همان نصب با پورت loopback آزاد اجرا شد؛ ورود با کلید تازه و GET خصوصی workspace پاسخ 200 دادند. فرمان واقعی bootstrap، `node --test tests/bootstrap.test.mjs` با `TEST_BASE_URL` همان server بود و 2/2 pass شد. این همان script `npm test` است. server متعلق به این بررسی متوقف شد؛ سرور کاربر دست‌نخورده ماند. credential provider خالی و سه gate خاموش بودند؛ هیچ smoke پولی در این بررسی اجرا نشد. suite مرورگر این clone دوباره اجرا نشد؛ شاهد مرورگر candidate در بند قبلی است.
 
 ## T22/UX — بازخوانی پس از پاسخ ناموفق؛ پایه bf276b1
 

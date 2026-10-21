@@ -4,6 +4,12 @@
 
 ## وضعیت فعال
 
+### چرخه زنده محدود: نتیجه و کار بعدی
+
+چرخه واقعی سه release، 500، تشخیص مدل و اصلاح source با approval و بررسی همان صفحه تکمیل شد؛ [گزارش فنی](docs/evidence/controlled-live-cycle.md) مرز real/synthetic و revisionها را ثبت می‌کند. این پایان کل پروژه نیست. برنامه آزمایشی حذف و نبودش تأیید شد؛ شبکه خالی آزمون باقی است. همه gateهای نصب خاموش‌اند و هیچ attempt نامعلوم/در حال اجرا باز نماند. انتشار، یک تشخیص و UX این سناریوی محدود سنجیده شدند؛ restart، env write، نسخه Node غیرپیش‌فرض، قیمت در محصول، GitHub واقعی و reader تازه باقی‌اند. نصب و اجرای مستقل از کلون محلی تمیز روی 869035a گذشت؛ clone مستقیم GitHub و بازبین تازه سنجیده نشده‌اند. تصمیم روتین و کار مستقل به اعتبار وابسته نیست؛ write یا مصرف بیشتر از سهم مجاز این آزمون انجام نمی‌شود.
+
+گزارش‌های مرحله‌ای زیر سابقه‌اند و وضعیت همان زمان را بیان می‌کنند؛ جدول‌های Task و جمع‌بندی بالا مرجع وضعیت جاری‌اند. پس از اصلاح نهایی کد، lint/typecheck/build، domain 81/81، HTTP 15/15 و دو bootstrap روی نصب تمیز هم pass شدند؛ کلید یا state خصوصی کپی نشد و هیچ درخواست provider نیاز نبود.
+
 ### T22/UX64–66 — بازخوانی امن پس از پاسخ ناموفق سایت
 
 بر پایه `bf276b1`، release واقعی ابتدا READY/503 بود؛ action به failed رفت و UI فقط پیشنهاد تازه داشت. predicate مشترک contract اکنون بازخوانی action دارای receipt را حتی پس از پاسخ ناموفق مجاز می‌کند؛ server و Store همان معیار را enforce می‌کنند. receipt/attempt/approval مصرف‌شده تغییر نمی‌کنند. regression اولیه fail شد؛ 503 سپس 200 با revision غلط همچنان failed و فقط 200 با همان revision موفق است؛ write همان دو فراخوانی باقی می‌ماند. بازخوانی واقعی نسخه نخست بعداً 500 را دید و موفق اعلام نکرد. CTA و دلیل غیرفعال‌بودن آن روشن شدند؛ گزارش اختلال متن تکراری ندارد و محدودیت env را با انتشار کد اصلاح‌شده اشتباه نمی‌کند. domain تازه 81/81، HTTP 15/15، lint/typecheck/build و browser تازه 55 حالت/9 عرض + 19 حالت/4 عرض pass. assertion قدیمی متن کوتاه پس از یکسان‌کردن متن گزارش به timeout رسید؛ assertion به معنی همان نتیجه منتقل و suite کامل تازه pass شد، oracle outcome تغییر نکرد. شواهد و config در verification هستند.
@@ -58,10 +64,10 @@ domain تازه 80/80، HTTP تازه 15/15، lint/typecheck/build pass. باز�
 | --- | --- | --- | --- |
 | UX60 | P0؛ ورودی متنی تنها مسیر انتخاب است؛ ENOENT از scanner به error عمومی می‌رسد | انتخاب‌گر واقعی و محدود پوشه سرور، لغو بدون پاک‌شدن انتخاب؛ خطای دقیق missing/access/invalid/empty؛ نمونه اختیاری | implemented_local؛ bounded server-folder dialog، ریشه مجاز/صفحه‌بندی، خطای typed و حفظ انتخاب قبلی؛ وضعیت نهایی چک‌ها در verification |
 | UX61 | P0؛ اتصال/فهرست GitHub در UI موجود نیست؛ gh در PATH/دو محل معمول یافت نشد | یک روش رسمی قابل اجرا، هویت تأییدشده، repository/search/pagination/branch/subfolder/revision؛ دریافت محدود و بدون اجرای کد | implemented_contract؛ UI ورود رسمی، تأیید حساب، catalog/search/pagination/branch/subfolder و دریافت pinned آماده‌اند؛ تست کنترل‌شده و import domain موفق؛ دریافت کد/حساب واقعی در شبکه فعلی unconfirmed، grant انجام نشده |
-| UX62 | P0؛ Liara فقط وضعیت ثابت و بدون اقدام دارد؛ CLI رسمی 9.4.7 نصب است | spike ورود رسمی، تصمیم ایمن و مستند؛ اتصال با اعتبارسنجی فوری، تیم/app مجاز و قطع اتصال روشن؛ بدون جعل OAuth | implemented_contract؛ راهنمای کلید، validation هویت/تیم، UI انتخاب app/refresh/disconnect و encryption تست شدند؛ تطبیق shape/مجوز حساب واقعی باقی است |
+| UX62 | P0؛ Liara فقط وضعیت ثابت و بدون اقدام دارد؛ CLI رسمی 9.4.7 نصب است | spike ورود رسمی، تصمیم ایمن و مستند؛ اتصال با اعتبارسنجی فوری، تیم/app مجاز و قطع اتصال روشن؛ بدون جعل OAuth | live_verified_bounded؛ راهنمای کلید، validation هویت/تیم، انتخاب app/refresh و encryption پیاده‌اند؛ هویت/تیم/app با حساب واقعی تطبیق و انتخاب پس از حذف app خالی شد؛ قطع اتصال به معنی ابطال کلید سرویس نیست |
 | UX63 | P0؛ profile و incident در state component هستند و بازیابی ندارند | جریان پایدار actor-bound در SQLite؛ بازیابی امن، تشخیص source قدیمی، URL/Back/Forward بدون secret و approval منقضی | implemented_local؛ پروژه و گزارش عادی/نمونه پس از جابه‌جایی، reload و ورود مجدد بازیابی می‌شوند؛ URL فقط شناسه/نما دارد؛ تغییر source و انتخاب تازه تأیید قبلی را باطل می‌کنند |
 | UX64 | P1؛ آماده‌سازی داخلی و هش‌ها/پورت بار تصمیم غیرضروری ایجاد کرده‌اند | آماده‌سازی محلی خودکار، port معتبر پیش‌فرض، فهرست قابل بررسی بدون هش اجباری؛ مقصد/هزینه/اثر همچنان واضح | implemented_local برای Node پشتیبانی‌شده؛ UI به جریان خودکار منتقل شد، هش‌ها از فهرست معمول حذف شدند؛ تکمیل امن مقدار env و قیمت زنده هنوز قابلیت آماده نیستند |
-| UX65 | P1؛ مسیر اصلی اختلال فقط scripted است؛ اتصال خاموش بن‌بست دارد | انتخاب برنامه متصل و نشانه، evidence واقعی در حد adapter موجود؛ تمرین اختیاری؛ نبود تحلیل/دسترسی بدون موفقیت جعلی | implemented_contract؛ UI برنامه/نشانه/صفحه، جمع‌آوری و بررسی دوباره، ثبت نشانی خواندنی، تحلیل single-use و گزارش ماندگار اجرا شدند؛ مسیر خاموش اقدام اتصال/بازخوانی دارد؛ حساب واقعی/کیفیت علت و اصلاح زیرساخت تأیید نشده‌اند |
+| UX65 | P1؛ مسیر اصلی اختلال فقط scripted است؛ اتصال خاموش بن‌بست دارد | انتخاب برنامه متصل و نشانه، evidence واقعی در حد adapter موجود؛ تمرین اختیاری؛ نبود تحلیل/دسترسی بدون موفقیت جعلی | live_verified_one_case؛ جمع‌آوری/تحلیل/بازخوانی و گزارش ماندگار یک 500 واقعی سنجیده شد؛ تغییر نامرتبط مشکل را حفظ و انتشار کد اصلاح‌شده همان صفحه را 200 کرد؛ تعمیم کیفیت و env write بازند |
 | UX66 | P1؛ header/stepper/capabilities ثابت و CTA خارج viewport است | دو هدف روشن، فارسی قابل فهم، اتصال‌ها از وضعیت واحد، انتخاب پروژه در اولین viewport، keyboard/responsive/RTL و حذف health فنی از مسیر عادی | implemented_local؛ نام سرویس مدل و جزئیات داخلی از مسیر عادی حذف شدند؛ وضعیت همان flow/اتصال، focus/keyboard، حالت‌های خطا/لغو/بازیابی و عرض‌های 280 تا 1280 سنجیده شدند؛ screen reader و reader تازه سنجیده نشده‌اند |
 
 اولویت اجرا UX60/61/62/63 سپس UX64/65/66 است؛ قسمت‌های مستقل منتظر اتصال/اعتبار نمی‌مانند. gateهای هزینه/زیرساخت فعلی حفظ می‌شوند. اسکیل‌های مؤثر: ux-ui-agent-skills، web-design-guidelines، frontend-design، vercel-react-best-practices و competition-agent-engineer. شاهد دستی با CUA و تست‌های خودکار با server ایزوله ثبت می‌شوند؛ حساب واقعی، transport مصنوعی و blocker از هم جدا می‌مانند.
@@ -70,10 +76,7 @@ domain تازه 80/80، HTTP تازه 15/15، lint/typecheck/build pass. باز�
 
 بازبینی نهایی UX روی `fced65e`: گزارش از 768 دو ستونی و کنترل اتصال تکراری حذف شد؛ مرور دستی 360/768/1280 و browser تازه 55 حالت/9 عرض، lint/build pass. هیچ شارژ یا write واقعی برای این مرحله مصرف نشد. شرط پایان زنده UX61/62، ورود و مجوز واقعی و تطبیق schema حساب است؛ انتشار/اصلاح واقعی همچنان در T20–23/32 مستقل باقی‌اند.
 
-- P0 تمام شد: foundation و اسناد فنی اعتبارسنجی شده‌اند؛ شواهد در `docs/verification.md`.
-- فاز فعال P1: مسیر محلی ورود→بررسی source→بسته خصوصی→پیشنهاد→تأیید/رد با UI و state پایدار قابل اجراست؛ gateهای اتصال زنده جدا هستند.
-- session محلی، Host/Origin/CSRF، migration و approval اتمیک برای قرارداد محدود deploy/restart وجود دارند. executor محدود upload/release پیاده و قراردادی آزموده است؛ gateهای واقعی خاموش و اتصال/اجرای زنده تأیید نشده‌اند.
-- scope و دسترسی زنده Liara تأیید نشده‌اند. BoxAPI طبق خبر مالک فعال است و یک سازگاری محدود gpt-6-luna/none واقعاً سنجیده شد؛ کیفیت diagnosis و مبلغ کسرشده هنوز تأیید نشده‌اند.
+P0 و مسیر مستقل P1 پیاده‌اند؛ بخش محدود P2/P3 زنده سنجیده شده است. restart، env، قیمت، تعمیم diagnosis و review تازه مطابق جدول‌ها بازند. gateهای نصب پس از آزمون خاموش‌اند؛ هیچ موفقیت عمومی از fixture یا یک case زنده نتیجه نمی‌شود.
 
 ## P0 — آماده‌سازی
 
@@ -88,23 +91,23 @@ domain تازه 80/80، HTTP تازه 15/15، lint/typecheck/build pass. باز�
 
 | Task | هدف/محدوده | وابستگی | پذیرش/تست | وضعیت |
 | --- | --- | --- | --- | --- |
-| T10 | تکمیل DESIGN با flow، توکن و component state؛ UI یکپارچه با action/evidence | T02 | AC14؛ walkthrough، keyboard و responsive؛ بدون پالت پراکنده | implemented_offline؛ آزمون خودکار ۷ viewport/۲۳ حالت، walkthrough انسان تازه هنوز انجام نشده |
+| T10 | تکمیل DESIGN با flow، توکن و component state؛ UI یکپارچه با action/evidence | T02 | AC14؛ walkthrough، keyboard و responsive؛ بدون پالت پراکنده | implemented_local؛ suite تازه 55 حالت/9 عرض و 19 حالت/4 عرض انتشار، مرور دستی گزارش واقعی 360/768/1280؛ walkthrough انسان تازه و screen reader انجام نشده |
 | T11 | API adapter interface و schemaهای ورودی/پاسخ از OpenAPI؛ fixture صادقانه | T03 | AC01,08,13؛ teamID، pagination، null، 401/429 و unit/time contracts؛ synthetic بودن صریح | partial_contract؛ readها/probe و upload/release محدود با gate مستقل و fixture آزموده‌اند؛ field/unit/time و semantics حساب واقعی همچنان به T20 وابسته‌اند |
-| T12 | تشخیص read-only یک اپ Node و archive manifest مجاز | T02 | AC02,03؛ runtime/port/env names؛ traversal/symlink/secret و no script execution | implemented_offline؛ manifest و tar.gz خصوصی، هش مستقل archive و approval v2؛ upload لیارا انجام نشده |
-| T13 | operator session، policy، action immutable، approval و state SQLite | T02 | AC04,13,16؛ deny/expiry/replay/race/restart/storage-down؛ CAS پیش از write | implemented_offline؛ v4 و journal upload/release، approval/claim/recovery آزموده‌اند؛ env secret-reference و عملیات زنده هنوز تأیید نشده‌اند |
-| T14 | تعریف oracle و demo fixture برای deploy و incident؛ توسعه تست domain با ابزار مناسب | T11,T12 | AC05,09,11؛ golden و counterexample؛ commandهای واقعی به AGENTS اضافه شود | partial_offline؛ workload oracle، tool/result/terminal، خطای 500/اصلاح غلط/درست، تناقض و داده ناکافی؛ eval مدل/deploy زنده باقی است |
+| T12 | تشخیص read-only یک اپ Node و archive manifest مجاز | T02 | AC02,03؛ runtime/port/env names؛ traversal/symlink/secret و no script execution | implemented_local؛ manifest و tar.gz خصوصی، archive متصل به approval v4 و upload واقعی همان snapshot؛ محدودیت نسخه Node در T21 باز است |
+| T13 | operator session، policy، action immutable، approval و state SQLite | T02 | AC04,13,16؛ deny/expiry/replay/race/restart/storage-down؛ CAS پیش از write | implemented_local؛ v4/journal/claim/recovery آزموده و چرخه live محدود با approval مستقل اجرا شد؛ env secret-reference و چند process پیاده نیستند |
+| T14 | تعریف oracle و demo fixture برای deploy و incident؛ توسعه تست domain با ابزار مناسب | T11,T12 | AC05,09,11؛ golden و counterexample؛ commandهای واقعی به AGENTS اضافه شود | partial؛ oracle مستقل 500/اصلاح غلط/درست در چرخه واقعی گذشت؛ تناقض/داده ناکافی/injection در domain مصنوعی‌اند و ارزیابی مدل واقعی آن‌ها باقی است |
 
-P1 شامل کدنویسی محصول توسط Coding Agent بعدی است. در صورت پایان قراردادهای مستقل، به علت نبود token کل پروژه متوقف نشود؛ اما وضعیت fake به live ارتقا نیابد.
+کار مستقل آفلاین با نبود دسترسی متوقف نمی‌شود؛ وضعیت synthetic فقط پس از اجرای همان مرز با سرویس واقعی به live ارتقا می‌یابد.
 
 ## P2 — اتصال واقعی و اولین چرخه استقرار
 
 | Task | هدف/محدوده | وابستگی | پذیرش/تست | وضعیت |
 | --- | --- | --- | --- | --- |
-| T20 | capability spike read-only لیارا با credential و scope مجاز | دسترسی Liara،T11 | AC01,08؛ scope/schema/time/unit و خطاهای واقعی؛ evidence sanitized؛ بدون write | blocked_live؛ بررسی read-only محلی در ۲۰۲۶-۱۰-۲۲ نبود API token/اتصال ذخیره‌شده و تعیین‌نشدن app انتخابی/allowlist را نشان داد؛ 0 درخواست خارجی، gateها خاموش |
-| T24 | smoke مدل/SDK و بودجه مستقل از اتصال Liara | دسترسی و budget مدل،T11 | AC09,13؛ tool protocol/schema، خروجی structured، terminal/error و مصرف واقعی؛ بدون fixture به‌جای live | compatibility_verified برای gpt-6-luna/none؛ دو snapshot موفق، هرکدام 2 درخواست/616 توکن؛ diagnosis و قطع پردازش provider پس از cancel هنوز تأیید نشده |
-| T21 | انتخاب روش/پلن با منبع/قیمت فعلی و تأیید action | T12,T13,T20 | AC03,04؛ unknown price/budget سؤال/راهنمایی؛ تغییر args/source نیازمند consent تازه | partial_contract؛ پلن موجود از پاسخ خوانده و در approval بسته/پیش از اجرا بازبینی می‌شود؛ recommendation/catalog قیمت معتبر هنوز ساخته نشده، هزینه unknown است |
-| T22 | upload source→release→observe→health روی app آزمایشی مجاز | T14,T21 | AC05؛ release واقعی و پاسخ workload؛ build fail/timeout/pending و unsafe path | implemented_contract / blocked_live؛ bytes دقیق→source receipt→release→READY/current→status/revision، بدون retry، در domain/HTTP/UI آزموده؛ Liara واقعی و پذیرش AC05 زنده باقی است |
-| T23 | انتشار نسخه بعدی و restart کنترل‌شده | T22 | AC06؛ release قبل/بعد، deny و عدم اثر روی app دیگر؛ readback | partial_contract؛ source نسخه بعدی، approval تازه و مسیر UI پس از موفقیت آزموده‌اند؛ restart transport و هر دو عملیات زنده باقی‌اند |
+| T20 | capability spike read-only لیارا با credential و scope مجاز | دسترسی Liara،T11 | AC01,08؛ scope/schema/time/unit و خطاهای واقعی؛ evidence sanitized؛ بدون write | partial_live؛ حساب/تیم/app/project/release/logs v2 و شکل lifecycle تطبیق داده شدند؛ applets=500؛ واحد metric/event و رفتار دیگر برنامه‌ها باز است |
+| T24 | smoke مدل/SDK و بودجه مستقل از اتصال Liara | دسترسی و budget مدل،T11 | AC09,13؛ tool protocol/schema، خروجی structured، terminal/error و مصرف واقعی؛ بدون fixture به‌جای live | compatibility_verified برای gpt-6-luna/none؛ سنجش diagnosis واقعی جدا در T31 ثبت شد؛ قطع واقعی پردازش provider پس از cancel تأیید نشده است |
+| T21 | انتخاب روش/پلن با منبع/قیمت فعلی و تأیید action | T12,T13,T20 | AC03,04؛ unknown price/budget سؤال/راهنمایی؛ تغییر args/source نیازمند consent تازه | partial؛ پلن موجود در approval بسته و نرخ آزمون از catalog خوانده شد؛ قیمت/انتخاب پلن در محصول unknown؛ انتقال نسخه Node از engines به platformConfig هنوز پیاده نیست و باید قبل از گسترش پشتیبانی رفع شود |
+| T22 | upload source→release→observe→health روی app آزمایشی مجاز | T14,T21 | AC05؛ release واقعی و پاسخ workload؛ build fail/timeout/pending و unsafe path | live_verified_bounded؛ سه release روی Node 22، source receipt واقعی، READY/current و status/revision دقیق بررسی شدند؛ این شاهد پشتیبانی همه پروژه‌ها نیست |
+| T23 | انتشار نسخه بعدی و restart کنترل‌شده | T22 | AC06؛ release قبل/بعد، deny و عدم اثر روی app دیگر؛ readback | partial_live؛ نسخه‌های بعدی نامرتبط و اصلاح‌شده با approval تازه منتشر و مقایسه شدند؛ restart transport/live هنوز انجام نشده است |
 | T25 | راهنمای دامنه و تفکیک API از registrar | T22 | AC07؛ مسیر واقعی با منبع معتبر و کار بیرون دسترسی مشخص؛ بدون ادعای اجرای DNS انجام‌نشده | not_started |
 
 T20 و T24 مستقل‌اند؛ نبود مدل نباید مشاهده/آزمون provider را متوقف کند. T25 توسعه P1 است و شرط پذیرش هسته نیست. اگر endpoint یا schema با سند اختلاف داشت، ابتدا مرز adapter اصلاح و regression با پاسخ واقعی اضافه شود. شکست archive/deploy با افزودن framework/پایگاه‌داده جدید حل نمی‌شود مگر bottleneck اثبات شود.
@@ -113,9 +116,9 @@ T20 و T24 مستقل‌اند؛ نبود مدل نباید مشاهده/آزم�
 
 | Task | هدف/محدوده | وابستگی | پذیرش/تست | وضعیت |
 | --- | --- | --- | --- | --- |
-| T30 | خواندن محدود logs/events/release/health/CPU/RAM و evidence panel | T11,T20 | AC08,14؛ app/time/unit، empty/unsupported؛ داده ناکافی به‌عنوان unknown | implemented_offline؛ collector با failure مستقل هر منبع و panel تمرینی؛ schema/unit/time و workload زنده وابسته به T20 |
-| T31 | diagnosis مبتنی بر evidence و فرضیه رتبه‌دار | T14,T30,T24 | AC09؛ oracle 500، paraphrase، contradictory log، injection و redaction؛ کیفیت با مدل واقعی | implemented_offline_contract؛ ابزار→snapshot→فرضیه و claim پایدار تک‌بار به UI عادی متصل‌اند؛ نمونه جدا و scripted است؛ کیفیت و oracle مدل واقعی unverified |
-| T32 | اصلاح دارای approval و verification همان symptom؛ بسته قبل/بعد | T13,T22,T31 | AC11؛ اصلاح واقعی/ناموفق، timeout و replay؛ success فقط با readback | partial_offline؛ مقایسه همان app/origin/path/time، اصلاح غلط 500 و متفاوت‌بودن healthz؛ env write/approval و اثر واقعی باقی است |
+| T30 | خواندن محدود logs/events/release/health/CPU/RAM و evidence panel | T11,T20 | AC08,14؛ app/time/unit، empty/unsupported؛ داده ناکافی به‌عنوان unknown | partial_live؛ snapshot همان app/page و log تازه در UI واقعی ثبت شد؛ خطای applets و واحد نامعلوم منابع صریح هستند |
+| T31 | diagnosis مبتنی بر evidence و فرضیه رتبه‌دار | T14,T30,T24 | AC09؛ oracle 500، paraphrase، contradictory log، injection و redaction؛ کیفیت با مدل واقعی | live_verified_one_case؛ دو درخواست واقعی، 1653 توکن، فرضیه پیکربندی با سه شاهد مرتبط؛ سنجش واقعی داده ناکافی/تناقض/injection و تعمیم کیفیت باز است |
+| T32 | اصلاح دارای approval و verification همان symptom؛ بسته قبل/بعد | T13,T22,T31 | AC11؛ اصلاح واقعی/ناموفق، timeout و replay؛ success فقط با readback | partial_live؛ تغییر نامرتبط 500 را حفظ کرد؛ اصلاح source با approval تازه همان / را 200/live-v3 کرد؛ env write و تولید/اعمال خودکار patch از diagnosis هنوز ساخته نشده‌اند |
 | T33 | سناریوی مستقل کندی/منابع و پیشنهاد بهینه‌سازی | T30,T31 | AC10؛ latency و مصرف هم‌شرایط؛ بدون ادعای علت قطعی از یک نمودار | not_started |
 | T34 | handoff پاک‌سازی‌شده برای Coding Agent | T31 | AC12؛ reproduction، evidence، محدوده اصلاح و acceptance قابل فهم برای reader تازه؛ بدون فایل/command ساختگی | not_started |
 
@@ -134,7 +137,7 @@ T32 هسته است. T25، T33 و T34 توسعه‌های P1 هستند؛ فقط
 
 | Task | هدف/محدوده | وابستگی | پذیرش/تست | وضعیت |
 | --- | --- | --- | --- | --- |
-| T50 | README نهایی معماری/API/تعامل/limits و setup از checkout تمیز | T41 | AC15,16؛ دستورات واقعی، نسخه و real/simulated واضح؛ هیچ وابستگی به فایل محلی خارج Git | not_started |
+| T50 | README نهایی معماری/API/تعامل/limits و setup از checkout تمیز | T41 | AC15,16؛ دستورات واقعی، نسخه و real/simulated واضح؛ هیچ وابستگی به فایل محلی خارج Git | partial؛ کلون محلی تمیز 869035a، npm ci/setup/lint/type/build/domain81/HTTP15/bootstrap2 و ورود با کلید تازه pass؛ کپی context خصوصی لازم نبود؛ review تازه، clone مستقیم GitHub و revision تحویل نهایی باقی‌اند |
 | T51 | اجرای سناریوی واقعی end-to-end و ثبت evidence پاک‌سازی‌شده | T50 + دسترسی مجاز | AC05,09,11,15؛ trace درخواست→approval→اثر→readback؛ reproduction روی candidate مشخص؛ failureها محفوظ | not_started |
 | T52 | بازبینی candidate و محدوده انتشار فنی | T51 | AC15,16؛ diff/secret scan، config و revision ثبت؛ visibility و تغییرات خارجی فقط طبق اختیار مالک | not_started |
 
