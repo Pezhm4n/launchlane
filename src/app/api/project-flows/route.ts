@@ -7,6 +7,22 @@ import {
 } from "../../../server/application/project-flows.ts";
 import { ensure } from "../../../server/errors.ts";
 import { endpoint, jsonBody, reply } from "../../../server/http.ts";
+import { basename } from "node:path";
+import type { ProjectFlow } from "../../../contracts/project-flow.ts";
+import type { Config } from "../../../server/config.ts";
+function displayFlow(config: Config, flow: ProjectFlow | null): ProjectFlow | null {
+  if (!flow) return null;
+  const selection = flow.selection;
+  const displayName =
+    selection.kind === "github"
+      ? `${selection.owner}/${selection.name}${selection.directory === "." ? "" : ` / ${selection.directory}`}`
+      : selection.directory === "."
+        ? config.workspaceRoot
+          ? basename(config.workspaceRoot)
+          : "پوشه پروژه"
+        : selection.directory.split("/").at(-1) || "پروژه";
+  return { ...flow, displayName };
+}
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,7 +45,7 @@ export async function GET(request: Request) {
     );
     store.listActions(session.actorId);
     return reply({
-      flow,
+      flow: displayFlow(config, flow),
       action: flow?.actionId ? store.getAction(flow.actionId, session.actorId) : null,
     });
   });
@@ -43,7 +59,7 @@ export async function POST(request: Request) {
       exactKeys(input, ["operation", "selection"]);
       const selection = parseSelection(input.selection);
       const flow = await prepareProjectFlow(config, store, session.actorId, selection, signal);
-      return reply({ flow, action: null }, 201);
+      return reply({ flow: displayFlow(config, flow), action: null }, 201);
     }
     ensure(operation === "propose", "INVALID_OPERATION", "این درخواست پروژه پشتیبانی نمی‌شود.");
     exactKeys(input, ["operation", "id", "app", "port"]);
@@ -51,6 +67,9 @@ export async function POST(request: Request) {
       app = string(input.app, 63),
       port = input.port === null ? null : integer(input.port, 1, 65535);
     const action = await proposeProjectFlow(config, store, session.actorId, id, app, port, signal);
-    return reply({ flow: store.getProjectFlow(session.actorId, id), action }, 201);
+    return reply(
+      { flow: displayFlow(config, store.getProjectFlow(session.actorId, id)), action },
+      201,
+    );
   });
 }

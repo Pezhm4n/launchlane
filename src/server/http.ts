@@ -76,7 +76,7 @@ export function errorReply(error: unknown, requestId = randomUUID()): Response {
       ? error
       : new AppError(
           "INTERNAL_UNAVAILABLE",
-          "عملیات کامل نشد؛ تنظیمات یا state محلی را بررسی کنید.",
+          "این مرحله به دلیل مشکل داخلی کامل نشد. دوباره تلاش کنید؛ اگر ادامه داشت، شناسه پیگیری را برای بررسی نگه دارید.",
           503,
         );
   // Never serialize an arbitrary provider/fs error, stack, input or environment value.

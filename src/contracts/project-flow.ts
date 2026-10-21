@@ -16,6 +16,7 @@ export type ProjectSelection =
       revision: string;
     };
 export type ProjectFlow = {
+  displayName?: string;
   id: string;
   selection: ProjectSelection;
   selectionHash: string;
@@ -60,6 +61,7 @@ export function parseProjectFlow(value: unknown): ProjectFlow {
     "وضعیت پروژه معتبر نیست.",
   );
   return {
+    ...(row.displayName === undefined ? {} : { displayName: string(row.displayName, 512) }),
     id: string(row.id, 36),
     selection: parseSelection(row.selection),
     selectionHash: hash(row.selectionHash),

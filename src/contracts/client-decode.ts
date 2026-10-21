@@ -11,6 +11,7 @@ import type {
 import { ensure } from "../server/errors.ts";
 import { hash, integer, object, string } from "./validation.ts";
 import { parseArtifact } from "./source.ts";
+import { parseConnection } from "./connections.ts";
 
 function nullableString(value: unknown, max = 256): string | null {
   return value === null ? null : string(value, max);
@@ -105,7 +106,16 @@ export function decodeWorkspace(value: unknown): WorkspaceView {
   const raw = object(value),
     session = object(raw.session),
     caps = object(raw.capabilities),
-    scope = object(caps.scope);
+    scope = object(caps.scope),
+    connections = object(raw.connections),
+    features = object(raw.features);
+  ensure(
+    typeof features.serviceReads === "boolean" &&
+      typeof features.analysis === "boolean" &&
+      features.deployment === false,
+    "INVALID_RESPONSE",
+    "وضعیت امکانات معتبر نیست.",
+  );
   ensure(
     caps.evidence === "local" && raw.storage === "available" && Array.isArray(raw.actions),
     "INVALID_RESPONSE",
@@ -127,6 +137,16 @@ export function decodeWorkspace(value: unknown): WorkspaceView {
     capabilities,
     storage: "available",
     actions: raw.actions.map(decodeAction),
+    connections: {
+      github: connections.github === null ? null : parseConnection(connections.github),
+      liara: connections.liara === null ? null : parseConnection(connections.liara),
+    },
+    features: {
+      serviceReads: features.serviceReads,
+      analysis: features.analysis,
+      deployment: false,
+      probeApps: strings(features.probeApps),
+    },
   };
 }
 export function decodeProfile(value: unknown): ProjectProfile {

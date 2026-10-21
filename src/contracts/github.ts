@@ -13,6 +13,57 @@ export type RepositoryPage = {
   scannedPages: number;
 };
 export type GitHubBranch = { name: string; commit: string };
+export type GitHubLoginView = {
+  id: string;
+  state:
+    | "starting"
+    | "awaiting_user"
+    | "checking"
+    | "confirm_account"
+    | "connected"
+    | "cancelled"
+    | "expired"
+    | "failed";
+  expiresAt: number;
+  userCode: string | null;
+  verificationUrl: string | null;
+  account: { login: string; name: string } | null;
+  error: { code: string; message: string } | null;
+};
+export function parseGitHubLogin(value: unknown): GitHubLoginView {
+  const row = object(value),
+    state = row.state;
+  ensure(
+    state === "starting" ||
+      state === "awaiting_user" ||
+      state === "checking" ||
+      state === "confirm_account" ||
+      state === "connected" ||
+      state === "cancelled" ||
+      state === "expired" ||
+      state === "failed",
+    "INVALID_RESPONSE",
+    "وضعیت ورود GitHub معتبر نیست.",
+  );
+  ensure(
+    row.verificationUrl === null || row.verificationUrl === "https://github.com/login/device",
+    "INVALID_RESPONSE",
+    "نشانی ورود GitHub معتبر نیست.",
+  );
+  const account = row.account === null ? null : object(row.account),
+    error = row.error === null ? null : object(row.error);
+  return {
+    id: string(row.id, 36),
+    state,
+    expiresAt: integer(row.expiresAt, 0, Number.MAX_SAFE_INTEGER),
+    userCode: row.userCode === null ? null : string(row.userCode, 9),
+    verificationUrl: row.verificationUrl,
+    account: account
+      ? { login: githubOwner(account.login), name: string(account.name, 160) }
+      : null,
+    error: error ? { code: string(error.code, 64), message: string(error.message, 1000) } : null,
+  };
+}
 export function githubOwner(value: unknown): string {
   const result = string(value, 39);
   ensure(

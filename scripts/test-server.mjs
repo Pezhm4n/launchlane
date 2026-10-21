@@ -75,7 +75,17 @@ export async function startTestServer() {
     }
     try {
       const response = await fetch(`${origin}/api/health`, { signal: AbortSignal.timeout(500) });
-      if (response.ok) return { origin, token, teamId, app, workspace, close };
+      if (response.ok)
+        return {
+          origin,
+          token,
+          teamId,
+          app,
+          workspace,
+          stateDir: env.LAUNCHLANE_STATE_DIR,
+          sessionSecret: env.LAUNCHLANE_SESSION_SECRET,
+          close,
+        };
     } catch {
       /* Wait for this local server only; never contact an external provider. */
     }

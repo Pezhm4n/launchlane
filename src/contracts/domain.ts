@@ -96,4 +96,14 @@ export type WorkspaceView = Readonly<{
   capabilities: Capabilities;
   actions: readonly Action[];
   storage: "available" | "unavailable";
+  connections: {
+    github: import("./connections.ts").ConnectionView | null;
+    liara: import("./connections.ts").ConnectionView | null;
+  };
+  features: {
+    serviceReads: boolean;
+    analysis: boolean;
+    deployment: false;
+    probeApps: readonly string[];
+  };
 }>;

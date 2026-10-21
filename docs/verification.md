@@ -26,6 +26,15 @@
 
 مرز تازه پس از 9845cec: connection جاری هنگام ایجاد/تصمیم/claim پیشنهاد v3 دوباره داخل transaction خوانده می‌شود؛ قطع اتصال بین validation و claim هیچ attempt ایجاد نمی‌کند. تغییر برنامه یا هویت، قطع اتصال و خرابی credential، approval پروژه را باطل می‌کنند؛ stateهای executing/observing/uncertain دست‌نخورده می‌مانند. ورود GitHub پس از پاسخ گم‌شده به همان run برمی‌گردد و دریافت کد سقف 30s جدا از مهلت کل دارد. 9 regression مرتبط domain موفق شدند؛ suite کامل قبلی 55 و HTTP روی build جاری 13 pass بودند. این نتایج با هم به شمارش تازه تجمیع نشده‌اند.
 
+## UX61–64/66 — جریان انتشار و حساب‌ها در UI، پس از 0fd669b
+
+- lint/typecheck/build موفق. Browser تازه در `.artifacts/ux/2026-10-21T19-53-48-323Z/`، 34 حالت روی عرض‌های 280/320/360/390/414/559/560/768/1280؛ صفر page overflow/axe violation/page error/external browser request. screen reader واقعی و تأیید کامل WCAG از این تست نتیجه نمی‌شوند.
+- server/DB ایزوله و حساب مصنوعی؛ مسیر پوشه واقعی→بررسی/بسته خودکار→reload/Back/Forward، لغو انتخاب، پوشه ناموجود با حفظ نتیجه، manifest بدون هش، نمونه صریح، کلید نامعتبر، اتصال کنترل‌شده/انتخاب app، پیشنهاد v3، رد/تأیید/عدم انتشار و نمایش executing/uncertain آزموده شدند. حالت‌های عملیات در DB مصنوعی ساخته شده‌اند و شاهد هیچ write واقعی نیستند.
+- GitHub device challenge/هویت/مخزن خصوصی/صفحه‌بندی/جست‌وجو/شاخه/زیرپوشه/قطع اتصال با پاسخ کنترل‌شده مرورگر بررسی شدند؛ import واقعی UI با حساب خصوصی تأیید نشده است. domain جدا، دریافت و استخراج archive pinned را با transport مصنوعی می‌سنجد.
+- مرور دستی CUA روی production ایزوله: انتخاب پوشه با Enter، بررسی خودکار، focus نتیجه، reload و راهنمای اتصال حساب انجام شد. primary folder chooser در 360×844 برابر 396px از ابتدای سند بود؛ baseline 924px. شروع واقعی CLI در همین شبکه کد نداد؛ لغو بدون grant و بدون ازبین‌رفتن پروژه موفق بود. هیچ credential واقعی Liara یا تماس مدل مصرف نشد.
+- failure تعامل: radio برنامه لیارا تا پاسخ server ظاهراً انتخاب نمی‌ماند؛ اکنون intent در حال ثبت جدا از دسترسی تأییدشده نگه داشته می‌شود و failure به مقدار قبلی برمی‌گردد. case حفظ و دوباره اجرا شد. failure انتخابگر تست alert از Next announcer با نام دقیق پیام محصول رفع شد؛ assertion معنایی خطای کلید حفظ شد.
+- نتیجه project در SQLite و شناسه در URL است؛ browser localStorage خالی ماند. نام provider داخلی و health endpoint از مسیر عادی انتشار حذف شدند. مسیر عادی مشکل سایت و persistence تمرین پس از reload کار بعدی همین مأموریت است.
+
 ## محیط و شرایط
 
 - تاریخ: 2026-10-21؛ Windows PowerShell؛ Node 24.18.0، npm 11.16.0.
