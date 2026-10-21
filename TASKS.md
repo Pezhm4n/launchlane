@@ -23,7 +23,7 @@
 | Task | هدف/محدوده | وابستگی | پذیرش/تست | وضعیت |
 | --- | --- | --- | --- | --- |
 | T10 | تکمیل DESIGN با flow، توکن و component state؛ UI یکپارچه با action/evidence | T02 | AC14؛ walkthrough، keyboard و responsive؛ بدون پالت پراکنده | implemented_offline؛ آزمون خودکار ۷ viewport/۲۳ حالت، walkthrough انسان تازه هنوز انجام نشده |
-| T11 | API adapter interface و schemaهای ورودی/پاسخ از OpenAPI؛ fixture صادقانه | T03 | AC01,08,13؛ teamID، pagination، null، 401/429 و unit/time contracts؛ synthetic بودن صریح | partial_offline؛ release read، metric parser و BoxAPI transport؛ سایر endpointها و live هنوز تأیید نشده |
+| T11 | API adapter interface و schemaهای ورودی/پاسخ از OpenAPI؛ fixture صادقانه | T03 | AC01,08,13؛ teamID، pagination، null، 401/429 و unit/time contracts؛ synthetic بودن صریح | partial_offline؛ readهای project/release/logs/events/applets/summary و probe امن، gate مستقل Liara؛ write و تطبیق زنده باقی است |
 | T12 | تشخیص read-only یک اپ Node و archive manifest مجاز | T02 | AC02,03؛ runtime/port/env names؛ traversal/symlink/secret و no script execution | implemented_offline؛ manifest و tar.gz خصوصی، هش مستقل archive و approval v2؛ upload لیارا انجام نشده |
 | T13 | operator session، policy، action immutable، approval و state SQLite | T02 | AC04,13,16؛ deny/expiry/replay/race/restart/storage-down؛ CAS پیش از write | implemented_offline؛ فقط deploy/restart، executor زنده و secret-reference برای env هنوز ساخته نشده |
 | T14 | تعریف oracle و demo fixture برای deploy و incident؛ توسعه تست domain با ابزار مناسب | T11,T12 | AC05,09,11؛ golden و counterexample؛ commandهای واقعی به AGENTS اضافه شود | partial_offline؛ workload 500/اصلاح غلط/درست و protocol fixtures؛ eval مدل/deploy زنده باقی است |
@@ -47,7 +47,7 @@ T20 و T24 مستقل‌اند؛ نبود مدل نباید مشاهده/آزم�
 
 | Task | هدف/محدوده | وابستگی | پذیرش/تست | وضعیت |
 | --- | --- | --- | --- | --- |
-| T30 | خواندن محدود logs/events/release/health/CPU/RAM و evidence panel | T11,T20 | AC08,14؛ app/time/unit، empty/unsupported؛ داده ناکافی به‌عنوان unknown | not_started |
+| T30 | خواندن محدود logs/events/release/health/CPU/RAM و evidence panel | T11,T20 | AC08,14؛ app/time/unit، empty/unsupported؛ داده ناکافی به‌عنوان unknown | partial_offline؛ قرارداد خواندن و probe آزموده؛ جمع‌آوری و panel در ادامه؛ live وابسته به T20 |
 | T31 | diagnosis مبتنی بر evidence و فرضیه رتبه‌دار | T14,T30,T24 | AC09؛ oracle 500، paraphrase، contradictory log، injection و redaction؛ کیفیت با مدل واقعی | not_started |
 | T32 | اصلاح دارای approval و verification همان symptom؛ بسته قبل/بعد | T13,T22,T31 | AC11؛ اصلاح واقعی/ناموفق، timeout و replay؛ success فقط با readback | not_started |
 | T33 | سناریوی مستقل کندی/منابع و پیشنهاد بهینه‌سازی | T30,T31 | AC10؛ latency و مصرف هم‌شرایط؛ بدون ادعای علت قطعی از یک نمودار | not_started |
@@ -84,6 +84,8 @@ T32 هسته است. T25، T33 و T34 توسعه‌های P1 هستند؛ فقط
 | D7 Biome | dependency lint ساده‌تر و حذف advisoryهای dev مسیر اولیه ESLint | صرفاً با نیاز اثبات‌شده |
 
 ## قالب به‌روزرسانی هر مرحله
+
+برش جاری T11/T30 روی پایه `7db15be`: read contracts و probe با DNS pin، redaction و live gate مستقل ساخته شدند؛ 36 domain و 8 HTTP، lint/type/build pass. هیچ تماس تازه Liara/مدل وجود ندارد؛ شواهد و failureهای اصلاح‌شده در verification ثبت‌اند. جمع‌آوری evidence و تشخیص/verification آفلاین در ادامه‌اند.
 
 ```text
 زمان و Task/Phase:

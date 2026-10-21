@@ -44,7 +44,7 @@ export function httpFailure(status: number): AppError {
   if (status === 400 || status === 422)
     return new AppError(
       "PROVIDER_REJECTED",
-      "درخواست با مدل یا قرارداد فعال سرویس تطبیق ندارد؛ پارامترها باید بررسی شوند.",
+      "درخواست با قرارداد فعال سرویس تطبیق ندارد؛ پارامترها باید بررسی شوند.",
       502,
     );
   if (status === 401 || status === 403)

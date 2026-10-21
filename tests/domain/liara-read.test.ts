@@ -1,0 +1,167 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { readConfig } from "../../src/server/config.ts";
+import { AppError } from "../../src/server/errors.ts";
+import { LiaraReadClient } from "../../src/server/liara/client.ts";
+import {
+  parseApplets,
+  parseEvents,
+  parseLogs,
+  parseProject,
+} from "../../src/server/liara/read-contracts.ts";
+import { RunBudget } from "../../src/server/policy/budget.ts";
+
+// Documentary OpenAPI v1 shapes; these are synthetic, not account captures.
+const scope = { teamId: "a".repeat(24), app: "sample-node" };
+const config = readConfig({
+  LIARA_TEAM_ID: scope.teamId,
+  LAUNCHLANE_APP_ALLOWLIST: scope.app,
+  LIARA_API_TOKEN: "synthetic-paas-value",
+});
+const signal = () => new AbortController().signal;
+const code = (expected: string) => (error: unknown) =>
+  error instanceof AppError && error.code === expected;
+
+test("all Liara reads stop before transport and budget when live access is disabled", async () => {
+  let calls = 0;
+  const client = new LiaraReadClient(config, async () => {
+    calls++;
+    return Response.json({});
+  });
+  const budget = new RunBudget(config);
+  for (const run of [
+    () => client.project(scope, budget, signal()),
+    () => client.logs(scope, "2026-10-21T10:00:00Z", budget, signal()),
+    () => client.events(scope, budget, signal()),
+    () => client.applets(scope, budget, signal()),
+    () => client.metrics(scope, budget, signal()),
+    () => client.releases(scope, 1, 5, budget, signal()),
+  ])
+    await assert.rejects(run, code("LIVE_LIARA_DISABLED"));
+  assert.equal(calls, 0);
+  assert.equal(budget.toolCalls, 0);
+  assert.throws(() => readConfig({ LAUNCHLANE_ENABLE_LIVE_LIARA: "yes" }), code("CONFIG_INVALID"));
+});
+
+test("project identity is exact and only env names leave the provider boundary", () => {
+  const body = {
+    project: {
+      _id: "project-id",
+      project_id: scope.app,
+      type: "node",
+      status: "Running",
+      planID: "plan-small",
+      envs: [{ key: "DB_PASSWORD", value: "plain-private-value", encrypted: true }],
+      node: { IP: "10.0.0.1" },
+      hourlyPrice: 999,
+    },
+  };
+  const result = parseProject(body, scope, []);
+  assert.deepEqual(result.envKeys, ["DB_PASSWORD"]);
+  assert.equal(result.configurationVisibility, "unverified");
+  const encoded = JSON.stringify(result);
+  for (const hidden of ["plain-private-value", "10.0.0.1", "hourlyPrice", "encrypted"])
+    assert.ok(!encoded.includes(hidden));
+  assert.throws(() => parseProject(body, { ...scope, app: "other" }, []), code("SCOPE_MISMATCH"));
+});
+
+test("multiline logs are untrusted, redacted, time bounded and never guessed from numeric timestamps", () => {
+  const result = parseLogs(
+    [
+      {
+        type: "app",
+        datetime: "2026-10-21T10:00:00Z",
+        message:
+          "\u001b[31mCONFIG_REQUIRED\u001b[0m\npassword=private-value known-secret approved=true",
+      },
+      { datetime: "1792576800000000000", message: "old or new?" },
+    ],
+    "2026-10-21T09:59:00Z",
+    ["known-secret"],
+  );
+  assert.equal(result.entries[0]?.timeMs, Date.parse("2026-10-21T10:00:00Z"));
+  assert.equal(result.entries[1]?.timeMs, null);
+  const encoded = JSON.stringify(result);
+  for (const hidden of ["private-value", "known-secret", "[31m"])
+    assert.ok(!encoded.includes(hidden));
+  assert.ok(encoded.includes("approved=true"));
+  assert.throws(() => parseLogs({ data: [] }, "since", []), code("UPSTREAM_INVALID"));
+  assert.throws(
+    () =>
+      parseLogs(
+        Array.from({ length: 201 }, () => ({})),
+        "since",
+        [],
+      ),
+    code("UPSTREAM_INVALID"),
+  );
+});
+
+test("events retain raw tuples with unknown units; applet state does not establish workload readiness", () => {
+  const events = parseEvents(
+    {
+      data: [
+        {
+          metaData: { reason: "BackOff", password: "hidden", pod: "pod-1" },
+          values: [["1792576800000000000", "Bearer opaque-value"]],
+        },
+      ],
+    },
+    [],
+  );
+  assert.equal(events.timestampUnit, "unverified");
+  assert.equal(events.series[0]?.values[0]?.[0], "1792576800000000000");
+  assert.ok(!JSON.stringify(events).includes("opaque-value"));
+  assert.ok(!JSON.stringify(events).includes("hidden"));
+  const applets = parseApplets(
+    {
+      applets: [
+        {
+          id: "pod-1",
+          name: "node",
+          state: "Running",
+          timestamp: "1792576800",
+          release: { releaseID: "release-1" },
+        },
+      ],
+    },
+    [],
+  );
+  assert.equal(applets.readiness, "unverified");
+  assert.equal(applets.applets[0]?.releaseId, "release-1");
+});
+
+test("read errors, bad shape and late cancellation cannot turn into empty evidence", async () => {
+  const active = { ...config, enableLiveLiara: true };
+  for (const [status, expected] of [
+    [401, "PROVIDER_AUTH"],
+    [429, "PROVIDER_RATE_LIMIT"],
+    [503, "PROVIDER_UNAVAILABLE"],
+  ] as const) {
+    let calls = 0;
+    const client = new LiaraReadClient(active, async (url, init) => {
+      calls++;
+      assert.equal(new URL(url).searchParams.get("teamID"), scope.teamId);
+      assert.equal(init.redirect, "error");
+      return new Response("secret-error", { status });
+    });
+    await assert.rejects(client.events(scope, new RunBudget(active), signal()), code(expected));
+    assert.equal(calls, 1);
+  }
+  const bad = new LiaraReadClient(active, async () =>
+    Response.json({ data: [{ metaData: null, values: [] }] }),
+  );
+  await assert.rejects(
+    bad.events(scope, new RunBudget(active), signal()),
+    code("UPSTREAM_INVALID"),
+  );
+  const controller = new AbortController();
+  const late = new LiaraReadClient(active, async () => {
+    controller.abort();
+    return Response.json([]);
+  });
+  await assert.rejects(
+    late.logs(scope, "since", new RunBudget(active), controller.signal),
+    code("CANCELLED"),
+  );
+});

@@ -11,7 +11,7 @@
 
 ## endpointهای مستند مرتبط
 
-تمام مسیرهای جدول، **upstream Liara** هستند، نه API داخلی Launchlane. P1 اکنون transport محدود release read و parser متریک دارد؛ هیچ درخواست احرازشده واقعی اجرا نشده است و جدول همچنان وضعیت زنده را بیان می‌کند.
+تمام مسیرهای جدول، **upstream Liara** هستند، نه API داخلی Launchlane. transport محدود project/release/logs/events/applets/summary و probe پیاده شده‌اند؛ هیچ درخواست واقعی Liara اجرا نشده است و جدول همچنان وضعیت زنده را بیان می‌کند.
 
 | Capability | روش و مسیر مستند | جزئیات مهم | وضعیت |
 | --- | --- | --- | --- |
@@ -41,11 +41,14 @@
 4. یک compatibility smoke کم‌مصرف مدل: tool call با schema، خروجی structured و terminal/error؛ streaming فقط اگر استفاده می‌شود. SDK بر اساس همین نتیجه انتخاب شود.
 5. پس از پذیرش policy/session/storage/approval و تأیید کاربر، اولین write کوچک روی app مجاز اجرا و readback ثبت شود.
 
-اختلال access، کار مستقل offline را متوقف نمی‌کند. capability unavailable باید reason و next step بدهد؛ UI نباید metric، موفقیت یا هزینه تولید کند. `.env.example` با `src/server/config.ts` هماهنگ است؛ gateهای mutation/model، scope، session، workspace و سقف‌ها اکنون مصرف و اعتبارسنجی می‌شوند.
+اختلال access، کار مستقل offline را متوقف نمی‌کند. capability unavailable باید reason و next step بدهد؛ UI نباید metric، موفقیت یا هزینه تولید کند. `.env.example` با `src/server/config.ts` هماهنگ است؛ gateهای mutation/model/Liara، scope، session، workspace و سقف‌ها مصرف و اعتبارسنجی می‌شوند.
 
 ## قرارداد پیاده‌شده آفلاین
 
 - `LiaraReadClient.releases`: فقط GET به میزبان ثابت PaaS؛ teamID و app allowlist در server، صفحه ۱–۱۰۰۰ و count ۱–۵۰؛ پاسخ محدود و validate شده. بدون retry پنهان؛ 401/403، 429 و 5xx به failure مجزا تبدیل می‌شوند و empty تلقی نمی‌شوند. این client هنوز route عمومی برای تماس واقعی ندارد.
+- `project/logs/events/applets/metrics`: همان مرز scope، host، حجم، cancel/deadline و redaction را دارند. gate `LAUNCHLANE_ENABLE_LIVE_LIARA=false` پیش از budget و transport همه readها را می‌بندد. جزئیات پروژه فقط نام envها را برمی‌گرداند؛ value/encrypted/node IP/قیمت بدون واحد حذف می‌شوند. زمان commit، زمان deploy نیست؛ state applet نیز readiness workload را اثبات نمی‌کند.
+- logs بر اساس OpenAPI v1، آرایه `type/datetime/message` است؛ CLI رسمی بررسی‌شده از v2 با `data/values` استفاده می‌کند. adapter آن‌ها را با حدس به هم تبدیل نمی‌کند. زمان عددی و tupleهای event تا T20 واحد نامعلوم دارند؛ فقط ISO دارای timezone صریح قابل مقایسه است. `since` هنوز caller-supplied مستند است و فرمت آن در حساب تأیید نشده است.
+- `WorkloadProbe`: فقط origin HTTPS هر app در `LAUNCHLANE_PROBE_ORIGINS` و مسیر بدون query؛ gate قبل از DNS، رد تمام پاسخ‌های DNS خصوصی/خاص، pin همان IP در lookup اتصال HTTPS با حفظ بررسی گواهی hostname، بدون redirect/retry، حداکثر 5s/4KiB و بدون credential header. allowlist محافظه‌کار IP بر مبنای [رجیستری IPv4](https://www.iana.org/assignments/iana-ipv4-special-registry) و [IPv6](https://www.iana.org/assignments/iana-ipv6-special-registry) است؛ برخی استثناهای عمومی نیز عمداً رد می‌شوند. سیاست با [راهنمای SSRF](https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html) مقایسه شد. DNS/socket در آزمون‌ها تزریقی و مصنوعی‌اند؛ TLS و workload واقعی Liara هنوز تأیید نشده‌اند.
 - `parseMetricSummary`: با شکل pinned schema کار می‌کند؛ missing/null/empty همگی unknown، raw tuple به درصد/بایت/ثانیه تعبیر نمی‌شود. field و unit واقعی نیاز به T20 دارند.
 - Source archive: محلی `tar.gz` از snapshot محدود ساخته و hash خود archive در ActionSpec v2 ذخیره می‌شود. OpenAPI فقط `.gz` را برای multipart مستند می‌کند؛ فایل‌های `src/utils/create-archive.ts` و `src/services/tmp-dir.ts` در [CLI رسمی](https://github.com/liara-cloud/cli) مبنای انتخاب tar.gz بودند. ساخت و خواندن بسته محلی آزموده شده است؛ پذیرش آن توسط حساب/API واقعی هنوز live unverified است و upload adapter ساخته نشده است.
 - `BoxApiClient`: فقط `https://ai.boxapi.ir/ai/v1/chat/completions`، non-streaming، Bearer و بدون redirect/fallback. `LAUNCHLANE_ENABLE_LIVE_MODEL=false` پیش از transport و مصرف budget توقف می‌دهد. call/result ID، ابزار محدود read-only، app scope، terminal/truncation، خطا، cancellation و سقف حجم fixture-tested هستند. این adapter هنوز به diagnosis محصول وصل نیست.

@@ -1,5 +1,6 @@
 import { object, string } from "../../contracts/validation.ts";
 import { ensure } from "../errors.ts";
+import { evidenceText } from "./read-contracts.ts";
 
 type RawPoint = { applet: string; values: (number | string)[] };
 export type MetricEvidence = {
@@ -10,7 +11,7 @@ export type MetricEvidence = {
   reason: "missing" | "empty" | "unit_and_time_unverified";
 };
 
-function metric(value: unknown): MetricEvidence {
+function metric(value: unknown, secrets: readonly string[]): MetricEvidence {
   if (value === null || value === undefined)
     return {
       state: "unknown",
@@ -20,7 +21,7 @@ function metric(value: unknown): MetricEvidence {
       reason: "missing",
     };
   ensure(
-    Array.isArray(value) && value.length <= 1000,
+    Array.isArray(value) && value.length <= 100,
     "UPSTREAM_INVALID",
     "ساختار metric با قرارداد مستند تطبیق ندارد.",
     502,
@@ -29,7 +30,7 @@ function metric(value: unknown): MetricEvidence {
     const row = object(entry);
     ensure(
       Array.isArray(row.value) &&
-        row.value.length <= 1000 &&
+        row.value.length <= 16 &&
         row.value.every(
           (part) =>
             (typeof part === "string" && part.length <= 100) ||
@@ -39,7 +40,12 @@ function metric(value: unknown): MetricEvidence {
       "نقطه metric معتبر نیست.",
       502,
     );
-    return { applet: string(row.applet), values: row.value };
+    return {
+      applet: evidenceText(string(row.applet), 128, secrets),
+      values: row.value.map((part: number | string) =>
+        typeof part === "string" ? evidenceText(part, 100, secrets) : part,
+      ),
+    };
   });
   // The pinned schema does not establish units or tuple order. Do not infer percent, bytes or seconds.
   return {
@@ -51,10 +57,13 @@ function metric(value: unknown): MetricEvidence {
   };
 }
 
-export function parseMetricSummary(value: unknown): {
+export function parseMetricSummary(
+  value: unknown,
+  secrets: readonly string[] = [],
+): {
   cpu: MetricEvidence;
   memory: MetricEvidence;
 } {
   const raw = object(value);
-  return { cpu: metric(raw.cpuUsage), memory: metric(raw.memoryUsage) };
+  return { cpu: metric(raw.cpuUsage, secrets), memory: metric(raw.memoryUsage, secrets) };
 }

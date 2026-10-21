@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
 import { AppError, ensure } from "./errors.ts";
+import { parseProbeOrigins } from "./policy/probe-target.ts";
 
 export type Config = ReturnType<typeof readConfig>;
 
@@ -122,6 +123,7 @@ export function readConfig(env: Environment = process.env) {
     stateDir: resolve(/* turbopackIgnore: true */ env.LAUNCHLANE_STATE_DIR || ".data"),
     teamId,
     apps: [...new Set(apps)],
+    probeOrigins: parseProbeOrigins(env.LAUNCHLANE_PROBE_ORIGINS, apps),
     liaraBaseUrl: fixedUrl(env.LIARA_API_BASE_URL, "https://api.liara.ir"),
     liaraToken: env.LIARA_API_TOKEN || "",
     modelBaseUrl: fixedUrl(env.MODEL_BASE_URL, "https://ai.boxapi.ir/ai/v1"),
@@ -130,6 +132,7 @@ export function readConfig(env: Environment = process.env) {
     modelReasoningEffort,
     enableMutations: flag(env, "LAUNCHLANE_ENABLE_MUTATIONS"),
     enableLiveModel: flag(env, "LAUNCHLANE_ENABLE_LIVE_MODEL"),
+    enableLiveLiara: flag(env, "LAUNCHLANE_ENABLE_LIVE_LIARA"),
     maxModelCalls: limit(env, "LAUNCHLANE_MAX_MODEL_CALLS", 8, 1, 8),
     maxToolCalls: limit(env, "LAUNCHLANE_MAX_TOOL_CALLS", 12, 1, 12),
     runTimeoutMs: limit(env, "LAUNCHLANE_RUN_TIMEOUT_MS", 120_000, 100, 120_000),

@@ -80,8 +80,17 @@ test("disabled live model has zero upstream calls even with an available key and
   );
   assert.equal(calls, 0);
   assert.equal(budget.modelCalls, 0);
-  const denied = new BoxApiClient({ ...config, enableLiveModel: true, modelId: "not-approved" }, async () => { calls++; return json(terminal); });
-  await assert.rejects(denied.complete(messages, new RunBudget(config), new AbortController().signal), code("MODEL_DENIED"));
+  const denied = new BoxApiClient(
+    { ...config, enableLiveModel: true, modelId: "not-approved" },
+    async () => {
+      calls++;
+      return json(terminal);
+    },
+  );
+  await assert.rejects(
+    denied.complete(messages, new RunBudget(config), new AbortController().signal),
+    code("MODEL_DENIED"),
+  );
   assert.equal(calls, 0);
 });
 
@@ -219,7 +228,7 @@ test("model unknown tools, wrong app, truncation, provider failures, cancellatio
 
 test("Liara release contract carries teamID, page/count, null and ISO time without inventing readiness", async () => {
   const client = new LiaraReadClient(
-    { ...config, liaraToken: "synthetic-paas-value" },
+    { ...config, liaraToken: "synthetic-paas-value", enableLiveLiara: true },
     async (url, init) => {
       const parsed = new URL(url);
       assert.equal(parsed.pathname, "/v1/projects/sample-node/releases");
@@ -269,7 +278,9 @@ test("redaction removes known secrets, bearer and credentials without creating a
   const clean = redact(malicious, ["tokenvalue"]);
   for (const secret of ["topsecret", "tokenvalue", "user:pass"]) assert.ok(!clean.includes(secret));
   assert.ok(clean.includes("approved=true")); // Text stays untrusted data; it cannot claim a stored action.
-  const quoted = redact(JSON.stringify({ DB_PASSWORD: "two word value", api_key: 'escaped " quote' }));
+  const quoted = redact(
+    JSON.stringify({ DB_PASSWORD: "two word value", api_key: 'escaped " quote' }),
+  );
   assert.deepEqual(JSON.parse(quoted), { DB_PASSWORD: "[REDACTED]", api_key: "[REDACTED]" });
 });
 

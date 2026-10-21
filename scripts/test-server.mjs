@@ -32,6 +32,8 @@ export async function startTestServer() {
     LAUNCHLANE_WORKSPACE_ROOT: workspace,
     LAUNCHLANE_ENABLE_MUTATIONS: "false",
     LAUNCHLANE_ENABLE_LIVE_MODEL: "false",
+    LAUNCHLANE_ENABLE_LIVE_LIARA: "false",
+    LAUNCHLANE_PROBE_ORIGINS: "",
     LAUNCHLANE_APP_ALLOWLIST: app,
     LIARA_TEAM_ID: teamId,
     LIARA_API_BASE_URL: "https://api.liara.ir",

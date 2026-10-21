@@ -1,21 +1,19 @@
 import type { Scope } from "../../contracts/domain.ts";
-import { integer, object, string } from "../../contracts/validation.ts";
+import { integer, string } from "../../contracts/validation.ts";
 import type { Config } from "../config.ts";
 import { AppError, ensure } from "../errors.ts";
 import { authorizeScope } from "../policy/action.ts";
 import type { RunBudget } from "../policy/budget.ts";
 import { boundedJson, httpFailure, type Transport, transport } from "../providers/http.ts";
-
-export type ReleasePage = {
-  evidence: "provider_response";
-  scope: Scope;
-  page: number;
-  count: number;
-  total: number;
-  currentRelease: string | null;
-  hasMore: boolean;
-  releases: { id: string; state: string; port: number | null; committedAt: string | null }[];
-};
+import { parseMetricSummary } from "./metrics.ts";
+import {
+  parseApplets,
+  parseEvents,
+  parseLogs,
+  parseProject,
+  parseReleases,
+} from "./read-contracts.ts";
+export type { ReleasePage } from "./read-contracts.ts";
 
 export class LiaraReadClient {
   readonly config: Config;
@@ -25,14 +23,22 @@ export class LiaraReadClient {
     this.send = send;
   }
 
-  async releases(
+  private async read<T>(
     scope: Scope,
-    page: number,
-    count: number,
+    suffix: string,
+    query: Record<string, string>,
     budget: RunBudget,
     signal: AbortSignal,
-  ): Promise<ReleasePage> {
+    parse: (value: unknown, secrets: readonly string[]) => T,
+  ): Promise<T> {
     authorizeScope(scope, this.config);
+    // This gate precedes transport and budget, even when credentials are configured.
+    ensure(
+      this.config.enableLiveLiara,
+      "LIVE_LIARA_DISABLED",
+      "خواندن واقعی لیارا غیرفعال است؛ مسیر آفلاین در دسترس است.",
+      403,
+    );
     ensure(
       this.config.liaraToken,
       "LIARA_UNCONFIGURED",
@@ -45,15 +51,12 @@ export class LiaraReadClient {
       "میزبان API لیارا مجاز نیست.",
       403,
     );
-    integer(page, 1, 1000);
-    integer(count, 1, 50);
     const url = new URL(
-      `/v1/projects/${encodeURIComponent(scope.app)}/releases`,
+      `/v1/projects/${encodeURIComponent(scope.app)}${suffix}`,
       this.config.liaraBaseUrl,
     );
     url.searchParams.set("teamID", scope.teamId);
-    url.searchParams.set("page", String(page));
-    url.searchParams.set("count", String(count));
+    for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value);
     budget.take("tool", signal);
     const boundedSignal = budget.signal(signal);
     try {
@@ -68,59 +71,68 @@ export class LiaraReadClient {
         await response.body?.cancel();
         throw httpFailure(response.status);
       }
-      const value = object(await boundedJson(response));
-      const total = integer(value.total, 0, 1_000_000);
-      ensure(
-        Array.isArray(value.releases) && value.releases.length <= count,
-        "UPSTREAM_INVALID",
-        "صفحه release با قرارداد تطبیق ندارد.",
-        502,
+      const result = parse(
+        await boundedJson(response),
+        [
+          this.config.liaraToken,
+          this.config.modelKey,
+          this.config.operatorToken,
+          this.config.sessionSecret,
+        ].filter(Boolean),
       );
-      const releases = value.releases.map((raw: unknown) => {
-        const release = object(raw);
-        const git =
-          release.gitInfo === undefined || release.gitInfo === null ? {} : object(release.gitInfo);
-        const committedAt =
-          git.committedAt === undefined || git.committedAt === null
-            ? null
-            : string(git.committedAt, 40);
-        ensure(
-          committedAt === null ||
-            (/^\d{4}-\d\d-\d\dT/.test(committedAt) && Number.isFinite(Date.parse(committedAt))),
-          "UPSTREAM_INVALID",
-          "زمان release معتبر نیست.",
-          502,
-        );
-        return {
-          id: string(release._id, 128),
-          state: string(release.state, 64),
-          port:
-            release.port === undefined || release.port === null
-              ? null
-              : integer(release.port, 1, 65535),
-          committedAt,
-        };
-      });
-      return {
-        evidence: "provider_response",
-        scope,
-        page,
-        count,
-        total,
-        hasMore: page * count < total,
-        currentRelease:
-          value.currentRelease === undefined || value.currentRelease === null
-            ? null
-            : string(value.currentRelease, 128),
-        releases,
-      };
+      ensure(
+        !boundedSignal.aborted,
+        signal.aborted ? "CANCELLED" : "BUDGET_EXHAUSTED",
+        "پاسخ پس از پایان اجرا دریافت شد؛ نتیجه تأیید نشده است.",
+        409,
+      );
+      return result;
     } catch (error) {
-      if (error instanceof AppError) throw error;
+      if (error instanceof AppError && error.code !== "INVALID_INPUT") throw error;
+      if (boundedSignal.aborted)
+        throw new AppError(
+          signal.aborted ? "CANCELLED" : "BUDGET_EXHAUSTED",
+          "خواندن لیارا کامل نشد.",
+          409,
+        );
       throw new AppError(
-        boundedSignal.aborted ? "CANCELLED" : "PROVIDER_TRANSPORT",
-        "خواندن لیارا کامل نشد؛ داده خالی یا موفق فرض نشد.",
+        error instanceof AppError ? "UPSTREAM_INVALID" : "PROVIDER_TRANSPORT",
+        "پاسخ لیارا با قرارداد تطبیق ندارد یا دریافت نشد؛ داده خالی فرض نشد.",
         502,
       );
     }
+  }
+
+  releases(scope: Scope, page: number, count: number, budget: RunBudget, signal: AbortSignal) {
+    integer(page, 1, 1000);
+    integer(count, 1, 50);
+    return this.read(
+      scope,
+      "/releases",
+      { page: String(page), count: String(count) },
+      budget,
+      signal,
+      (value, secrets) => parseReleases(value, scope, page, count, secrets),
+    );
+  }
+  project(scope: Scope, budget: RunBudget, signal: AbortSignal) {
+    return this.read(scope, "", {}, budget, signal, (value, secrets) =>
+      parseProject(value, scope, secrets),
+    );
+  }
+  logs(scope: Scope, since: string, budget: RunBudget, signal: AbortSignal) {
+    string(since, 64);
+    return this.read(scope, "/logs", { since }, budget, signal, (value, secrets) =>
+      parseLogs(value, since, secrets),
+    );
+  }
+  events(scope: Scope, budget: RunBudget, signal: AbortSignal) {
+    return this.read(scope, "/events", {}, budget, signal, parseEvents);
+  }
+  applets(scope: Scope, budget: RunBudget, signal: AbortSignal) {
+    return this.read(scope, "/applets", {}, budget, signal, parseApplets);
+  }
+  metrics(scope: Scope, budget: RunBudget, signal: AbortSignal) {
+    return this.read(scope, "/metrics/summary", {}, budget, signal, parseMetricSummary);
   }
 }
