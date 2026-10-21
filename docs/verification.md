@@ -2,6 +2,89 @@
 
 بخش نخست، سابقه P0 است؛ بخش P1 پایین همین فایل شواهد جاری را نگه می‌دارد. نتایج bootstrap جای قابلیت محصول و fixture جای اتصال زنده نیست.
 
+## ثبت مرحله‌ای تغییرات در Git — ۲۰۲۶-۱۰-۲۲
+
+سه commit کد به‌ترتیب `1eee3c4`، `4c9b44f` و `7100111` روی `main` ثبت شدند؛ مستندات قرارداد/طراحی/شواهد در commit جدا می‌آیند. کد اجرایی در این مرحله تغییر تازه‌ای نکرد؛ فقط دسته‌بندی و ثبت تغییرات موجود انجام شد.
+
+`npm run lint` روی 112 فایل، `npm run typecheck` و `npm run test:domain` با 77 pass/0 fail/cancel/skip دوباره اجرا شدند. برای سنجش جداسازی commitها، هر index با `git checkout-index --all --prefix=<new isolated directory>` در مسیر تازه زیر `.artifacts/` export شد؛ working tree اصلی checkout یا reset نشد. روی index اول، فایل project-flows شش تست pass داشت؛ روی index دوم domain کامل 73/73 و روی index سوم domain کامل 77/77 pass شد. snapshotها به‌ترتیب `.artifacts/commit-index-workspace-n6iD83/`، `.artifacts/commit-index-deployment-CTxEKu/` و `.artifacts/commit-index-incidents-yTck8G/` هستند. این‌ها شاهد مستقل هر مرز commit هستند، نه یک مجموعه جمع‌شده بزرگ‌تر.
+
+قبل از هر commit، فایل‌ها و diff staged، whitespace، مسیرهای خصوصی و نبود مقادیر secret تنظیم‌شده در staged/client assets بررسی شدند. build، HTTP و browser در این مرحله بازاجرا نشدند؛ نتایج بخش‌های قبلی با revision/configuration همان اجراها باقی‌اند. هیچ live provider/model call، write زیرساختی، push یا تغییر visibility انجام نشد؛ T20 همچنان blocked_live است. فایل پژوهشی خصوصی و سایر داده‌های ignored وارد commit نشدند.
+
+## ادامه T20؛ موجودی دسترسی و اصلاح مرز read-only، پایه cbd23a9
+
+۲۰۲۶-۱۰-۲۲ Asia/Tehran؛ branch `main` و HEAD مبنا `cbd23a9e13d2b6603dee27ca1474a652c34c0539` همراه working tree فعلی. مجوز این مرحله فقط بررسی محدود read-only حساب/app بود؛ مصرف مدل و write زیرساختی مجاز نبودند و انجام نشدند. dependency یا migration تازه‌ای در این ادامه اضافه نشده است.
+
+### مرز دسترسی واقعی
+
+config جاری به‌صورت in-process خوانده شد، بدون چاپ secret: API token تنظیم نشده، team تنظیم شده و app allowlist/selected app موجود نیست. SQLite خصوصی با `DatabaseSync(...,{readOnly:true})` و فقط SELECT بررسی شد؛ migrationهای اعمال‌شده 1/2 هستند و جدول `account_connections` وجود ندارد. `Store`، runtime، migration و recovery روی state خصوصی اجرا نشدند. فایل دسترسی محلی password دارد؛ password به API token تعبیر نشد و ورود یا ساخت کلید انجام نشد. نبود app تعیین‌شده به معنی خالی‌بودن حساب نیست؛ فهرست واقعی حساب خوانده نشده است.
+
+artifact sanitized محلی: `.artifacts/liara-readiness/2026-10-21T21-58-59.767Z/result.json`. هر سه gate همچنان false هستند؛ **درخواست واقعی Liara: 0، write زیرساختی: 0، درخواست مدل/مصرف تازه اعتبار: 0**. T20 همچنان `blocked_live` است. 401/403، schema، pagination، زمان، واحد، plan و semantics واقعی env/release از نبود دسترسی نتیجه‌گیری نشده‌اند.
+
+### برش مستقل و oracleها
+
+- **AC01/08/09/11، app identity:** counterexample با نام app ثابت و `_id` تازه پیش از اصلاح پذیرفته شد. reader اصلی اکنون ID اتصال actor-bound را به collector می‌دهد؛ project پیش از سایر داده‌ها و پیش از بازگرداندن snapshot بررسی می‌شود. تغییر پیش از شروع، صفر log/probe دارد؛ تغییر حین خواندن کل snapshot را رد می‌کند. ID ثابت پذیرفته و هر هشت tool call، شامل GET اضافه نهایی، در یک budget شمرده می‌شود. endpoint قدیمی evidence قرارداد نام/team را دارد و جای گزارش ماندگار این مسیر نیست.
+- **AC08/09/11، زمان همان symptom:** clock مصنوعی 20s در پاسخ project، یک HTTP 500 تازه روی `/orders` را در reader پیشین خارج پنجره 15s قرار داد. پنجره خودکار اکنون تا deadline همان budget و در پایان تا زمان واقعی جمع‌آوری است؛ `collectedAt` پایان snapshot و `at` محلی زمان دریافت مشاهده است. پنجره تاریخی صریح تمدید نمی‌شود؛ HTTP فعلی خارج آن، evidence کافی برای diagnosis/recovery تاریخی تلقی نمی‌شود. زمان خام log و واحد ناشناخته تغییر نکرده‌اند.
+- **AC13، cancel/deadline:** transport بی‌پاسخ و body stream بی‌پایان، پیش از اصلاح تا guard آزمون 500ms معلق ماندند. `LiaraReadClient` حالا هم header و هم body را با deadline/cancel محدود می‌کند؛ کد CANCELLED از BUDGET_EXHAUSTED تفکیک می‌شود. validation حساب نیز با cancel خاتمه می‌یابد و اتصال ذخیره نمی‌کند. هر درخواست دقیقاً یک attempt شمارش‌شده دارد؛ retry اضافه نشده است. این آزمون‌ها transport/body مصنوعی دارند، نه اثبات لغو پردازش واقعی upstream.
+
+### validation همین کد اجرایی
+
+| بررسی | فرمان و شرایط | نتیجه |
+| --- | --- | --- |
+| Regression هدفمند | `node --test tests/domain/liara-read.test.ts tests/domain/liara-connection.test.ts tests/domain/incident.test.ts tests/domain/incident-runs.test.ts` | 21 pass، 0 fail/cancel/skip؛ چهار case تازه ابتدا fail و پس از اصلاح pass شدند |
+| Lint / Types / Build | `npm run lint`، `npm run typecheck`، `npm run build` | pass؛ Biome روی 112 فایل، typegen/tsc و production build با dependencyهای موجود |
+| Domain کامل تازه | `npm run test:domain` | **77/77 pass**، 0 fail/cancel/skip؛ شامل case اضافه پنجره تاریخی؛ جمع نتایج چند زیرمجموعه نیست |
+| HTTP | `npm run test:http`؛ پس از build، production/DB/workspace ایزوله، کلید provider خالی | **14 subtest + 1 parent pass**، 0 fail/cancel/skip |
+| Browser | `npm run test:browser`؛ production/DB ایزوله و upstream کنترل‌شده | **55 حالت/9 عرض** و سپس **15 حالت/4 عرض**، بدون overflow/axe violation/browser error/external request در حالت‌های سنجیده‌شده |
+| Git / build trace | `git diff --check`، staged/tracked/exclude و 19 فایل `.nft.json` زیر server/app | whitespace صحیح، staged خالی، مسیرهای خصوصی tracked نیستند؛ صفر reference به `.local/.data/.artifacts/.env.local` در traceهای سنجیده‌شده |
+
+artifact مرورگر اول `.artifacts/ux/2026-10-21T21-56-22-519Z/report.json` با عرض‌های 280/320/360/390/414/559/560/768/1280 است؛ artifact انتشار `.artifacts/deployment-ui/2026-10-21T21-57-02.761Z/results.json` با عرض‌های 280/360/768/1280 است. تاریخ پوشه‌ها UTC است. این ادامه UI تازه‌ای تغییر نداد؛ مرورگر مسیرهای موجود و بازیابی را regression کرد. fixtureها provider، DNS/socket و مدل را کنترل می‌کنند؛ فایل/SQLite محلی واقعی‌اند. حساب و workload واقعی، کیفیت مدل، screen reader انسانی و نسبت‌دادن log به release مشخص سنجیده نشده‌اند.
+
+گراف Tier 2 نسل `2026-10-21T19:24:24Z` برای discovery/trace استفاده شد؛ coverage مسیرهای مورد استناد metadata_changed/not_tracked و برخی tests excluded بود. source جاری، import/callerها، diff و اجرا جای این محدودیت را برای برش فوق گرفتند؛ ادعای پوشش جامع گراف نداریم. export اولیه موجودی، جدول اتصال را در DB قدیمی فرض کرده بود و `no such table` داد؛ exporter محلی با بررسی schema اصلاح شد، بدون اجرای migration یا تعبیر خطا به پاسخ provider.
+
+گام بعد: API token معتبر و app صریح در همان حساب/team تعیین شوند و فقط GETهای محدود T20 با mutation/model خاموش اجرا شوند. قفل اتمیک upstream، تعلق log به release، field/unit/time و حفظ env همچنان unconfirmed هستند؛ بررسی read-only به‌تنهایی semantics write یا سلامت deployment را نمی‌پذیرد. commit/push/انتشار انجام نشد.
+
+## انتشار محدود و معیار نتیجه؛ candidate بر پایه cbd23a9
+
+۲۰۲۶-۱۰-۲۲ Asia/Tehran؛ branch `main`، HEAD مبنا `cbd23a9e13d2b6603dee27ca1474a652c34c0539` به‌همراه working tree این برش؛ commit/push انجام نشد. Windows، Node 24.18.0، npm 11.16.0، Next 16.4.2، React 19.3.1، TypeScript 6.0.3، Playwright 1.62.1 و dependencyهای موجود با `npm ls --depth=0` تطبیق داده شدند. dependency جدید نصب نشد. AC02/04/05/06/13/14/16؛ AC05/06 همچنان شاهد زنده ندارند.
+
+### رفتار و oracle
+
+پیشنهاد اجرایی v4 به artifact/source/selection/revision، actor/team/app identity، پلن موجود و origin/path/status/JSON revision متصل است. read-only preflight پس از بررسی source و درست پیش از claim، app/node/plan را بررسی می‌کند. claim و مرحله ابتدایی در SQLite اتمیک‌اند؛ upload فقط همان archive hash را در field `file` می‌فرستد. source receipt پیش از درخواست release پایدار است و app/plan پیش از release دوباره خوانده می‌شوند؛ release receipt همراه observing ذخیره می‌شود. هر خطای مبهم بعد از claim، بدون write retry به uncertain می‌رود. گم‌شدن receipt با آخرین release حدس زده نمی‌شود و اجازه اقدام متعارض تازه نمی‌دهد.
+
+موفقیت، صرف accepted/READY/200 نیست: همان release باید READY و current باشد؛ همان workload path باید status دقیق و JSON revision مورد انتظار را برگرداند. project/plan و release پس از probe موفق دوباره خوانده می‌شوند. 404، 500، نسخه قبلی، JSON صرفاً liveness، redirect، تغییر currentRelease و provider 403 موفق نیستند. pending به readback دستی بعدی می‌رود. مشاهده می‌تواند با mutation gate خاموش یا پس از انتخاب source دیگر انجام شود؛ هیچ approval تمدید/بازپخش نمی‌شود.
+
+Root دارای workspaces دیگر به‌عنوان یک workload Node تأیید نمی‌شود؛ start تجمیعی باعث artifact قابل پیشنهاد نمی‌شود و کاربر باید زیرپوشه مستقل همان برنامه را انتخاب کند. profile قدیمی ready با همان bytes نیز هنگام restore دوباره از نظر قابلیت انتشار بررسی و stale می‌شود. این رفتار پشتیبانی عمومی monorepo یا dependencyهای بین workspaceها نیست.
+
+### نتایج نهایی همین candidate
+
+| بررسی | فرمان/شرایط | نتیجه |
+| --- | --- | --- |
+| Lint | `npm run lint` | pass؛ 112 فایل، بدون خاموش‌کردن rule یا explicit any |
+| Type check | `npm run typecheck` | pass؛ typegen سپس TypeScript |
+| Production build | `npm run build` | pass؛ مسیر observe ساخته شد، کلید/gate واقعی تغییر نکرد |
+| Domain | `npm run test:domain` | **73 passed، 0 fail/cancel/skip**؛ اجرای تازه کامل، نه جمع runهای هدفمند |
+| HTTP | `npm run test:http` | **14 subtest + 1 parent passed**، 0 fail/cancel/skip؛ production/DB/workspace ایزوله و کلیدهای provider خالی |
+| Browser قبلی | بخش اول `npm run test:browser` | **55 حالت، 9 عرض** 280/320/360/390/414/559/560/768/1280؛ بدون overflow/axe violation/browser error/external browser request در حالت‌های سنجیده‌شده |
+| Browser انتشار | بخش دوم همان فرمان؛ `test-deployment-browser.mjs` | **15 حالت، 4 عرض** 280/360/768/1280؛ بدون overflow/axe violation/browser error/external request؛ متن 200٪ در 360، Enter، focus نتیجه، reload، progress، pending، failed، verified، نسخه بعدی و cancel/uncertain recovery |
+| Git و داده خصوصی | `git diff --check`، بررسی status/staged و `git ls-files` مسیرهای خصوصی | diff بدون خطای whitespace؛ staged خالی؛ research، env محلی، state، archive و artifact خصوصی tracked نشده‌اند؛ exclude پژوهش حفظ شد |
+| Build trace | خواندن 19 فایل `.nft.json` زیر `.next/server/app` | صفر reference به `.local/.data/.artifacts/.env.local` در traceهای سنجیده‌شده؛ این بررسی audit جامع secret نیست |
+
+شواهد Browser قبلی: `.artifacts/ux/2026-10-21T21-41-32-954Z/`؛ Browser انتشار: `.artifacts/deployment-ui/2026-10-21T21-42-15.856Z/`، `results.json` و تصاویر موبایل/دسکتاپ مستقیماً دیده شدند. تاریخ پوشه UTC است. هر دو suite در یک فرمان تازه روی همین کد اجرا شدند؛ شمار حالت‌ها جداست. Browser انتشار upstream را در مرز درخواست کنترل می‌کند و از routes واقعی احراز هویت/source/approval/recovery و SQLite استفاده می‌کند؛ نتیجه آن اجرای واقعی transport Liara نیست. domain جدا از مسیر application و `LiaraDeployClient` با send/DNS/socket مصنوعی عبور می‌کند؛ exact archive bytes، دو مرحله، race و failure را می‌سنجد. localStorage خالی بود. screen reader انسانی و reader تازه سنجیده نشدند.
+
+### failureهای حفظ‌شده و اصلاح
+
+- regression root workspace ابتدا `ready` را به‌جای `incomplete` مشاهده کرد؛ start تجمیعی از پشتیبانی تک‌برنامه خارج و restore نتیجه قدیمی نیز stale شد. انتخاب Node leaf مستقل همان oracle را pass کرد.
+- مرورگر پس از reload، proposal تازه را با path=/ و revision خالی ساخت، در حالی که کارت قبلی قرارداد را نگه داشته بود؛ applyFlow معیار ذخیره‌شده را بازیابی می‌کند و انتخاب پروژه تازه آن را پاک می‌کند. oracle مسیر/نسخه ضعیف نشد.
+- پس از نتیجه موفق، اقدام نسخه بعدی وجود نداشت؛ آماده‌سازی دوباره source با approval تازه اضافه و از همان UI اجرا شد.
+- متن 200٪ در 360px باعث document width=365 شد؛ DOM نشان داد brand/subtitle با min-content بیرون می‌زند. انعطاف محدود brand و wrapping اصلاح شد؛ overflow پنهان نشد. artifact شکست `.artifacts/deployment-ui/2026-10-21T21-32-37.900Z/overflow.json`، viewport=360/content=365 و عنصر brand را ثبت می‌کند. پوشه نهایی بالا مرجع نتیجه موفق است.
+- خطاهای harness از محصول جدا بودند: DB پیش از ایجاد stateDir باز می‌شد و یک seed تاریخی ابتدا ID تکراری داشت؛ setup اصلاح شد. این‌ها نقص integration زنده تلقی نمی‌شوند. یک invocation formatter با config غیرفعال هیچ فایلی را format نکرد؛ سپس فقط فایل‌های تغییرکرده با تنظیم صریح JS هم‌سبک پروژه مرتب شدند.
+
+### حدود evidence و گام بعد
+
+گراف Tier 2 نسل `2026-10-21T19:24:24Z` برای discovery/trace استفاده شد؛ coverage مسیرهای تازه not_tracked، مسیرهای قبلی metadata_changed و tests/scripts excluded بود. بنابراین source جاری، importها، diff و اجرای مستقیم مبنای ادعاها هستند؛ هیچ ادعای پوشش کامل از گراف نداریم. گزارش پژوهشی خصوصی وارد مستندات یا Git نشده است.
+
+**درخواست تازه واقعی Liara/مدل و هزینه: صفر.** fixtureها synthetic هستند؛ سازگاری مدل قبلی، evidence تشخیص یا deploy این candidate نیست. T20 باید identity/plan/schema/units و حفظ env در release را روی حساب مجاز تأیید کند؛ سپس یک upload/release/workload و نسخه بعدی با approval و budget صریح اجرا شود. API نام‌محور Liara قفل identity/plan بین preflight و write را در snapshot مستند نمی‌کند؛ readback جای CAS upstream نیست. مشاهده فقط صفحه اول 50 release و JSON revision کوچک است. origin انتخابی اثبات مالکیت DNS، failure نامعلوم اثبات عدم اثر، و پاسخ موفق اثبات علت رفع incident نیست. catalog قیمت، env secret-reference/merge/correction، restart transport، rollback، performance مستقل و handoff اختصاصی همچنان انجام‌نشده‌اند. gateها پیش‌فرض خاموش ماندند.
+
 ## UX63/65/66 — مسیر عادی مشکل سایت و بازیابی؛ پایه 0947c6b
 
 ۲۰۲۶-۱۰-۲۲ Asia/Tehran؛ Node 24.18.0/npm 11.16.0، working tree همین برش. برنامه/نشانه/صفحه → جمع‌آوری مجاز → گزارش → بررسی دوباره، به backend و SQLite وصل شد. تمرین اختیاری و صریحاً scripted است. Site origin فقط برای خواندن همان برنامه ثبت می‌شود؛ DNS/شبکه روی ذخیره فرم اجرا نمی‌شود. پروژه/گزارش پس از reload، Back/Forward، جابه‌جایی و ورود مجدد حفظ می‌شوند. لغو/خطای دریافت قبلی را پاک نمی‌کند. تحلیل و provider gates در تنظیم واقعی خاموش ماندند.

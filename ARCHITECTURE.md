@@ -2,6 +2,24 @@
 
 این سند ترکیبی از **وضعیت موجود** و **تصمیم پیشنهادی برای پیاده‌سازی** است. بخش‌های planned هنوز capability محصول نیستند. قرارداد API در `docs/api-capabilities.md` و OpenAPI مرجع در `docs/sources/` هستند؛ پذیرش محصول در `docs/acceptance.md` است.
 
+## انتشار محدود؛ قرارداد پیاده‌شده در ۲۰۲۶-۱۰-۲۲
+
+`application/deployment.ts` مسیر پیشنهاد اجرایی→اجرای تأییدشده→مشاهده مستقل را روی لایه‌های موجود پیاده می‌کند. `propose-deploy` فقط با هر دو gate مجاز، اتصال actor-bound، app Node موجود، پلن قابل خواندن و origin ازپیش‌مجاز پذیرفته می‌شود. ActionSpec v4 علاوه بر ورودی‌های v3، `targetAppId`، پلن فعلی و `workload {origin,path,status,revision}` را در hash می‌بندد؛ `planId` یک precondition است و resize انجام نمی‌شود. canonicalization v1/v2/v3 حفظ شده و پیشنهادهای تاریخی برای ارسال نیازمند پیشنهاد v4 تازه‌اند.
+
+پیش از claim، app/plan/source/connection بازبینی و بودجه دو write و دو بررسی app/plan کنترل می‌شود. migration 6 فقط جدول journal انتشار را اضافه می‌کند؛ تاریخچه قبلی تغییر نمی‌کند. claim و مرحله ابتدایی اتمیک‌اند. شروع upload پیش از شبکه، رسید source پیش از release و رسید release همراه انتقال به observing ذخیره می‌شوند. adapter فقط bytes بررسی‌شده را در multipart با field رسمی `file` و سپس JSON `sourceID/port/type` ارسال می‌کند؛ مسیر/اسکریپت پروژه را اجرا یا دوباره نمی‌خواند. POST هیچ retry ندارد. پاسخ گم‌شده، malformed، cancel یا قطع فرایند پس از claim به uncertain می‌رود و عملیات متعارض را می‌بندد. منبعِ پذیرفته‌شده حتی پس از قطع اتصال محلی حفظ می‌شود؛ قطع اتصال اجازه مرحله بعد نیست.
+
+`POST /api/actions/{id}/observe` فقط خواندن محدود انجام می‌دهد و به gate mutation وابسته نیست. نسخه باید در صفحه محدود release دیده، READY و current باشد. probe همان origin/path با سیاست DNS/TLS/حجم موجود، status دقیق و JSON با فیلد متنی `revision` برابر انتظار را می‌خواهد؛ پروژه/پلن و release پس از probe موفق دوباره خوانده می‌شوند. 404، نسخه قدیمی یا healthz بدون revision موفق نیستند. build در حال اجرا، unavailable و پاسخ نامعلوم به مشاهده بعدی منتقل می‌شوند. receipt نامعلوم با حدس به release آخر متصل نمی‌شود و خودکار unblock نمی‌شود. مشاهده به action تاریخی تعلق دارد و به فعال‌بودن source همان پروژه نیاز ندارد؛ اتصال همان actor/team/app identity همچنان الزامی است.
+
+حدود: فقط GET با JSON revision کوچک، صفحه اول حداکثر 50 release و یک round خواندن در هر درخواست؛ بدون daemon، rollback یا shell. origin محلی انتخاب‌شده اثبات مالکیت DNS نیست. API نام‌محور Liara، قفل/CAS مستند روی identity/plan بین preflight و write ندارد؛ readback این race خارجی را اتمیک نمی‌کند. shape، هزینه، semantics حفظ env در release و رفتار واقعی حساب هنوز به T20 و مجوز محدود زنده وابسته‌اند. هیچ write واقعی در اعتبارسنجی این برش انجام نشده است.
+
+## خواندن محدود و هویت گزارش incident
+
+در مسیر اصلی `incident/runs.ts`، reader شناسه داخلی app انتخاب‌شده را از اتصال actor-bound می‌گیرد. collector پیش از خواندن log/workload و دوباره پیش از تحویل snapshot، همان شناسه را با پاسخ تازه project تطبیق می‌دهد؛ تغییر app هم‌نام کل snapshot را رد می‌کند. پاسخ project اولیه برای نام envها استفاده می‌شود. این مسیر یک خواندن اضافه دارد: هشت tool call در حالت کامل، همگی در همان budget و بدون retry. endpoint قدیمی evidence فقط قرارداد team/app name را دارد و گزارش ماندگار این مسیر محسوب نمی‌شود.
+
+پنجره خودکار از پنج دقیقه پیش از شروع تا deadline بودجه است و هنگام پایان به زمان جمع‌آوری واقعی محدود می‌شود؛ timestamp هر مشاهده محلی در زمان دریافت ثبت می‌شود. پنجره تاریخی صریح به اکنون گسترش نمی‌یابد و زمان خام log همچنان به واحد حدسی تبدیل نمی‌شود. app identity fence قفل upstream نیست و نسخه release مربوط به هر log را اثبات نمی‌کند.
+
+خواندن provider و اعتبارسنجی اتصال، انتظار برای header و body را با abort/deadline محدود می‌کنند، حتی اگر transport به signal واکنش ندهد. درخواست تکرار نمی‌شود و پاسخ دیررس اتصال تازه‌ای ذخیره نمی‌کند؛ پایان انتظار client اثبات توقف پردازش upstream نیست. schema، زمان و واحد واقعی حساب همچنان live unverified هستند.
+
 ## جریان پروژه و حساب‌ها؛ backend پیاده‌شده
 
 API project-flows انتخاب محلی/نمونه/GitHub را به بررسی ایستا و آماده‌سازی خودکار archive خصوصی وصل می‌کند. UI از همین مسیر استفاده می‌کند. انتخاب و profile در SQLite به actor متصل‌اند؛ URL فقط شناسه flow را می‌گیرد و هیچ کد/credential در browser storage ذخیره نمی‌شود. بازیابی، محتوای فعلی و archive را بررسی می‌کند؛ انتخاب تازه یا محتوای تغییرکرده پیشنهاد قبلی را باطل می‌کند. ActionSpec v3 علاوه بر source/archive، flow و selectionHash شامل هویت مخزن/شاخه/revision/زیرپوشه را می‌بندد. v1/v2 برای تاریخچه حفظ شده‌اند.
@@ -30,7 +48,7 @@ Node 24.18.0 و SQLite 3.53.1 در محیط فعلی مشاهده شدند. نس
 
 ## ساختار موجود و هدف
 
-موجود: workbench، contracts، session/policy، source inspector، persistence، APIهای محلی و transportهای محدود model/Liara. ساختار زیر بر حسب نیاز پر شده است؛ deployment/incident orchestrator زنده هنوز ساخته نشده:
+موجود: workbench، contracts، session/policy، source inspector، persistence، APIهای محلی، workflow محدود deployment/incident و transportهای model/Liara. ساختار زیر بر حسب نیاز پر شده است؛ اتصال و اجرای زنده workflowها هنوز تأیید نشده‌اند:
 
 ```text
 src/app/                 UI و route handlers باریک
@@ -88,7 +106,7 @@ SQL با parameter binding؛ migration شماره‌دار، checksum و transac
 
 archive در `source-artifacts/{sha256}.tar.gz` زیر stateDir خصوصی ساخته می‌شود: فایل موقت exclusive، flush، publish بدون overwrite و بازخوانی/hash check؛ سپس receipt در SQLite ثبت می‌شود. orphan بدون receipt مجوز ایجاد نمی‌کند. سقف gzip برابر ۲۴ MiB و نگهداری برابر ۱۲۸ MiB/۳۲ فایل است؛ پاک‌سازی خودکار نداریم. storage به filesystem دارای hard-link متکی است؛ NTFS محیط فعلی آزموده شده و خطای آن fail closed است. پوشه لینک‌شده و فایل تغییرکرده رد می‌شوند. ACL میزبان و حمله یک فرایند محلی هم‌سطح، یک sandbox امنیتی مستقل نیستند.
 
-ActionSpec v2، source hash و archive hash را جداگانه در action hash می‌بندد. v1 با همان canonicalization برای history خوانده می‌شود، اما deploy قدیمی وارد provider نمی‌شود. پیش از claim، archive موجود با receipt/hash بررسی و buffer همان snapshot به adapter داده می‌شود؛ فایل فعلی workspace جایگزین source مورد تأیید نمی‌شود. executor واقعی هنوز null است و این مسیر با adapter مصنوعی آزموده شده؛ هیچ source upload لیارا انجام نشده است.
+ActionSpec v2، source hash و archive hash را جداگانه در action hash می‌بندد. نسخه‌های تاریخی با همان canonicalization خوانده می‌شوند. پیش از claim، archive موجود با receipt/hash بررسی و buffer همان snapshot به adapter داده می‌شود؛ فایل فعلی workspace جایگزین source مورد تأیید نمی‌شود. مسیر اجرایی جدید به v4 محدود است و با transport مصنوعی آزموده شده؛ هیچ source upload واقعی لیارا انجام نشده است.
 
 ## state و اجرای عملیات
 
@@ -104,7 +122,7 @@ timeout بعد از احتمال write: `uncertain`؛ write خودکار تکر�
 
 ## API داخلی موجود و مسیرهای بعدی
 
-موجود: health، session (POST/DELETE)، `GET /api/workspace` (capabilities و history)، inspect، archive، `POST /api/actions`، decision و execute. execute به adapter زنده وصل نیست و قبل از claim بسته می‌ماند. مسیرهای runs/incidents/observe/handoff در جدول زیر همچنان طرح‌اند؛ capabilities در workspace ادغام شده است.
+موجود: health، session (POST/DELETE)، `GET /api/workspace`، inspect/archive/project-flows، connectionها، actions/decision/execute/observe و incident runs/evidence/practice. execute جدید برای v4 به transport محدود متصل است اما gateها خاموش و live unverified هستند. handoff و routeهای عمومی runs در جدول زیر همچنان طرح‌اند؛ capabilities در workspace ادغام شده است.
 
 | مسیر هدف | مسئولیت و شرط |
 | --- | --- |
@@ -148,4 +166,4 @@ Boundaryها: browser→session/API؛ محتوا/مدل→policy؛ policy→Liar
 
 validation صریح با `unknown` و narrowing، SQLite adapter و transportهای کوچک پیاده شده‌اند؛ SDK مدل، ORM، queue و framework Agent نصب نشده‌اند. browser/axe فقط dependency توسعه‌اند. readهای محدود Liara و probe با origin allowlist، DNS pin و رد redirect ساخته و با transport مصنوعی آزموده شده‌اند؛ هیچ تماس واقعی Liara ندارند. collector خطای هر منبع را از empty/unknown جدا می‌کند؛ زمان خام نامعلوم به زمان deploy تبدیل نمی‌شود. diagnosis runtime به snapshot ثابت همان scope و یک evidence tool محدود است؛ قبل از terminal باید tool result خوانده شود. خروجی حداکثر سه فرضیه و next check است؛ citation/time validation اثبات صحت معنایی یا کیفیت مدل نیست.
 
-UI تمرینی از scripted model مستقل استفاده می‌کند و هرگز fallback شکست provider نیست. مقایسه symptom فقط همان app/origin/path و مشاهده تازه را می‌پذیرد؛ این helper هیچ action را succeeded نمی‌کند و اثر env/release را اثبات نمی‌کند. snapshot/diagnosis با GET/POST `/api/incidents/runs` در SQLite نگهداری و با کنترل مالکیت بازیابی می‌شوند. write adapter و ابزار env متصل نیستند. مدل واقعی باید روی همان protocol و oracle مستقل سنجیده شود؛ transport compatibility جای آن نیست.
+UI تمرینی از scripted model مستقل استفاده می‌کند و هرگز fallback شکست provider نیست. مقایسه symptom فقط همان app/origin/path و مشاهده تازه را می‌پذیرد؛ این helper هیچ action را succeeded نمی‌کند و اثر env/release را اثبات نمی‌کند. snapshot/diagnosis با GET/POST `/api/incidents/runs` در SQLite نگهداری و با کنترل مالکیت بازیابی می‌شوند. مسیر write محدود deploy در بخش جاری این سند شرح داده شده؛ ابزار env و اصلاح incident متصل نیستند. مدل واقعی باید روی همان protocol و oracle مستقل سنجیده شود؛ transport compatibility جای آن نیست.

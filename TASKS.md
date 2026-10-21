@@ -1,8 +1,28 @@
 # برنامه اجرایی Launchlane
 
-آخرین وضعیت: ۲۰۲۶-۱۰-۲۱، Asia/Tehran. این فایل باید پس از هر مرحله به‌روزرسانی شود. وضعیت `done` فقط با شواهد پذیرش معتبر است. برنامه کار Coding Agent است؛ آماده‌سازی فعلی شامل پیاده‌سازی کل محصول نیست.
+آخرین وضعیت: ۲۰۲۶-۱۰-۲۲، Asia/Tehran. این فایل باید پس از هر مرحله به‌روزرسانی شود. وضعیت `done` فقط با شواهد پذیرش معتبر است. برنامه کار Coding Agent است؛ آماده‌سازی فعلی شامل پیاده‌سازی کل محصول نیست.
 
 ## وضعیت فعال
+
+### ثبت تغییرات در Git — ۲۰۲۶-۱۰-۲۲
+
+- تغییرات کد به‌ترتیب در `1eee3c4` (ریشه مستقل workspace)، `4c9b44f` (مسیر کامل انتشار تأییدشده و UI/تست) و `7100111` (هویت/زمان شواهد و خواندن محدود Liara) ثبت شدند؛ قراردادها و شواهد در commit مستندات جدا همراه می‌شوند.
+- پیش از ثبت، lint/typecheck و domain تازه 77/77 pass شدند. export ایزوله index برای commit اول 6 تست project-flow، برای دوم domain کامل 73/73 و برای سوم domain کامل 77/77 را گذراند؛ این نتایج جدا هستند و با هم جمع نمی‌شوند. staged diff و اسکن secret هر مرحله بدون مورد بود. build/HTTP/browser در این مرحله بازاجرا نشدند؛ شواهد اجرای قبلی با شرایط خودشان در verification حفظ شده‌اند.
+- پژوهش، prompt، credential، state و artifactهای خصوصی خارج از Git می‌مانند؛ هیچ push، تغییر visibility، write زیرساختی یا درخواست مدل انجام نشد. T20 همچنان به API token و app مجاز مشخص وابسته است.
+
+### ادامه T20 و اصلاح مرزهای read-only — پایه `cbd23a9`
+
+- مجوز این مرحله فقط خواندن محدود حساب و app مجاز است؛ write زیرساختی و مصرف مدل مجاز نیستند. بررسی محلی config و SQLite با `readOnly:true` نشان داد API token و اتصال Liara اپراتور جاری وجود ندارند و app انتخابی/allowlist تعیین نشده است؛ فایل دسترسی محلی فقط password دارد. DB خصوصی فقط migrationهای 1/2 را دارد و جدول اتصال هنوز ساخته نشده؛ این بررسی هیچ migration/recovery روی آن اجرا نکرد. هیچ درخواست خارجی ارسال نشد و gateها تغییر نکردند. T20 در مرز دسترسی زنده blocked است.
+- برش مستقل AC01/08/09/11/13 پیاده شد: تطبیق هویت تازه app پیش/پس از جمع‌آوری، پنجره زمانی متناسب با اجرای مجاز و لغو/deadline خواندن حتی با transport یا body معلق. چهار regression متمایزکننده پیش از اصلاح fail شدند: app بازساخته پذیرفته شد، symptom تازه با clock مصنوعی 20 ثانیه خارج پنجره افتاد و دو مسیر خواندن بعد از cancel/deadline معلق ماندند. پنجره تاریخی صریح نیز حفظ می‌شود. 21 آزمون هدفمند و مجموعه تازه domain با 77/77، lint/typecheck/build و HTTP با 15/15 pass شدند؛ browser تازه دو suite با 55 حالت/9 عرض و 15 حالت/4 عرض را بدون overflow/axe violation/browser error/external request در حالت‌های سنجیده‌شده گذراند. transport/DNS/model مصنوعی و SQLite محلی‌اند؛ این نتایج live نیستند. مسیر artifact و حدود دقیق در verification ثبت است.
+
+### انتشار محدود و معیار نتیجه؛ پایه `cbd23a9`
+
+- T11/T13/T21/T22/T23 و UX64/66: مسیر قراردادی انتشار روی برنامه Node موجود، ActionSpec v4 با همان artifact/revision و شناسه داخلی app، پلن فعلی به‌عنوان precondition و انتظار دقیق HTTP/JSON revision اضافه شد. v1/v2/v3 و hash تاریخچه حفظ شده‌اند؛ پیشنهادهای قدیمی وارد write adapter نمی‌شوند. ساخت app، resize و env write در این مسیر وجود ندارند.
+- migration 6 append-only، claim/مرحله upload/رسید source/شروع release/receipt و مشاهده را پایدار می‌کند. 503، پاسخ ناقص یا cancel پس از احتمال write، uncertain و بدون replay است. نتیجه بدون release متناظر و پاسخ/نسخه همان workload موفق نمی‌شود؛ readback پس از انتخاب پروژه دیگر نیز قابل انجام است.
+- شواهد candidate نهایی همین working tree: `npm run lint`، `typecheck` و `build` pass؛ `test:domain` تازه 73/73 و `test:http` تازه 15/15 با parent، بدون fail/skip. provider/DNS/socket مصنوعی، SQLite و archive واقعی محلی. یازده گروه regression تازه publication failure/race/cancel/receipt/semantic oracle را می‌سنجند؛ یک regression مستقل workspace root/leaf هم اضافه شد.
+- مرورگر نقص بازیابی معیار نسخه پس از reload، بن‌بست نسخه بعدی و overflow 5px برند در 360px/متن 200٪ را یافت؛ اصلاح و caseهای اولیه حفظ شدند. `npm run test:browser` تازه، 55 حالت/9 عرض مسیر قبلی و 15 حالت/4 عرض انتشار را جدا اجرا کرد؛ همه بدون overflow/axe violation/browser error/external request در حالت‌های سنجیده‌شده. artifactها و حدود دقیق در verification هستند.
+- E02/AC02: counterexample root دارای workspaces و start تجمیعی، به‌اشتباه ready بود. regression قرمز ثبت و انتخاب leaf الزامی شد؛ تست هدفمند همان root/leaf اکنون pass است. اجرای script برای تشخیص انجام نمی‌شود.
+- هیچ gate واقعی تغییر نکرده، درخواست تازه Liara/مدل یا هزینه‌ای ایجاد نشده است. T20 و پایان زنده T22/T23 همچنان blocked_live هستند؛ catalog قیمت، env correction و کیفیت diagnosis باز می‌مانند. گام بعد: تنها با مجوز scope/budget، تطبیق حساب، حفظ env و یک چرخه زنده روی app آزمایشی موجود. commit/push/انتشار در این مأموریت انجام نشد.
 
 ### مأموریت تجربه کاربر و اتصال حساب‌ها — پایه `0349c11`
 
@@ -26,7 +46,7 @@
 
 - P0 تمام شد: foundation و اسناد فنی اعتبارسنجی شده‌اند؛ شواهد در `docs/verification.md`.
 - فاز فعال P1: مسیر محلی ورود→بررسی source→بسته خصوصی→پیشنهاد→تأیید/رد با UI و state پایدار قابل اجراست؛ gateهای اتصال زنده جدا هستند.
-- session محلی، Host/Origin/CSRF، migration و approval اتمیک برای قرارداد محدود deploy/restart وجود دارند. executor زنده متصل نیست؛ همه writeها بسته‌اند.
+- session محلی، Host/Origin/CSRF، migration و approval اتمیک برای قرارداد محدود deploy/restart وجود دارند. executor محدود upload/release پیاده و قراردادی آزموده است؛ gateهای واقعی خاموش و اتصال/اجرای زنده تأیید نشده‌اند.
 - scope و دسترسی زنده Liara تأیید نشده‌اند. BoxAPI طبق خبر مالک فعال است و یک سازگاری محدود gpt-6-luna/none واقعاً سنجیده شد؛ کیفیت diagnosis و مبلغ کسرشده هنوز تأیید نشده‌اند.
 
 ## P0 — آماده‌سازی
@@ -43,9 +63,9 @@
 | Task | هدف/محدوده | وابستگی | پذیرش/تست | وضعیت |
 | --- | --- | --- | --- | --- |
 | T10 | تکمیل DESIGN با flow، توکن و component state؛ UI یکپارچه با action/evidence | T02 | AC14؛ walkthrough، keyboard و responsive؛ بدون پالت پراکنده | implemented_offline؛ آزمون خودکار ۷ viewport/۲۳ حالت، walkthrough انسان تازه هنوز انجام نشده |
-| T11 | API adapter interface و schemaهای ورودی/پاسخ از OpenAPI؛ fixture صادقانه | T03 | AC01,08,13؛ teamID، pagination، null، 401/429 و unit/time contracts؛ synthetic بودن صریح | partial_offline؛ readهای project/release/logs/events/applets/summary و probe امن، gate مستقل Liara؛ write و تطبیق زنده باقی است |
+| T11 | API adapter interface و schemaهای ورودی/پاسخ از OpenAPI؛ fixture صادقانه | T03 | AC01,08,13؛ teamID، pagination، null، 401/429 و unit/time contracts؛ synthetic بودن صریح | partial_contract؛ readها/probe و upload/release محدود با gate مستقل و fixture آزموده‌اند؛ field/unit/time و semantics حساب واقعی همچنان به T20 وابسته‌اند |
 | T12 | تشخیص read-only یک اپ Node و archive manifest مجاز | T02 | AC02,03؛ runtime/port/env names؛ traversal/symlink/secret و no script execution | implemented_offline؛ manifest و tar.gz خصوصی، هش مستقل archive و approval v2؛ upload لیارا انجام نشده |
-| T13 | operator session، policy، action immutable، approval و state SQLite | T02 | AC04,13,16؛ deny/expiry/replay/race/restart/storage-down؛ CAS پیش از write | implemented_offline؛ فقط deploy/restart، executor زنده و secret-reference برای env هنوز ساخته نشده |
+| T13 | operator session، policy، action immutable، approval و state SQLite | T02 | AC04,13,16؛ deny/expiry/replay/race/restart/storage-down؛ CAS پیش از write | implemented_offline؛ v4 و journal upload/release، approval/claim/recovery آزموده‌اند؛ env secret-reference و عملیات زنده هنوز تأیید نشده‌اند |
 | T14 | تعریف oracle و demo fixture برای deploy و incident؛ توسعه تست domain با ابزار مناسب | T11,T12 | AC05,09,11؛ golden و counterexample؛ commandهای واقعی به AGENTS اضافه شود | partial_offline؛ workload oracle، tool/result/terminal، خطای 500/اصلاح غلط/درست، تناقض و داده ناکافی؛ eval مدل/deploy زنده باقی است |
 
 P1 شامل کدنویسی محصول توسط Coding Agent بعدی است. در صورت پایان قراردادهای مستقل، به علت نبود token کل پروژه متوقف نشود؛ اما وضعیت fake به live ارتقا نیابد.
@@ -54,11 +74,11 @@ P1 شامل کدنویسی محصول توسط Coding Agent بعدی است. د�
 
 | Task | هدف/محدوده | وابستگی | پذیرش/تست | وضعیت |
 | --- | --- | --- | --- | --- |
-| T20 | capability spike read-only لیارا با credential و scope مجاز | دسترسی Liara،T11 | AC01,08؛ scope/schema/time/unit و خطاهای واقعی؛ evidence sanitized؛ بدون write | blocked_live |
+| T20 | capability spike read-only لیارا با credential و scope مجاز | دسترسی Liara،T11 | AC01,08؛ scope/schema/time/unit و خطاهای واقعی؛ evidence sanitized؛ بدون write | blocked_live؛ بررسی read-only محلی در ۲۰۲۶-۱۰-۲۲ نبود API token/اتصال ذخیره‌شده و تعیین‌نشدن app انتخابی/allowlist را نشان داد؛ 0 درخواست خارجی، gateها خاموش |
 | T24 | smoke مدل/SDK و بودجه مستقل از اتصال Liara | دسترسی و budget مدل،T11 | AC09,13؛ tool protocol/schema، خروجی structured، terminal/error و مصرف واقعی؛ بدون fixture به‌جای live | compatibility_verified برای gpt-6-luna/none؛ دو snapshot موفق، هرکدام 2 درخواست/616 توکن؛ diagnosis و قطع پردازش provider پس از cancel هنوز تأیید نشده |
-| T21 | انتخاب روش/پلن با منبع/قیمت فعلی و تأیید action | T12,T13,T20 | AC03,04؛ unknown price/budget سؤال/راهنمایی؛ تغییر args/source نیازمند consent تازه | not_started |
-| T22 | upload source→release→observe→health روی app آزمایشی مجاز | T14,T21 | AC05؛ release واقعی و پاسخ workload؛ build fail/timeout/pending و unsafe path | not_started |
-| T23 | انتشار نسخه بعدی و restart کنترل‌شده | T22 | AC06؛ release قبل/بعد، deny و عدم اثر روی app دیگر؛ readback | not_started |
+| T21 | انتخاب روش/پلن با منبع/قیمت فعلی و تأیید action | T12,T13,T20 | AC03,04؛ unknown price/budget سؤال/راهنمایی؛ تغییر args/source نیازمند consent تازه | partial_contract؛ پلن موجود از پاسخ خوانده و در approval بسته/پیش از اجرا بازبینی می‌شود؛ recommendation/catalog قیمت معتبر هنوز ساخته نشده، هزینه unknown است |
+| T22 | upload source→release→observe→health روی app آزمایشی مجاز | T14,T21 | AC05؛ release واقعی و پاسخ workload؛ build fail/timeout/pending و unsafe path | implemented_contract / blocked_live؛ bytes دقیق→source receipt→release→READY/current→status/revision، بدون retry، در domain/HTTP/UI آزموده؛ Liara واقعی و پذیرش AC05 زنده باقی است |
+| T23 | انتشار نسخه بعدی و restart کنترل‌شده | T22 | AC06؛ release قبل/بعد، deny و عدم اثر روی app دیگر؛ readback | partial_contract؛ source نسخه بعدی، approval تازه و مسیر UI پس از موفقیت آزموده‌اند؛ restart transport و هر دو عملیات زنده باقی‌اند |
 | T25 | راهنمای دامنه و تفکیک API از registrar | T22 | AC07؛ مسیر واقعی با منبع معتبر و کار بیرون دسترسی مشخص؛ بدون ادعای اجرای DNS انجام‌نشده | not_started |
 
 T20 و T24 مستقل‌اند؛ نبود مدل نباید مشاهده/آزمون provider را متوقف کند. T25 توسعه P1 است و شرط پذیرش هسته نیست. اگر endpoint یا schema با سند اختلاف داشت، ابتدا مرز adapter اصلاح و regression با پاسخ واقعی اضافه شود. شکست archive/deploy با افزودن framework/پایگاه‌داده جدید حل نمی‌شود مگر bottleneck اثبات شود.
