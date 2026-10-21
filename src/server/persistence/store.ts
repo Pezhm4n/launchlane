@@ -346,7 +346,11 @@ export class Store {
       ensure(
         connection?.status === "connected" &&
           connection.teamId === run.evidence.scope.teamId &&
-          connection.selectedApp === run.evidence.scope.app,
+          connection.selectedApp === run.evidence.scope.app &&
+          run.appId &&
+          connection.apps.some(
+            (app) => app.name === run.evidence.scope.app && app.id === run.appId,
+          ),
         "SCOPE_DENIED",
         "برنامه یا حساب انتخاب‌شده تغییر کرده است. بررسی تازه‌ای روی همان مقصد شروع کنید.",
         403,
@@ -389,6 +393,12 @@ export class Store {
     return (
       parseProbeOrigins(JSON.stringify({ [app]: string(row.origin, 512) }), [app])[app] || null
     );
+  }
+
+  removeProbeOrigin(actorId: string, teamId: string, app: string): void {
+    this.db
+      .prepare("DELETE FROM probe_targets WHERE actor_id=? AND team_id=? AND app=?")
+      .run(actorId, teamId, app);
   }
 
   private transaction<T>(operation: () => T): T {

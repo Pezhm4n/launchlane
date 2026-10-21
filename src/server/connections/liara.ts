@@ -186,19 +186,26 @@ export async function connectLiara(
   const view = await validateLiaraConnection(config, token, signal, send);
   ensure(!signal.aborted, "CANCELLED", "اتصال متوقف شد و ثبت نشد.", 409);
   const old = store.getConnection(actorId, "liara");
+  const sameAccount = old?.view.identityId === view.identityId && old.view.teamId === view.teamId;
+  const previousApp = old?.view.apps.find((app) => app.name === old.view.selectedApp);
+  const selectedApp =
+    sameAccount &&
+    old?.view.status === "connected" &&
+    previousApp &&
+    view.apps.some((app) => app.name === previousApp.name && app.id === previousApp.id)
+      ? previousApp.name
+      : null;
   if (
     old &&
-    (old.view.identityId !== view.identityId ||
-      old.view.teamId !== view.teamId ||
-      old.view.status !== "connected")
+    (!sameAccount || old.view.status !== "connected" || old.view.selectedApp !== selectedApp)
   )
     store.invalidateProjectApproval(actorId);
-  const selectedApp =
-    old?.view.identityId === view.identityId &&
-    old.view.teamId === view.teamId &&
-    view.apps.some((app) => app.name === old.view.selectedApp)
-      ? old.view.selectedApp
-      : null;
+  // A reused public app name must not inherit the previous app's local read target or consent.
+  if (old?.view.teamId)
+    for (const app of old.view.apps) {
+      if (!sameAccount || !view.apps.some((next) => next.name === app.name && next.id === app.id))
+        store.removeProbeOrigin(actorId, old.view.teamId, app.name);
+    }
   return store.saveConnection(actorId, {
     view: { ...view, selectedApp },
     source: "token",

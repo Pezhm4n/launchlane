@@ -73,6 +73,8 @@ export function IncidentWorkbench({
     current?.kind === "sample" ||
     (scopeReady &&
       current?.evidence.scope.app === connection?.selectedApp &&
+      Boolean(current?.appId) &&
+      current?.appId === connection?.apps.find((app) => app.name === connection.selectedApp)?.id &&
       current?.evidence.scope.teamId === connection?.teamId);
   const canRead = scopeReady && workspace.features.serviceReads && Boolean(sameApp),
     blocked = disabled || busy !== null || loading;

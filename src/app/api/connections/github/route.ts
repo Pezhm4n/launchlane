@@ -3,6 +3,8 @@ import { endpoint, jsonBody, reply } from "../../../../server/http.ts";
 import { githubCommand } from "../../../../server/github/cli.ts";
 import { connectedGitHub, githubLoginService } from "../../../../server/github/login.ts";
 import { ensure } from "../../../../server/errors.ts";
+import { githubOwner, githubRepoName, gitRevision } from "../../../../contracts/github.ts";
+import { projectSubdirectory } from "../../../../server/github/import.ts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -55,11 +57,17 @@ export async function POST(request: Request) {
       "این درخواست GitHub پشتیبانی نمی‌شود.",
     );
     const signal = AbortSignal.any([request.signal, AbortSignal.timeout(120_000)]);
-    const client = await connectedGitHub(config, store, actor, signal);
     if (operation === "repositories") {
       exactKeys(input, ["operation", "query", "page"]);
       ensure(typeof input.query === "string", "INVALID_INPUT", "عبارت جست‌وجو معتبر نیست.");
-      return reply(await client.repositories(input.query, integer(input.page, 1, 1000), signal));
+      ensure(
+        input.query.length <= 100 && !/[\r\n]/.test(input.query),
+        "GITHUB_INPUT_INVALID",
+        "جست‌وجو را کوتاه‌تر بنویسید.",
+      );
+      const page = integer(input.page, 1, 1000);
+      const client = await connectedGitHub(config, store, actor, signal);
+      return reply(await client.repositories(input.query, page, signal));
     }
     exactKeys(input, [
       "operation",
@@ -68,26 +76,19 @@ export async function POST(request: Request) {
       "repositoryId",
       ...(operation === "branches" ? ["page"] : ["revision", "directory"]),
     ]);
-    const repository = await client.repository(
-      string(input.owner, 39),
-      string(input.name, 100),
-      integer(input.repositoryId, 1, Number.MAX_SAFE_INTEGER),
-      signal,
-    );
+    const owner = githubOwner(input.owner),
+      name = githubRepoName(input.name),
+      repositoryId = integer(input.repositoryId, 1, Number.MAX_SAFE_INTEGER),
+      page = operation === "branches" ? integer(input.page, 1, 1000) : null,
+      revision = operation === "folders" ? gitRevision(input.revision) : null,
+      directory = operation === "folders" ? projectSubdirectory(input.directory) : null;
+    const client = await connectedGitHub(config, store, actor, signal);
+    const repository = await client.repository(owner, name, repositoryId, signal);
     if (operation === "branches")
-      return reply(await client.branches(repository, integer(input.page, 1, 1000), signal));
-    const directory = string(input.directory, 240);
-    ensure(
-      directory === "." ||
-        directory
-          .split("/")
-          .every((part) => /^[\p{L}\p{N}._ @()+-]+$/u.test(part) && part !== "." && part !== ".."),
-      "UNSAFE_PATH",
-      "زیرپوشه را از فهرست مخزن انتخاب کنید.",
-      403,
-    );
+      return reply(await client.branches(repository, page ?? 1, signal));
+    ensure(revision && directory, "INVALID_INPUT", "شاخه و پوشه را انتخاب کنید.");
     return reply({
-      folders: await client.folders(repository, string(input.revision, 40), directory, signal),
+      folders: await client.folders(repository, revision, directory, signal),
     });
   });
 }

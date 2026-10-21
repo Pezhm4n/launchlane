@@ -60,6 +60,38 @@ test("GitHub repository search stays inside authenticated pagination and preserv
   );
 });
 
+test("GitHub folder discovery hides excluded directories and rejects unsafe selections before transport", async () => {
+  let calls = 0;
+  const client = new GitHubClient(async () => {
+    calls++;
+    return {
+      status: 200,
+      hasNext: false,
+      rateLimited: false,
+      body: bytes([
+        { type: "dir", name: "apps" },
+        { type: "dir", name: ".env.local" },
+        { type: "dir", name: "node_modules" },
+        { type: "symlink", name: "linked" },
+      ]),
+    };
+  });
+  const repository = {
+    id: 1,
+    owner: "octocat",
+    name: "sample",
+    private: true,
+    defaultBranch: "main",
+  };
+  assert.deepEqual(await client.folders(repository, "c".repeat(40), ".", signal()), ["apps"]);
+  for (const path of ["../outside", "apps/../../escape", ".env.local", "node_modules"])
+    await assert.rejects(
+      client.folders(repository, "c".repeat(40), path, signal()),
+      code("UNSAFE_PATH"),
+    );
+  assert.equal(calls, 1);
+});
+
 test("GitHub response boundaries distinguish permissions, rate limit, empty repositories and credentials", () => {
   const parsed = parseGhResponse(
     Buffer.from(

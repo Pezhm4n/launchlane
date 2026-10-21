@@ -11,6 +11,7 @@ export type Symptom = (typeof symptoms)[number];
 export type IncidentRun = {
   id: string;
   kind: "live" | "sample";
+  appId: string | null;
   symptom: Symptom;
   problem: string;
   path: string;
@@ -75,6 +76,7 @@ export function parseIncidentRun(value: unknown): IncidentRun {
   return {
     id: string(row.id, 36),
     kind: row.kind,
+    appId: row.appId === undefined || row.appId === null ? null : string(row.appId, 128),
     symptom,
     problem: row.problem === "" ? "" : text(row.problem, 1000),
     path: string(row.path, 200),

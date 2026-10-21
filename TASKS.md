@@ -20,6 +20,8 @@
 
 اولویت اجرا UX60/61/62/63 سپس UX64/65/66 است؛ قسمت‌های مستقل منتظر اتصال/اعتبار نمی‌مانند. gateهای هزینه/زیرساخت فعلی حفظ می‌شوند. اسکیل‌های مؤثر: ux-ui-agent-skills، web-design-guidelines، frontend-design، vercel-react-best-practices و competition-agent-engineer. شاهد دستی با CUA و تست‌های خودکار با server ایزوله ثبت می‌شوند؛ حساب واقعی، transport مصنوعی و blocker از هم جدا می‌مانند.
 
+بازبینی روی `15ace2f`: refresh برنامه هم‌نام با شناسه تازه، انتخاب/تأیید/نشانی قدیمی را باطل می‌کند؛ recheck/analyze گزارش نیز به همان شناسه داخلی متصل‌اند. ورودی catalog GitHub پیش از upstream رد می‌شود و پوشه خصوصی قابل انتخاب نیست. 61 domain، 14 HTTP و 55 حالت/9 عرض browser تازه pass شدند؛ جزئیات و failure اولیه در verification. ورود واقعی GitHub پس از timeout کد و شکل حساب Liara همچنان unconfirmed هستند؛ این‌ها با fixture بسته نشده‌اند.
+
 - P0 تمام شد: foundation و اسناد فنی اعتبارسنجی شده‌اند؛ شواهد در `docs/verification.md`.
 - فاز فعال P1: مسیر محلی ورود→بررسی source→بسته خصوصی→پیشنهاد→تأیید/رد با UI و state پایدار قابل اجراست؛ gateهای اتصال زنده جدا هستند.
 - session محلی، Host/Origin/CSRF، migration و approval اتمیک برای قرارداد محدود deploy/restart وجود دارند. executor زنده متصل نیست؛ همه writeها بسته‌اند.

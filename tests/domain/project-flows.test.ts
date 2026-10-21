@@ -9,6 +9,7 @@ import { pack } from "tar-stream";
 import { readConfig } from "../../src/server/config.ts";
 import {
   prepareProjectFlow,
+  proposeProjectFlow,
   restoreProjectFlow,
   validateProjectAction,
 } from "../../src/server/application/project-flows.ts";
@@ -18,6 +19,7 @@ import { Store } from "../../src/server/persistence/store.ts";
 import { AppError } from "../../src/server/errors.ts";
 import type { ProjectSelection } from "../../src/contracts/project-flow.ts";
 import { sealCredential } from "../../src/server/connections/credentials.ts";
+import { connectLiara } from "../../src/server/connections/liara.ts";
 const code = (expected: string) => (error: unknown) =>
   error instanceof AppError && error.code === expected;
 const scope = { teamId: "a".repeat(24), app: "sample-app" },
@@ -285,6 +287,73 @@ test("GitHub import pins a selected commit and subfolder, omits private files an
     await f.cleanup();
   }
 });
+test("a recreated Liara app cannot inherit approval or the previous site's read target", async () => {
+  const f = await fixture();
+  try {
+    const saved = f.store.getConnection("alice", "liara");
+    assert.ok(saved);
+    f.store.saveConnection("alice", {
+      ...saved,
+      view: { ...saved.view, identityId: "c".repeat(24) },
+    });
+    const flow = await prepareProjectFlow(
+      f.config,
+      f.store,
+      "alice",
+      { kind: "local", directory: "app" },
+      signal(),
+    );
+    const action = await proposeProjectFlow(
+      f.config,
+      f.store,
+      "alice",
+      flow.id,
+      scope.app,
+      null,
+      signal(),
+    );
+    f.store.decide(action.id, "alice", "session", action.hash, "approve");
+    f.store.setProbeOrigin("alice", scope, "https://previous.example.com");
+    let appId = "synthetic-app";
+    const send = async (url: string) =>
+      Response.json(
+        url.includes("/projects")
+          ? {
+              projects: [{ _id: appId, project_id: scope.app, type: "node" }],
+            }
+          : url.includes("teamID")
+            ? { team: { _id: scope.teamId, name: "تیم آزمون" } }
+            : {
+                user: {
+                  _id: "c".repeat(24),
+                  fullname: "حساب آزمون",
+                  email: "synthetic@example.test",
+                },
+              },
+      );
+    const refresh = () =>
+      connectLiara(f.config, f.store, "alice", "synthetic-valid-refresh-key", signal(), send);
+    assert.equal((await refresh()).selectedApp, scope.app);
+    assert.equal(f.store.getAction(action.id, "alice").state, "approved");
+    appId = "recreated-app-with-same-name";
+    assert.equal((await refresh()).selectedApp, null);
+    assert.equal(f.store.getAction(action.id, "alice").state, "cancelled");
+    assert.equal(f.store.getProbeOrigin("alice", scope.teamId, scope.app), null);
+    assert.throws(
+      () => f.store.claim(action.id, "alice", "session", action.spec),
+      code("PROJECT_ACCESS_CHANGED"),
+    );
+    assert.equal(
+      f.store.db.prepare("SELECT COUNT(*) AS count FROM attempts WHERE action_id=?").get(action.id)
+        ?.count,
+      0,
+    );
+  } finally {
+    f.store.close();
+    await f.cleanup();
+  }
+});
+
 test("malicious archives reject traversal, symlinks, duplicate Windows names, invalid gzip and oversized files", async () => {
   for (const entries of [
     [{ name: "repo/../escape.mjs", content: "bad" }],

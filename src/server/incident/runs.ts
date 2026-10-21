@@ -21,6 +21,12 @@ export function incidentConfig(config: Config, store: Store, actorId: string, ap
     origin = config.probeOrigins[app] || store.getProbeOrigin(actorId, scoped.teamId, app);
   return { ...scoped, probeOrigins: origin ? { [app]: origin } : {} };
 }
+function selectedAppId(store: Store, actorId: string, app: string): string | null {
+  const connection = store.getConnection(actorId, "liara")?.view;
+  return connection?.status === "connected" && connection.selectedApp === app
+    ? (connection.apps.find((row) => row.name === app)?.id ?? null)
+    : null;
+}
 export function incidentPath(value: unknown, origin: string | undefined): string {
   const raw = string(value, 512);
   let path = raw;
@@ -123,6 +129,7 @@ export async function createPracticeRun(
   return store.saveIncidentRun(actorId, {
     id: randomUUID(),
     kind: "sample",
+    appId: null,
     symptom: "errors",
     problem: "",
     path: "/",
@@ -207,6 +214,7 @@ export async function createLiveIncidentRun(
     "برای این گزینه، مشکل را در یک جمله توضیح دهید.",
   );
   const path = incidentPath(input.path, scoped.probeOrigins[input.app]);
+  const appId = selectedAppId(store, actorId, input.app);
   const evidence = sanitizeEvidence(
     await reader(scoped, { app: input.app, path }, new RunBudget(scoped), signal),
     scoped,
@@ -214,9 +222,16 @@ export async function createLiveIncidentRun(
     path,
   );
   ensure(!signal.aborted, "CANCELLED", "بررسی متوقف شد. نتیجه قبلی حفظ شده است.", 409);
+  ensure(
+    appId && appId === selectedAppId(store, actorId, input.app),
+    "SCOPE_DENIED",
+    "برنامه هنگام بررسی تغییر کرده است؛ بررسی تازه‌ای شروع کنید.",
+    403,
+  );
   const run: IncidentRun = {
     id: randomUUID(),
     kind: "live",
+    appId,
     symptom: input.symptom,
     problem,
     path,
@@ -267,7 +282,9 @@ export async function recheckIncidentRun(
   );
   const scoped = incidentConfig(config, store, actorId, run.evidence.scope.app);
   ensure(
-    scoped.teamId === run.evidence.scope.teamId,
+    scoped.teamId === run.evidence.scope.teamId &&
+      run.appId &&
+      run.appId === selectedAppId(store, actorId, run.evidence.scope.app),
     "SCOPE_DENIED",
     "حساب یا برنامه تغییر کرده است؛ بررسی تازه‌ای شروع کنید.",
     403,
@@ -292,6 +309,12 @@ export async function recheckIncidentRun(
     run.path,
   );
   ensure(!signal.aborted, "CANCELLED", "بررسی تازه متوقف شد. نتیجه قبلی حفظ شده است.", 409);
+  ensure(
+    run.appId === selectedAppId(store, actorId, run.evidence.scope.app),
+    "SCOPE_DENIED",
+    "برنامه هنگام بررسی تغییر کرده است؛ بررسی تازه‌ای شروع کنید.",
+    403,
+  );
   return store.saveIncidentRun(actorId, { ...run, after, updatedAt: Date.now() }, run.updatedAt);
 }
 export async function analyzeIncidentRun(

@@ -14,6 +14,12 @@ Browser fixture فقط پاسخ upstream اتصال/دریافت را کنترل
 
 spike محدود GitHub با CLI رسمی و config خالی، در 30s کد ورود نداد و با `GITHUB_LOGIN_TIMEOUT` پایان یافت؛ grant/credential صادر نشد. GET بدون احراز هویت به github.com و api.github.com به‌ترتیب 302/200 داد؛ این شاهد، علت timeout مسیر device را مشخص نمی‌کند. ورود/مخزن واقعی GitHub، ساختار تیم Liara و حساب/سایت واقعی همچنان unconfirmed هستند. آزمون تازه پولی مدل یا write زیرساختی اجرا نشد. اسکیل‌های مؤثر: ux-ui-agent-skills، web-design-guidelines، frontend-design، vercel-react-best-practices، webapp-testing و competition-agent-engineer؛ graph list/coverage در این جلسه Transport closed داشت و source/test مستقیم مبنا بود.
 
+### بازبینی محدوده اتصال روی پایه 15ace2f
+
+نام app ممکن است پس از حذف/ساخت دوباره ثابت بماند. refresh اکنون شناسه داخلی را هم تطبیق می‌دهد؛ app تازه انتخاب، پیشنهاد/تأیید یا نشانی بررسی قبلی را ارث نمی‌برد. گزارش جدید incident شناسه app را ذخیره می‌کند؛ گزارش قدیمی بدون آن خواندنی می‌ماند ولی analyze/recheck نمی‌شود. claim تحلیل همین شناسه را داخل transaction کنترل می‌کند. ورودی نامعتبر جست‌وجو/شاخه/پوشه GitHub پیش از بررسی credential و transport رد و پوشه‌های خصوصی از catalog حذف می‌شوند.
+
+`npm run lint`، `npm run typecheck` و `npm run build`: pass؛ domain تازه 61/61 و HTTP تازه 14/14، 0 fail/skip. Browser تازه 55 حالت/9 عرض با همان شاخص‌های صفر، artifact `.artifacts/ux/2026-10-21T20-45-29-679Z/`. تست app با نام یکسان و شناسه متفاوت، عدم ایجاد attempt، ابطال approval، پاک‌شدن نشانی قدیمی و عدم تماس recheck/model را سنجید؛ refresh همان شناسه، انتخاب و تأیید معتبر را حفظ کرد. نخستین expectation آزمون جدید کد خطای PROJECT_CHANGED را فرض کرده بود؛ مرز زودتر PROJECT_ACCESS_CHANGED برگرداند. کد معتبر همان boundary و assert صفر attempt ثبت شدند؛ منع اجرا ضعیف نشد. هیچ درخواست واقعی Liara/مدل یا grant حساب انجام نشد.
+
 ## UX61 — backend ورود و catalog GitHub، پس از 6dc7e85
 
 - CLI رسمی pinned 2.103.0 با npm run setup:github و SHA-256 همان asset رسمی اجرا شد؛ بدون grant، تغییر PATH یا ورود حساب.

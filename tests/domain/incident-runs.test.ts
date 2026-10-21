@@ -317,6 +317,22 @@ test("recheck preserves the same app, page and approved host and rejects changed
     );
     assert.equal(reads, 1);
     assert.throws(() => f.store.setProbeOrigin("bob", scope, origin), code("SCOPE_DENIED"));
+    f.store.setProbeOrigin("alice", scope, origin);
+    const saved = f.store.getConnection("alice", "liara");
+    assert.ok(saved);
+    f.store.saveConnection("alice", {
+      ...saved,
+      view: { ...saved.view, apps: [{ id: "recreated-app", name: scope.app, platform: "node" }] },
+    });
+    await assert.rejects(
+      recheckIncidentRun(f.config, f.store, "alice", run.id, signal(), async () => {
+        reads++;
+        return evidence();
+      }),
+      code("SCOPE_DENIED"),
+    );
+    assert.throws(() => f.store.claimIncidentAnalysis("alice", run.id), code("SCOPE_DENIED"));
+    assert.equal(reads, 1);
     assert.throws(
       () => f.store.setProbeOrigin("alice", scope, "http://127.0.0.1"),
       code("CONFIG_INVALID"),

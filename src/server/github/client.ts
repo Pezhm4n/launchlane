@@ -10,6 +10,8 @@ import {
 import { integer, object, string } from "../../contracts/validation.ts";
 import { AppError, ensure } from "../errors.ts";
 import type { GitHubTransport } from "./cli.ts";
+import { checkName, excludedPath } from "../workspace/paths.ts";
+import { projectSubdirectory } from "./import.ts";
 
 function json(bytes: Buffer): unknown {
   try {
@@ -133,6 +135,7 @@ export class GitHubClient {
     directory: string,
     signal: AbortSignal,
   ): Promise<string[]> {
+    projectSubdirectory(directory);
     const path = directory === "." ? "" : directory.split("/").map(encodeURIComponent).join("/");
     const response = await this.transport(
       `/repos/${repository.owner}/${repository.name}/contents/${path}?ref=${gitRevision(revision)}`,
@@ -148,7 +151,12 @@ export class GitHubClient {
     const folders: string[] = [];
     for (const value of rows) {
       const row = object(value);
-      if (row.type === "dir") folders.push(string(row.name, 160));
+      if (row.type === "dir") {
+        const name = string(row.name, 160);
+        if (excludedPath(name)) continue;
+        checkName(name);
+        folders.push(name);
+      }
     }
     return folders;
   }

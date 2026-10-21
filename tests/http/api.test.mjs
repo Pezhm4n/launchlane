@@ -123,6 +123,27 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
         assert.equal(state.connection, null);
         assert.equal(typeof state.toolReady, "boolean");
         await expects(
+          await request("/api/connections/github", {
+            operation: "repositories",
+            query: "x".repeat(101),
+            page: 1,
+          }),
+          400,
+          "GITHUB_INPUT_INVALID",
+        );
+        await expects(
+          await request("/api/connections/github", {
+            operation: "folders",
+            owner: "octocat",
+            name: "sample",
+            repositoryId: 1,
+            revision: "c".repeat(40),
+            directory: "../outside",
+          }),
+          403,
+          "UNSAFE_PATH",
+        );
+        await expects(
           await request(
             "/api/connections/github",
             { operation: "start" },
