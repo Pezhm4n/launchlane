@@ -11,7 +11,7 @@
 
 ## endpointهای مستند مرتبط
 
-تمام مسیرهای جدول، **upstream Liara** هستند، نه API داخلی Launchlane. در این مرحله هیچ adapter اجرایی ساخته نشده است.
+تمام مسیرهای جدول، **upstream Liara** هستند، نه API داخلی Launchlane. P1 اکنون transport محدود release read و parser متریک دارد؛ هیچ درخواست احرازشده واقعی اجرا نشده است و جدول همچنان وضعیت زنده را بیان می‌کند.
 
 | Capability | روش و مسیر مستند | جزئیات مهم | وضعیت |
 | --- | --- | --- | --- |
@@ -41,4 +41,12 @@
 4. یک compatibility smoke کم‌مصرف مدل: tool call با schema، خروجی structured و terminal/error؛ streaming فقط اگر استفاده می‌شود. SDK بر اساس همین نتیجه انتخاب شود.
 5. پس از پذیرش policy/session/storage/approval و تأیید کاربر، اولین write کوچک روی app مجاز اجرا و readback ثبت شود.
 
-اختلال access، کار مستقل offline را متوقف نمی‌کند. capability unavailable باید reason و next step بدهد؛ UI نباید metric، موفقیت یا هزینه تولید کند. `.env.example` قرارداد config فازهای بعد است؛ در scaffold فقط PORT و TEST_BASE_URL مصرف می‌شوند.
+اختلال access، کار مستقل offline را متوقف نمی‌کند. capability unavailable باید reason و next step بدهد؛ UI نباید metric، موفقیت یا هزینه تولید کند. `.env.example` با `src/server/config.ts` هماهنگ است؛ gateهای mutation/model، scope، session، workspace و سقف‌ها اکنون مصرف و اعتبارسنجی می‌شوند.
+
+## قرارداد پیاده‌شده آفلاین
+
+- `LiaraReadClient.releases`: فقط GET به میزبان ثابت PaaS؛ teamID و app allowlist در server، صفحه ۱–۱۰۰۰ و count ۱–۵۰؛ پاسخ محدود و validate شده. بدون retry پنهان؛ 401/403، 429 و 5xx به failure مجزا تبدیل می‌شوند و empty تلقی نمی‌شوند. این client هنوز route عمومی برای تماس واقعی ندارد.
+- `parseMetricSummary`: با شکل pinned schema کار می‌کند؛ missing/null/empty همگی unknown، raw tuple به درصد/بایت/ثانیه تعبیر نمی‌شود. field و unit واقعی نیاز به T20 دارند.
+- `BoxApiClient`: فقط `https://ai.boxapi.ir/ai/v1/chat/completions`، non-streaming، Bearer و بدون redirect/fallback. `LAUNCHLANE_ENABLE_LIVE_MODEL=false` پیش از transport و مصرف budget توقف می‌دهد. call/result ID، ابزار محدود read-only، app scope، terminal/truncation، خطا، cancellation و سقف حجم fixture-tested هستند. این adapter هنوز به diagnosis محصول وصل نیست.
+- مبنای endpoint/auth، [مستند رسمی BoxAPI](https://boxapi.ir/docs/ai/) است. شکل `tool_calls` و `tool_call_id` از [قرارداد Chat Completions](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create) گرفته شده؛ پشتیبانی آن، `max_completion_tokens` و error/usage در مدل منتخب BoxAPI هنوز **unverified** است. هیچ کلیدی به OpenAI ارسال نمی‌شود و SDK OpenAI نصب نشده است.
+- fixtureها در `tests/domain/providers.test.ts` صریحاً synthetic هستند. قیمت/مدل/بودجه انتخاب نشده‌اند و streaming پیاده نشده است.

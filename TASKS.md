@@ -5,7 +5,7 @@
 ## وضعیت فعال
 
 - P0 تمام شد: foundation و اسناد فنی اعتبارسنجی شده‌اند؛ شواهد در `docs/verification.md`.
-- فاز فعال P1: برش امنیت و state پایدار ساخته و به مسیرهای server متصل شده است؛ برش source و UI در حال یکپارچه‌سازی و ثبت جداگانه‌اند.
+- فاز فعال P1: برش امنیت/state و source/transport آفلاین پیاده شده‌اند؛ UI در حال تثبیت و ثبت جداگانه است.
 - session محلی، Host/Origin/CSRF، migration و approval اتمیک برای قرارداد محدود deploy/restart وجود دارند. executor زنده متصل نیست؛ همه writeها بسته‌اند.
 - دسترسی و بودجه مدل/Liara و app/team scope زنده تأیید نشده‌اند. فیک به‌عنوان قابلیت واقعی گزارش نشود.
 
@@ -23,10 +23,10 @@
 | Task | هدف/محدوده | وابستگی | پذیرش/تست | وضعیت |
 | --- | --- | --- | --- | --- |
 | T10 | تکمیل DESIGN با flow، توکن و component state؛ UI یکپارچه با action/evidence | T02 | AC14؛ walkthrough، keyboard و responsive؛ بدون پالت پراکنده | ready_offline |
-| T11 | API adapter interface و schemaهای ورودی/پاسخ از OpenAPI؛ fixture صادقانه | T03 | AC01,08,13؛ teamID، pagination، null، 401/429 و unit/time contracts؛ synthetic بودن صریح | ready_offline |
-| T12 | تشخیص read-only یک اپ Node و archive manifest مجاز | T02 | AC02,03؛ runtime/port/env names؛ traversal/symlink/secret و no script execution | ready_offline |
+| T11 | API adapter interface و schemaهای ورودی/پاسخ از OpenAPI؛ fixture صادقانه | T03 | AC01,08,13؛ teamID، pagination، null، 401/429 و unit/time contracts؛ synthetic بودن صریح | partial_offline؛ release read، metric parser و BoxAPI transport؛ سایر endpointها و live هنوز تأیید نشده |
+| T12 | تشخیص read-only یک اپ Node و archive manifest مجاز | T02 | AC02,03؛ runtime/port/env names؛ traversal/symlink/secret و no script execution | implemented_offline؛ manifest/hash، بدون archive/upload |
 | T13 | operator session، policy، action immutable، approval و state SQLite | T02 | AC04,13,16؛ deny/expiry/replay/race/restart/storage-down؛ CAS پیش از write | implemented_offline؛ فقط deploy/restart، executor زنده و secret-reference برای env هنوز ساخته نشده |
-| T14 | تعریف oracle و demo fixture برای deploy و incident؛ توسعه تست domain با ابزار مناسب | T11,T12 | AC05,09,11؛ golden و counterexample؛ commandهای واقعی به AGENTS اضافه شود | ready_offline |
+| T14 | تعریف oracle و demo fixture برای deploy و incident؛ توسعه تست domain با ابزار مناسب | T11,T12 | AC05,09,11؛ golden و counterexample؛ commandهای واقعی به AGENTS اضافه شود | partial_offline؛ workload 500/اصلاح غلط/درست و protocol fixtures؛ eval مدل/deploy زنده باقی است |
 
 P1 شامل کدنویسی محصول توسط Coding Agent بعدی است. در صورت پایان قراردادهای مستقل، به علت نبود token کل پروژه متوقف نشود؛ اما وضعیت fake به live ارتقا نیابد.
 
@@ -80,7 +80,7 @@ T32 هسته است. T25، T33 و T34 توسعه‌های P1 هستند؛ فقط
 | D2 operator-local | دسترسی ساده‌تر به source و scope محدود | نیاز واقعی میزبانی remote بعد از طراحی auth |
 | D3 یک runtime محدود | از چندعاملی/queue بی‌دلیل جلوگیری می‌کند | benchmark همان مسئله سود delegation را نشان دهد |
 | D5 SQLite native | implemented_offline روی Node 24.18؛ migration checksummed، attempt پایدار و claim اتمیک | نیاز چند process یا خطای واقعی storage |
-| D6 مدل/SDK | باز تا دسترسی مجاز واقعی | smoke پروتکل، بودجه و eval تعیین‌کننده‌اند |
+| D6 مدل/SDK | BoxAPI با transport مستقیم chat-completions و بدون SDK تازه؛ سازگاری tools هنوز fixture است | smoke پروتکل، بودجه و eval تعیین‌کننده مدل‌اند |
 | D7 Biome | dependency lint ساده‌تر و حذف advisoryهای dev مسیر اولیه ESLint | صرفاً با نیاز اثبات‌شده |
 
 ## قالب به‌روزرسانی هر مرحله
@@ -106,3 +106,13 @@ scaffold Next/TS، health صریح و smoke محلی ساخته شد. قرارد
 `node --test tests/domain/state.test.ts`: هفت آزمون موفق، بدون fail/skip؛ از جمله دو connection مستقل SQLite در worker، قطع process، lost write response، expiry/replay و storage/migration failure. gate خاموش با صفر فراخوانی provider و عدم مصرف approval بررسی شد. هیچ provider واقعی یا هزینه‌ای مصرف نشد.
 
 API ورود و workspace، کوکی HttpOnly/Strict با انقضای یک ساعت و revoke پایدار، rate limit، action immutable و audit حداقلی ساخته شدند. attempt پیش از callback provider commit می‌شود؛ recovery فقط executing را uncertain می‌کند و observing را به write تبدیل نمی‌کند. متعارض‌های همان app تا تعیین نتیجه بسته‌اند. اجرای چند process، env secret-reference و write زنده هنوز تأیید/پیاده نشده‌اند. مرحله بعد: source manifest، قرارداد transport و UI با آزمون HTTP/مرورگر روی candidate نهایی همین سری.
+
+## P1 — برش source و provider contract آفلاین
+
+پایه امنیت: `917819a` + working tree همین برش؛ AC02/03 و بخش آفلاین AC01/08/13/16. Skill مؤثر competition-agent-engineer؛ مرجع runtime/evaluation. BoxAPI host و chat endpoint از مستند رسمی دوباره خوانده شدند؛ ساختار tool-call قرارداد انتخابی سازگار با Chat Completions است و روی BoxAPI واقعی تأیید نشده است.
+
+`node --test tests/domain/*.test.ts`: بیست آزمون موفق، 0 fail/skip. `node --test tests/http/*.test.mjs` روی build تولیدی ایزوله: شش subtest + یک parent موفق؛ scope مصنوعی، بدون کلید واقعی و بدون provider. lint/typecheck موفق. نمونه کنترل‌شده به‌طور محلی نشان داد liveness=200 می‌تواند کنار workload=500 باشد، تغییر نامرتبط 500 را حفظ کند و env درست همان workload/revision را به 200 برساند. این آزمون کیفیت diagnosis مدل یا deploy لیارا نیست.
+
+scanner تنها فایل‌های مجاز زیر workspace را می‌خواند؛ سقف ۱۰۰۰ فایل، ۵۰۰۰ entry، عمق ۱۰، ۵۱۲ KiB هر فایل و ۲۰ MiB کل. traversal/junction، secrets، script execution و source تغییریافته آزموده شدند. پورت/env به‌صورت static و محافظه‌کار استخراج می‌شوند؛ تحلیل عمومی framework/AST نیست. هیچ archive ایجاد نشده است.
+
+release read با teamID/page/count و null/time fixture، metric=unknown تا اثبات unit/time، redaction و BoxAPI gate/budget/terminal/cancel ساخته شدند. gate خاموش هم در state و هم model transport صفر upstream دارد. write adapter، health probe شبکه‌ای، ابزار env و live integration همچنان بسته/اجرانشده‌اند. مرحله بعد: تثبیت UI و setup قابل اجرای همین candidate؛ سپس پیشبرد قراردادهای لازم برای اولین اتصال مجاز.
