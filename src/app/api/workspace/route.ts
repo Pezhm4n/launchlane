@@ -21,7 +21,13 @@ export async function GET(request: Request) {
       features: {
         serviceReads: config.enableLiveLiara,
         analysis: Boolean(config.enableLiveModel && config.modelKey && config.modelId),
-        deployment: false,
+        deployment: Boolean(
+          config.enableMutations &&
+            config.enableLiveLiara &&
+            app &&
+            connections.liara?.status === "connected" &&
+            (config.probeOrigins[app] || savedOrigin),
+        ),
         probeApps: [
           ...new Set([...Object.keys(config.probeOrigins), ...(savedOrigin && app ? [app] : [])]),
         ],

@@ -16,6 +16,11 @@ import { parseProjectFlow, type ProjectFlow } from "../../contracts/project-flow
 import { parseIncidentRun, type IncidentRun } from "../../contracts/incident-run.ts";
 import { parseProbeOrigins } from "../policy/probe-target.ts";
 import {
+  parseDeploymentProgress,
+  type DeploymentProgress,
+  type DeploymentObservation,
+} from "../../contracts/deployment.ts";
+import {
   parseConnection,
   type ConnectionProvider,
   type ConnectionView,
@@ -254,7 +259,7 @@ export class Store {
     });
   }
   assertProjectAction(actorId: string, spec: ActionSpec, existingId?: string): void {
-    if (spec.version !== 3) return;
+    if (spec.version !== 3 && spec.version !== 4) return;
     const flow = this.getProjectFlow(actorId);
     ensure(
       flow &&
@@ -273,7 +278,10 @@ export class Store {
       connection?.status === "connected" &&
         connection.teamId === spec.scope.teamId &&
         connection.selectedApp === spec.scope.app &&
-        connection.apps.some((app) => app.name === spec.scope.app),
+        connection.apps.some(
+          (app) =>
+            app.name === spec.scope.app && (spec.version !== 4 || app.id === spec.targetAppId),
+        ),
       "PROJECT_ACCESS_CHANGED",
       "حساب یا برنامه مقصد تغییر کرده است. اتصال را بررسی و پیشنهاد تازه دریافت کنید.",
       409,
@@ -510,7 +518,10 @@ export class Store {
     return this.transaction(() => {
       this.ensureNoConflict(spec);
       this.assertProjectAction(actorId, spec);
-      if ((spec.version === 2 || spec.version === 3) && spec.operation === "deploy") {
+      if (
+        (spec.version === 2 || spec.version === 3 || spec.version === 4) &&
+        spec.operation === "deploy"
+      ) {
         const artifact = this.getArtifact(actorId, spec.artifactHash ?? "");
         ensure(
           artifact.sourceHash === spec.sourceHash,
@@ -547,7 +558,7 @@ export class Store {
           action.expiresAt,
         );
       this.audit(action, "proposed", now);
-      if (spec.version === 3) {
+      if (spec.version === 3 || spec.version === 4) {
         const flow = this.getProjectFlow(actorId);
         if (flow) this.invalidateProjectAction(flow, actorId);
         this.db
@@ -561,7 +572,16 @@ export class Store {
   getAction(id: string, actorId: string): Action {
     const row = this.db.prepare("SELECT * FROM actions WHERE id=? AND actor_id=?").get(id, actorId);
     ensure(row, "NOT_FOUND", "این اقدام پیدا نشد.", 404);
-    return actionRow(row);
+    const action = actionRow(row);
+    const progress = this.db
+      .prepare("SELECT data_json FROM deployment_progress WHERE action_id=?")
+      .get(id);
+    return progress
+      ? {
+          ...action,
+          deployment: parseDeploymentProgress(JSON.parse(string(progress.data_json, 4096))),
+        }
+      : action;
   }
 
   listActions(actorId: string, now = Date.now()): Action[] {
@@ -575,7 +595,7 @@ export class Store {
         "SELECT * FROM actions WHERE actor_id=? ORDER BY created_at DESC, rowid DESC LIMIT 20",
       )
       .all(actorId)
-      .map(actionRow);
+      .map((row) => this.getAction(string(row.id), actorId));
   }
 
   decide(
@@ -670,6 +690,12 @@ export class Store {
         )
         .run(now, attemptId, id);
       ensure(changed.changes === 1, "ACTION_CONFLICT", "تأیید قبلاً مصرف شده است.", 409);
+      if (action.spec.version === 4)
+        this.writeDeploymentProgress(id, {
+          stage: "claimed",
+          sourceId: null,
+          observation: null,
+        });
       this.audit(action, "claimed", now);
       return this.getAction(id, actorId);
     });
@@ -691,11 +717,129 @@ export class Store {
         "شناسه نتیجه سرویس معتبر نیست.",
         502,
       );
+      if (action.spec.version === 4) {
+        ensure(
+          action.deployment?.stage === "release_started",
+          "ACTION_CONFLICT",
+          "رسید انتشار بدون مرحله ثبت‌شده پذیرفته نمی‌شود.",
+          409,
+        );
+        this.writeDeploymentProgress(id, {
+          ...action.deployment,
+          stage: "release_accepted",
+        });
+      }
       this.db
         .prepare("UPDATE actions SET state='observing',remote_id=? WHERE id=?")
         .run(safeId, id);
       this.db.prepare("UPDATE attempts SET remote_id=? WHERE action_id=?").run(safeId, id);
       this.audit(action, "accepted", now);
+      return this.getAction(id, actorId);
+    });
+  }
+
+  private writeDeploymentProgress(id: string, progress: DeploymentProgress): void {
+    this.db
+      .prepare(
+        "INSERT INTO deployment_progress VALUES (?,?) ON CONFLICT(action_id) DO UPDATE SET data_json=excluded.data_json",
+      )
+      .run(id, JSON.stringify(parseDeploymentProgress(progress)));
+  }
+
+  deploymentStep(
+    id: string,
+    actorId: string,
+    stage: "upload_started" | "uploaded" | "release_started",
+    sourceId: string | null = null,
+  ): void {
+    this.transaction(() => {
+      const action = this.getAction(id, actorId),
+        previous = action.deployment;
+      ensure(
+        action.spec.version === 4 && action.state === "executing" && action.attemptId,
+        "ACTION_CONFLICT",
+        "اجرای انتشار claim نشده است.",
+        409,
+      );
+      if (stage !== "uploaded") this.assertProjectAction(actorId, action.spec, id);
+      ensure(
+        (stage === "upload_started" && previous?.stage === "claimed" && sourceId === null) ||
+          (stage === "uploaded" && previous?.stage === "upload_started" && sourceId !== null) ||
+          (stage === "release_started" &&
+            previous?.stage === "uploaded" &&
+            previous.sourceId === sourceId),
+        "ACTION_CONFLICT",
+        "مرحله انتشار تکراری یا خارج از ترتیب است.",
+        409,
+      );
+      if (sourceId !== null)
+        ensure(
+          /^[a-zA-Z0-9_-]{1,128}$/.test(sourceId),
+          "UPSTREAM_INVALID",
+          "شناسه source معتبر نیست.",
+          502,
+        );
+      this.writeDeploymentProgress(id, { stage, sourceId, observation: null });
+      this.audit(action, stage, Date.now());
+    });
+  }
+
+  recordDeploymentObservation(
+    id: string,
+    actorId: string,
+    observation: DeploymentObservation,
+  ): Action {
+    return this.transaction(() => {
+      const action = this.getAction(id, actorId);
+      ensure(
+        action.spec.version === 4 &&
+          action.deployment &&
+          (action.state === "observing" || action.state === "uncertain"),
+        "ACTION_CONFLICT",
+        "این انتشار منتظر مشاهده نیست.",
+        409,
+      );
+      const connection = this.getConnection(actorId, "liara")?.view;
+      ensure(
+        connection?.status === "connected" &&
+          connection.teamId === action.spec.scope.teamId &&
+          connection.selectedApp === action.spec.scope.app &&
+          connection.apps.some(
+            (app) =>
+              app.name === action.spec.scope.app &&
+              action.spec.version === 4 &&
+              app.id === action.spec.targetAppId,
+          ),
+        "SCOPE_DENIED",
+        "برای مشاهده، همان برنامه و حساب را انتخاب کنید.",
+        403,
+      );
+      ensure(
+        observation.releaseId === action.remoteId &&
+          (!action.deployment.observation ||
+            observation.checkedAt > action.deployment.observation.checkedAt),
+        "EVIDENCE_MISMATCH",
+        "رسید یا زمان مشاهده تغییر کرده است.",
+        409,
+      );
+      ensure(
+        (observation.outcome !== "verified" && observation.outcome !== "failed") ||
+          (action.remoteId && action.deployment.stage === "release_accepted"),
+        "EVIDENCE_MISMATCH",
+        "نتیجه موفق به رسید قطعی release نیاز دارد.",
+        409,
+      );
+      this.writeDeploymentProgress(id, { ...action.deployment, observation });
+      const state =
+        observation.outcome === "verified"
+          ? "succeeded"
+          : observation.outcome === "failed"
+            ? "failed"
+            : action.state;
+      this.db
+        .prepare("UPDATE actions SET state=?,error_code=? WHERE id=?")
+        .run(state, observation.outcome === "verified" ? null : observation.code, id);
+      this.audit(action, `deployment_${observation.outcome}`, observation.checkedAt);
       return this.getAction(id, actorId);
     });
   }
@@ -761,6 +905,12 @@ export class Store {
   ): Action {
     return this.transaction(() => {
       const action = this.getAction(id, actorId);
+      ensure(
+        action.spec.version !== 4,
+        "DEPLOYMENT_OBSERVATION_REQUIRED",
+        "این انتشار باید با معیار پاسخ و نسخه خودش بررسی شود.",
+        409,
+      );
       ensure(
         action.state === "observing" || action.state === "uncertain",
         "ACTION_CONFLICT",

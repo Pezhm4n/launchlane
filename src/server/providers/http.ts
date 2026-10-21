@@ -3,6 +3,20 @@ import { AppError, ensure } from "../errors.ts";
 export type Transport = (url: string, init: RequestInit) => Promise<Response>;
 export const transport: Transport = (url, init) => fetch(url, init);
 
+export async function abortable<T>(task: () => Promise<T>, signal: AbortSignal): Promise<T> {
+  ensure(!signal.aborted, "CANCELLED", "مهلت درخواست پایان یافته است.", 409);
+  let stop: () => void = () => undefined;
+  const ended = new Promise<never>((_resolve, reject) => {
+    stop = () => reject(new AppError("CANCELLED", "درخواست کامل نشد؛ نتیجه قطعی نداریم.", 409));
+    signal.addEventListener("abort", stop, { once: true });
+  });
+  try {
+    return await Promise.race([task(), ended]);
+  } finally {
+    signal.removeEventListener("abort", stop);
+  }
+}
+
 export async function boundedJson(response: Response, maxBytes = 256 * 1024): Promise<unknown> {
   ensure(response.ok, "UPSTREAM_HTTP", "سرویس پاسخ موفق نداد.", 502);
   ensure(

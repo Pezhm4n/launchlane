@@ -43,10 +43,13 @@ export function capabilities(config: Config, liara?: ConnectionView | null): Cap
       nextStep: "می‌توانید گزارش‌های در دسترس را جمع‌آوری و شواهد را بررسی کنید.",
     },
     mutations: {
-      state: "unavailable",
+      state:
+        config.enableMutations && config.enableLiveLiara && connected
+          ? "unverified"
+          : "unavailable",
       reason: !config.enableMutations
         ? "انتشار و تغییر زیرساخت در این نسخه غیرفعال است."
-        : "مسیر اجرای انتشار واقعی هنوز آماده نیست.",
+        : "انتشار محدود برنامه Node موجود آماده بررسی قراردادی است؛ سازگاری حساب واقعی هنوز تأیید نشده است.",
       nextStep:
         "فعلاً پروژه و فهرست فایل‌ها را بررسی و پیشنهاد را آماده کنید؛ تأیید به‌تنهایی چیزی را منتشر نمی‌کند.",
     },

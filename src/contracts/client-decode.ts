@@ -12,6 +12,7 @@ import { ensure } from "../server/errors.ts";
 import { hash, integer, object, string } from "./validation.ts";
 import { parseArtifact } from "./source.ts";
 import { parseConnection } from "./connections.ts";
+import { parseWorkloadExpectation, parseDeploymentProgress } from "./deployment.ts";
 
 function nullableString(value: unknown, max = 256): string | null {
   return value === null ? null : string(value, max);
@@ -56,7 +57,7 @@ export function decodeAction(value: unknown): Action {
   const state = states.find((state) => state === raw.state);
   ensure(
     state &&
-      (spec.version === 1 || spec.version === 2 || spec.version === 3) &&
+      (spec.version === 1 || spec.version === 2 || spec.version === 3 || spec.version === 4) &&
       (spec.operation === "deploy" || spec.operation === "restart"),
     "INVALID_RESPONSE",
     "ساختار اقدام معتبر نیست.",
@@ -73,19 +74,29 @@ export function decodeAction(value: unknown): Action {
   const parsedSpec: ActionSpec =
     spec.version === 1
       ? { ...common, version: 1 }
-      : spec.version === 3
+      : spec.version === 4
         ? {
             ...common,
-            version: 3,
+            version: 4,
             artifactHash: hash(spec.artifactHash),
             projectFlowId: string(spec.projectFlowId, 36),
             selectionHash: hash(spec.selectionHash),
+            targetAppId: string(spec.targetAppId, 128),
+            workload: parseWorkloadExpectation(spec.workload),
           }
-        : {
-            ...common,
-            version: 2,
-            artifactHash: spec.artifactHash === null ? null : hash(spec.artifactHash),
-          };
+        : spec.version === 3
+          ? {
+              ...common,
+              version: 3,
+              artifactHash: hash(spec.artifactHash),
+              projectFlowId: string(spec.projectFlowId, 36),
+              selectionHash: hash(spec.selectionHash),
+            }
+          : {
+              ...common,
+              version: 2,
+              artifactHash: spec.artifactHash === null ? null : hash(spec.artifactHash),
+            };
   return {
     id: string(raw.id),
     actorId: string(raw.actorId),
@@ -97,6 +108,9 @@ export function decodeAction(value: unknown): Action {
     attemptId: nullableString(raw.attemptId),
     remoteId: nullableString(raw.remoteId),
     errorCode: nullableString(raw.errorCode),
+    ...(raw.deployment === undefined
+      ? {}
+      : { deployment: parseDeploymentProgress(raw.deployment) }),
   };
 }
 export function decodeArtifact(value: unknown): SourceArtifact {
@@ -112,7 +126,7 @@ export function decodeWorkspace(value: unknown): WorkspaceView {
   ensure(
     typeof features.serviceReads === "boolean" &&
       typeof features.analysis === "boolean" &&
-      features.deployment === false,
+      typeof features.deployment === "boolean",
     "INVALID_RESPONSE",
     "وضعیت امکانات معتبر نیست.",
   );
@@ -144,7 +158,7 @@ export function decodeWorkspace(value: unknown): WorkspaceView {
     features: {
       serviceReads: features.serviceReads,
       analysis: features.analysis,
-      deployment: false,
+      deployment: features.deployment,
       probeApps: strings(features.probeApps),
       probeOrigin: features.probeOrigin === null ? null : string(features.probeOrigin, 512),
     },

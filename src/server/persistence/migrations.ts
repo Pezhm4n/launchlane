@@ -75,4 +75,12 @@ CREATE TABLE probe_targets (
 ) STRICT;
 `,
   },
+  {
+    version: 6,
+    sql: `
+CREATE TABLE deployment_progress (
+  action_id TEXT PRIMARY KEY REFERENCES actions(id), data_json TEXT NOT NULL
+) STRICT;
+`,
+  },
 ] as const;

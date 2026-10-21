@@ -57,6 +57,8 @@ function Proposal({
   expired,
   onDecision,
   onNewProposal,
+  onOperation,
+  onNextVersion,
 }: {
   action: Action;
   workspace: WorkspaceView;
@@ -64,6 +66,8 @@ function Proposal({
   expired: boolean;
   onDecision: (action: Action, decision: "approve" | "reject") => void;
   onNewProposal: () => void;
+  onOperation: (operation: "execute" | "observe") => void;
+  onNextVersion: () => void;
 }) {
   const state =
     action.expiresAt <= Date.now() &&
@@ -100,7 +104,15 @@ function Proposal({
         </div>
         <div>
           <dt>هزینه و پلن</dt>
-          <dd>هنوز از لیارا تأیید نشده</dd>
+          <dd>
+            {action.spec.version === 4 ? (
+              <>
+                پلن فعلی <bdi>{action.spec.args.planId}</bdi> حفظ می‌شود؛ هزینه نامعلوم است
+              </>
+            ) : (
+              "هنوز از لیارا تأیید نشده"
+            )}
+          </dd>
         </div>
         <div>
           <dt>اثر انتشار</dt>
@@ -108,9 +120,18 @@ function Proposal({
         </div>
       </dl>
       <p className="note">
-        ممکن است هنگام انتشار دسترسی سایت موقتاً قطع شود. قیمت و منابع مورد نیاز هنوز تأیید نشده‌اند؛
-        اجرای واقعی تا آماده‌شدن این اطلاعات و مسیر انتشار بسته است.
+        ممکن است هنگام انتشار دسترسی سایت موقتاً قطع شود. قیمت و منابع مورد نیاز هنوز تأیید نشده‌اند.
+        {action.spec.version === 4
+          ? " این پیشنهاد فقط نسخه برنامه موجود را منتشر می‌کند؛ پلن و متغیرهای محیطی را تغییر نمی‌دهد."
+          : " اجرای واقعی این پیشنهاد بسته است."}
       </p>
+      {action.spec.version === 4 ? (
+        <p className="hint">
+          معیار نتیجه: پاسخ <bdi>{action.spec.workload.status}</bdi> از{" "}
+          <bdi>{action.spec.workload.path}</bdi> با نسخه <bdi>{action.spec.workload.revision}</bdi>.
+          آماده‌شدن release به‌تنهایی نتیجه موفق نیست.
+        </p>
+      ) : null}
       <p>
         تصمیم شما به همین مقصد و همین فایل‌ها مربوط است. تغییر پروژه، نسخه یا تنظیمات، پیشنهاد و
         تأیید تازه می‌خواهد.
@@ -137,14 +158,43 @@ function Proposal({
           <p className="hint">تأیید در این مرحله فقط تصمیم را ثبت می‌کند؛ هیچ فایلی ارسال نمی‌شود.</p>
         </>
       ) : state === "approved" ? (
-        <p className="note">
-          تصمیم شما ثبت شده است؛ انتشار اجرا نشده و سلامت سایت بررسی نشده است. آماده‌نبودن اجرای
-          انتشار را از ثبت تأیید جدا نگه می‌داریم.
-        </p>
+        <>
+          <p className="note">
+            تصمیم شما ثبت شده است؛ انتشار اجرا نشده و سلامت سایت بررسی نشده است.
+            {action.spec.version === 4
+              ? " برای شروع، انتشار همین نسخه را انتخاب کنید."
+              : " مسیر اجرای این پیشنهاد هنوز بسته است."}
+          </p>
+          {action.spec.version === 4 && workspace.features.deployment ? (
+            <button type="button" disabled={busy || expired} onClick={() => onOperation("execute")}>
+              انتشار این نسخه روی <bdi>{action.spec.scope.app}</bdi>
+            </button>
+          ) : null}
+        </>
       ) : state === "uncertain" ? (
-        <p className="note note-danger">
-          اجرای دوباره مجاز نیست. ابتدا باید نتیجه همین عملیات از لیارا خوانده و مشخص شود.
-        </p>
+        <>
+          <p className="note note-danger">
+            اجرای دوباره مجاز نیست. ابتدا باید نتیجه همین عملیات از لیارا خوانده و مشخص شود.
+          </p>
+          {action.spec.version === 4 && workspace.features.serviceReads ? (
+            <button type="button" disabled={busy || expired} onClick={() => onOperation("observe")}>
+              بررسی نتیجه بدون ارسال دوباره
+            </button>
+          ) : null}
+        </>
+      ) : state === "observing" && action.spec.version === 4 ? (
+        <>
+          <p className="note">درخواست انتشار رسید دارد؛ پاسخ و نسخه سایت هنوز باید بررسی شوند.</p>
+          <button
+            type="button"
+            disabled={busy || expired || !workspace.features.serviceReads}
+            onClick={() => onOperation("observe")}
+          >
+            بررسی پاسخ و نسخه سایت
+          </button>
+        </>
+      ) : state === "succeeded" ? (
+        <button type="button" className="button-secondary" disabled={busy || expired} onClick={onNextVersion}>آماده‌سازی نسخه بعدی</button>
       ) : state === "cancelled" || state === "expired" || state === "failed" ? (
         <button
           type="button"
@@ -154,6 +204,32 @@ function Proposal({
         >
           دریافت پیشنهاد تازه
         </button>
+      ) : null}
+      {action.deployment ? (
+        <div className="note" aria-live="polite">
+          <p>
+            {
+              {
+                claimed: "مجوز اجرا مصرف شده است.",
+                upload_started: "ارسال بسته شروع شده؛ رسید کامل هنوز نداریم.",
+                uploaded: "رسید بسته ذخیره شد؛ release هنوز رسید ندارد.",
+                release_started: "درخواست release شروع شده؛ رسید کامل هنوز نداریم.",
+                release_accepted: "رسید release ذخیره شده است؛ وضعیت سایت مستقل بررسی می‌شود.",
+              }[action.deployment.stage]
+            }
+          </p>
+          {action.deployment.observation ? (
+            <p>
+              {action.deployment.observation.outcome === "verified"
+                ? "پاسخ و نسخه مورد انتظار همین صفحه تأیید شدند؛ این مشاهده فقط همین زمان و مسیر را پوشش می‌دهد."
+                : action.deployment.observation.outcome === "failed"
+                  ? "انتشار یا پاسخ مورد انتظار سایت تأیید نشد. رفع مشکل اعلام نمی‌شود."
+                  : action.deployment.observation.outcome === "pending"
+                    ? "آماده‌شدن release هنوز تأیید نشده است. کمی بعد فقط نتیجه را بررسی کنید."
+                    : "داده کافی برای تأیید نتیجه نداریم. ارسال دوباره انجام نشد."}
+            </p>
+          ) : null}
+        </div>
       ) : null}
       <details className="technical-details">
         <summary>جزئیات برای بررسی تخصصی</summary>
@@ -167,6 +243,16 @@ function Proposal({
         <p className="hint">
           شناسه پیگیری پیشنهاد: <code>{action.id}</code>
         </p>
+        {action.remoteId ? (
+          <p>
+            شناسه release: <bdi>{action.remoteId}</bdi>
+          </p>
+        ) : null}
+        {action.deployment?.sourceId ? (
+          <p>
+            شناسه source: <bdi>{action.deployment.sourceId}</bdi>
+          </p>
+        ) : null}
       </details>
     </section>
   );
@@ -182,6 +268,8 @@ export function Workbench() {
   const [token, setToken] = useState(""),
     [manualDirectory, setManualDirectory] = useState(""),
     [port, setPort] = useState("");
+  const [workloadPath, setWorkloadPath] = useState("/"),
+    [expectedRevision, setExpectedRevision] = useState("");
   const [folderOpen, setFolderOpen] = useState(false),
     [githubOpen, setGitHubOpen] = useState(false),
     [accountsOpen, setAccountsOpen] = useState(false);
@@ -245,9 +333,17 @@ export function Workbench() {
     return data;
   }, []);
   const applyFlow = useCallback((data: FlowResult) => {
+    const changed = activeFlow.current !== (data.flow?.id ?? null);
     setFlow(data.flow);
     setAction(data.action);
     setPort(data.flow?.profile.port === null || !data.flow ? "" : String(data.flow.profile.port));
+    if (data.action?.spec.version === 4) {
+      setWorkloadPath(data.action.spec.workload.path);
+      setExpectedRevision(data.action.spec.workload.revision);
+    } else if (changed) {
+      setWorkloadPath("/");
+      setExpectedRevision("");
+    }
     activeFlow.current = data.flow?.id ?? null;
   }, []);
   const writeLocation = useCallback(
@@ -475,10 +571,20 @@ export function Workbench() {
     try {
       const result = await api("/api/project-flows", decodeFlow, {
         body: {
-          operation: "propose",
+          operation: workspace.features.deployment ? "propose-deploy" : "propose",
           id: flow.id,
           app: workspace.connections.liara?.selectedApp,
           port: port ? Number(port) : null,
+          ...(workspace.features.deployment
+            ? {
+                workload: {
+                  origin: workspace.features.probeOrigin,
+                  path: workloadPath,
+                  status: 200,
+                  revision: expectedRevision,
+                },
+              }
+            : {}),
         },
         csrf: workspace.session.csrfToken,
       });
@@ -502,7 +608,10 @@ export function Workbench() {
       const next = await api(
         `/api/actions/${selected.id}/decision`,
         (value) => decodeAction(object(value).action),
-        { body: { hash: selected.hash, decision }, csrf: workspace.session.csrfToken },
+        {
+          body: { hash: selected.hash, decision },
+          csrf: workspace.session.csrfToken,
+        },
       );
       focusProposal.current = true;
       setAction(next);
@@ -522,6 +631,78 @@ export function Workbench() {
       setBusy(null);
     }
   }
+  async function deploymentOperation(operation: "execute" | "observe") {
+    if (!workspace || !action || disabled || pending.current) return;
+    const controller = new AbortController(),
+      selectedFlow = flow?.id;
+    pending.current = controller;
+    setBusy(operation);
+    setError(null);
+    setNotice(
+      operation === "execute"
+        ? "در حال ارسال نسخه تأییدشده؛ پایان انتظار، اجرای دوباره را مجاز نمی‌کند."
+        : "در حال خواندن نتیجه؛ فایلی دوباره ارسال نمی‌شود.",
+    );
+    try {
+      const next = await api(
+        `/api/actions/${action.id}/${operation}`,
+        (value) => decodeAction(object(value).action),
+        {
+          body: {},
+          csrf: workspace.session.csrfToken,
+          signal: controller.signal,
+        },
+      );
+      if (!controller.signal.aborted && selectedFlow === activeFlow.current) {
+        focusProposal.current = true;
+        setAction(next);
+        setNotice(
+          operation === "execute"
+            ? "رسید انتشار ثبت شد. اکنون پاسخ و نسخه سایت را بررسی کنید."
+            : "نتیجه بررسی ثبت شد.",
+        );
+      }
+    } catch (error) {
+      if (!controller.signal.aborted) fail(error);
+      else setNotice("انتظار متوقف شد. وضعیت ذخیره‌شده را بخوانید؛ انتشار خودکار تکرار نمی‌شود.");
+    } finally {
+      if (selectedFlow === activeFlow.current && flow) {
+        const saved = await api(`/api/project-flows?id=${flow.id}`, decodeFlow).catch(() => null);
+        if (saved) {
+          focusProposal.current = true;
+          applyFlow(saved);
+        }
+      }
+      if (pending.current === controller) {
+        pending.current = null;
+        setBusy(null);
+      }
+    }
+  }
+  const executingActionId = action?.id;
+  useEffect(() => {
+    if (busy !== "execute" || !executingActionId) return;
+    const controller = new AbortController(),
+      id = executingActionId;
+    let inFlight = false;
+    const timer = setInterval(() => {
+      if (inFlight) return;
+      inFlight = true;
+      void api("/api/workspace", decodeWorkspace, { signal: controller.signal })
+        .then((data) => {
+          const current = data.actions.find((row) => row.id === id);
+          if (!controller.signal.aborted && current) setAction(current);
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          inFlight = false;
+        });
+    }, 1500);
+    return () => {
+      controller.abort();
+      clearInterval(timer);
+    };
+  }, [busy, executingActionId]);
   function navigate(next: "source" | "incident") {
     if (busy || mode === next) return;
     setMode(next);
@@ -566,7 +747,8 @@ export function Workbench() {
             <span />
           </span>
           <span dir="ltr">
-            Launchlane<span className="brand-subtitle">از پروژه تا انتشار، با تصمیم شما</span>
+            Launchlane
+            <span className="brand-subtitle">از پروژه تا انتشار، با تصمیم شما</span>
           </span>
         </a>
         {workspace ? (
@@ -800,7 +982,10 @@ export function Workbench() {
                       disabled={disabled}
                       onClick={() =>
                         void prepare(
-                          { kind: "sample", directory: "examples/node-service" },
+                          {
+                            kind: "sample",
+                            directory: "examples/node-service",
+                          },
                           "sample",
                         )
                       }
@@ -908,7 +1093,7 @@ export function Workbench() {
                         </div>
                         <div>
                           <dt>آماده‌سازی محلی</dt>
-                          <dd>{flow.artifact ? "انجام شد؛ ارسال نشده" : "پس از تکمیل پروژه"}</dd>
+                          <dd>{action?.deployment?.sourceId ? "رسید ارسال بسته ثبت شده" : action?.deployment ? "ارسال آغاز شده؛ رسید کامل نداریم" : flow.artifact ? "انجام شد؛ ارسال نشده" : "پس از تکمیل پروژه"}</dd>
                         </div>
                       </dl>
                       {profile.port !== null ? (
@@ -1003,6 +1188,37 @@ export function Workbench() {
                               <bdi>{liara.selectedApp}</bdi>. پیشنهاد شامل فایل‌ها، اثر انتشار و
                               اطلاعات هزینه در دسترس خواهد بود.
                             </p>
+                            {workspace.features.deployment ? (
+                              <>
+                                <label htmlFor="deployment-path">مسیر بررسی نسخه</label>
+                                <input
+                                  id="deployment-path"
+                                  dir="ltr"
+                                  value={workloadPath}
+                                  onChange={(event) => setWorkloadPath(event.target.value)}
+                                  required
+                                  maxLength={200}
+                                  disabled={disabled}
+                                  aria-describedby="deployment-oracle-help"
+                                />
+                                <label htmlFor="deployment-revision">نسخه مورد انتظار</label>
+                                <input
+                                  id="deployment-revision"
+                                  dir="ltr"
+                                  value={expectedRevision}
+                                  onChange={(event) => setExpectedRevision(event.target.value)}
+                                  required
+                                  maxLength={128}
+                                  disabled={disabled}
+                                  aria-describedby="deployment-oracle-help"
+                                />
+                                <p id="deployment-oracle-help" className="hint">
+                                  همین مسیر باید JSON با فیلد revision و نسخه واردشده برگرداند. پاسخ
+                                  ۲۰۰ از نسخه قبلی کافی نیست. نشانی سایت را در اتصال حساب‌ها مشخص
+                                  کنید.
+                                </p>
+                              </>
+                            ) : null}
                             {profile.port === null ? (
                               <>
                                 <label htmlFor="project-port">پورت برنامه</label>
@@ -1040,7 +1256,14 @@ export function Workbench() {
                                 />
                               </details>
                             )}
-                            <button type="submit" disabled={disabled || !port}>
+                            <button
+                              type="submit"
+                              disabled={
+                                disabled ||
+                                !port ||
+                                (workspace.features.deployment && !expectedRevision)
+                              }
+                            >
                               {busy === "proposal"
                                 ? "در حال آماده‌کردن پیشنهاد…"
                                 : "دریافت پیشنهاد انتشار"}
@@ -1058,7 +1281,18 @@ export function Workbench() {
                           expired={expired}
                           onDecision={(selected, decision) => void decide(selected, decision)}
                           onNewProposal={() => void propose()}
+                          onOperation={(operation) => void deploymentOperation(operation)}
+                          onNextVersion={() => void prepare(flow.selection, "folder")}
                         />
+                        {busy === "execute" || busy === "observe" ? (
+                          <button
+                            type="button"
+                            className="button-secondary"
+                            onClick={() => pending.current?.abort()}
+                          >
+                            توقف انتظار
+                          </button>
+                        ) : null}
                       </div>
                     ) : null}
                   </div>

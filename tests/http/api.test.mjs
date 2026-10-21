@@ -37,7 +37,14 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
         await expects(await request("/api/project-flows"), 401, "AUTH_REQUIRED");
         await expects(await request("/api/incidents/runs"), 401, "AUTH_REQUIRED");
         await expects(
-          await request("/api/incidents/practice", { scenario: "configuration" }),
+          await request(`/api/actions/${"a".repeat(36)}/observe`, {}),
+          401,
+          "AUTH_REQUIRED",
+        );
+        await expects(
+          await request("/api/incidents/practice", {
+            scenario: "configuration",
+          }),
           401,
           "AUTH_REQUIRED",
         );
@@ -198,7 +205,10 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
           "LIARA_KEY_REQUIRED",
         );
         await expects(
-          await request("/api/connections/liara", { operation: "select", app: "sample-app" }),
+          await request("/api/connections/liara", {
+            operation: "select",
+            app: "sample-app",
+          }),
           403,
           "LIARA_APP_REQUIRED",
         );
@@ -280,7 +290,10 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
           "CSRF_DENIED",
         );
         const sample = await expects(
-          await request("/api/incidents/runs", { operation: "sample", scenario: "configuration" }),
+          await request("/api/incidents/runs", {
+            operation: "sample",
+            scenario: "configuration",
+          }),
           201,
         );
         assert.equal(sample.run.kind, "sample");
@@ -309,12 +322,18 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
           "LIVE_LIARA_DISABLED",
         );
         await expects(
-          await request("/api/incidents/runs", { operation: "analyze", id: sample.run.id }),
+          await request("/api/incidents/runs", {
+            operation: "analyze",
+            id: sample.run.id,
+          }),
           403,
           "ANALYSIS_UNAVAILABLE",
         );
         await expects(
-          await request("/api/connections/liara", { operation: "site", origin: "example.com" }),
+          await request("/api/connections/liara", {
+            operation: "site",
+            origin: "example.com",
+          }),
           403,
           "LIARA_APP_REQUIRED",
         );
@@ -343,12 +362,16 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
           "UNSAFE_PATH",
         );
         await expects(
-          await request("/api/projects/folders", { directory: "missing-folder" }),
+          await request("/api/projects/folders", {
+            directory: "missing-folder",
+          }),
           404,
           "FOLDER_NOT_FOUND",
         );
         await expects(
-          await request("/api/projects/inspect", { directory: "missing-folder" }),
+          await request("/api/projects/inspect", {
+            directory: "missing-folder",
+          }),
           404,
           "FOLDER_NOT_FOUND",
         );
@@ -372,7 +395,9 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
           "INVALID_INPUT",
         );
         const practice = await expects(
-          await request("/api/incidents/practice", { scenario: "configuration" }),
+          await request("/api/incidents/practice", {
+            scenario: "configuration",
+          }),
           200,
         );
         assert.equal(practice.evidence.mode, "simulated");
@@ -384,7 +409,10 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
           ["unrelated", "still_failing"],
         ]) {
           const compare = await expects(
-            await request("/api/incidents/practice", { scenario: "configuration", choice }),
+            await request("/api/incidents/practice", {
+              scenario: "configuration",
+              choice,
+            }),
             200,
           );
           assert.equal(compare.verification.outcome, expected);
@@ -510,6 +538,37 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
       );
       artifact = await prepare();
     });
+    await t.test(
+      "deployment proposal and observation enforce authentication, CSRF and disabled gates",
+      async () => {
+        await expects(
+          await request(`/api/actions/${"a".repeat(36)}/observe`, {}, { "x-csrf-token": "wrong" }),
+          403,
+          "CSRF_DENIED",
+        );
+        await expects(
+          await request("/api/project-flows", {
+            operation: "propose-deploy",
+            id: "a".repeat(36),
+            app: server.app,
+            port: 3000,
+            workload: {
+              origin: "https://example.com",
+              path: "/",
+              status: 200,
+              revision: "sample-v1",
+            },
+          }),
+          403,
+          "MUTATIONS_DISABLED",
+        );
+        await expects(
+          await request(`/api/actions/${"a".repeat(36)}/observe`, {}),
+          404,
+          "NOT_FOUND",
+        );
+      },
+    );
     await t.test(
       "approved/rejected actions persist and execution remains disabled on the server",
       async () => {

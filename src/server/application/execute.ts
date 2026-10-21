@@ -7,6 +7,7 @@ import { readArtifact } from "../workspace/archive.ts";
 import { validateProjectAction } from "./project-flows.ts";
 
 export type MutationAdapter = {
+  preflight?(signal: AbortSignal): Promise<void>;
   execute(
     action: Action,
     signal: AbortSignal,
@@ -41,7 +42,8 @@ export async function executeApproved(input: {
   let source: Buffer | null = null;
   if (currentSpec.operation === "deploy") {
     ensure(
-      (currentSpec.version === 2 || currentSpec.version === 3) && currentSpec.artifactHash,
+      (currentSpec.version === 2 || currentSpec.version === 3 || currentSpec.version === 4) &&
+        currentSpec.artifactHash,
       "ARTIFACT_REQUIRED",
       "این پیشنهاد به بسته source متصل نیست؛ پیشنهاد تازه بسازید.",
       409,
@@ -57,6 +59,8 @@ export async function executeApproved(input: {
     ensure(!signal.aborted, "CANCELLED", "پیش از شروع اجرا لغو شد.", 409);
   }
   await validateProjectAction(config, store, session.actorId, currentSpec, signal);
+  if (adapter.preflight) await adapter.preflight(signal);
+  ensure(!signal.aborted, "CANCELLED", "پیش از claim اجرا لغو شد.", 409);
   const action = store.claim(id, session.actorId, session.id, currentSpec);
   // The attempt is committed BEFORE entering the provider boundary. Never retry this write.
   try {

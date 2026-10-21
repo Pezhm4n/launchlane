@@ -8,6 +8,7 @@ import {
 import { ensure } from "../../../server/errors.ts";
 import { endpoint, jsonBody, reply } from "../../../server/http.ts";
 import { basename } from "node:path";
+import { proposeDeployment } from "../../../server/application/deployment.ts";
 import type { ProjectFlow } from "../../../contracts/project-flow.ts";
 import type { Config } from "../../../server/config.ts";
 function displayFlow(config: Config, flow: ProjectFlow | null): ProjectFlow | null {
@@ -61,14 +62,36 @@ export async function POST(request: Request) {
       const flow = await prepareProjectFlow(config, store, session.actorId, selection, signal);
       return reply({ flow: displayFlow(config, flow), action: null }, 201);
     }
-    ensure(operation === "propose", "INVALID_OPERATION", "این درخواست پروژه پشتیبانی نمی‌شود.");
-    exactKeys(input, ["operation", "id", "app", "port"]);
+    ensure(
+      operation === "propose" || operation === "propose-deploy",
+      "INVALID_OPERATION",
+      "این درخواست پروژه پشتیبانی نمی‌شود.",
+    );
+    exactKeys(input, [
+      "operation",
+      "id",
+      "app",
+      "port",
+      ...(operation === "propose-deploy" ? ["workload"] : []),
+    ]);
     const id = string(input.id, 36),
       app = string(input.app, 63),
       port = input.port === null ? null : integer(input.port, 1, 65535);
-    const action = await proposeProjectFlow(config, store, session.actorId, id, app, port, signal);
+    const action =
+      operation === "propose-deploy"
+        ? await proposeDeployment(
+            config,
+            store,
+            session.actorId,
+            { flowId: id, app, port, workload: input.workload },
+            signal,
+          )
+        : await proposeProjectFlow(config, store, session.actorId, id, app, port, signal);
     return reply(
-      { flow: displayFlow(config, store.getProjectFlow(session.actorId, id)), action },
+      {
+        flow: displayFlow(config, store.getProjectFlow(session.actorId, id)),
+        action,
+      },
       201,
     );
   });

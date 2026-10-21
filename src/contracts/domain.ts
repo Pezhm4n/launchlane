@@ -42,7 +42,20 @@ export type ActionSpec = ActionInputs &
   (
     | Readonly<{ version: 1 }>
     | Readonly<{ version: 2; artifactHash: string | null }>
-    | Readonly<{ version: 3; artifactHash: string; projectFlowId: string; selectionHash: string }>
+    | Readonly<{
+        version: 3;
+        artifactHash: string;
+        projectFlowId: string;
+        selectionHash: string;
+      }>
+    | Readonly<{
+        version: 4;
+        artifactHash: string;
+        projectFlowId: string;
+        selectionHash: string;
+        targetAppId: string;
+        workload: import("./deployment.ts").WorkloadExpectation;
+      }>
   );
 
 export type ActionState =
@@ -67,6 +80,7 @@ export type Action = Readonly<{
   attemptId: string | null;
   remoteId: string | null;
   errorCode: string | null;
+  deployment?: import("./deployment.ts").DeploymentProgress;
 }>;
 
 export type Session = Readonly<{
@@ -103,7 +117,7 @@ export type WorkspaceView = Readonly<{
   features: {
     serviceReads: boolean;
     analysis: boolean;
-    deployment: false;
+    deployment: boolean;
     probeApps: readonly string[];
     probeOrigin: string | null;
   };

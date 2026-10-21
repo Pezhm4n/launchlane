@@ -228,6 +228,12 @@ dd {
   text-decoration: none;
   color: var(--color-ink);
   font: 700 var(--text-2xl) / 1.2 var(--font-brand);
+  min-inline-size: var(--column-min);
+  max-inline-size: 100%;
+  overflow-wrap: anywhere;
+}
+.brand > span {
+  min-inline-size: var(--column-min);
 }
 .brand-subtitle {
   display: block;

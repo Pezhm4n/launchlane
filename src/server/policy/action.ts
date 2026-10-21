@@ -9,6 +9,7 @@ import {
   string,
 } from "../../contracts/validation.ts";
 import { ensure } from "../errors.ts";
+import { parseWorkloadExpectation } from "../../contracts/deployment.ts";
 
 export function canonical(value: unknown): string {
   if (
@@ -38,11 +39,12 @@ export function parseActionSpec(value: unknown): ActionSpec {
     "operation",
     "sourceHash",
     "args",
-    ...(input.version === 2 || input.version === 3 ? ["artifactHash"] : []),
-    ...(input.version === 3 ? ["projectFlowId", "selectionHash"] : []),
+    ...(input.version === 2 || input.version === 3 || input.version === 4 ? ["artifactHash"] : []),
+    ...(input.version === 3 || input.version === 4 ? ["projectFlowId", "selectionHash"] : []),
+    ...(input.version === 4 ? ["targetAppId", "workload"] : []),
   ]);
   ensure(
-    (input.version === 1 || input.version === 2 || input.version === 3) &&
+    (input.version === 1 || input.version === 2 || input.version === 3 || input.version === 4) &&
       (input.operation === "deploy" || input.operation === "restart"),
     "INVALID_OPERATION",
     "عملیات پشتیبانی نمی‌شود.",
@@ -76,7 +78,7 @@ export function parseActionSpec(value: unknown): ActionSpec {
   };
   if (input.version === 1) return { ...common, version: 1 };
   const artifactHash = input.artifactHash === null ? null : hash(input.artifactHash);
-  if (input.version === 3) {
+  if (input.version === 3 || input.version === 4) {
     ensure(
       input.operation === "deploy" && artifactHash,
       "INVALID_OPERATION",
@@ -84,6 +86,18 @@ export function parseActionSpec(value: unknown): ActionSpec {
     );
     const projectFlowId = string(input.projectFlowId, 36);
     ensure(/^[a-f0-9-]{36}$/.test(projectFlowId), "INVALID_INPUT", "شناسه پروژه معتبر نیست.");
+    if (input.version === 4) {
+      ensure(planId, "PLAN_REQUIRED", "شناسه پلن فعلی باید از لیارا خوانده شود.", 409);
+      return {
+        ...common,
+        version: 4,
+        artifactHash,
+        projectFlowId,
+        selectionHash: hash(input.selectionHash),
+        targetAppId: string(input.targetAppId, 128),
+        workload: parseWorkloadExpectation(input.workload),
+      };
+    }
     return {
       ...common,
       version: 3,

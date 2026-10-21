@@ -21,7 +21,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const action = store.getAction(id, session.actorId);
     authorizeScope(
       action.spec.scope,
-      action.spec.version === 3
+      action.spec.version === 3 || action.spec.version === 4
         ? connectedLiaraConfig(config, store, session.actorId, action.spec.scope.app)
         : config,
     );
