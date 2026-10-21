@@ -99,12 +99,43 @@ try {
   await page.getByRole("button", { name: "ورود به میز کار", exact: true }).click();
   await page.getByRole("heading", { name: "کدام پروژه را آماده کنیم؟" }).waitFor();
   assert.equal(await page.getByLabel("کلید ورود محلی", { exact: true }).count(), 0);
+  const chooseFolder = page.getByRole("button", { name: "انتخاب پوشه پروژه", exact: true });
+  const initialChoice = await chooseFolder.evaluate((element) => ({
+    top: element.getBoundingClientRect().top + window.scrollY,
+    height: window.innerHeight,
+  }));
+  assert.ok(
+    initialChoice.top < initialChoice.height,
+    "project selection must be visible in the first mobile viewport",
+  );
+  await chooseFolder.press("Enter");
+  const folderDialog = page.getByRole("dialog", { name: "انتخاب پوشه پروژه", exact: true });
+  await folderDialog.waitFor();
+  await folderDialog.getByRole("button", { name: /examples/ }).click();
+  await folderDialog.getByRole("button", { name: /node-service/ }).click();
+  await folderDialog.getByRole("button", { name: "انتخاب همین پوشه", exact: true }).click();
+  await page.getByRole("heading", { name: "آنچه از پروژه می‌دانیم", exact: true }).waitFor();
+  await page.getByRole("button", { name: "تغییر پوشه پروژه", exact: true }).click();
+  await folderDialog.waitFor();
+  await page.keyboard.press("Escape");
+  assert.equal(await folderDialog.count(), 0);
+  assert.equal(
+    await page.getByRole("heading", { name: "آنچه از پروژه می‌دانیم", exact: true }).isVisible(),
+    true,
+  );
+  assert.equal(
+    await page
+      .getByRole("button", { name: "تغییر پوشه پروژه", exact: true })
+      .evaluate((element) => element === document.activeElement),
+    true,
+  );
+  await layout(360, "local-folder-picked-and-cancel-preserved");
 
   for (const width of [280, 320, 360, 390, 414, 768, 1280]) {
     await page.setViewportSize({ width, height: width >= 768 ? 1000 : 844 });
     await page.goto(server.origin);
     await page.getByRole("heading", { name: "کدام پروژه را آماده کنیم؟" }).waitFor();
-    await page.getByRole("button", { name: "بررسی پروژه", exact: true }).click();
+    await page.getByRole("button", { name: "امتحان با پروژه نمونه", exact: true }).click();
     const heading = page.getByRole("heading", {
       name: "آنچه از پروژه می‌دانیم",
       exact: true,
@@ -182,12 +213,10 @@ try {
     }
   }
   await page.setViewportSize({ width: 360, height: 844 });
-  await page.getByLabel("مسیر نسبی پوشه پروژه", { exact: true }).fill("../escape");
+  await page.locator(".manual-project-path > summary").click();
+  await page.getByLabel("پوشه پروژه", { exact: true }).fill("../escape");
   await page.getByRole("button", { name: "بررسی پروژه", exact: true }).click();
-  const errorAlert = page.getByRole("alert", {
-    name: "این مرحله کامل نشد",
-    exact: true,
-  });
+  const errorAlert = page.getByRole("alert").filter({ hasText: /پروژه بررسی نشد|این مرحله کامل نشد/ });
   await errorAlert.waitFor();
   assert.equal(await errorAlert.evaluate((element) => element === document.activeElement), true);
   await layout(360, "unsafe-path-error");
@@ -196,7 +225,7 @@ try {
     fullPage: true,
   });
   await page.getByRole("button", { name: "بستن پیام", exact: true }).click();
-  await page.getByLabel("مسیر نسبی پوشه پروژه", { exact: true }).fill("examples/node-service");
+  await page.getByLabel("پوشه پروژه", { exact: true }).fill("examples/node-service");
   await page.route("**/api/projects/inspect", async (route) => {
     await new Promise((done) => setTimeout(done, 500));
     await route.continue().catch(() => undefined);
@@ -225,7 +254,7 @@ try {
   });
   await page.goto(server.origin);
   await page.getByRole("heading", { name: "کدام پروژه را آماده کنیم؟" }).waitFor();
-  await page.getByRole("button", { name: "بررسی پروژه", exact: true }).click();
+  await page.getByRole("button", { name: "امتحان با پروژه نمونه", exact: true }).click();
   let releaseArchive;
   const heldArchive = new Promise((resolve) => {
     releaseArchive = resolve;
@@ -267,7 +296,7 @@ try {
     .waitFor();
   await layout(360, "stale-archive-error");
   await page.getByRole("button", { name: "بستن پیام", exact: true }).click();
-  await page.getByRole("button", { name: "بررسی پروژه", exact: true }).click();
+  await page.getByRole("button", { name: "امتحان با پروژه نمونه", exact: true }).click();
   await page.getByRole("button", { name: "آماده‌سازی بسته محلی", exact: true }).click();
   await page.getByText("بسته محلی آماده است؛ ارسال نشده", { exact: true }).waitFor();
   assert.equal(

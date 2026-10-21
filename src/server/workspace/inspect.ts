@@ -1,66 +1,21 @@
 import { createHash } from "node:crypto";
 import { constants, type Dirent } from "node:fs";
 import { lstat, open, opendir, realpath } from "node:fs/promises";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { relative, resolve, sep } from "node:path";
 import type { ManifestEntry, ProjectProfile } from "../../contracts/domain.ts";
 import { hasControl, object } from "../../contracts/validation.ts";
 import { AppError, ensure } from "../errors.ts";
 import { fingerprint } from "../policy/action.ts";
 import { containsCredential } from "../policy/redaction.ts";
+import { checkName, excludedPath, filesystemError, under, workspaceDirectory } from "./paths.ts";
+export { excludedPath } from "./paths.ts";
 
 const MAX_FILES = 1000;
 const MAX_ENTRIES = 5000;
 const MAX_BYTES = 20 * 1024 * 1024;
 const MAX_FILE_BYTES = 512 * 1024;
-const excludedNames = new Set([
-  ".git",
-  ".hg",
-  ".svn",
-  "node_modules",
-  ".next",
-  ".data",
-  ".local",
-  ".artifacts",
-  ".agents",
-  ".cache",
-  ".npm",
-  ".yarn",
-  "coverage",
-  "dist",
-  "build",
-  "out",
-  "vendor",
-  ".vercel",
-  ".liara",
-  ".ssh",
-  ".aws",
-  "__pycache__",
-]);
 const allowedExtension =
   /\.(?:[cm]?[jt]sx?|json|lock|md|txt|html?|css|scss|svg|png|jpe?g|webp|ico|woff2?|ya?ml)$/i;
-
-export function excludedPath(name: string): boolean {
-  return (
-    excludedNames.has(name.toLowerCase()) ||
-    /^\.env/i.test(name) ||
-    /(?:credential|password|secret|access[-_]?token|api[-_]?key)/i.test(name) ||
-    /\.(?:pem|key|p12|pfx|db|sqlite\d*|log|gz|zip|tar)$/i.test(name) ||
-    /^(?:\.npmrc|\.netrc|id_rsa|id_ed25519)$/i.test(name)
-  );
-}
-
-function under(root: string, target: string): boolean {
-  const path = relative(root, target);
-  return path === "" || (!isAbsolute(path) && path !== ".." && !path.startsWith(`..${sep}`));
-}
-
-function checkName(name: string): void {
-  ensure(
-    name.length > 0 && name.length <= 160 && /^[\p{L}\p{N}._ @()+-]+$/u.test(name),
-    "UNSAFE_PATH",
-    "نام یک فایل برای بسته source مجاز نیست؛ نام ساده‌تری انتخاب کنید.",
-  );
-}
 
 async function readSafeFile(root: string, path: string): Promise<Buffer> {
   const resolved = await realpath(path);
@@ -137,7 +92,11 @@ export async function inspectProject(
   directory: string,
   options: ScanOptions = {},
 ): Promise<ProjectProfile> {
-  return (await scanProject(workspaceRoot, directory, options, false)).profile;
+  try {
+    return (await scanProject(workspaceRoot, directory, options, false)).profile;
+  } catch (error) {
+    throw filesystemError(error);
+  }
 }
 
 export async function captureProject(
@@ -145,7 +104,11 @@ export async function captureProject(
   directory: string,
   options: ScanOptions = {},
 ): Promise<{ profile: ProjectProfile; files: SourceFile[] }> {
-  return scanProject(workspaceRoot, directory, options, true);
+  try {
+    return await scanProject(workspaceRoot, directory, options, true);
+  } catch (error) {
+    throw filesystemError(error);
+  }
 }
 
 async function scanProject(
@@ -154,35 +117,8 @@ async function scanProject(
   options: ScanOptions,
   capture: boolean,
 ): Promise<{ profile: ProjectProfile; files: SourceFile[] }> {
-  ensure(
-    directory.length > 0 &&
-      directory.length <= 240 &&
-      !isAbsolute(directory) &&
-      !directory.includes("\\") &&
-      !directory.includes(":") &&
-      directory
-        .split("/")
-        .every((part) => part && part !== ".." && part !== "." && !excludedPath(part)),
-    "UNSAFE_PATH",
-    "مسیر باید نسبی و زیر workspace مجاز باشد.",
-    403,
-  );
   ensure(!options.signal?.aborted, "CANCELLED", "بررسی پروژه لغو شد.", 409);
-  const root = await realpath(workspaceRoot);
-  const target = resolve(root, directory);
-  ensure(under(root, target), "UNSAFE_PATH", "پروژه بیرون workspace است.", 403);
-  let cursor = root;
-  for (const part of directory.split("/")) {
-    checkName(part);
-    cursor = resolve(cursor, part);
-    const stat = await lstat(cursor);
-    ensure(
-      stat.isDirectory() && !stat.isSymbolicLink() && under(root, await realpath(cursor)),
-      "UNSAFE_PATH",
-      "مسیر پروژه نباید پیوند یا junction باشد.",
-      403,
-    );
-  }
+  const { target } = await workspaceDirectory(workspaceRoot, directory);
   const manifest: ManifestEntry[] = [];
   const files: SourceFile[] = [];
   const envNames = new Set<string>();

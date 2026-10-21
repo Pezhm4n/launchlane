@@ -10,7 +10,7 @@
 
 | Task | شدت / علت تأییدشده یا مرز تحقیق | معیار پذیرش این مرحله | وضعیت |
 | --- | --- | --- | --- |
-| UX60 | P0؛ ورودی متنی تنها مسیر انتخاب است؛ ENOENT از scanner به error عمومی می‌رسد | انتخاب‌گر واقعی و محدود پوشه سرور، لغو بدون پاک‌شدن انتخاب؛ خطای دقیق missing/access/invalid/empty؛ نمونه اختیاری | ready |
+| UX60 | P0؛ ورودی متنی تنها مسیر انتخاب است؛ ENOENT از scanner به error عمومی می‌رسد | انتخاب‌گر واقعی و محدود پوشه سرور، لغو بدون پاک‌شدن انتخاب؛ خطای دقیق missing/access/invalid/empty؛ نمونه اختیاری | implemented_local؛ bounded server-folder dialog، ریشه مجاز/صفحه‌بندی، خطای typed و حفظ انتخاب قبلی؛ وضعیت نهایی چک‌ها در verification |
 | UX61 | P0؛ اتصال/فهرست GitHub در UI موجود نیست؛ gh در PATH/دو محل معمول یافت نشد | یک روش رسمی قابل اجرا، هویت تأییدشده، repository/search/pagination/branch/subfolder/revision؛ دریافت محدود و بدون اجرای کد | investigation |
 | UX62 | P0؛ Liara فقط وضعیت ثابت و بدون اقدام دارد؛ CLI رسمی 9.4.7 نصب است | spike ورود رسمی، تصمیم ایمن و مستند؛ اتصال با اعتبارسنجی فوری، تیم/app مجاز و قطع اتصال روشن؛ بدون جعل OAuth | investigation |
 | UX63 | P0؛ profile و incident در state component هستند و بازیابی ندارند | جریان پایدار actor-bound در SQLite؛ بازیابی امن، تشخیص source قدیمی، URL/Back/Forward بدون secret و approval منقضی | ready |

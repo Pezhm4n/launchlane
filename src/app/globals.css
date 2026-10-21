@@ -863,6 +863,46 @@ button[aria-busy="true"] {
 .comparison-failed {
   background: var(--color-warning-soft);
 }
+.control-icon {
+  inline-size: var(--icon-size);
+  block-size: var(--icon-size);
+  flex-shrink: 0;
+}
+.folder-dialog {
+  inline-size: min(var(--dialog-width), calc(100% - var(--space-8)));
+  max-block-size: calc(100dvh - var(--space-8));
+  overflow: auto;
+  padding: var(--space-5);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-ink);
+}
+.folder-dialog::backdrop {
+  background: var(--color-overlay);
+}
+.folder-list {
+  list-style: none;
+  padding: var(--space-0);
+  display: grid;
+  gap: var(--space-2);
+}
+.folder-list button {
+  inline-size: 100%;
+  justify-content: start;
+  overflow-wrap: anywhere;
+}
+.folder-list .hint {
+  margin-inline-start: auto;
+}
+.selected-project,
+.manual-project-path {
+  margin-block-start: var(--space-4);
+}
+.field-error {
+  color: var(--color-danger);
+  margin-block: var(--space-3);
+}
 @media (min-width: 768px) {
   .incident-layout {
     grid-template-columns: minmax(var(--column-min), 2fr) minmax(var(--column-min), 1fr);

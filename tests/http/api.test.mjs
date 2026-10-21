@@ -114,6 +114,34 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
     );
     let profile, artifact;
     await t.test(
+      "folder picker reads only the allowed server workspace and reports missing folders accurately",
+      async () => {
+        await expects(
+          await request("/api/projects/folders", { directory: "." }, { "x-csrf-token": "forged" }),
+          403,
+          "CSRF_DENIED",
+        );
+        const root = await expects(await request("/api/projects/folders", { directory: "." }), 200);
+        assert.ok(root.folders.some((item) => item.directory === "examples"));
+        assert.ok(!JSON.stringify(root).includes(server.workspace));
+        await expects(
+          await request("/api/projects/folders", { directory: "../escape" }),
+          403,
+          "UNSAFE_PATH",
+        );
+        await expects(
+          await request("/api/projects/folders", { directory: "missing-folder" }),
+          404,
+          "FOLDER_NOT_FOUND",
+        );
+        await expects(
+          await request("/api/projects/inspect", { directory: "missing-folder" }),
+          404,
+          "FOLDER_NOT_FOUND",
+        );
+      },
+    );
+    await t.test(
       "incident practice stays explicitly simulated, validates input and cannot enable live reads",
       async () => {
         await expects(

@@ -100,6 +100,7 @@ timeout بعد از احتمال write: `uncertain`؛ write خودکار تکر�
 | `POST /api/session` | ورود با operator token؛ host/Origin معتبر، rate limit و کوکی session؛ secret هرگز در URL |
 | `GET /api/capabilities` | scope مجاز و available/unavailable/unverified با دلیل |
 | `POST /api/projects/inspect` | خواندن محدود پروژه زیر workspace مجاز؛ بدون اجرای scripts |
+| `POST /api/projects/folders` | موجود؛ dialog پوشه‌های سرور محلی، ریشه مشخص و pagination؛ session/Origin/CSRF، بدون گسترش دسترسی دیسک |
 | `POST /api/projects/archive` | موجود؛ session/Origin/CSRF، source hash فعلی، tar.gz محلی و receipt؛ بدون تماس provider |
 | `POST /api/runs` | درخواست کاربر، جمع‌آوری evidence و پیشنهاد action/diagnosis |
 | `GET /api/runs/{id}` | وضعیت/شواهد sanitized با کنترل مالکیت |

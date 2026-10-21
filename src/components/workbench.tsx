@@ -18,6 +18,7 @@ import {
 import { object } from "../contracts/validation.ts";
 import { api, ClientError } from "./api.ts";
 import { IncidentWorkbench } from "./IncidentWorkbench.tsx";
+import { FolderIcon, FolderPicker } from "./FolderPicker.tsx";
 
 const stateNames: Record<ActionState, string> = {
   awaiting_approval: "منتظر تصمیم شما",
@@ -175,7 +176,13 @@ export function Workbench() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [token, setToken] = useState("");
-  const [directory, setDirectory] = useState("examples/node-service");
+  const [directory, setDirectory] = useState("");
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [projectKind, setProjectKind] = useState<"local" | "sample">("local");
+  const folderTrigger = useRef<HTMLButtonElement>(null),
+    restorePickerFocus = useRef(false);
+  const sampleTrigger = useRef<HTMLButtonElement>(null),
+    inspectOrigin = useRef<"picker" | "sample" | "manual">("manual");
   const [profile, setProfile] = useState<ProjectProfile | null>(null);
   const [artifact, setArtifact] = useState<SourceArtifact | null>(null);
   const [port, setPort] = useState("");
@@ -226,8 +233,21 @@ export function Workbench() {
     if (artifact) artifactHeading.current?.focus();
   }, [artifact]);
   useEffect(() => {
+    if (!pickerOpen && restorePickerFocus.current) {
+      restorePickerFocus.current = false;
+      folderTrigger.current?.focus();
+    }
+  }, [pickerOpen]);
+  useEffect(() => {
     if (busy === null && returnFocus.current) {
-      const target = returnFocus.current === "inspect" ? inspectTrigger : archiveTrigger;
+      const target =
+        returnFocus.current === "inspect"
+          ? inspectOrigin.current === "sample"
+            ? sampleTrigger
+            : inspectOrigin.current === "picker"
+              ? folderTrigger
+              : inspectTrigger
+          : archiveTrigger;
       returnFocus.current = null;
       target.current?.focus();
     }
@@ -286,23 +306,29 @@ export function Workbench() {
       setBusy(null);
     }
   }
-  async function inspect(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function inspect(
+    selectedDirectory: string,
+    kind: "local" | "sample" = projectKind,
+    origin: "picker" | "sample" | "manual" = "manual",
+  ) {
     if (!view || busy) return;
     setBusy("inspect");
+    inspectOrigin.current = origin;
     setError(null);
-    setProfile(null);
-    setArtifact(null);
     setNotice("در حال خواندن فایل‌های مجاز؛ هیچ script اجرا نمی‌شود.");
     const controller = new AbortController();
     pending.current = controller;
     try {
       const result = await api("/api/projects/inspect", decodeProfile, {
-        body: { directory },
+        body: { directory: selectedDirectory },
         csrf: view.session.csrfToken,
         signal: controller.signal,
       });
+      if (controller.signal.aborted) return;
+      setDirectory(selectedDirectory);
+      setProjectKind(kind);
       setProfile(result);
+      setArtifact(null);
       setPort(result.port === null ? "" : String(result.port));
       setNotice("بررسی محلی کامل شد. اطلاعات پروژه و فهرست فایل‌ها را ببینید.");
     } catch (error) {
@@ -398,6 +424,16 @@ export function Workbench() {
   const step =
     latest?.state === "approved" ? 2 : latest && latest.state !== "cancelled" ? 1 : profile ? 1 : 0;
   const expired = view !== null && clock >= view.session.expiresAt;
+  const projectError =
+    error &&
+    [
+      "FOLDER_NOT_FOUND",
+      "FOLDER_ACCESS_DENIED",
+      "INVALID_FOLDER",
+      "INVALID_PROJECT",
+      "SOURCE_CHANGED",
+      "UNSAFE_PATH",
+    ].includes(error.code);
 
   return (
     <>
@@ -486,7 +522,7 @@ export function Workbench() {
             </button>
           </nav>
         ) : null}
-        {workbenchMode === "source" ? (
+        {workbenchMode === "source" && profile ? (
           <nav className="journey" aria-label="مسیر انتشار">
             <ol>
               {["شناخت پروژه", "پیشنهاد", "تأیید شما", "انتشار", "بررسی نتیجه"].map(
@@ -510,7 +546,7 @@ export function Workbench() {
         <div className="live-message" role="status" aria-live="polite" aria-atomic="true">
           {loading ? "در حال بررسی نشست محلی…" : notice}
         </div>
-        {error ? (
+        {error && !(view && workbenchMode === "source" && projectError) ? (
           <div
             className="error-banner"
             role="alert"
@@ -605,53 +641,129 @@ export function Workbench() {
                   <span className="badge badge-ok">بدون هزینه API</span>
                 </div>
                 <p>
-                  بررسی فقط محلی است؛ کدی اجرا یا ارسال نمی‌شود. فایل‌های env و مسیرهای حساس رایج کنار
-                  گذاشته می‌شوند.
+                  پوشه فایل‌های پروژه را انتخاب کنید. بررسی روی همین رایانه انجام می‌شود و چیزی ارسال
+                  نمی‌کند.
                 </p>
-                <form onSubmit={inspect} aria-busy={busy === "inspect"}>
-                  <label htmlFor="project-directory">مسیر نسبی پوشه پروژه</label>
-                  <input
-                    id="project-directory"
-                    value={directory}
-                    onChange={(event) => {
-                      setDirectory(event.target.value);
-                      setProfile(null);
-                      setArtifact(null);
-                    }}
-                    dir="ltr"
-                    spellCheck={false}
-                    autoComplete="off"
-                    required
-                    maxLength={240}
-                    aria-describedby="directory-help"
+                <div className="button-row">
+                  <button
+                    type="button"
+                    ref={folderTrigger}
+                    aria-describedby={projectError ? "project-selection-error" : undefined}
+                    disabled={
+                      busy !== null || expired || view.capabilities.workspace.state !== "available"
+                    }
+                    onClick={() => setPickerOpen(true)}
+                  >
+                    <FolderIcon />
+                    {profile ? "تغییر پوشه پروژه" : "انتخاب پوشه پروژه"}
+                  </button>
+                  <button
+                    type="button"
+                    className="button-secondary"
                     disabled={busy !== null || expired}
-                  />
-                  <p id="directory-help" className="hint">
-                    نمونه آماده: <bdi>examples/node-service</bdi>. مسیر کامل درایو وارد نکنید.
+                    ref={sampleTrigger}
+                    onClick={() => inspect("examples/node-service", "sample", "sample")}
+                  >
+                    امتحان با پروژه نمونه
+                  </button>
+                </div>
+                {profile ? (
+                  <p className="selected-project">
+                    {projectKind === "sample" ? "پروژه نمونه: " : "پروژه انتخاب‌شده: "}
+                    <bdi>
+                      {profile.directory === "."
+                        ? "پوشه اصلی پروژه‌ها"
+                        : profile.directory.split("/").at(-1)}
+                    </bdi>
                   </p>
-                  <div className="button-row">
-                    <button
-                      type="submit"
-                      ref={inspectTrigger}
-                      disabled={
-                        busy !== null ||
-                        expired ||
-                        view.capabilities.workspace.state !== "available"
-                      }
-                    >
-                      {busy === "inspect" ? "در حال بررسی پروژه…" : "بررسی پروژه"}
+                ) : null}
+                {projectError && error ? (
+                  <div
+                    className="field-error"
+                    role="alert"
+                    aria-labelledby="project-selection-error-title"
+                    id="project-selection-error"
+                    tabIndex={-1}
+                    ref={errorBox}
+                  >
+                    <strong id="project-selection-error-title">پروژه بررسی نشد</strong>
+                    <p>{error.message}</p>
+                    <button className="button-quiet" type="button" onClick={() => setError(null)}>
+                      بستن پیام
                     </button>
-                    {busy === "inspect" ? (
-                      <button
-                        className="button-secondary"
-                        type="button"
-                        onClick={() => pending.current?.abort()}
-                      >
-                        لغو بررسی
-                      </button>
-                    ) : null}
                   </div>
-                </form>
+                ) : null}
+                <details className="manual-project-path">
+                  <summary>انتخاب با مسیر پوشه</summary>
+                  <form
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      inspect(directory, "local");
+                    }}
+                    aria-busy={busy === "inspect"}
+                  >
+                    <label htmlFor="project-directory">پوشه پروژه</label>
+                    <input
+                      id="project-directory"
+                      value={directory}
+                      onChange={(event) => {
+                        setDirectory(event.target.value);
+                      }}
+                      dir="ltr"
+                      spellCheck={false}
+                      autoComplete="off"
+                      required
+                      maxLength={240}
+                      aria-describedby={
+                        projectError ? "directory-help project-selection-error" : "directory-help"
+                      }
+                      aria-invalid={projectError || undefined}
+                      disabled={busy !== null || expired}
+                    />
+                    <p id="directory-help" className="hint">
+                      این روش اختیاری است؛ مسیر باید داخل پوشه‌های مجاز همین نصب باشد.
+                    </p>
+                    <div className="button-row">
+                      <button
+                        type="submit"
+                        ref={inspectTrigger}
+                        disabled={
+                          busy !== null ||
+                          expired ||
+                          view.capabilities.workspace.state !== "available"
+                        }
+                      >
+                        {busy === "inspect" ? "در حال بررسی پروژه…" : "بررسی پروژه"}
+                      </button>
+                    </div>
+                  </form>
+                </details>
+                {busy === "inspect" ? (
+                  <p role="status">
+                    در حال بررسی فایل‌های پروژه…{" "}
+                    <button
+                      type="button"
+                      className="button-secondary"
+                      onClick={() => pending.current?.abort()}
+                    >
+                      لغو بررسی
+                    </button>
+                  </p>
+                ) : null}
+                {pickerOpen ? (
+                  <FolderPicker
+                    csrf={view.session.csrfToken}
+                    initial={profile?.directory || "."}
+                    onSelect={(next) => {
+                      setPickerOpen(false);
+                      inspect(next, "local", "picker");
+                    }}
+                    onCancel={() => {
+                      restorePickerFocus.current = true;
+                      setPickerOpen(false);
+                    }}
+                  />
+                ) : null}
               </section>
               {profile ? (
                 <section className="panel profile-panel" aria-labelledby="profile-title">
@@ -665,6 +777,14 @@ export function Workbench() {
                     این نتیجه از بررسی فایل‌ها به دست آمده؛ اجرای برنامه و کافی‌بودن تنظیمات هنوز
                     بررسی نشده است.
                   </p>
+                  {profile.runtime === "unknown" ? (
+                    <p className="note">
+                      {profile.manifest.length === 0
+                        ? "فایل قابل بررسی پیدا نشد. پوشه ممکن است خالی باشد یا فقط فایل‌های پشتیبانی‌نشده داشته باشد."
+                        : "پروژه Node در این پوشه شناسایی نشد."}{" "}
+                      اگر پروژه چند پوشه دارد، پوشه‌ای را انتخاب کنید که package.json داخل آن است.
+                    </p>
+                  ) : null}
                   <dl className="profile-facts">
                     <div>
                       <dt>محیط اجرا</dt>
