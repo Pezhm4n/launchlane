@@ -159,6 +159,29 @@ test("project selection automatically prepares local bytes, persists across rest
     await f.cleanup();
   }
 });
+
+test("a workspace orchestrator is not a single deployable root; selecting its Node leaf resolves the ambiguity without executing scripts", async () => {
+  const f = await fixture();
+  try {
+    await writeFile(join(f.root, "app/package.json"), JSON.stringify({ private: true, workspaces: ["apps/*"], scripts: { start: "npm run start --workspaces" } }));
+    await mkdir(join(f.root, "app/apps/web"), { recursive: true });
+    await writeFile(join(f.root, "app/apps/web/package.json"), packageText);
+    await writeFile(join(f.root, "app/apps/web/server.mjs"), "app.listen(8080); // not executed");
+    const ambiguous = await prepareProjectFlow(f.config, f.store, "alice", { kind: "local", directory: "app" }, signal());
+    assert.equal(ambiguous.status, "incomplete");
+    assert.equal(ambiguous.artifact, null);
+    assert.equal(ambiguous.profile.start, null);
+    assert.ok(ambiguous.profile.missing.some((message) => message.includes("زیرپوشه")));
+    // A saved profile from the older inspector must not inherit deployment readiness.
+    const legacy = f.store.saveProjectFlow("alice", { ...ambiguous, id: randomUUID(), status: "ready", profile: { ...ambiguous.profile, start: "npm run start --workspaces" } });
+    assert.equal((await restoreProjectFlow(f.config, f.store, "alice", signal(), legacy.id))?.status, "stale");
+    const selected = await prepareProjectFlow(f.config, f.store, "alice", { kind: "local", directory: "app/apps/web" }, signal());
+    assert.equal(selected.status, "ready");
+    assert.equal(selected.profile.port, 8080);
+    assert.equal(selected.profile.start, "node server.mjs");
+    assert.ok(selected.artifact);
+  } finally { f.store.close(); await f.cleanup(); }
+});
 test("failed selection preserves a valid project; a new selection invalidates old approval even for identical bytes", async () => {
   const f = await fixture();
   try {

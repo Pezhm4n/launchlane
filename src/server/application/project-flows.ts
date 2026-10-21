@@ -114,7 +114,7 @@ export async function prepareProjectFlow(
         ? null
         : profile.manifest.length === 0
           ? "این پوشه خالی است یا فایل پروژه قابل بررسی ندارد. پوشه دارای package.json را انتخاب کنید."
-          : "برای انتشار این پروژه، package.json معتبر و دستور start لازم است. اگر چند پروژه دارید، پوشه همان برنامه را انتخاب کنید.",
+          : "پوشه یک برنامه Node با package.json معتبر و دستور start مشخص را انتخاب کنید؛ در پروژه چندبخشی، زیرپوشه همان برنامه لازم است.",
       updatedAt: Date.now(),
       actionId: null,
     });
@@ -153,6 +153,8 @@ export async function restoreProjectFlow(
         flow.id,
         "فایل‌های پروژه پس از بررسی تغییر کرده‌اند. پیش از ادامه، پروژه را دوباره بررسی کنید.",
       );
+    if (flow.status === "ready" && (current.runtime !== "node" || !current.start))
+      return store.staleProjectFlow(actorId, flow.id, current.missing[0] || "پروژه با محدوده پشتیبانی‌شده این نسخه تطبیق ندارد؛ پوشه همان برنامه را دوباره انتخاب کنید.");
     if (flow.artifact)
       await readArtifact(config.stateDir, store.getArtifact(actorId, flow.artifact.archiveHash));
     // Restoring a result never renews an approval or revives a previously invalidated flow.

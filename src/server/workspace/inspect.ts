@@ -236,9 +236,13 @@ async function scanProject(
   )
     literalPort = liara.port;
   const port = literalPort ?? (ports.size === 1 ? ([...ports][0] ?? null) : null);
-  const start = safeScript(scripts.start),
+  // A workspace manifest describes multiple packages. Do not treat an orchestrator start
+  // as the single Node workload supported by this deployment path; require an explicit leaf.
+  const hasWorkspaces = pkg.workspaces !== undefined;
+  const start = hasWorkspaces ? null : safeScript(scripts.start),
     build = safeScript(scripts.build);
   const missing: string[] = [];
+  if (hasWorkspaces) missing.push("این پوشه چند بسته را مدیریت می‌کند؛ زیرپوشه همان برنامه قابل انتشار را انتخاب کنید.");
   if (!packageJson) missing.push("package.json پیدا نشد؛ پروژه Node تأیید نشده است.");
   if (!start) missing.push("دستور start مشخص نیست؛ قبل از انتشار آن را تعیین کنید.");
   if (port === null) missing.push("پورت قطعی نیست؛ پورت برنامه را وارد کنید.");
