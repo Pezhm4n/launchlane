@@ -1,13 +1,16 @@
 import assert from "node:assert/strict";
-import { mkdir, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { appendFile, mkdir, writeFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import { chromium } from "playwright";
 import AxeBuilder from "@axe-core/playwright";
 import { startTestServer } from "./test-server.mjs";
 
 const server = await startTestServer();
 const browser = await chromium.launch({ headless: true });
-const context = await browser.newContext({ reducedMotion: "reduce", locale: "fa-IR" });
+const context = await browser.newContext({
+  reducedMotion: "reduce",
+  locale: "fa-IR",
+});
 const stamp = new Date().toISOString().replaceAll(":", "-").replaceAll(".", "-");
 const output = resolve(".artifacts/p1", stamp);
 await mkdir(output, { recursive: true });
@@ -78,18 +81,34 @@ try {
   await page.keyboard.press("Tab");
   assert.equal(await page.locator(":focus").textContent(), "رفتن به محتوای اصلی");
   await layout(360, "signed-out");
-  await page.screenshot({ path: resolve(output, "signin-360.png"), fullPage: true });
+  assert.equal(
+    await page.evaluate(() => {
+      const face = [...document.fonts].find(
+        (font) => font.family.replaceAll('"', "") === "IRANYekan",
+      );
+      return face?.status;
+    }),
+    "loaded",
+    "the local IranYekan face must actually load, not only match a fallback family",
+  );
+  await page.screenshot({
+    path: resolve(output, "signin-360.png"),
+    fullPage: true,
+  });
   await page.getByLabel("کلید ورود محلی", { exact: true }).fill(server.token);
   await page.getByRole("button", { name: "ورود به میز کار", exact: true }).click();
   await page.getByRole("heading", { name: "کدام پروژه را آماده کنیم؟" }).waitFor();
   assert.equal(await page.getByLabel("کلید ورود محلی", { exact: true }).count(), 0);
 
-  for (const width of [320, 360, 390, 414, 768, 1280]) {
+  for (const width of [280, 320, 360, 390, 414, 768, 1280]) {
     await page.setViewportSize({ width, height: width >= 768 ? 1000 : 844 });
     await page.goto(server.origin);
     await page.getByRole("heading", { name: "کدام پروژه را آماده کنیم؟" }).waitFor();
     await page.getByRole("button", { name: "بررسی پروژه", exact: true }).click();
-    const heading = page.getByRole("heading", { name: "آنچه از پروژه می‌دانیم", exact: true });
+    const heading = page.getByRole("heading", {
+      name: "آنچه از پروژه می‌دانیم",
+      exact: true,
+    });
     await heading.waitFor();
     assert.equal(await heading.evaluate((element) => element === document.activeElement), true);
     await page.locator("details.manifest > summary").click();
@@ -105,27 +124,59 @@ try {
       await page.locator(".env-list").getByText("WELCOME_MESSAGE", { exact: true }).isVisible(),
     );
     await layout(width, "inspected-manifest");
+    assert.equal(
+      await page.getByRole("button", { name: "ساخت پیشنهاد قابل بررسی", exact: true }).isDisabled(),
+      true,
+    );
+    await page.getByRole("button", { name: "آماده‌سازی بسته محلی", exact: true }).click();
+    await page.getByText("بسته محلی آماده است؛ ارسال نشده", { exact: true }).waitFor();
+    assert.equal(
+      await page
+        .getByRole("heading", { name: "بسته محلی آماده است؛ ارسال نشده", exact: true })
+        .evaluate((element) => element === document.activeElement),
+      true,
+    );
+    assert.equal(
+      await page.getByRole("button", { name: "ساخت پیشنهاد قابل بررسی", exact: true }).isEnabled(),
+      true,
+    );
+    await page.getByText("هش بسته قابل ارسال", { exact: true }).click();
+    await layout(width, "prepared-archive");
     if ([360, 768, 1280].includes(width))
-      await page.screenshot({ path: resolve(output, `inspected-${width}.png`), fullPage: true });
+      await page.screenshot({
+        path: resolve(output, `inspected-${width}.png`),
+        fullPage: true,
+      });
     if (width === 360) {
       await page.evaluate(() => window.scrollTo(0, 0));
-      await page.screenshot({ path: resolve(output, "workbench-360-viewport.png") });
+      await page.screenshot({
+        path: resolve(output, "workbench-360-viewport.png"),
+      });
     }
     if (width === 360 || width === 1280) {
       await page.getByRole("button", { name: "ساخت پیشنهاد قابل بررسی", exact: true }).click();
       const action = page.locator(".action-card").first();
       await action
-        .getByRole("button", { name: `تأیید پیشنهاد انتشار روی ${server.app}`, exact: true })
+        .getByRole("button", {
+          name: `تأیید پیشنهاد انتشار روی ${server.app}`,
+          exact: true,
+        })
         .waitFor();
       if (width === 360) {
         await action.getByRole("button", { name: "رد این پیشنهاد", exact: true }).click();
         await action.getByText("رد شد؛ اجرا نشد", { exact: true }).waitFor();
       } else {
         await action
-          .getByRole("button", { name: `تأیید پیشنهاد انتشار روی ${server.app}`, exact: true })
+          .getByRole("button", {
+            name: `تأیید پیشنهاد انتشار روی ${server.app}`,
+            exact: true,
+          })
           .click();
         await action.getByText("تأیید ثبت شد؛ اجرا نشده", { exact: true }).waitFor();
-        await page.screenshot({ path: resolve(output, "approved-1280.png"), fullPage: true });
+        await page.screenshot({
+          path: resolve(output, "approved-1280.png"),
+          fullPage: true,
+        });
       }
       await layout(width, width === 360 ? "rejected" : "approved");
     }
@@ -133,11 +184,17 @@ try {
   await page.setViewportSize({ width: 360, height: 844 });
   await page.getByLabel("مسیر نسبی پوشه پروژه", { exact: true }).fill("../escape");
   await page.getByRole("button", { name: "بررسی پروژه", exact: true }).click();
-  const errorAlert = page.getByRole("alert", { name: "این مرحله کامل نشد", exact: true });
+  const errorAlert = page.getByRole("alert", {
+    name: "این مرحله کامل نشد",
+    exact: true,
+  });
   await errorAlert.waitFor();
   assert.equal(await errorAlert.evaluate((element) => element === document.activeElement), true);
   await layout(360, "unsafe-path-error");
-  await page.screenshot({ path: resolve(output, "error-360.png"), fullPage: true });
+  await page.screenshot({
+    path: resolve(output, "error-360.png"),
+    fullPage: true,
+  });
   await page.getByRole("button", { name: "بستن پیام", exact: true }).click();
   await page.getByLabel("مسیر نسبی پوشه پروژه", { exact: true }).fill("examples/node-service");
   await page.route("**/api/projects/inspect", async (route) => {
@@ -148,9 +205,77 @@ try {
   await page.getByRole("button", { name: "لغو بررسی", exact: true }).click();
   await page
     .getByRole("status")
-    .getByText("بررسی لغو شد؛ پیشنهادی ساخته و فایلی ارسال نشد.", { exact: true })
+    .getByText("بررسی لغو شد؛ پیشنهادی ساخته و فایلی ارسال نشد.", {
+      exact: true,
+    })
     .waitFor();
+  assert.equal(
+    await page
+      .getByRole("button", { name: "بررسی پروژه", exact: true })
+      .evaluate((element) => element === document.activeElement),
+    true,
+  );
   await page.unroute("**/api/projects/inspect");
+  // Preparing source must remain useful before a Liara app/account is configured.
+  await page.route("**/api/workspace", async (route) => {
+    const response = await route.fetch();
+    const data = await response.json();
+    data.capabilities.scope.apps = [];
+    await route.fulfill({ response, json: data });
+  });
+  await page.goto(server.origin);
+  await page.getByRole("heading", { name: "کدام پروژه را آماده کنیم؟" }).waitFor();
+  await page.getByRole("button", { name: "بررسی پروژه", exact: true }).click();
+  let releaseArchive;
+  const heldArchive = new Promise((resolve) => {
+    releaseArchive = resolve;
+  });
+  await page.route("**/api/projects/archive", async (route) => {
+    await heldArchive;
+    await route.continue().catch(() => undefined);
+  });
+  try {
+    await page.getByRole("button", { name: "آماده‌سازی بسته محلی", exact: true }).click();
+    await page.getByRole("button", { name: "لغو آماده‌سازی", exact: true }).waitFor();
+    await layout(360, "preparing-archive");
+    await page.getByRole("button", { name: "لغو آماده‌سازی", exact: true }).click();
+    await page
+      .getByRole("status")
+      .getByText("آماده‌سازی متوقف شد؛ هیچ فایلی ارسال نشد. ساخت دوباره فقط محلی است.", {
+        exact: true,
+      })
+      .waitFor();
+    await layout(360, "cancelled-archive");
+    assert.equal(
+      await page
+        .getByRole("button", { name: "آماده‌سازی بسته محلی", exact: true })
+        .evaluate((element) => element === document.activeElement),
+      true,
+    );
+  } finally {
+    releaseArchive();
+    await page.unroute("**/api/projects/archive");
+  }
+  await appendFile(
+    join(server.workspace, "examples/node-service/server.mjs"),
+    "\n// changed after UI inspection\n",
+  );
+  await page.getByRole("button", { name: "آماده‌سازی بسته محلی", exact: true }).click();
+  await errorAlert.waitFor();
+  await errorAlert
+    .getByText("source پس از بررسی تغییر کرده است؛ دوباره بررسی کنید.", { exact: true })
+    .waitFor();
+  await layout(360, "stale-archive-error");
+  await page.getByRole("button", { name: "بستن پیام", exact: true }).click();
+  await page.getByRole("button", { name: "بررسی پروژه", exact: true }).click();
+  await page.getByRole("button", { name: "آماده‌سازی بسته محلی", exact: true }).click();
+  await page.getByText("بسته محلی آماده است؛ ارسال نشده", { exact: true }).waitFor();
+  assert.equal(
+    await page.getByRole("button", { name: "ساخت پیشنهاد قابل بررسی", exact: true }).isDisabled(),
+    true,
+  );
+  await layout(360, "archive-without-liara-target");
+  await page.unroute("**/api/workspace");
   await page.setViewportSize({ width: 1280, height: 1000 });
   await page.evaluate(() => {
     document.documentElement.style.fontSize = "200%";
@@ -180,7 +305,7 @@ try {
     JSON.stringify({
       state: "passed",
       surfaces: results.length,
-      viewports: [320, 360, 390, 414, 768, 1280],
+      viewports: [280, 320, 360, 390, 414, 768, 1280],
       browserErrors: errors.length,
       externalRequests: blocked.length,
       output,

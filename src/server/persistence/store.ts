@@ -1,6 +1,13 @@
 import { createHash, randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
-import type { Action, ActionSpec, ActionState, Session } from "../../contracts/domain.ts";
+import type {
+  Action,
+  ActionSpec,
+  ActionState,
+  Session,
+  SourceArtifact,
+} from "../../contracts/domain.ts";
+import { parseArtifact } from "../../contracts/source.ts";
 import { object, string } from "../../contracts/validation.ts";
 import { AppError, ensure } from "../errors.ts";
 import { fingerprint, parseActionSpec } from "../policy/action.ts";
@@ -154,11 +161,63 @@ export class Store {
     this.db.prepare("DELETE FROM sessions WHERE id=?").run(id);
   }
 
+  recordArtifact(actorId: string, input: SourceArtifact): SourceArtifact {
+    const artifact = parseArtifact(input);
+    return this.transaction(() => {
+      this.db
+        .prepare(
+          "INSERT INTO source_artifacts VALUES (?,?,?,?,?,?) ON CONFLICT(actor_id,archive_hash) DO NOTHING",
+        )
+        .run(
+          actorId,
+          artifact.archiveHash,
+          artifact.sourceHash,
+          artifact.bytes,
+          artifact.fileCount,
+          artifact.createdAt,
+        );
+      const stored = this.getArtifact(actorId, artifact.archiveHash);
+      ensure(
+        stored.sourceHash === artifact.sourceHash &&
+          stored.bytes === artifact.bytes &&
+          stored.fileCount === artifact.fileCount,
+        "ARTIFACT_MISMATCH",
+        "مشخصات بسته source با state ذخیره‌شده برابر نیست.",
+        409,
+      );
+      return stored;
+    });
+  }
+
+  getArtifact(actorId: string, archiveHash: string): SourceArtifact {
+    const row = this.db
+      .prepare("SELECT * FROM source_artifacts WHERE actor_id=? AND archive_hash=?")
+      .get(actorId, archiveHash);
+    ensure(row, "ARTIFACT_NOT_FOUND", "بسته source پیدا نشد؛ ابتدا آن را محلی آماده کنید.", 409);
+    return parseArtifact({
+      format: "tar.gz",
+      archiveHash: row.archive_hash,
+      sourceHash: row.source_hash,
+      bytes: row.bytes,
+      fileCount: row.file_count,
+      createdAt: row.created_at,
+    });
+  }
+
   createAction(actorId: string, input: ActionSpec, now = Date.now(), ttlMs = 10 * 60_000): Action {
     const spec = parseActionSpec(input);
     ensure(ttlMs > 0 && ttlMs <= 10 * 60_000, "INVALID_INPUT", "مهلت تأیید معتبر نیست.");
     return this.transaction(() => {
       this.ensureNoConflict(spec);
+      if (spec.version === 2 && spec.operation === "deploy") {
+        const artifact = this.getArtifact(actorId, spec.artifactHash ?? "");
+        ensure(
+          artifact.sourceHash === spec.sourceHash,
+          "ARTIFACT_MISMATCH",
+          "بسته به همین محتوای source تعلق ندارد.",
+          409,
+        );
+      }
       const action: Action = {
         id: randomUUID(),
         actorId,

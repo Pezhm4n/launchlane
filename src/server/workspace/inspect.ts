@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { constants } from "node:fs";
-import { lstat, open, readdir, realpath } from "node:fs/promises";
+import { constants, type Dirent } from "node:fs";
+import { lstat, open, opendir, realpath } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import type { ManifestEntry, ProjectProfile } from "../../contracts/domain.ts";
 import { hasControl, object } from "../../contracts/validation.ts";
@@ -129,11 +129,31 @@ function safeScript(value: unknown): string | null {
   return value;
 }
 
+type ScanOptions = { secrets?: readonly string[]; signal?: AbortSignal };
+export type SourceFile = Readonly<{ path: string; content: Buffer }>;
+
 export async function inspectProject(
   workspaceRoot: string,
   directory: string,
-  options: { secrets?: readonly string[]; signal?: AbortSignal } = {},
+  options: ScanOptions = {},
 ): Promise<ProjectProfile> {
+  return (await scanProject(workspaceRoot, directory, options, false)).profile;
+}
+
+export async function captureProject(
+  workspaceRoot: string,
+  directory: string,
+  options: ScanOptions = {},
+): Promise<{ profile: ProjectProfile; files: SourceFile[] }> {
+  return scanProject(workspaceRoot, directory, options, true);
+}
+
+async function scanProject(
+  workspaceRoot: string,
+  directory: string,
+  options: ScanOptions,
+  capture: boolean,
+): Promise<{ profile: ProjectProfile; files: SourceFile[] }> {
   ensure(
     directory.length > 0 &&
       directory.length <= 240 &&
@@ -147,6 +167,7 @@ export async function inspectProject(
     "مسیر باید نسبی و زیر workspace مجاز باشد.",
     403,
   );
+  ensure(!options.signal?.aborted, "CANCELLED", "بررسی پروژه لغو شد.", 409);
   const root = await realpath(workspaceRoot);
   const target = resolve(root, directory);
   ensure(under(root, target), "UNSAFE_PATH", "پروژه بیرون workspace است.", 403);
@@ -163,6 +184,7 @@ export async function inspectProject(
     );
   }
   const manifest: ManifestEntry[] = [];
+  const files: SourceFile[] = [];
   const envNames = new Set<string>();
   let totalBytes = 0,
     seen = 0,
@@ -173,14 +195,13 @@ export async function inspectProject(
   const ports = new Set<number>();
   const visit = async (folder: string, depth: number): Promise<void> => {
     ensure(depth <= 10, "SOURCE_LIMIT", "عمق source بیشتر از سقف مجاز است.", 413);
-    const entries = await readdir(folder, { withFileTypes: true });
-    ensure(
-      seen + entries.length <= MAX_ENTRIES,
-      "SOURCE_LIMIT",
-      "تعداد فایل‌ها بیشتر از سقف بررسی است.",
-      413,
-    );
-    seen += entries.length;
+    const entries: Dirent[] = [];
+    // Enforce the enumeration bound before a large directory is materialized in memory.
+    for await (const entry of await opendir(folder, { bufferSize: 32 })) {
+      ensure(!options.signal?.aborted, "CANCELLED", "بررسی پروژه لغو شد.", 409);
+      ensure(++seen <= MAX_ENTRIES, "SOURCE_LIMIT", "تعداد فایل‌ها بیشتر از سقف بررسی است.", 413);
+      entries.push(entry);
+    }
     entries.sort((a, b) => a.name.localeCompare(b.name, "en"));
     for (const entry of entries) {
       ensure(!options.signal?.aborted, "CANCELLED", "بررسی پروژه لغو شد.", 409);
@@ -223,11 +244,14 @@ export async function inspectProject(
         "source شامل مقدار حساس احتمالی است؛ آن را به env منتقل و دوباره بررسی کنید.",
       );
       const relativePath = relative(target, path).split(sep).join("/");
+      ensure(relativePath.length <= 512, "UNSAFE_PATH", "مسیر یک فایل بیش از حد بلند است.", 403);
       manifest.push({
         path: relativePath,
         bytes: content.length,
         sha256: createHash("sha256").update(content).digest("hex"),
       });
+      // Retain actual bytes, not the full scratch buffer behind readSafeFile's subarray.
+      if (capture) files.push({ path: relativePath, content: Buffer.from(content) });
       totalBytes += content.length;
       if (relativePath === "package.json" || relativePath === "liara.json") {
         let parsed: unknown;
@@ -278,7 +302,7 @@ export async function inspectProject(
   if (envNames.size)
     missing.push("فقط نام envها شناسایی شد؛ مقدار و کافی‌بودن آن‌ها هنوز بررسی نشده است.");
   manifest.sort((a, b) => a.path.localeCompare(b.path, "en"));
-  return {
+  const profile: ProjectProfile = {
     directory,
     runtime: packageJson ? "node" : "unknown",
     nodeVersion: typeof engines.node === "string" ? safeScript(engines.node) : null,
@@ -293,4 +317,5 @@ export async function inspectProject(
     excludedCount,
     inspectedAt: new Date().toISOString(),
   };
+  return { profile, files };
 }

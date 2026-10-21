@@ -84,3 +84,34 @@ Runtime پایه `fec8938` با اصلاح transport/config در working tree؛ 
 گزارش‌های sanitize شده در `.artifacts/model/2026-10-21T16-15-49-733Z/`، `2026-10-21T16-17-11-767Z/` و `2026-10-21T16-18-21-569Z/` محلی نگه داشته شدند. در این سه run مجموعاً چهار HTTP attempt وجود داشت؛ usage فقط برای دو درخواست موفق گزارش شد و خطاها رایگان فرض نمی‌شوند. این سه snapshot را یک ارزیابی مدل یا accuracy عمومی نمی‌نامیم.
 
 پس از smoke، مدل‌های مجاز Chat در config/client محدود و CLI به حداکثر دو درخواست کاهش یافت. `npm run smoke:model -- --live` صریحاً opt-in است؛ automatic check آن را اجرا نمی‌کند و gate ذخیره‌شده false می‌ماند. تغییر scope آزمون fixture یا انتخاب مدل/endpoint fallback پنهان وجود ندارد. اعتبارسنجی candidate نهایی در رکورد بعدی جدا ثبت خواهد شد.
+
+### snapshot روی candidate `a697eba`
+
+`a697eba9480d0dd5ac7326280963c50601565ae6`، همان model/protocol/reasoning/output cap و oracle قبلی. `npm run smoke:model -- --live` در 16:25:57 UTC: دو پاسخ 200، همان tool/result/terminal معتبر، 616 total tokens گزارش‌شده و 25.104s زمان کل. preflight cancel صفر درخواست اضافه داشت؛ in-flight provider cancellation و مبلغ کسرشده همچنان unverified هستند. گزارش محلی `.artifacts/model/2026-10-21T16-25-57-204Z/report.json`.
+
+در مجموع snapshotهای ثبت‌شده T24 شش HTTP attempt بوده است: دو خطای 400 و چهار پاسخ موفق. usage دو run موفق هرکدام 616 است؛ usage/هزینه خطاها unknown می‌ماند. runهای جدا به accuracy یا latency میانگین عمومی تبدیل نمی‌شوند. روی همین candidate، lint/type/build، 20 domain، 7 HTTP (با parent)، 2 bootstrap و 11 حالت مرورگر pass بودند. artifact مرورگر `.artifacts/p1/2026-10-21T16-25-59-179Z/` است. export فقط از Git در پوشه موقت، setup محلی و `npm run build` بدون provider key هم اجرا و exit 0 مشاهده شد؛ این شاهد به revision قبل از archive مربوط است.
+
+## P1 — archive واقعی محلی و approval v2
+
+پایه `a697eba` + working tree همین برش؛ Node 24.18.0، npm 11.16.0، tar-stream 3.2.2 از lockfile. AC02/04/13/14/16؛ Skills مؤثر: competition-agent-engineer، ux-ui-agent-skills (قواعد accessibility/RTL) و webapp-testing. هیچ درخواست تازه مدل یا Liara در این برش وجود ندارد؛ تمام adapterهای اجرای تست مصنوعی و scopeها موقت‌اند. بسته واقعاً ساخته و خوانده می‌شود، اما upload/deploy لیارا انجام نشده است.
+
+| بررسی | فرمان/شرط | نتیجه و مرز |
+| --- | --- | --- |
+| Lint/type/build | `npm run lint`، `npm run typecheck`، `npm run build` | pass؛ route archive تولید شد؛ explicit any یا bypass تازه وجود ندارد |
+| Domain | `npm run test:domain` | 26 pass، 0 fail/skip؛ 6 case جدید archive علاوه بر 20 case موجود |
+| HTTP ایزوله | `npm run test:http` | 7 subtest + 1 parent pass، 0 fail/skip؛ archive auth/CSRF، hash جعلی، source تغییرکرده، receipt mismatch و approval v2 |
+| Browser ایزوله | `npm run test:browser` | 23 حالت در 280/320/360/390/414/768/1280 و متن 200٪؛ overflow صفحه 0، browser error 0، external request 0 و axe violation 0 در حالت‌های سنجیده‌شده |
+| Bootstrap تولیدی | `npm start` روی loopback، سپس `npm test` | 2 pass، 0 fail/skip؛ شاهد entry/liveness و نه سرویس بیرونی |
+| Decoder مستقل | `node .local/verify-source-archive.mjs .artifacts/source/2026-10-21T16-56-10-465Z/source.tar.gz`؛ ابزار موقت محلی، وارد Git نمی‌شود | Python tarfile: هر 4 entry و بایت/hash دقیقاً با manifest برابر؛ Unicode و مسیر بلند؛ bsdtar: بایت فایل‌های ASCII برابر؛ بدون شبکه |
+
+artifact مرورگر نهایی `.artifacts/p1/2026-10-21T17-01-48-065Z/` و decoder `.artifacts/source/2026-10-21T16-57-23-878Z/report.json` هستند. IRANYekan واقعاً با FontFace loaded بررسی شده است. فوکوس پس از بسته‌سازی به heading نتیجه و پس از لغو هر read به دکمه شروع همان مرحله برمی‌گردد؛ keyboard assertion هر سه مسیر pass شد. بدون app لیارا، بسته آماده می‌شود اما ساخت پیشنهاد غیرفعال می‌ماند.
+
+معیار archive: regular fileهای داخل tar دقیقاً همان path/byte/hash manifest، بدون env/dependency؛ metadata ثابت، تغییر صرف timestamp بدون تغییر archive hash، receipt actor-bound پس از reopen و blob بدون receipt فاقد مجوز. فایل حذف‌شده/هم‌اندازه ولی خراب، تغییر archive hash، پوشه junction و سقف نگهداری پیش از attempt/provider رد شدند. ویرایش workspace پس از approval، snapshot تأییدشده را تغییر نداد؛ adapter مصنوعی همان buffer را گرفت و receipt تنها به observing رسید. history v1 با hash قبلی پس از migration 2 خوانده شد؛ deploy v1 صفر provider call داشت.
+
+### failureهای این برش و شواهد اصلاح
+
+- در سنجش loading، تأخیر ثابت 500ms پاسخ fixture گاهی پیش از کلیک لغو تمام می‌شد. همان oracle حفظ شد و transport تست تا تصمیم لغو نگه داشته شد؛ state و بازگشت فوکوس دوباره pass شدند.
+- bsdtar ویندوز نام فارسی را در stdout به `?` نمایش داد؛ hash/بایت archive تغییر نکرد. همان فایل اولیه با Python tarfile مستقل خوانده و تمام نام‌ها/بایت‌ها/hashها درست بودند. `originalFailedArchiveUnchanged=true` و `windowsTarDisplayLoss=true` در report محفوظ‌اند؛ نمایش Unicode ابزار ویندوز تأییدشده نامیده نمی‌شود.
+- بازبینی UI، حذف‌شدن دکمه متمرکز پس از نتیجه را یافت. heading نتیجه و بازگشت فوکوس پس از cancel اضافه و با DOM واقعی بررسی شدند؛ صرف live message جای حفظ focus نیست.
+
+گراف دوباره در دسترس بود اما coverage همان generation قدیمی، فایل‌های تازه not_tracked و docs excluded را نشان داد؛ تلاش پوشش تکمیلی به Transport closed رسید. exact source/import/diff و اجرای مستقیم مبنای نتیجه‌اند. NTFS/hard-link در این میزبان سنجیده شد؛ filesystem دیگر، چند process، screen reader انسانی و walkthrough تازه هنوز unconfirmed هستند. نگهداری archive سقف دارد ولی پاک‌سازی خودکار ندارد. env secret-reference، provider write adapter، probe امن، تشخیص و اصلاح زنده باقی‌اند؛ کار بعد مستقل قرارداد evidence و failures است.

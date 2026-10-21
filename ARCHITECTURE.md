@@ -28,7 +28,7 @@ src/server/application/  deployment، incident، approval و observation use cas
 src/server/policy/       scope، ریسک، مجوز، budget، redaction و URL/path policy
 src/server/agent/        مدل، ابزار محدود، interpretation و synthesis
 src/server/liara/        HTTP client، capability و پاسخ normalize شده
-src/server/workspace/    تشخیص read-only و archive manifest امن
+src/server/workspace/    تشخیص read-only، capture محدود و archive خصوصی
 src/server/persistence/  SQLite، repositoryها و migrations append-only
 tests/                  قرارداد، state، failure injection، semantic و browser
 docs/                   قراردادهای فنی، پذیرش و evidence قابل اشتراک
@@ -57,7 +57,7 @@ read و تشخیص می‌توانند بدون تأیید هر بار انجا�
 
 ## مدل داده؛ موجود و برنامه‌ریزی‌شده
 
-موجود در migration شماره ۱: sessions، login_limits، actions، attempts، audit_events و schema_migrations. `ProjectProfile` و manifest فعلاً پاسخ محلی‌اند؛ در DB ذخیره نمی‌شوند. Run/Observation/Incident و env secret reference زیر هنوز طرح‌اند. در P1 فقط deploy/restart به‌عنوان operation معتبرند؛ سایر نام‌ها رد می‌شوند.
+موجود در migration شماره ۱: sessions، login_limits، actions، attempts، audit_events و schema_migrations. migration شماره ۲ جدول `source_artifacts` را اضافه می‌کند؛ migration قبلی تغییر نکرده است. `ProjectProfile` و manifest پاسخ محلی‌اند؛ مشخصات archive شامل actor، source hash، archive hash، حجم، تعداد فایل و زمان در SQLite می‌مانند. Run/Observation/Incident و env secret reference زیر هنوز طرح‌اند. در P1 فقط deploy/restart به‌عنوان operation معتبرند؛ سایر نام‌ها رد می‌شوند.
 
 - `OperatorSession`: actor ID، expiry و scope؛ ورود با operator token قوی از env سمت سرور، مقایسه امن و تلاش محدود. session با secret جدا امضا می‌شود؛ کوکی HttpOnly و SameSite=Strict، Secure روی HTTPS، نه browser storage. token یا session secret خالی، دسترسی privileged را می‌بندد.
 - `ProjectProfile`: runtime، port، نیاز env با **نام بدون مقدار**، build/start پیشنهادی، workspace/source fingerprint و اطلاعات نامعلوم.
@@ -69,6 +69,14 @@ read و تشخیص می‌توانند بدون تأیید هر بار انجا�
 - `AuditEvent`: transition، actor، action/request ID، attempt، خطای sanitized؛ نگهداری حداقلی و بدون secret.
 
 SQL با parameter binding؛ migration شماره‌دار، checksum و transaction. history اعمال‌شده تغییر نکند. آزمایش migration روی DB موقت، upgrade و restart الزامی است. اگر storage در دسترس نیست، **write بسته می‌ماند**؛ fallback حافظه‌ای برای approval مجاز نیست.
+
+### snapshot و artifact؛ پیاده‌شده آفلاین
+
+`prepare-source` فقط یک capture هم‌زمان در process مجاز می‌کند. scanner همان کنترل‌های path/secret و سقف ۲۰ MiB/۱۰۰۰ فایل را برای manifest و بایت‌های snapshot اجرا می‌کند. `tar-stream@3.2.2` فقط bufferهای بررسی‌شده را encode می‌کند؛ filesystem را دوباره نمی‌خواند. dependency برای پشتیبانی USTAR/PAX، Unicode و مسیر بلند انتخاب شد تا serializer تازه یا shell لازم نباشد. فایل‌ها مرتب، بدون link/directory special entry، با mode=0644، uid/gid=0 و mtime=epoch بسته می‌شوند. gzip level=6 است؛ روی runtime/config یکسان، تغییر صرف timestamp هش بسته را تغییر نمی‌دهد.
+
+archive در `source-artifacts/{sha256}.tar.gz` زیر stateDir خصوصی ساخته می‌شود: فایل موقت exclusive، flush، publish بدون overwrite و بازخوانی/hash check؛ سپس receipt در SQLite ثبت می‌شود. orphan بدون receipt مجوز ایجاد نمی‌کند. سقف gzip برابر ۲۴ MiB و نگهداری برابر ۱۲۸ MiB/۳۲ فایل است؛ پاک‌سازی خودکار نداریم. storage به filesystem دارای hard-link متکی است؛ NTFS محیط فعلی آزموده شده و خطای آن fail closed است. پوشه لینک‌شده و فایل تغییرکرده رد می‌شوند. ACL میزبان و حمله یک فرایند محلی هم‌سطح، یک sandbox امنیتی مستقل نیستند.
+
+ActionSpec v2، source hash و archive hash را جداگانه در action hash می‌بندد. v1 با همان canonicalization برای history خوانده می‌شود، اما deploy قدیمی وارد provider نمی‌شود. پیش از claim، archive موجود با receipt/hash بررسی و buffer همان snapshot به adapter داده می‌شود؛ فایل فعلی workspace جایگزین source مورد تأیید نمی‌شود. executor واقعی هنوز null است و این مسیر با adapter مصنوعی آزموده شده؛ هیچ source upload لیارا انجام نشده است.
 
 ## state و اجرای عملیات
 
@@ -84,7 +92,7 @@ timeout بعد از احتمال write: `uncertain`؛ write خودکار تکر�
 
 ## API داخلی موجود و مسیرهای بعدی
 
-موجود: health، session (POST/DELETE)، `GET /api/workspace` (capabilities و history)، inspect، `POST /api/actions`، decision و execute. execute به adapter زنده وصل نیست و قبل از claim بسته می‌ماند. مسیرهای runs/incidents/observe/handoff در جدول زیر همچنان طرح‌اند؛ capabilities در workspace ادغام شده است.
+موجود: health، session (POST/DELETE)، `GET /api/workspace` (capabilities و history)، inspect، archive، `POST /api/actions`، decision و execute. execute به adapter زنده وصل نیست و قبل از claim بسته می‌ماند. مسیرهای runs/incidents/observe/handoff در جدول زیر همچنان طرح‌اند؛ capabilities در workspace ادغام شده است.
 
 | مسیر هدف | مسئولیت و شرط |
 | --- | --- |
@@ -92,6 +100,7 @@ timeout بعد از احتمال write: `uncertain`؛ write خودکار تکر�
 | `POST /api/session` | ورود با operator token؛ host/Origin معتبر، rate limit و کوکی session؛ secret هرگز در URL |
 | `GET /api/capabilities` | scope مجاز و available/unavailable/unverified با دلیل |
 | `POST /api/projects/inspect` | خواندن محدود پروژه زیر workspace مجاز؛ بدون اجرای scripts |
+| `POST /api/projects/archive` | موجود؛ session/Origin/CSRF، source hash فعلی، tar.gz محلی و receipt؛ بدون تماس provider |
 | `POST /api/runs` | درخواست کاربر، جمع‌آوری evidence و پیشنهاد action/diagnosis |
 | `GET /api/runs/{id}` | وضعیت/شواهد sanitized با کنترل مالکیت |
 | `POST /api/actions/{id}/decision` | approve/reject همان action hash؛ CSRF/session/expiry |

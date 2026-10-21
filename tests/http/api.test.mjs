@@ -33,24 +33,45 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
       async () => {
         await expects(await request("/api/workspace"), 401, "AUTH_REQUIRED");
         await expects(
+          await request("/api/projects/archive", {
+            directory: "examples/node-service",
+            sourceHash: "a".repeat(64),
+          }),
+          401,
+          "AUTH_REQUIRED",
+        );
+        await expects(
           await request("/api/session", { token: "wrong" }, { origin: "https://evil.test" }),
           403,
           "ORIGIN_DENIED",
         );
         // Node fetch overwrites Host. Send the actual hostile wire header with node:http.
         const hostileHost = await new Promise((resolve, reject) => {
-          const outgoing = httpRequest(`${server.origin}/api/session`, { method: "POST", headers: { host: "evil.test", origin: server.origin, "content-type": "application/json" } }, (incoming) => {
-            let body = "";
-            incoming.setEncoding("utf8"); incoming.on("data", (part) => { body += part; });
-            incoming.on("end", () => resolve(new Response(body, { status: incoming.statusCode })));
-          });
-          outgoing.on("error", reject); outgoing.end(JSON.stringify({ token: server.token }));
+          const outgoing = httpRequest(
+            `${server.origin}/api/session`,
+            {
+              method: "POST",
+              headers: {
+                host: "evil.test",
+                origin: server.origin,
+                "content-type": "application/json",
+              },
+            },
+            (incoming) => {
+              let body = "";
+              incoming.setEncoding("utf8");
+              incoming.on("data", (part) => {
+                body += part;
+              });
+              incoming.on("end", () =>
+                resolve(new Response(body, { status: incoming.statusCode })),
+              );
+            },
+          );
+          outgoing.on("error", reject);
+          outgoing.end(JSON.stringify({ token: server.token }));
         });
-        await expects(
-          hostileHost,
-          403,
-          "HOST_DENIED",
-        );
+        await expects(hostileHost, 403, "HOST_DENIED");
       },
     );
     await t.test(
@@ -71,18 +92,29 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
           403,
           "CSRF_DENIED",
         );
+        await expects(
+          await request(
+            "/api/projects/archive",
+            { directory: "examples/node-service", sourceHash: "a".repeat(64) },
+            { "x-csrf-token": "forged" },
+          ),
+          403,
+          "CSRF_DENIED",
+        );
         const workspace = await expects(await request("/api/workspace"), 200);
         assert.equal(workspace.capabilities.model.state, "unavailable");
         assert.equal(workspace.capabilities.mutations.state, "unavailable");
         assert.ok(!JSON.stringify(workspace).includes(server.token));
       },
     );
-    let profile;
+    let profile, artifact;
     await t.test(
       "inspection stays local, detects the sample, excludes traversal and never uploads",
       async () => {
         const payload = await expects(
-          await request("/api/projects/inspect", { directory: "examples/node-service" }),
+          await request("/api/projects/inspect", {
+            directory: "examples/node-service",
+          }),
           200,
         );
         profile = payload.profile;
@@ -106,10 +138,51 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
         );
       },
     );
+    const prepare = async () => {
+      const payload = await expects(
+        await request("/api/projects/archive", {
+          directory: profile.directory,
+          sourceHash: profile.sourceHash,
+        }),
+        201,
+      );
+      assert.equal(payload.uploaded, false);
+      assert.equal(payload.modelUsed, false);
+      assert.equal(payload.artifact.sourceHash, profile.sourceHash);
+      assert.equal(payload.artifact.fileCount, profile.manifest.length);
+      assert.match(payload.artifact.archiveHash, /^[a-f0-9]{64}$/);
+      return payload.artifact;
+    };
+    await t.test(
+      "local archive preparation validates the current source and never trusts a supplied archive hash",
+      async () => {
+        await expects(
+          await request("/api/projects/archive", {
+            directory: profile.directory,
+            sourceHash: "c".repeat(64),
+          }),
+          409,
+          "SOURCE_CHANGED",
+        );
+        artifact = await prepare();
+        await expects(
+          await request("/api/actions", {
+            directory: profile.directory,
+            sourceHash: profile.sourceHash,
+            artifactHash: "c".repeat(64),
+            app: server.app,
+            port: 3000,
+          }),
+          409,
+          "ARTIFACT_NOT_FOUND",
+        );
+      },
+    );
     await t.test("target mismatch and changed source cannot receive approval", async () => {
       const body = {
         directory: profile.directory,
         sourceHash: profile.sourceHash,
+        artifactHash: artifact.archiveHash,
         app: server.app,
         port: 3000,
       };
@@ -124,8 +197,22 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
       );
       await expects(await request("/api/actions", body), 409, "SOURCE_CHANGED");
       profile = (
-        await expects(await request("/api/projects/inspect", { directory: profile.directory }), 200)
+        await expects(
+          await request("/api/projects/inspect", {
+            directory: profile.directory,
+          }),
+          200,
+        )
       ).profile;
+      await expects(
+        await request("/api/actions", {
+          ...body,
+          sourceHash: profile.sourceHash,
+        }),
+        409,
+        "ARTIFACT_MISMATCH",
+      );
+      artifact = await prepare();
     });
     await t.test(
       "approved/rejected actions persist and execution remains disabled on the server",
@@ -136,6 +223,7 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
               await request("/api/actions", {
                 directory: profile.directory,
                 sourceHash: profile.sourceHash,
+                artifactHash: artifact.archiveHash,
                 app: server.app,
                 port: 3000,
               }),
@@ -143,18 +231,29 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
             )
           ).action;
         const approved = await propose();
+        assert.equal(approved.spec.version, 2);
+        assert.equal(approved.spec.artifactHash, artifact.archiveHash);
         const decisionPath = `/api/actions/${approved.id}/decision`;
         await expects(
-          await request(decisionPath, { hash: "b".repeat(64), decision: "approve" }),
+          await request(decisionPath, {
+            hash: "b".repeat(64),
+            decision: "approve",
+          }),
           409,
           "STALE_ACTION",
         );
         await expects(
-          await request(decisionPath, { hash: approved.hash, decision: "approve" }),
+          await request(decisionPath, {
+            hash: approved.hash,
+            decision: "approve",
+          }),
           200,
         );
         await expects(
-          await request(decisionPath, { hash: approved.hash, decision: "approve" }),
+          await request(decisionPath, {
+            hash: approved.hash,
+            decision: "approve",
+          }),
           409,
           "ACTION_CONFLICT",
         );
@@ -181,7 +280,9 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
       "malformed/oversized inputs and logout have explicit sanitized outcomes",
       async () => {
         await expects(
-          await request("/api/projects/inspect", { directory: "x".repeat(9000) }),
+          await request("/api/projects/inspect", {
+            directory: "x".repeat(9000),
+          }),
           413,
           "INPUT_LIMIT",
         );

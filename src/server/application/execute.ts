@@ -3,9 +3,14 @@ import type { Config } from "../config.ts";
 import { AppError, ensure } from "../errors.ts";
 import type { Store } from "../persistence/store.ts";
 import { authorizeScope } from "../policy/action.ts";
+import { readArtifact } from "../workspace/archive.ts";
 
 export type MutationAdapter = {
-  execute(action: Action, signal: AbortSignal): Promise<{ remoteId: string }>;
+  execute(
+    action: Action,
+    signal: AbortSignal,
+    source: Buffer | null,
+  ): Promise<{ remoteId: string }>;
 };
 
 export async function executeApproved(input: {
@@ -32,10 +37,28 @@ export async function executeApproved(input: {
     503,
   );
   ensure(!signal.aborted, "CANCELLED", "پیش از شروع اجرا لغو شد.", 409);
+  let source: Buffer | null = null;
+  if (currentSpec.operation === "deploy") {
+    ensure(
+      currentSpec.version === 2 && currentSpec.artifactHash,
+      "ARTIFACT_REQUIRED",
+      "این پیشنهاد به بسته source متصل نیست؛ پیشنهاد تازه بسازید.",
+      409,
+    );
+    const artifact = store.getArtifact(session.actorId, currentSpec.artifactHash);
+    ensure(
+      artifact.sourceHash === currentSpec.sourceHash,
+      "ARTIFACT_MISMATCH",
+      "بسته به محتوای مورد تأیید تعلق ندارد.",
+      409,
+    );
+    source = await readArtifact(config.stateDir, artifact);
+    ensure(!signal.aborted, "CANCELLED", "پیش از شروع اجرا لغو شد.", 409);
+  }
   const action = store.claim(id, session.actorId, session.id, currentSpec);
   // The attempt is committed BEFORE entering the provider boundary. Never retry this write.
   try {
-    const result = await adapter.execute(action, signal);
+    const result = await adapter.execute(action, signal, source);
     return store.receipt(id, session.actorId, result.remoteId);
   } catch {
     store.uncertain(id, session.actorId);

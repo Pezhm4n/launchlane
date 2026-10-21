@@ -4,7 +4,7 @@ Read this file first. Then read [project-overview.md](project-overview.md), [ARC
 
 ## Current scope and truth
 
-- P1 provides a local workbench: authenticated Node source inspection, a bounded manifest, immutable proposals and durable approve/reject decisions. It is not yet an implemented live deployment/diagnosis agent.
+- P1 provides a local workbench: authenticated Node source inspection, a bounded manifest and private tar.gz snapshot, immutable proposals and durable approve/reject decisions. It is not yet an implemented live deployment/diagnosis agent.
 - No live Liara integration is verified. A small live BoxAPI `gpt-6-luna` chat-completions tool/result/terminal smoke passed with `reasoning_effort=none`; this does not verify real incident diagnosis. Keep the model and mutation gates off outside an explicitly bounded run.
 - Product name: **Launchlane**. Keep product UI and package names consistent.
 - Product acceptance is defined in `docs/acceptance.md`. Treat planned architecture as a proposal until implemented and verified.
@@ -59,6 +59,7 @@ The smoke suite checks HTTP entry/liveness and truthful integration state. It do
 
 - No infrastructure write before a specific server-validated approval. For the MVP, create/upload/deploy/restart/env/plan/domain changes all require approval, even if a read is automatic.
 - Bind approval to actor, account/team/app, operation, exact arguments, source artifact hash when applicable, expiry and single-use action ID. Changing any material input requires fresh approval. Atomically claim an action before execution; reject replay/races/stale approval.
+- New deploy proposals use ActionSpec v2 with a persisted archive hash. Keep v1 canonicalization unchanged for old history; legacy deploy cannot execute. Verify stored bytes before claiming and pass that validated snapshot into the adapter, never re-read the workspace inside a provider.
 - Persist pending/consumed approval and attempts before enabling live writes. Recover an interrupted attempt as uncertain and reconcile before any conflicting write; lost in-memory secret inputs do not justify a fresh retry. If durable storage is unavailable, authorized reads may continue but mutation must fail closed.
 - Loopback binding is useful but is not authentication. Require operator authentication for privileged reads as well as writes. Add session, Origin/CSRF checks and host validation before those routes. Public hosting needs an explicit access design first.
 - Source scanning is bounded and read-only. Never run uploaded/retrieved project scripts merely to identify a framework. Validate canonical paths/symlinks under the allowed workspace. Exclude `.env*`, `.git`, credentials, caches and dependencies from source archives; show a manifest before upload. Do not send source code to the model/provider unnecessarily.

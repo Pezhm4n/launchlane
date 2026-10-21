@@ -6,9 +6,15 @@ import type {
   ActionState,
   Capability,
   ProjectProfile,
+  SourceArtifact,
   WorkspaceView,
 } from "../contracts/domain.ts";
-import { decodeAction, decodeProfile, decodeWorkspace } from "../contracts/client-decode.ts";
+import {
+  decodeAction,
+  decodeArtifact,
+  decodeProfile,
+  decodeWorkspace,
+} from "../contracts/client-decode.ts";
 import { object } from "../contracts/validation.ts";
 
 class ClientError extends Error {
@@ -24,7 +30,12 @@ class ClientError extends Error {
 async function api<T>(
   path: string,
   decode: (value: unknown) => T,
-  options: { body?: unknown; csrf?: string; method?: string; signal?: AbortSignal } = {},
+  options: {
+    body?: unknown;
+    csrf?: string;
+    method?: string;
+    signal?: AbortSignal;
+  } = {},
 ): Promise<T> {
   const headers: Record<string, string> = {};
   if (options.body !== undefined) headers["Content-Type"] = "application/json";
@@ -145,12 +156,26 @@ function ActionCard({
           <dd>
             <code>{action.hash}</code>
           </dd>
+          {action.spec.version === 2 && action.spec.artifactHash ? (
+            <>
+              <dt>archive SHA-256</dt>
+              <dd>
+                <code>{action.spec.artifactHash}</code>
+              </dd>
+            </>
+          ) : null}
         </dl>
       </details>
       <p>
         این پیشنهاد به همین مقصد، پورت و محتوای پروژه متصل است. تغییر هرکدام به پیشنهاد و تأیید تازه
         نیاز دارد.
       </p>
+      {action.spec.version === 1 ? (
+        <p className="note">
+          این پیشنهاد قدیمی به بسته source متصل نیست؛ برای انتشار باید پروژه را دوباره بررسی و
+          پیشنهاد تازه بسازید.
+        </p>
+      ) : null}
       {action.state === "awaiting_approval" ? (
         <>
           <p className="note">
@@ -192,6 +217,7 @@ export function Workbench() {
   const [token, setToken] = useState("");
   const [directory, setDirectory] = useState("examples/node-service");
   const [profile, setProfile] = useState<ProjectProfile | null>(null);
+  const [artifact, setArtifact] = useState<SourceArtifact | null>(null);
   const [port, setPort] = useState("");
   const [app, setApp] = useState("");
   const [notice, setNotice] = useState("");
@@ -199,6 +225,10 @@ export function Workbench() {
   const [clock, setClock] = useState(0);
   const pending = useRef<AbortController | null>(null);
   const resultHeading = useRef<HTMLHeadingElement>(null);
+  const artifactHeading = useRef<HTMLHeadingElement>(null);
+  const inspectTrigger = useRef<HTMLButtonElement>(null);
+  const archiveTrigger = useRef<HTMLButtonElement>(null);
+  const returnFocus = useRef<"inspect" | "archive" | null>(null);
   const errorBox = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -232,6 +262,16 @@ export function Workbench() {
   useEffect(() => {
     if (profile) resultHeading.current?.focus();
   }, [profile]);
+  useEffect(() => {
+    if (artifact) artifactHeading.current?.focus();
+  }, [artifact]);
+  useEffect(() => {
+    if (busy === null && returnFocus.current) {
+      const target = returnFocus.current === "inspect" ? inspectTrigger : archiveTrigger;
+      returnFocus.current = null;
+      target.current?.focus();
+    }
+  }, [busy]);
 
   function fail(error: unknown) {
     if (error instanceof ClientError && error.code === "AUTH_REQUIRED") setView(null);
@@ -272,9 +312,13 @@ export function Workbench() {
     setBusy("logout");
     setError(null);
     try {
-      await api("/api/session", () => true, { method: "DELETE", csrf: view.session.csrfToken });
+      await api("/api/session", () => true, {
+        method: "DELETE",
+        csrf: view.session.csrfToken,
+      });
       setView(null);
       setProfile(null);
+      setArtifact(null);
       setNotice("از حساب محلی خارج شدید.");
     } catch (error) {
       fail(error);
@@ -288,6 +332,7 @@ export function Workbench() {
     setBusy("inspect");
     setError(null);
     setProfile(null);
+    setArtifact(null);
     setNotice("در حال خواندن فایل‌های مجاز؛ هیچ script اجرا نمی‌شود.");
     const controller = new AbortController();
     pending.current = controller;
@@ -301,8 +346,39 @@ export function Workbench() {
       setPort(result.port === null ? "" : String(result.port));
       setNotice("بررسی محلی کامل شد. اطلاعات پروژه و فهرست فایل‌ها را ببینید.");
     } catch (error) {
-      if (controller.signal.aborted) setNotice("بررسی لغو شد؛ پیشنهادی ساخته و فایلی ارسال نشد.");
-      else {
+      if (controller.signal.aborted) {
+        returnFocus.current = "inspect";
+        setNotice("بررسی لغو شد؛ پیشنهادی ساخته و فایلی ارسال نشد.");
+      } else {
+        setNotice("");
+        fail(error);
+      }
+    } finally {
+      pending.current = null;
+      setBusy(null);
+    }
+  }
+  async function prepareSource() {
+    if (!view || !profile || busy) return;
+    setBusy("archive");
+    setError(null);
+    setArtifact(null);
+    setNotice("در حال ساخت بسته از فایل‌های مجاز؛ هیچ فایلی ارسال نمی‌شود.");
+    const controller = new AbortController();
+    pending.current = controller;
+    try {
+      const result = await api("/api/projects/archive", decodeArtifact, {
+        body: { directory: profile.directory, sourceHash: profile.sourceHash },
+        csrf: view.session.csrfToken,
+        signal: controller.signal,
+      });
+      setArtifact(result);
+      setNotice("بسته source محلی آماده شد؛ هنوز به لیارا ارسال نشده است.");
+    } catch (error) {
+      if (controller.signal.aborted) {
+        returnFocus.current = "archive";
+        setNotice("آماده‌سازی متوقف شد؛ هیچ فایلی ارسال نشد. ساخت دوباره فقط محلی است.");
+      } else {
         setNotice("");
         fail(error);
       }
@@ -313,7 +389,7 @@ export function Workbench() {
   }
   async function propose(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!view || !profile || busy) return;
+    if (!view || !profile || !artifact || busy) return;
     setBusy("proposal");
     setError(null);
     try {
@@ -321,6 +397,7 @@ export function Workbench() {
         body: {
           directory: profile.directory,
           sourceHash: profile.sourceHash,
+          artifactHash: artifact.archiveHash,
           app,
           port: Number(port),
         },
@@ -406,7 +483,9 @@ export function Workbench() {
             )}
           </h1>
           <p className="intro-text">
-            {view ? "ابتدا پروژه را بررسی و مقصد انتشار را مشخص کنید." : "پروژه‌تان را بشناسید، پیشنهاد را بررسی کنید و پیش از هر تغییر تصمیم بگیرید. هر نتیجه باید شاهد داشته باشد."}
+            {view
+              ? "ابتدا پروژه را بررسی و مقصد انتشار را مشخص کنید."
+              : "پروژه‌تان را بشناسید، پیشنهاد را بررسی کنید و پیش از هر تغییر تصمیم بگیرید. هر نتیجه باید شاهد داشته باشد."}
           </p>
         </div>
         <nav className="journey" aria-label="مسیر انتشار">
@@ -520,7 +599,8 @@ export function Workbench() {
                   <span className="badge badge-ok">بدون هزینه API</span>
                 </div>
                 <p>
-                  بررسی فقط محلی است؛ کدی اجرا یا ارسال نمی‌شود. فایل‌های حساس کنار گذاشته می‌شوند.
+                  بررسی فقط محلی است؛ کدی اجرا یا ارسال نمی‌شود. فایل‌های env و مسیرهای حساس رایج کنار
+                  گذاشته می‌شوند.
                 </p>
                 <form onSubmit={inspect} aria-busy={busy === "inspect"}>
                   <label htmlFor="project-directory">مسیر نسبی پوشه پروژه</label>
@@ -530,6 +610,7 @@ export function Workbench() {
                     onChange={(event) => {
                       setDirectory(event.target.value);
                       setProfile(null);
+                      setArtifact(null);
                     }}
                     dir="ltr"
                     spellCheck={false}
@@ -545,6 +626,7 @@ export function Workbench() {
                   <div className="button-row">
                     <button
                       type="submit"
+                      ref={inspectTrigger}
                       disabled={
                         busy !== null ||
                         expired ||
@@ -635,8 +717,8 @@ export function Workbench() {
                       {number(profile.excludedCount)} مورد کنار گذاشته شد
                     </summary>
                     <p className="hint">
-                      این فهرست هنوز archive یا upload نیست. اثر انگشت از محتوای همین فایل‌ها محاسبه
-                      شده است.
+                      بسته فقط از همین فایل‌ها ساخته می‌شود. پیش از ارسال، نبود فایل خصوصی در این
+                      فهرست را هم بررسی کنید؛ هنوز چیزی به لیارا ارسال نشده است.
                     </p>
                     {/* biome-ignore lint/a11y/noNoninteractiveTabindex: The bounded scroll region must be reachable for keyboard horizontal scrolling. */}
                     <section className="table-scroll" tabIndex={0} aria-label="فهرست فایل‌های مجاز">
@@ -665,6 +747,50 @@ export function Workbench() {
                     </section>
                     <code className="hash-line">{profile.sourceHash}</code>
                   </details>
+                  <div className="archive-preparation" aria-busy={busy === "archive"}>
+                    <h3>بسته source را محلی آماده کنید</h3>
+                    <p>
+                      فهرست فایل‌ها را بررسی کنید. بسته بدون اجرای کد پروژه ساخته می‌شود و برای این
+                      مرحله به حساب لیارا نیاز ندارید.
+                    </p>
+                    {artifact ? (
+                      <div className="archive-result">
+                        <h4 ref={artifactHeading} tabIndex={-1}>
+                          بسته محلی آماده است؛ ارسال نشده
+                        </h4>
+                        <p>
+                          <bdi>tar.gz</bdi> · {number(artifact.fileCount)} فایل ·{" "}
+                          {number(artifact.bytes)} بایت
+                        </p>
+                        <details className="technical-details">
+                          <summary>هش بسته قابل ارسال</summary>
+                          <code className="hash-line">{artifact.archiveHash}</code>
+                        </details>
+                      </div>
+                    ) : (
+                      <div className="button-row">
+                        <button
+                          type="button"
+                          ref={archiveTrigger}
+                          onClick={prepareSource}
+                          disabled={
+                            busy !== null || expired || profile.runtime !== "node" || !profile.start
+                          }
+                        >
+                          {busy === "archive" ? "در حال آماده‌سازی بسته…" : "آماده‌سازی بسته محلی"}
+                        </button>
+                        {busy === "archive" ? (
+                          <button
+                            type="button"
+                            className="button-secondary"
+                            onClick={() => pending.current?.abort()}
+                          >
+                            لغو آماده‌سازی
+                          </button>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
                   <form
                     className="proposal-form"
                     onSubmit={propose}
@@ -697,8 +823,8 @@ export function Workbench() {
                         </div>
                       ) : (
                         <p className="note">
-                          برنامه مقصد هنوز مشخص نشده است. پس از تطبیق تیم، نام app آزمایشی را در
-                          فهرست مجاز تنظیم کنید.
+                          مقصد لیارا هنوز آماده نیست. بررسی پروژه و ساخت بسته را همین حالا انجام
+                          دهید؛ پس از آماده‌شدن حساب، یک app آزمایشی در محدوده مجاز انتخاب می‌شود.
                         </p>
                       )}
                     </fieldset>
@@ -725,12 +851,16 @@ export function Workbench() {
                         busy !== null ||
                         expired ||
                         !app ||
+                        !artifact ||
                         profile.runtime !== "node" ||
                         !profile.start
                       }
                     >
                       {busy === "proposal" ? "در حال ذخیره پیشنهاد…" : "ساخت پیشنهاد قابل بررسی"}
                     </button>
+                    {!artifact ? (
+                      <p className="hint">ابتدا بسته source را با دکمه بالا آماده کنید.</p>
+                    ) : null}
                   </form>
                 </section>
               ) : null}

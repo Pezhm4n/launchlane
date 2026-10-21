@@ -289,7 +289,9 @@ dd {
 .page-intro-compact h1 {
   font-size: var(--text-workbench-title);
 }
-.app-header-compact .header-actions > .badge { display: none; }
+.app-header-compact .header-actions > .badge {
+  display: none;
+}
 .eyebrow {
   color: var(--color-primary);
   font-size: var(--text-xs);
@@ -299,7 +301,10 @@ dd {
 .intro-text {
   font-size: var(--text-base);
 }
-.page-intro-compact .intro-text { font-size: var(--text-sm); margin-block-end: var(--space-0); }
+.page-intro-compact .intro-text {
+  font-size: var(--text-sm);
+  margin-block-end: var(--space-0);
+}
 .journey {
   margin-block: var(--space-6);
 }
@@ -540,6 +545,20 @@ th {
 .proposal-form {
   margin-block-start: var(--space-8);
 }
+.archive-preparation {
+  margin-block: var(--space-6);
+}
+.archive-result {
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--color-primary);
+  border-radius: var(--radius-md);
+  background: var(--color-primary-soft);
+}
+.archive-result > h4 {
+  color: var(--color-primary);
+  font-size: var(--text-base);
+  margin: var(--space-0);
+}
 .app-options {
   display: flex;
   gap: var(--space-3);
@@ -656,7 +675,9 @@ th {
 }
 
 @media (min-width: 768px) {
-  .app-header-compact .header-actions > .badge { display: inline-flex; }
+  .app-header-compact .header-actions > .badge {
+    display: inline-flex;
+  }
   .app-header {
     padding-inline: var(--space-8);
   }

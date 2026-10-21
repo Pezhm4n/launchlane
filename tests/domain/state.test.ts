@@ -148,6 +148,13 @@ test("disabled mutation gate invokes zero provider calls and consumes no approva
 });
 
 test("lost write response persists an attempt and blocks fresh actions even after restart", async () => {
+  const spec: ActionSpec = {
+    version: 1,
+    scope,
+    operation: "restart",
+    sourceHash: null,
+    args: { port: null, planId: null },
+  };
   const temp = temporary();
   let store = new Store(temp.path);
   try {
@@ -282,7 +289,10 @@ test("session authentication checks origin/host/CSRF, tamper, expiry, logout and
       "x-csrf-token": auth.session.csrfToken,
     };
     const request = (extra = {}) =>
-      new Request(config.origin, { method: "POST", headers: { ...headers, ...extra } });
+      new Request(config.origin, {
+        method: "POST",
+        headers: { ...headers, ...extra },
+      });
     assert.equal(requireSession(request(), config, store, true).id, auth.session.id);
     assert.throws(
       () => requireSession(request({ origin: "https://evil.test" }), config, store, true),

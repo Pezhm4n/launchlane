@@ -1,6 +1,10 @@
 export type Scope = Readonly<{ teamId: string; app: string }>;
 
-export type ManifestEntry = Readonly<{ path: string; bytes: number; sha256: string }>;
+export type ManifestEntry = Readonly<{
+  path: string;
+  bytes: number;
+  sha256: string;
+}>;
 export type ProjectProfile = Readonly<{
   directory: string;
   runtime: "node" | "unknown";
@@ -17,13 +21,25 @@ export type ProjectProfile = Readonly<{
   inspectedAt: string;
 }>;
 
-export type ActionSpec = Readonly<{
-  version: 1;
+export type SourceArtifact = Readonly<{
+  format: "tar.gz";
+  archiveHash: string;
+  sourceHash: string;
+  bytes: number;
+  fileCount: number;
+  createdAt: number;
+}>;
+
+type ActionInputs = Readonly<{
   scope: Scope;
   operation: "deploy" | "restart";
   sourceHash: string | null;
   args: Readonly<{ port: number | null; planId: string | null }>;
 }>;
+
+// Keep v1 byte-for-byte canonicalizable: existing approvals must not acquire new inputs.
+export type ActionSpec = ActionInputs &
+  (Readonly<{ version: 1 }> | Readonly<{ version: 2; artifactHash: string | null }>);
 
 export type ActionState =
   | "awaiting_approval"

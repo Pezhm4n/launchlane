@@ -5,7 +5,7 @@
 ## وضعیت فعال
 
 - P0 تمام شد: foundation و اسناد فنی اعتبارسنجی شده‌اند؛ شواهد در `docs/verification.md`.
-- فاز فعال P1: مسیر محلی ورود→بررسی source→پیشنهاد→تأیید/رد با UI و state پایدار قابل اجراست؛ gateهای اتصال زنده جدا هستند.
+- فاز فعال P1: مسیر محلی ورود→بررسی source→بسته خصوصی→پیشنهاد→تأیید/رد با UI و state پایدار قابل اجراست؛ gateهای اتصال زنده جدا هستند.
 - session محلی، Host/Origin/CSRF، migration و approval اتمیک برای قرارداد محدود deploy/restart وجود دارند. executor زنده متصل نیست؛ همه writeها بسته‌اند.
 - scope و دسترسی زنده Liara تأیید نشده‌اند. BoxAPI طبق خبر مالک فعال است و یک سازگاری محدود gpt-6-luna/none واقعاً سنجیده شد؛ کیفیت diagnosis و مبلغ کسرشده هنوز تأیید نشده‌اند.
 
@@ -22,9 +22,9 @@
 
 | Task | هدف/محدوده | وابستگی | پذیرش/تست | وضعیت |
 | --- | --- | --- | --- | --- |
-| T10 | تکمیل DESIGN با flow، توکن و component state؛ UI یکپارچه با action/evidence | T02 | AC14؛ walkthrough، keyboard و responsive؛ بدون پالت پراکنده | implemented_offline؛ آزمون خودکار ۶ viewport/۱۱ حالت، walkthrough انسان تازه هنوز انجام نشده |
+| T10 | تکمیل DESIGN با flow، توکن و component state؛ UI یکپارچه با action/evidence | T02 | AC14؛ walkthrough، keyboard و responsive؛ بدون پالت پراکنده | implemented_offline؛ آزمون خودکار ۷ viewport/۲۳ حالت، walkthrough انسان تازه هنوز انجام نشده |
 | T11 | API adapter interface و schemaهای ورودی/پاسخ از OpenAPI؛ fixture صادقانه | T03 | AC01,08,13؛ teamID، pagination، null، 401/429 و unit/time contracts؛ synthetic بودن صریح | partial_offline؛ release read، metric parser و BoxAPI transport؛ سایر endpointها و live هنوز تأیید نشده |
-| T12 | تشخیص read-only یک اپ Node و archive manifest مجاز | T02 | AC02,03؛ runtime/port/env names؛ traversal/symlink/secret و no script execution | implemented_offline؛ manifest/hash، بدون archive/upload |
+| T12 | تشخیص read-only یک اپ Node و archive manifest مجاز | T02 | AC02,03؛ runtime/port/env names؛ traversal/symlink/secret و no script execution | implemented_offline؛ manifest و tar.gz خصوصی، هش مستقل archive و approval v2؛ upload لیارا انجام نشده |
 | T13 | operator session، policy، action immutable، approval و state SQLite | T02 | AC04,13,16؛ deny/expiry/replay/race/restart/storage-down؛ CAS پیش از write | implemented_offline؛ فقط deploy/restart، executor زنده و secret-reference برای env هنوز ساخته نشده |
 | T14 | تعریف oracle و demo fixture برای deploy و incident؛ توسعه تست domain با ابزار مناسب | T11,T12 | AC05,09,11؛ golden و counterexample؛ commandهای واقعی به AGENTS اضافه شود | partial_offline؛ workload 500/اصلاح غلط/درست و protocol fixtures؛ eval مدل/deploy زنده باقی است |
 
@@ -35,7 +35,7 @@ P1 شامل کدنویسی محصول توسط Coding Agent بعدی است. د�
 | Task | هدف/محدوده | وابستگی | پذیرش/تست | وضعیت |
 | --- | --- | --- | --- | --- |
 | T20 | capability spike read-only لیارا با credential و scope مجاز | دسترسی Liara،T11 | AC01,08؛ scope/schema/time/unit و خطاهای واقعی؛ evidence sanitized؛ بدون write | blocked_live |
-| T24 | smoke مدل/SDK و بودجه مستقل از اتصال Liara | دسترسی و budget مدل،T11 | AC09,13؛ tool protocol/schema، خروجی structured، terminal/error و مصرف واقعی؛ بدون fixture به‌جای live | compatibility_verified برای gpt-6-luna/none؛ 2 درخواست موفق/616 توکن؛ diagnosis و قطع پردازش provider پس از cancel هنوز تأیید نشده |
+| T24 | smoke مدل/SDK و بودجه مستقل از اتصال Liara | دسترسی و budget مدل،T11 | AC09,13؛ tool protocol/schema، خروجی structured، terminal/error و مصرف واقعی؛ بدون fixture به‌جای live | compatibility_verified برای gpt-6-luna/none؛ دو snapshot موفق، هرکدام 2 درخواست/616 توکن؛ diagnosis و قطع پردازش provider پس از cancel هنوز تأیید نشده |
 | T21 | انتخاب روش/پلن با منبع/قیمت فعلی و تأیید action | T12,T13,T20 | AC03,04؛ unknown price/budget سؤال/راهنمایی؛ تغییر args/source نیازمند consent تازه | not_started |
 | T22 | upload source→release→observe→health روی app آزمایشی مجاز | T14,T21 | AC05؛ release واقعی و پاسخ workload؛ build fail/timeout/pending و unsafe path | not_started |
 | T23 | انتشار نسخه بعدی و restart کنترل‌شده | T22 | AC06؛ release قبل/بعد، deny و عدم اثر روی app دیگر؛ readback | not_started |
@@ -80,7 +80,7 @@ T32 هسته است. T25، T33 و T34 توسعه‌های P1 هستند؛ فقط
 | D2 operator-local | دسترسی ساده‌تر به source و scope محدود | نیاز واقعی میزبانی remote بعد از طراحی auth |
 | D3 یک runtime محدود | از چندعاملی/queue بی‌دلیل جلوگیری می‌کند | benchmark همان مسئله سود delegation را نشان دهد |
 | D5 SQLite native | implemented_offline روی Node 24.18؛ migration checksummed، attempt پایدار و claim اتمیک | نیاز چند process یا خطای واقعی storage |
-| D6 مدل/SDK | BoxAPI با transport مستقیم chat-completions و بدون SDK تازه؛ سازگاری tools هنوز fixture است | smoke پروتکل، بودجه و eval تعیین‌کننده مدل‌اند |
+| D6 مدل/SDK | BoxAPI با transport مستقیم chat-completions و بدون SDK تازه؛ gpt-6-luna/none smoke سازگاری را گذراند، کیفیت diagnosis unverified است | oracle واقعی و مصرف، تعیین‌کننده مدل diagnosis هستند |
 | D7 Biome | dependency lint ساده‌تر و حذف advisoryهای dev مسیر اولیه ESLint | صرفاً با نیاز اثبات‌شده |
 
 ## قالب به‌روزرسانی هر مرحله
@@ -131,4 +131,12 @@ release read با teamID/page/count و null/time fixture، metric=unknown تا �
 
 پس از اصلاح پارامتر، دو درخواست 200 در ۱۰٫۵۰۵ ثانیه، مجموع ۶۱۶ توکن گزارش‌شده دادند: tool call واقعی→result همان ID→JSON نهایی با app/evidence/status/outcome درست. preflight cancel صفر upstream اضافه داشت. هزینه واقعی حساب، مصرف خطاهای اولیه و توقف پردازش provider پس از لغو unverified هستند. فایل‌های خام sanitize شده فقط `.artifacts/model/` می‌مانند؛ خلاصه فنی در verification. CLI نهایی به دو request محدود و از automatic check خارج است؛ فهرست مجاز مدل و خطای 400/422 نیز در server enforce می‌شوند. آزمون fixture رگرسیون `reasoning_effort=none` را کنترل می‌کند.
 
-گام بعد مستقل: کامل‌کردن evidence/diagnosis روی قرارداد درست؛ گام live Liara به توکن PaaS و app مجاز نیاز دارد. درخواست همین دو ورودی مطرح شده و هیچ credential یا app از پروژه دیگری استفاده نشده است.
+snapshot جدا روی `a697eba`، دو پاسخ 200 و همان oracle را در ۲۵٫۱۰۴ ثانیه و ۶۱۶ توکن گزارش‌شده گذراند؛ با snapshot قبلی یک benchmark ترکیبی ساخته نمی‌شود. گام live Liara به دسترسی PaaS، اعتبار و app آزمایشی مجاز نیاز دارد. فعلاً طبق درخواست مالک کار آفلاین ادامه دارد؛ ساخت app اکنون لازم نیست. app بعدی هدف تست چرخه محصول است و با میزبانی خود Launchlane فرق دارد.
+
+## P1 — بسته source و approval متصل به artifact
+
+پایه `a697eba` + working tree این برش؛ AC02/04/13/14/16. Skills مؤثر: competition-agent-engineer (runtime/evaluation)، قواعد accessibility/RTL از ux-ui-agent-skills و webapp-testing. گراف قابل دسترسی شد اما generation همان `2026-10-21T14:08:53Z` و فایل‌های تازه not_tracked بودند؛ source، importها، route→use case→capture→archive→storage→policy و تست‌ها مستقیم بررسی شدند.
+
+ساخت بسته محلی مستقل از اتصال/app است. manifest و archive از یک capture محدود می‌آیند؛ نام فارسی/مسیر بلند، exclusion، content hash، snapshot ثابت و بازخوانی bytes بررسی می‌شوند. SQLite migration 2 append-only، receipt actor-bound و ActionSpec v2 اضافه شد. v1 بدون تغییر hash خوانده می‌شود ولی deploy آن پیش از provider مسدود است. فایل گم‌شده/تغییریافته یا receipt ناموجود پیش از claim متوقف می‌شود. adapter تنها buffer مورد تأیید را می‌گیرد؛ API زنده هنوز null است.
+
+اعتبارسنجی و artifactهای این برش در `docs/verification.md` ثبت می‌شوند. هیچ درخواست تازه مدل یا Liara در این برش وجود ندارد. گام بعد مستقل: قرارداد logs/events/evidence و probe امن برای T30/T31؛ اتصال زنده T20 همچنان به آماده‌شدن همان سرویس وابسته است. پاک‌سازی خودکار archive، env secret-reference و deploy/diagnosis/correction واقعی باقی‌اند.

@@ -32,9 +32,17 @@ export function fingerprint(value: unknown): string {
 
 export function parseActionSpec(value: unknown): ActionSpec {
   const input = object(value);
-  exactKeys(input, ["version", "scope", "operation", "sourceHash", "args"]);
+  exactKeys(input, [
+    "version",
+    "scope",
+    "operation",
+    "sourceHash",
+    "args",
+    ...(input.version === 2 ? ["artifactHash"] : []),
+  ]);
   ensure(
-    input.version === 1 && (input.operation === "deploy" || input.operation === "restart"),
+    (input.version === 1 || input.version === 2) &&
+      (input.operation === "deploy" || input.operation === "restart"),
     "INVALID_OPERATION",
     "عملیات پشتیبانی نمی‌شود.",
   );
@@ -59,13 +67,20 @@ export function parseActionSpec(value: unknown): ActionSpec {
     "INVALID_INPUT",
     "restart آرگومان انتشار نمی‌پذیرد.",
   );
-  return {
-    version: 1,
+  const common: Pick<ActionSpec, "scope" | "operation" | "sourceHash" | "args"> = {
     scope: { teamId, app },
     operation: input.operation,
     sourceHash,
     args: { port, planId },
   };
+  if (input.version === 1) return { ...common, version: 1 };
+  const artifactHash = input.artifactHash === null ? null : hash(input.artifactHash);
+  ensure(
+    input.operation === "deploy" ? artifactHash !== null : artifactHash === null,
+    "INVALID_ARTIFACT",
+    "پیشنهاد انتشار به هش بسته دقیق source نیاز دارد.",
+  );
+  return { ...common, version: 2, artifactHash };
 }
 
 export function authorizeScope(

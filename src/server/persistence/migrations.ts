@@ -26,4 +26,14 @@ CREATE TABLE audit_events (
 ) STRICT;
 `,
   },
+  {
+    version: 2,
+    sql: `
+CREATE TABLE source_artifacts (
+  actor_id TEXT NOT NULL, archive_hash TEXT NOT NULL, source_hash TEXT NOT NULL,
+  bytes INTEGER NOT NULL, file_count INTEGER NOT NULL, created_at INTEGER NOT NULL,
+  PRIMARY KEY(actor_id, archive_hash)
+) STRICT;
+`,
+  },
 ] as const;

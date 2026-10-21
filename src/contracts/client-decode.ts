@@ -5,10 +5,12 @@ import type {
   Capabilities,
   Capability,
   ProjectProfile,
+  SourceArtifact,
   WorkspaceView,
 } from "./domain.ts";
 import { ensure } from "../server/errors.ts";
-import { integer, object, string } from "./validation.ts";
+import { hash, integer, object, string } from "./validation.ts";
+import { parseArtifact } from "./source.ts";
 
 function nullableString(value: unknown, max = 256): string | null {
   return value === null ? null : string(value, max);
@@ -52,12 +54,13 @@ export function decodeAction(value: unknown): Action {
   ];
   const state = states.find((state) => state === raw.state);
   ensure(
-    state && spec.version === 1 && (spec.operation === "deploy" || spec.operation === "restart"),
+    state &&
+      (spec.version === 1 || spec.version === 2) &&
+      (spec.operation === "deploy" || spec.operation === "restart"),
     "INVALID_RESPONSE",
     "ساختار اقدام معتبر نیست.",
   );
-  const parsedSpec: ActionSpec = {
-    version: 1,
+  const common: Pick<ActionSpec, "scope" | "operation" | "sourceHash" | "args"> = {
     operation: spec.operation,
     scope: { teamId: string(scope.teamId), app: string(scope.app) },
     sourceHash: nullableString(spec.sourceHash),
@@ -66,6 +69,14 @@ export function decodeAction(value: unknown): Action {
       planId: nullableString(args.planId),
     },
   };
+  const parsedSpec: ActionSpec =
+    spec.version === 1
+      ? { ...common, version: 1 }
+      : {
+          ...common,
+          version: 2,
+          artifactHash: spec.artifactHash === null ? null : hash(spec.artifactHash),
+        };
   return {
     id: string(raw.id),
     actorId: string(raw.actorId),
@@ -78,6 +89,9 @@ export function decodeAction(value: unknown): Action {
     remoteId: nullableString(raw.remoteId),
     errorCode: nullableString(raw.errorCode),
   };
+}
+export function decodeArtifact(value: unknown): SourceArtifact {
+  return parseArtifact(object(value).artifact);
 }
 export function decodeWorkspace(value: unknown): WorkspaceView {
   const raw = object(value),
