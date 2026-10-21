@@ -26,6 +26,7 @@ Run from the repository root with Node **24.15+ within 24.x** and npm. Dependenc
 | HTTP boundary | `npm run test:http` | Requires a successful build; starts an isolated production server with synthetic scope and empty provider keys |
 | Browser flow | `npm run test:browser` | Requires a successful build and Playwright Chromium; starts an isolated production server; no real account |
 | Local operator setup | `npm run setup:local` | Preserves existing config; writes ignored operator access locally; prints no token |
+| GitHub login tool setup | `npm run setup:github` | Windows x64; checksum-verified official CLI 2.103.0 in ignored local tools; no account grant or global PATH change |
 | Model compatibility smoke | `npm run smoke:model -- --live` | Opt-in, consumes BoxAPI credit, maximum two requests; synthetic evidence through real transport; never part of automatic checks |
 | Current aggregate | `npm run check` | Also requires a running server because it includes smoke |
 
@@ -60,6 +61,7 @@ The smoke suite checks HTTP entry/liveness and truthful integration state. It do
 - No infrastructure write before a specific server-validated approval. For the MVP, create/upload/deploy/restart/env/plan/domain changes all require approval, even if a read is automatic.
 - Bind approval to actor, account/team/app, operation, exact arguments, source artifact hash when applicable, expiry and single-use action ID. Changing any material input requires fresh approval. Atomically claim an action before execution; reject replay/races/stale approval.
 - New deploy proposals use ActionSpec v2 with a persisted archive hash. Keep v1 canonicalization unchanged for old history; legacy deploy cannot execute. Verify stored bytes before claiming and pass that validated snapshot into the adapter, never re-read the workspace inside a provider.
+- Project-flow deploy proposals use ActionSpec v3, binding the exact local/GitHub selection and revision as well as the archive. Preserve v1/v2 canonicalization. A different active project or stale content invalidates approval; progress recovery must never renew it.
 - Persist pending/consumed approval and attempts before enabling live writes. Recover an interrupted attempt as uncertain and reconcile before any conflicting write; lost in-memory secret inputs do not justify a fresh retry. If durable storage is unavailable, authorized reads may continue but mutation must fail closed.
 - Loopback binding is useful but is not authentication. Require operator authentication for privileged reads as well as writes. Add session, Origin/CSRF checks and host validation before those routes. Public hosting needs an explicit access design first.
 - Source scanning is bounded and read-only. Never run uploaded/retrieved project scripts merely to identify a framework. Validate canonical paths/symlinks under the allowed workspace. Exclude `.env*`, `.git`, credentials, caches and dependencies from source archives; show a manifest before upload. Do not send source code to the model/provider unnecessarily.

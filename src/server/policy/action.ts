@@ -38,10 +38,11 @@ export function parseActionSpec(value: unknown): ActionSpec {
     "operation",
     "sourceHash",
     "args",
-    ...(input.version === 2 ? ["artifactHash"] : []),
+    ...(input.version === 2 || input.version === 3 ? ["artifactHash"] : []),
+    ...(input.version === 3 ? ["projectFlowId", "selectionHash"] : []),
   ]);
   ensure(
-    (input.version === 1 || input.version === 2) &&
+    (input.version === 1 || input.version === 2 || input.version === 3) &&
       (input.operation === "deploy" || input.operation === "restart"),
     "INVALID_OPERATION",
     "عملیات پشتیبانی نمی‌شود.",
@@ -75,6 +76,22 @@ export function parseActionSpec(value: unknown): ActionSpec {
   };
   if (input.version === 1) return { ...common, version: 1 };
   const artifactHash = input.artifactHash === null ? null : hash(input.artifactHash);
+  if (input.version === 3) {
+    ensure(
+      input.operation === "deploy" && artifactHash,
+      "INVALID_OPERATION",
+      "پیشنهاد پروژه باید به فایل‌های آماده انتشار متصل باشد.",
+    );
+    const projectFlowId = string(input.projectFlowId, 36);
+    ensure(/^[a-f0-9-]{36}$/.test(projectFlowId), "INVALID_INPUT", "شناسه پروژه معتبر نیست.");
+    return {
+      ...common,
+      version: 3,
+      artifactHash,
+      projectFlowId,
+      selectionHash: hash(input.selectionHash),
+    };
+  }
   ensure(
     input.operation === "deploy" ? artifactHash !== null : artifactHash === null,
     "INVALID_ARTIFACT",

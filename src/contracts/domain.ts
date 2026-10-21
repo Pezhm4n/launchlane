@@ -39,7 +39,11 @@ type ActionInputs = Readonly<{
 
 // Keep v1 byte-for-byte canonicalizable: existing approvals must not acquire new inputs.
 export type ActionSpec = ActionInputs &
-  (Readonly<{ version: 1 }> | Readonly<{ version: 2; artifactHash: string | null }>);
+  (
+    | Readonly<{ version: 1 }>
+    | Readonly<{ version: 2; artifactHash: string | null }>
+    | Readonly<{ version: 3; artifactHash: string; projectFlowId: string; selectionHash: string }>
+  );
 
 export type ActionState =
   | "awaiting_approval"

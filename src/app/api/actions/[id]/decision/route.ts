@@ -2,6 +2,8 @@ import { exactKeys, hash, object, string } from "../../../../../contracts/valida
 import { ensure } from "../../../../../server/errors.ts";
 import { endpoint, jsonBody, reply } from "../../../../../server/http.ts";
 import { authorizeScope } from "../../../../../server/policy/action.ts";
+import { connectedLiaraConfig } from "../../../../../server/connections/liara.ts";
+import { validateProjectAction } from "../../../../../server/application/project-flows.ts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,7 +18,15 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       "INVALID_INPUT",
       "پاسخ تأیید معتبر نیست.",
     );
-    authorizeScope(store.getAction(id, session.actorId).spec.scope, config);
+    const action = store.getAction(id, session.actorId);
+    authorizeScope(
+      action.spec.scope,
+      action.spec.version === 3
+        ? connectedLiaraConfig(config, store, session.actorId, action.spec.scope.app)
+        : config,
+    );
+    if (input.decision === "approve")
+      await validateProjectAction(config, store, session.actorId, action.spec, request.signal);
     return reply({
       action: store.decide(id, session.actorId, session.id, hash(input.hash), input.decision),
     });

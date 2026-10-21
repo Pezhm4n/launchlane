@@ -34,6 +34,7 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
         await expects(await request("/api/workspace"), 401, "AUTH_REQUIRED");
         await expects(await request("/api/connections/github"), 401, "AUTH_REQUIRED");
         await expects(await request("/api/connections/liara"), 401, "AUTH_REQUIRED");
+        await expects(await request("/api/project-flows"), 401, "AUTH_REQUIRED");
         await expects(
           await request("/api/incidents/practice", { scenario: "configuration" }),
           401,
@@ -184,6 +185,62 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
           400,
           "INVALID_OPERATION",
         );
+      },
+    );
+    await t.test(
+      "project flows prepare and recover a local result without cloud access and preserve it on failed selection",
+      async () => {
+        await expects(
+          await request(
+            "/api/project-flows",
+            {
+              operation: "prepare",
+              selection: { kind: "local", directory: "examples/node-service" },
+            },
+            { "x-csrf-token": "forged" },
+          ),
+          403,
+          "CSRF_DENIED",
+        );
+        const prepared = await expects(
+          await request("/api/project-flows", {
+            operation: "prepare",
+            selection: { kind: "local", directory: "examples/node-service" },
+          }),
+          201,
+        );
+        assert.equal(prepared.flow.status, "ready");
+        assert.ok(prepared.flow.artifact.archiveHash);
+        assert.equal(prepared.action, null);
+        const restored = await expects(
+          await request(`/api/project-flows?id=${prepared.flow.id}`),
+          200,
+        );
+        assert.equal(restored.flow.id, prepared.flow.id);
+        assert.equal(restored.flow.profile.sourceHash, prepared.flow.profile.sourceHash);
+        await expects(
+          await request("/api/project-flows", {
+            operation: "prepare",
+            selection: { kind: "local", directory: "missing-folder" },
+          }),
+          404,
+          "FOLDER_NOT_FOUND",
+        );
+        assert.equal(
+          (await expects(await request("/api/project-flows"), 200)).flow.id,
+          prepared.flow.id,
+        );
+        await expects(
+          await request("/api/project-flows", {
+            operation: "propose",
+            id: prepared.flow.id,
+            app: "sample-node",
+            port: null,
+          }),
+          403,
+          "LIARA_AUTH_REQUIRED",
+        );
+        assert.ok(!JSON.stringify(prepared).includes(server.workspace));
       },
     );
     let profile, artifact;

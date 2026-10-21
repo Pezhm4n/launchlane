@@ -12,6 +12,7 @@ import { object, string } from "../../contracts/validation.ts";
 import { AppError, ensure } from "../errors.ts";
 import { fingerprint, parseActionSpec } from "../policy/action.ts";
 import { migrations } from "./migrations.ts";
+import { parseProjectFlow, type ProjectFlow } from "../../contracts/project-flow.ts";
 import {
   parseConnection,
   type ConnectionProvider,
@@ -158,6 +159,109 @@ export class Store {
       .run(actorId, provider);
   }
 
+  getProjectFlow(actorId: string, id?: string): ProjectFlow | null {
+    const row = id
+      ? this.db.prepare("SELECT * FROM project_flows WHERE actor_id=? AND id=?").get(actorId, id)
+      : this.db
+          .prepare(
+            "SELECT f.* FROM project_flows f JOIN operator_progress p ON p.project_flow_id=f.id WHERE p.actor_id=? AND f.actor_id=?",
+          )
+          .get(actorId, actorId);
+    if (!row) return null;
+    const flow = parseProjectFlow({
+      id: row.id,
+      selection: JSON.parse(string(row.selection_json, 4096)),
+      selectionHash: row.selection_hash,
+      profile: JSON.parse(string(row.profile_json, 1_048_576)),
+      artifact: row.artifact_json === null ? null : JSON.parse(string(row.artifact_json, 2048)),
+      status: row.status,
+      message: row.message,
+      updatedAt: row.updated_at,
+      actionId: row.action_id,
+    });
+    ensure(
+      flow.selectionHash === fingerprint(flow.selection),
+      "STORAGE_INVALID",
+      "انتخاب ذخیره‌شده پروژه تغییر کرده است.",
+      503,
+    );
+    return flow;
+  }
+  private invalidateProjectAction(flow: ProjectFlow, actorId: string): void {
+    if (!flow.actionId) return;
+    const action = this.getAction(flow.actionId, actorId);
+    if (action.state === "awaiting_approval" || action.state === "approved") {
+      this.db
+        .prepare("UPDATE actions SET state='cancelled',error_code='PROJECT_CHANGED' WHERE id=?")
+        .run(action.id);
+      this.audit(action, "project_invalidated", Date.now());
+    }
+  }
+  saveProjectFlow(actorId: string, input: ProjectFlow): ProjectFlow {
+    const flow = parseProjectFlow(input);
+    ensure(
+      flow.selectionHash === fingerprint(flow.selection) && !flow.actionId,
+      "INVALID_INPUT",
+      "انتخاب پروژه معتبر نیست.",
+    );
+    return this.transaction(() => {
+      const previous = this.getProjectFlow(actorId);
+      if (previous) this.invalidateProjectAction(previous, actorId);
+      this.db
+        .prepare("INSERT INTO project_flows VALUES (?,?,?,?,?,?,?,?,?,?)")
+        .run(
+          flow.id,
+          actorId,
+          JSON.stringify(flow.selection),
+          flow.selectionHash,
+          JSON.stringify(flow.profile),
+          flow.artifact ? JSON.stringify(flow.artifact) : null,
+          flow.status,
+          flow.message,
+          flow.updatedAt,
+          null,
+        );
+      this.db
+        .prepare(
+          "INSERT INTO operator_progress VALUES (?,?) ON CONFLICT(actor_id) DO UPDATE SET project_flow_id=excluded.project_flow_id",
+        )
+        .run(actorId, flow.id);
+      return flow;
+    });
+  }
+  staleProjectFlow(
+    actorId: string,
+    id: string,
+    message: string,
+    status: "stale" | "unavailable" = "stale",
+  ): ProjectFlow {
+    return this.transaction(() => {
+      const flow = this.getProjectFlow(actorId, id);
+      ensure(flow, "NOT_FOUND", "این پروژه پیدا نشد.", 404);
+      this.invalidateProjectAction(flow, actorId);
+      this.db
+        .prepare("UPDATE project_flows SET status=?,message=? WHERE id=? AND actor_id=?")
+        .run(status, string(message, 1000), id, actorId);
+      return { ...flow, status, message };
+    });
+  }
+  assertProjectAction(actorId: string, spec: ActionSpec, existingId?: string): void {
+    if (spec.version !== 3) return;
+    const flow = this.getProjectFlow(actorId);
+    ensure(
+      flow &&
+        flow.id === spec.projectFlowId &&
+        flow.selectionHash === spec.selectionHash &&
+        flow.profile.sourceHash === spec.sourceHash &&
+        flow.artifact?.archiveHash === spec.artifactHash &&
+        flow.status === "ready" &&
+        (!existingId || flow.actionId === existingId),
+      "PROJECT_CHANGED",
+      "پروژه یا فایل‌های آن تغییر کرده‌اند. پروژه را دوباره بررسی و پیشنهاد تازه دریافت کنید.",
+      409,
+    );
+  }
+
   private transaction<T>(operation: () => T): T {
     this.db.exec("BEGIN IMMEDIATE");
     try {
@@ -266,7 +370,8 @@ export class Store {
     ensure(ttlMs > 0 && ttlMs <= 10 * 60_000, "INVALID_INPUT", "مهلت تأیید معتبر نیست.");
     return this.transaction(() => {
       this.ensureNoConflict(spec);
-      if (spec.version === 2 && spec.operation === "deploy") {
+      this.assertProjectAction(actorId, spec);
+      if ((spec.version === 2 || spec.version === 3) && spec.operation === "deploy") {
         const artifact = this.getArtifact(actorId, spec.artifactHash ?? "");
         ensure(
           artifact.sourceHash === spec.sourceHash,
@@ -303,6 +408,13 @@ export class Store {
           action.expiresAt,
         );
       this.audit(action, "proposed", now);
+      if (spec.version === 3) {
+        const flow = this.getProjectFlow(actorId);
+        if (flow) this.invalidateProjectAction(flow, actorId);
+        this.db
+          .prepare("UPDATE project_flows SET action_id=? WHERE id=? AND actor_id=?")
+          .run(action.id, spec.projectFlowId, actorId);
+      }
       return action;
     });
   }
@@ -337,6 +449,7 @@ export class Store {
   ): Action {
     return this.transaction(() => {
       const action = this.getAction(id, actorId);
+      this.assertProjectAction(actorId, action.spec, id);
       ensure(
         action.hash === expectedHash,
         "STALE_ACTION",
@@ -387,6 +500,7 @@ export class Store {
     return this.transaction(() => {
       const action = this.getAction(id, actorId);
       const row = this.db.prepare("SELECT approval_session_id FROM actions WHERE id=?").get(id);
+      this.assertProjectAction(actorId, action.spec, id);
       ensure(
         action.state === "approved" && !action.attemptId,
         "ACTION_CONFLICT",

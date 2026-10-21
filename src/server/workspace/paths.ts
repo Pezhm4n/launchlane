@@ -35,6 +35,13 @@ export function excludedPath(name: string): boolean {
     /^(?:\.npmrc|\.netrc|id_rsa|id_ed25519)$/i.test(name)
   );
 }
+export function sourceFileAllowed(name: string): boolean {
+  return (
+    /\.(?:[cm]?[jt]sx?|json|lock|md|txt|html?|css|scss|svg|png|jpe?g|webp|ico|woff2?|ya?ml)$/i.test(
+      name,
+    ) || ["Dockerfile", "Procfile", ".dockerignore", ".gitignore"].includes(name)
+  );
+}
 export function under(root: string, target: string): boolean {
   const path = relative(root, target);
   return path === "" || (!isAbsolute(path) && path !== ".." && !path.startsWith(`..${sep}`));
@@ -116,7 +123,11 @@ export async function workspaceDirectory(
         "پوشه اصلی پروژه را انتخاب کنید؛ پیوند به پوشه دیگر مجاز نیست.",
         403,
       );
-      ensure(stat.isDirectory(), "INVALID_FOLDER", "این مسیر یک پوشه نیست. پوشه پروژه را انتخاب کنید.");
+      ensure(
+        stat.isDirectory(),
+        "INVALID_FOLDER",
+        "این مسیر یک پوشه نیست. پوشه پروژه را انتخاب کنید.",
+      );
     }
     return { root, target };
   } catch (error) {

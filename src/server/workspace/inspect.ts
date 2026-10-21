@@ -7,15 +7,20 @@ import { hasControl, object } from "../../contracts/validation.ts";
 import { AppError, ensure } from "../errors.ts";
 import { fingerprint } from "../policy/action.ts";
 import { containsCredential } from "../policy/redaction.ts";
-import { checkName, excludedPath, filesystemError, under, workspaceDirectory } from "./paths.ts";
+import {
+  checkName,
+  excludedPath,
+  filesystemError,
+  sourceFileAllowed,
+  under,
+  workspaceDirectory,
+} from "./paths.ts";
 export { excludedPath } from "./paths.ts";
 
 const MAX_FILES = 1000;
 const MAX_ENTRIES = 5000;
 const MAX_BYTES = 20 * 1024 * 1024;
 const MAX_FILE_BYTES = 512 * 1024;
-const allowedExtension =
-  /\.(?:[cm]?[jt]sx?|json|lock|md|txt|html?|css|scss|svg|png|jpe?g|webp|ico|woff2?|ya?ml)$/i;
 
 async function readSafeFile(root: string, path: string): Promise<Buffer> {
   const resolved = await realpath(path);
@@ -159,10 +164,7 @@ async function scanProject(
         continue;
       }
       ensure(stat.isFile(), "UNSAFE_PATH", "فایل ویژه در source مجاز نیست.", 403);
-      if (
-        !allowedExtension.test(entry.name) &&
-        !["Dockerfile", "Procfile", ".dockerignore", ".gitignore"].includes(entry.name)
-      ) {
+      if (!sourceFileAllowed(entry.name)) {
         excludedCount++;
         continue;
       }
@@ -196,6 +198,11 @@ async function scanProject(
         } catch {
           throw new AppError("INVALID_PROJECT", "package.json یا liara.json معتبر نیست.");
         }
+        ensure(
+          typeof parsed === "object" && parsed !== null && !Array.isArray(parsed),
+          "INVALID_PROJECT",
+          "package.json یا liara.json باید تنظیمات معتبر پروژه باشد. فایل را اصلاح یا پوشه دیگری انتخاب کنید.",
+        );
         if (relativePath === "package.json") packageJson = object(parsed);
         else liaraJson = object(parsed);
       }

@@ -55,7 +55,7 @@ export function decodeAction(value: unknown): Action {
   const state = states.find((state) => state === raw.state);
   ensure(
     state &&
-      (spec.version === 1 || spec.version === 2) &&
+      (spec.version === 1 || spec.version === 2 || spec.version === 3) &&
       (spec.operation === "deploy" || spec.operation === "restart"),
     "INVALID_RESPONSE",
     "ساختار اقدام معتبر نیست.",
@@ -72,11 +72,19 @@ export function decodeAction(value: unknown): Action {
   const parsedSpec: ActionSpec =
     spec.version === 1
       ? { ...common, version: 1 }
-      : {
-          ...common,
-          version: 2,
-          artifactHash: spec.artifactHash === null ? null : hash(spec.artifactHash),
-        };
+      : spec.version === 3
+        ? {
+            ...common,
+            version: 3,
+            artifactHash: hash(spec.artifactHash),
+            projectFlowId: string(spec.projectFlowId, 36),
+            selectionHash: hash(spec.selectionHash),
+          }
+        : {
+            ...common,
+            version: 2,
+            artifactHash: spec.artifactHash === null ? null : hash(spec.artifactHash),
+          };
   return {
     id: string(raw.id),
     actorId: string(raw.actorId),
@@ -134,7 +142,7 @@ export function decodeProfile(value: unknown): ProjectProfile {
     "manifest پاسخ معتبر نیست.",
   );
   return {
-    directory: string(raw.directory),
+    directory: string(raw.directory, 240),
     runtime: raw.runtime,
     nodeVersion: nullableString(raw.nodeVersion),
     port: raw.port === null ? null : integer(raw.port, 1, 65535),

@@ -1,6 +1,7 @@
 import { string } from "../../../../../contracts/validation.ts";
 import { executeApproved } from "../../../../../server/application/execute.ts";
 import { endpoint, reply } from "../../../../../server/http.ts";
+import { connectedLiaraConfig } from "../../../../../server/connections/liara.ts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,7 +12,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       action = store.getAction(id, session.actorId);
     return reply({
       action: await executeApproved({
-        config,
+        config:
+          action.spec.version === 3 && config.enableMutations
+            ? connectedLiaraConfig(config, store, session.actorId, action.spec.scope.app)
+            : config,
         store,
         session,
         id,

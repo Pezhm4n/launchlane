@@ -47,4 +47,19 @@ CREATE TABLE account_connections (
 ) STRICT;
 `,
   },
+  {
+    version: 4,
+    sql: `
+CREATE TABLE project_flows (
+  id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, selection_json TEXT NOT NULL,
+  selection_hash TEXT NOT NULL, profile_json TEXT NOT NULL, artifact_json TEXT,
+  status TEXT NOT NULL CHECK(status IN ('ready','incomplete','stale','unavailable')),
+  message TEXT, updated_at INTEGER NOT NULL, action_id TEXT REFERENCES actions(id)
+) STRICT;
+CREATE TABLE operator_progress (
+  actor_id TEXT PRIMARY KEY, project_flow_id TEXT REFERENCES project_flows(id)
+) STRICT;
+CREATE INDEX project_flows_actor ON project_flows(actor_id,updated_at);
+`,
+  },
 ] as const;
