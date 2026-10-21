@@ -17,6 +17,7 @@ import { GitHubClient } from "../../src/server/github/client.ts";
 import { Store } from "../../src/server/persistence/store.ts";
 import { AppError } from "../../src/server/errors.ts";
 import type { ProjectSelection } from "../../src/contracts/project-flow.ts";
+import { sealCredential } from "../../src/server/connections/credentials.ts";
 const code = (expected: string) => (error: unknown) =>
   error instanceof AppError && error.code === expected;
 const scope = { teamId: "a".repeat(24), app: "sample-app" },
@@ -63,17 +64,35 @@ async function fixture() {
   await writeFile(join(root, "app/package.json"), packageText);
   await writeFile(join(root, "app/server.mjs"), "app.listen(3000); // never executed");
   const config = readConfig({
+      LAUNCHLANE_SESSION_SECRET: "synthetic-project-flow-root-".repeat(3),
       LAUNCHLANE_WORKSPACE_ROOT: root,
       LAUNCHLANE_STATE_DIR: stateDir,
       LIARA_TEAM_ID: scope.teamId,
       LAUNCHLANE_APP_ALLOWLIST: scope.app,
     }),
     path = join(stateDir, "state.sqlite");
+  const store = new Store(path);
+  store.saveConnection("alice", {
+    source: "token",
+    ciphertext: sealCredential("synthetic-key-never-real", config.sessionSecret, "alice", "liara"),
+    view: {
+      provider: "liara",
+      status: "connected",
+      identityId: "synthetic-user",
+      login: "synthetic@example.test",
+      displayName: "حساب آزمون",
+      teamId: scope.teamId,
+      teamName: "تیم آزمون",
+      apps: [{ id: "synthetic-app", name: scope.app, platform: "node" }],
+      selectedApp: scope.app,
+      checkedAt: Date.now(),
+    },
+  });
   return {
     root,
     config,
     path,
-    store: new Store(path),
+    store,
     async cleanup() {
       assert.ok(root.startsWith(join(tmpdir(), "launchlane-flow-")));
       await rm(root, { recursive: true, force: true });
@@ -105,6 +124,15 @@ test("project selection automatically prepares local bytes, persists across rest
       args: { port: 3000, planId: null },
     });
     store.decide(action.id, "alice", "session", action.hash, "approve");
+    const savedConnection = store.getConnection("alice", "liara");
+    assert.ok(savedConnection);
+    store.disconnectConnection("alice", "liara");
+    assert.throws(
+      () => store.claim(action.id, "alice", "session", action.spec),
+      code("PROJECT_ACCESS_CHANGED"),
+    );
+    assert.equal(store.db.prepare("SELECT count(*) AS count FROM attempts").get()?.count, 0);
+    store.saveConnection("alice", savedConnection);
     store.close();
     store = new Store(f.path);
     assert.equal(

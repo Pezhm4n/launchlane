@@ -82,9 +82,22 @@ export function deviceLogin(config: Config, actorId: string): LoginDriver {
       let output = "",
         announced = false,
         settled = false;
+      const startTimer = setTimeout(() => {
+        child.kill();
+        finish(
+          new AppError(
+            "GITHUB_LOGIN_TIMEOUT",
+            "کد ورود GitHub دریافت نشد. اتصال شبکه این رایانه را بررسی و دوباره تلاش کنید؛ پروژه قبلی حفظ شده است.",
+            504,
+            true,
+          ),
+        );
+      }, 30_000);
+      startTimer.unref();
       const finish = (error?: AppError) => {
         if (settled) return;
         settled = true;
+        clearTimeout(startTimer);
         output = "";
         error ? reject(error) : resolve();
       };
@@ -106,6 +119,7 @@ export function deviceLogin(config: Config, actorId: string): LoginDriver {
           const challenge = parseDeviceChallenge(output);
           if (challenge) {
             announced = true;
+            clearTimeout(startTimer);
             output = "";
             onChallenge(challenge);
           }
@@ -219,14 +233,11 @@ export class GitHubLoginService {
       if (Date.now() >= run.view.expiresAt) {
         run.controller.abort();
         this.runs.delete(id);
-      } else
-        ensure(
-          run.actorId !== actorId ||
-            ["failed", "expired", "cancelled", "connected"].includes(run.view.state),
-          "GITHUB_LOGIN_PENDING",
-          "یک ورود GitHub در حال انجام است. آن را ادامه دهید یا لغو کنید.",
-          409,
-        );
+      } else if (
+        run.actorId === actorId &&
+        !["failed", "expired", "cancelled", "connected"].includes(run.view.state)
+      )
+        return { ...run.view };
     }
     ensure(
       this.runs.size < 8,

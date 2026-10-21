@@ -90,7 +90,7 @@ export async function validateLiaraConnection(
       /^[!-~]+$/.test(token) &&
       !token.startsWith("Bearer "),
     "LIARA_KEY_INVALID",
-    "کلید دسترسی را بدون فاصله یا واژه Bearer وارد کنید؛ رمز ورود حساب قابل استفاده نیست.",
+    "فقط خود کلید دسترسی را بدون فاصله وارد کنید؛ رمز ورود حساب قابل استفاده نیست.",
   );
   const bounded = AbortSignal.any([signal, AbortSignal.timeout(15_000)]);
   const read = async (path: string): Promise<unknown> => {
@@ -186,6 +186,13 @@ export async function connectLiara(
   const view = await validateLiaraConnection(config, token, signal, send);
   ensure(!signal.aborted, "CANCELLED", "اتصال متوقف شد و ثبت نشد.", 409);
   const old = store.getConnection(actorId, "liara");
+  if (
+    old &&
+    (old.view.identityId !== view.identityId ||
+      old.view.teamId !== view.teamId ||
+      old.view.status !== "connected")
+  )
+    store.invalidateProjectApproval(actorId);
   const selectedApp =
     old?.view.identityId === view.identityId &&
     old.view.teamId === view.teamId &&
@@ -229,6 +236,7 @@ export function connectedLiaraConfig(
     };
   } catch (error) {
     store.saveConnection(actorId, { ...saved, view: { ...saved.view, status: "reauth_required" } });
+    store.invalidateProjectApproval(actorId);
     throw error;
   }
 }

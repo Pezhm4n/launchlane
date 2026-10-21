@@ -197,6 +197,12 @@ export class Store {
       this.audit(action, "project_invalidated", Date.now());
     }
   }
+  invalidateProjectApproval(actorId: string): void {
+    this.transaction(() => {
+      const flow = this.getProjectFlow(actorId);
+      if (flow) this.invalidateProjectAction(flow, actorId);
+    });
+  }
   saveProjectFlow(actorId: string, input: ProjectFlow): ProjectFlow {
     const flow = parseProjectFlow(input);
     ensure(
@@ -258,6 +264,16 @@ export class Store {
         (!existingId || flow.actionId === existingId),
       "PROJECT_CHANGED",
       "پروژه یا فایل‌های آن تغییر کرده‌اند. پروژه را دوباره بررسی و پیشنهاد تازه دریافت کنید.",
+      409,
+    );
+    const connection = this.getConnection(actorId, "liara")?.view;
+    ensure(
+      connection?.status === "connected" &&
+        connection.teamId === spec.scope.teamId &&
+        connection.selectedApp === spec.scope.app &&
+        connection.apps.some((app) => app.name === spec.scope.app),
+      "PROJECT_ACCESS_CHANGED",
+      "حساب یا برنامه مقصد تغییر کرده است. اتصال را بررسی و پیشنهاد تازه دریافت کنید.",
       409,
     );
   }

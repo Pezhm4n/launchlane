@@ -18,6 +18,7 @@ export async function GET(request: Request) {
 }
 export async function DELETE(request: Request) {
   return endpoint(request, true, ({ store, session }) => {
+    store.invalidateProjectApproval(session.actorId);
     store.disconnectConnection(session.actorId, "liara");
     return reply({ disconnected: true, providerRevoked: false });
   });
@@ -46,6 +47,7 @@ export async function POST(request: Request) {
         "این برنامه در فهرست مجاز حساب متصل نیست. فهرست را تازه کنید.",
         403,
       );
+      if (saved.view.selectedApp !== app) store.invalidateProjectApproval(session.actorId);
       return reply({
         connection: store.saveConnection(session.actorId, {
           ...saved,
@@ -75,11 +77,13 @@ export async function POST(request: Request) {
         ["LIARA_AUTH_REQUIRED", "LIARA_ACCESS_DENIED", "LIARA_TEAM_MISMATCH"].includes(
           String(error.code),
         )
-      )
+      ) {
         store.saveConnection(session.actorId, {
           ...saved,
           view: { ...saved.view, status: "reauth_required" },
         });
+        store.invalidateProjectApproval(session.actorId);
+      }
       throw error;
     }
   });

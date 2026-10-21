@@ -136,6 +136,11 @@ test("GitHub device login requires actual identity and conscious confirmation, r
   });
   try {
     const run = service.start("alice");
+    assert.equal(
+      service.start("alice").id,
+      run.id,
+      "a lost start response must resume the same pending login",
+    );
     assert.equal(run.state, "awaiting_user");
     assert.equal(store.getConnection("alice", "github"), null);
     assert.throws(() => service.status("bob", run.id), code("GITHUB_LOGIN_EXPIRED"));

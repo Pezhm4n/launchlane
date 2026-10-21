@@ -24,6 +24,8 @@
 - دریافت GitHub با transport مصنوعی روی commit دقیق، زیرپوشه و فایل‌های خصوصی تست شد. traversal، symlink/hardlink، نام تکراری در Windows، فایل بزرگ، gzip ناقص و cancel رد می‌شوند. حدها: 24MiB دریافت، 64MiB بازشده، 5000 entry، 1000 فایل قابل استفاده/20MiB، 512KiB هر فایل، حداکثر 16 snapshot خصوصی. مخزن بزرگ نیازمند ورودی کوچک‌تر است؛ subtree از upstream به‌صورت مستقل دریافت نمی‌شود.
 - failure اولیه decoder: رد header بزرگ، child stream را پیش از مالکیت iterator نابود می‌کرد و خطای async پس از پایان تست می‌رسید؛ همان case نگه داشته شد و مدیریت خطای child اصلاح شد. fixture سبز، تأیید archive/redirect حساب واقعی GitHub نیست.
 
+مرز تازه پس از 9845cec: connection جاری هنگام ایجاد/تصمیم/claim پیشنهاد v3 دوباره داخل transaction خوانده می‌شود؛ قطع اتصال بین validation و claim هیچ attempt ایجاد نمی‌کند. تغییر برنامه یا هویت، قطع اتصال و خرابی credential، approval پروژه را باطل می‌کنند؛ stateهای executing/observing/uncertain دست‌نخورده می‌مانند. ورود GitHub پس از پاسخ گم‌شده به همان run برمی‌گردد و دریافت کد سقف 30s جدا از مهلت کل دارد. 9 regression مرتبط domain موفق شدند؛ suite کامل قبلی 55 و HTTP روی build جاری 13 pass بودند. این نتایج با هم به شمارش تازه تجمیع نشده‌اند.
+
 ## محیط و شرایط
 
 - تاریخ: 2026-10-21؛ Windows PowerShell؛ Node 24.18.0، npm 11.16.0.
