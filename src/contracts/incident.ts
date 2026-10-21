@@ -21,7 +21,7 @@ export type EvidenceEntry = {
   details: string[];
   code: string | null;
   fact:
-    | { kind: "http"; origin: string; path: string; status: number }
+    | { kind: "http"; origin: string; path: string; status: number; durationMs?: number }
     | { kind: "log"; message: string }
     | { kind: "env_keys"; keys: string[] }
     | null;
@@ -100,13 +100,16 @@ export function parseEvidenceBundle(value: unknown): EvidenceBundle {
       const item = object(row.fact);
       ensure(row.state === "observed", "EVIDENCE_INVALID", "شاهد نامعلوم fact تأییدشده ندارد.");
       if (item.kind === "http") {
-        exactKeys(item, ["kind", "origin", "path", "status"]);
+        exactKeys(item, ["kind", "origin", "path", "status", "durationMs"]);
         ensure(source === "workload", "EVIDENCE_INVALID", "منبع HTTP معتبر نیست.");
         fact = {
           kind: "http",
           origin: string(item.origin, 240),
           path: string(item.path, 200),
           status: integer(item.status, 100, 599),
+          ...(item.durationMs === undefined
+            ? {}
+            : { durationMs: integer(item.durationMs, 0, 60_000) }),
         };
       } else if (item.kind === "log") {
         exactKeys(item, ["kind", "message"]);
@@ -236,13 +239,16 @@ export function verifySameSymptom(before: EvidenceBundle, after: EvidenceBundle)
     old.fact.path !== next.fact.path ||
     old.fact.status < 500
   )
-    return result("inconclusive", "شاهد قبل/بعد متعلق به همان app، مقصد، مسیر و ترتیب زمان نیست.");
+    return result(
+      "inconclusive",
+      "شاهد قبل و بعد به همان برنامه، نشانی، صفحه یا ترتیب زمان مربوط نیست.",
+    );
   if (next.fact.status >= 500)
-    return result("still_failing", "همان درخواست هنوز خطای سرور دارد؛ اصلاح موفق نشده است.");
+    return result("still_failing", "همان صفحه هنوز خطای سرور دارد؛ رفع این مشکل تأیید نشده است.");
   if (next.fact.status < 200 || next.fact.status >= 300)
-    return result("inconclusive", "پاسخ جدید موفقیت workload را تأیید نمی‌کند.");
+    return result("inconclusive", "پاسخ تازه، بازشدن درست همین صفحه را تأیید نمی‌کند.");
   return result(
     "verified",
-    "همان درخواست پس از اصلاح پاسخ موفق داد؛ این نتیجه فقط همین symptom و زمان را پوشش می‌دهد.",
+    "همان صفحه در بررسی تازه پاسخ موفق داد؛ این نتیجه فقط همین نشانه و زمان را پوشش می‌دهد و علت تغییر را ثابت نمی‌کند.",
   );
 }

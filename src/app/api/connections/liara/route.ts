@@ -1,8 +1,9 @@
 import { exactKeys, object, string } from "../../../../contracts/validation.ts";
 import { connectLiara } from "../../../../server/connections/liara.ts";
-import { ensure } from "../../../../server/errors.ts";
+import { AppError, ensure } from "../../../../server/errors.ts";
 import { endpoint, jsonBody, reply } from "../../../../server/http.ts";
 import { openCredential } from "../../../../server/connections/credentials.ts";
+import { parseProbeOrigins } from "../../../../server/policy/probe-target.ts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,15 +29,69 @@ export async function POST(request: Request) {
     const input = object(await jsonBody(request)),
       operation = string(input.operation, 16);
     ensure(
-      ["connect", "refresh", "select"].includes(operation),
+      ["connect", "refresh", "select", "site"].includes(operation),
       "INVALID_OPERATION",
       "این درخواست اتصال پشتیبانی نمی‌شود.",
     );
     exactKeys(input, [
       "operation",
-      ...(operation === "connect" ? ["key"] : operation === "select" ? ["app"] : []),
+      ...(operation === "connect"
+        ? ["key"]
+        : operation === "select"
+          ? ["app"]
+          : operation === "site"
+            ? ["origin"]
+            : []),
     ]);
     const saved = store.getConnection(session.actorId, "liara");
+    if (operation === "site") {
+      ensure(
+        saved?.view.status === "connected" &&
+          saved.view.teamId === config.teamId &&
+          saved.view.selectedApp &&
+          (!config.apps.length || config.apps.includes(saved.view.selectedApp)),
+        "LIARA_APP_REQUIRED",
+        "ابتدا برنامه مقصد را از حساب متصل انتخاب کنید.",
+        403,
+      );
+      let origin: string;
+      try {
+        const raw = string(input.origin, 512).trim(),
+          url = new URL(raw.includes("://") ? raw : `https://${raw}`);
+        ensure(
+          url.pathname === "/" &&
+            !url.search &&
+            !url.hash &&
+            !url.username &&
+            !url.password &&
+            !url.port,
+          "SITE_ADDRESS_INVALID",
+          "نشانی سایت معتبر نیست.",
+        );
+        origin = url.origin;
+        parseProbeOrigins(JSON.stringify({ [saved.view.selectedApp]: origin }), [
+          saved.view.selectedApp,
+        ]);
+      } catch {
+        throw new AppError(
+          "SITE_ADDRESS_INVALID",
+          "فقط نام سایت را بدون مسیر صفحه، رمز، پارامتر یا شماره پورت وارد کنید؛ مثلاً example.com. اتصال امن https لازم است.",
+        );
+      }
+      ensure(
+        !config.probeOrigins[saved.view.selectedApp] ||
+          config.probeOrigins[saved.view.selectedApp] === origin,
+        "SITE_ADDRESS_FIXED",
+        "نشانی بررسی این برنامه در تنظیمات نصب ثابت شده است. برای تغییر آن از مسئول نصب کمک بگیرید.",
+        403,
+      );
+      store.setProbeOrigin(
+        session.actorId,
+        { teamId: config.teamId, app: saved.view.selectedApp },
+        origin,
+      );
+      return reply({ connection: saved.view, probeOrigin: origin, contactedSite: false });
+    }
     if (operation === "select") {
       const app = string(input.app, 63);
       ensure(

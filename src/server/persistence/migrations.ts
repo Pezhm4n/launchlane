@@ -62,4 +62,17 @@ CREATE TABLE operator_progress (
 CREATE INDEX project_flows_actor ON project_flows(actor_id,updated_at);
 `,
   },
+  {
+    version: 5,
+    sql: `
+CREATE TABLE incident_runs (
+  id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, data_json TEXT NOT NULL, updated_at INTEGER NOT NULL
+) STRICT;
+CREATE INDEX incident_runs_actor ON incident_runs(actor_id,updated_at);
+CREATE TABLE probe_targets (
+  actor_id TEXT NOT NULL, team_id TEXT NOT NULL, app TEXT NOT NULL, origin TEXT NOT NULL,
+  PRIMARY KEY(actor_id,team_id,app)
+) STRICT;
+`,
+  },
 ] as const;

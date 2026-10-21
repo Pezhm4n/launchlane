@@ -105,5 +105,6 @@ export type WorkspaceView = Readonly<{
     analysis: boolean;
     deployment: false;
     probeApps: readonly string[];
+    probeOrigin: string | null;
   };
 }>;

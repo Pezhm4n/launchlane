@@ -35,6 +35,7 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
         await expects(await request("/api/connections/github"), 401, "AUTH_REQUIRED");
         await expects(await request("/api/connections/liara"), 401, "AUTH_REQUIRED");
         await expects(await request("/api/project-flows"), 401, "AUTH_REQUIRED");
+        await expects(await request("/api/incidents/runs"), 401, "AUTH_REQUIRED");
         await expects(
           await request("/api/incidents/practice", { scenario: "configuration" }),
           401,
@@ -241,6 +242,66 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
           "LIARA_AUTH_REQUIRED",
         );
         assert.ok(!JSON.stringify(prepared).includes(server.workspace));
+      },
+    );
+    await t.test(
+      "incident results persist per actor and sample comparison stays bound to the original observation",
+      async () => {
+        const empty = await expects(await request("/api/incidents/runs?kind=live"), 200);
+        assert.equal(empty.run, null);
+        await expects(
+          await request(
+            "/api/incidents/runs",
+            { operation: "sample", scenario: "configuration" },
+            { "x-csrf-token": "forged" },
+          ),
+          403,
+          "CSRF_DENIED",
+        );
+        const sample = await expects(
+          await request("/api/incidents/runs", { operation: "sample", scenario: "configuration" }),
+          201,
+        );
+        assert.equal(sample.run.kind, "sample");
+        assert.equal(sample.run.analysis, "scripted");
+        const saved = await expects(await request(`/api/incidents/runs?id=${sample.run.id}`), 200);
+        assert.equal(saved.run.evidence.collectedAt, sample.run.evidence.collectedAt);
+        const compared = await expects(
+          await request("/api/incidents/runs", {
+            operation: "compare",
+            id: sample.run.id,
+            choice: "related",
+          }),
+          200,
+        );
+        assert.equal(compared.run.evidence.collectedAt, sample.run.evidence.collectedAt);
+        assert.equal(compared.run.after.entries[0].fact.status, 200);
+        await expects(
+          await request("/api/incidents/runs", {
+            operation: "collect",
+            app: server.app,
+            symptom: "errors",
+            problem: "صفحه خطای سرور دارد",
+            path: "/",
+          }),
+          403,
+          "LIVE_LIARA_DISABLED",
+        );
+        await expects(
+          await request("/api/incidents/runs", { operation: "analyze", id: sample.run.id }),
+          403,
+          "ANALYSIS_UNAVAILABLE",
+        );
+        await expects(
+          await request("/api/connections/liara", { operation: "site", origin: "example.com" }),
+          403,
+          "LIARA_APP_REQUIRED",
+        );
+        await expects(
+          await request("/api/incidents/runs", { operation: "shell" }),
+          400,
+          "INVALID_OPERATION",
+        );
       },
     );
     let profile, artifact;

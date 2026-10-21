@@ -108,8 +108,12 @@ export async function runPractice(scenario: PracticeScenario, signal: AbortSigna
   return { evidence, diagnosis, analysis: "scripted" as const, providerRequests: 0 as const };
 }
 
-export function practiceComparison(scenario: PracticeScenario, choice: "related" | "unrelated") {
-  const before = practiceEvidence(scenario),
+export function practiceComparison(
+  scenario: PracticeScenario,
+  choice: "related" | "unrelated",
+  original?: EvidenceBundle,
+) {
+  const before = original ?? practiceEvidence(scenario),
     after = structuredClone(before);
   after.collectedAt += 1000;
   after.window.end += 1000;

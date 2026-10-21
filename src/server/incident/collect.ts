@@ -87,10 +87,16 @@ export async function collectEvidence(
           value.outcome === "response" ? "observed" : "unknown",
           value.outcome === "response"
             ? `HTTP ${value.status} در مسیر ${value.path}`
-            : "redirect دنبال نشد؛ سلامت نامعلوم است.",
+            : "ارجاع به نشانی دیگر دنبال نشد؛ نتیجه بازشدن صفحه مشخص نیست.",
           value.body ? [value.body.slice(0, 1000)] : [],
           value.outcome === "response"
-            ? { kind: "http", origin: value.origin, path: value.path, status: value.status }
+            ? {
+                kind: "http",
+                origin: value.origin,
+                path: value.path,
+                status: value.status,
+                durationMs: Math.round(value.durationMs),
+              }
             : null,
           value.observedAt,
         ),
@@ -103,7 +109,7 @@ export async function collectEvidence(
           "project",
           "observed",
           `پیکربندی ${input.scope.app}: فقط نام متغیرها`,
-          ["کامل‌بودن و مقادیر env در این قرارداد تأیید نشده‌اند."],
+          ["کامل‌بودن و مقدار متغیرهای محیطی هنوز تأیید نشده‌اند."],
           { kind: "env_keys", keys: value.envKeys },
         ),
       ];
@@ -111,7 +117,7 @@ export async function collectEvidence(
     read("logs", async () => {
       const value = await client.logs(input.scope, input.since, budget, boundedSignal);
       if (!value.entries.length)
-        return [entry("logs", "empty", "منبع logs پاسخ خالی داد.", [], null, null)];
+        return [entry("logs", "empty", "گزارش‌های برنامه پاسخ خالی دادند.", [], null, null)];
       return value.entries.slice(-20).map((log, index) => ({
         ...entry(
           "logs",
@@ -131,8 +137,8 @@ export async function collectEvidence(
           "events",
           value.series.length ? "unknown" : "empty",
           value.series.length
-            ? "event دریافت شد؛ واحد زمان و ترتیب tuple تأیید نشده است."
-            : "منبع events پاسخ خالی داد.",
+            ? "رویداد دریافت شد؛ واحد زمان و ترتیب داده‌ها هنوز قابل تفسیر نیست."
+            : "رویدادی در پاسخ وجود نداشت.",
           [],
           null,
           null,
@@ -146,14 +152,14 @@ export async function collectEvidence(
           "releases",
           value.releases.length ? "observed" : "empty",
           value.currentRelease
-            ? `release فعلی: ${value.currentRelease}`
-            : "release فعلی در پاسخ مشخص نیست.",
+            ? `نسخه فعلی: ${value.currentRelease}`
+            : "نسخه فعلی در پاسخ مشخص نیست.",
           [
             ...value.releases.slice(0, 5).map((release) => `${release.id}: ${release.state}`),
             value.hasMore
-              ? "تاریخچه صفحه‌های بعد دارد؛ این snapshot کامل نیست."
+              ? "تاریخچه صفحه‌های بعد دارد؛ این بررسی همه انتشارها را پوشش نمی‌دهد."
               : "فقط همین صفحه بررسی شد.",
-            "زمان commit زمان deploy نیست؛ workload جدا بررسی می‌شود.",
+            "زمان ثبت کد، زمان انتشار نیست؛ پاسخ خود سایت جداگانه بررسی می‌شود.",
           ],
         ),
       ];
@@ -164,7 +170,7 @@ export async function collectEvidence(
         entry(
           "applets",
           value.applets.length ? "unknown" : "empty",
-          "وضعیت applet به‌تنهایی سلامت workload را ثابت نمی‌کند.",
+          "وضعیت اجرای برنامه به‌تنهایی درست بازشدن سایت را ثابت نمی‌کند.",
           value.applets.slice(0, 5).map((applet) => `${applet.name}: ${applet.state}`),
         ),
       ];
@@ -175,7 +181,7 @@ export async function collectEvidence(
         entry(
           "metrics",
           "unknown",
-          "CPU و RAM: واحد و زمان تأیید نشده‌اند.",
+          "پردازنده و حافظه: واحد و زمان داده‌ها تأیید نشده‌اند.",
           [`CPU: ${value.cpu.reason}`, `RAM: ${value.memory.reason}`],
           null,
           null,

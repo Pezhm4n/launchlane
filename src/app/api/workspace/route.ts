@@ -10,6 +10,8 @@ export async function GET(request: Request) {
       github: store.getConnection(session.actorId, "github")?.view ?? null,
       liara: store.getConnection(session.actorId, "liara")?.view ?? null,
     };
+    const app = connections.liara?.selectedApp,
+      savedOrigin = app ? store.getProbeOrigin(session.actorId, config.teamId, app) : null;
     return reply({
       session: { csrfToken: session.csrfToken, expiresAt: session.expiresAt },
       capabilities: capabilities(config, connections.liara),
@@ -20,7 +22,10 @@ export async function GET(request: Request) {
         serviceReads: config.enableLiveLiara,
         analysis: Boolean(config.enableLiveModel && config.modelKey && config.modelId),
         deployment: false,
-        probeApps: Object.keys(config.probeOrigins),
+        probeApps: [
+          ...new Set([...Object.keys(config.probeOrigins), ...(savedOrigin && app ? [app] : [])]),
+        ],
+        probeOrigin: app ? config.probeOrigins[app] || savedOrigin : null,
       },
     });
   });

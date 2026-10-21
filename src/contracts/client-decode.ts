@@ -146,6 +146,7 @@ export function decodeWorkspace(value: unknown): WorkspaceView {
       analysis: features.analysis,
       deployment: false,
       probeApps: strings(features.probeApps),
+      probeOrigin: features.probeOrigin === null ? null : string(features.probeOrigin, 512),
     },
   };
 }

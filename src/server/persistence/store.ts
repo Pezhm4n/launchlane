@@ -13,6 +13,8 @@ import { AppError, ensure } from "../errors.ts";
 import { fingerprint, parseActionSpec } from "../policy/action.ts";
 import { migrations } from "./migrations.ts";
 import { parseProjectFlow, type ProjectFlow } from "../../contracts/project-flow.ts";
+import { parseIncidentRun, type IncidentRun } from "../../contracts/incident-run.ts";
+import { parseProbeOrigins } from "../policy/probe-target.ts";
 import {
   parseConnection,
   type ConnectionProvider,
@@ -275,6 +277,117 @@ export class Store {
       "PROJECT_ACCESS_CHANGED",
       "حساب یا برنامه مقصد تغییر کرده است. اتصال را بررسی و پیشنهاد تازه دریافت کنید.",
       409,
+    );
+  }
+
+  saveIncidentRun(actorId: string, input: IncidentRun, expectedUpdatedAt?: number): IncidentRun {
+    const run = parseIncidentRun(input);
+    return this.transaction(() => {
+      const existing = this.db
+        .prepare("SELECT actor_id,updated_at FROM incident_runs WHERE id=?")
+        .get(run.id);
+      ensure(!existing || existing.actor_id === actorId, "NOT_FOUND", "این بررسی پیدا نشد.", 404);
+      ensure(
+        expectedUpdatedAt === undefined || existing?.updated_at === expectedUpdatedAt,
+        "INCIDENT_CHANGED",
+        "وضعیت این بررسی تغییر کرده است. نتیجه ثبت‌شده را دوباره بخوانید.",
+        409,
+      );
+      if (existing) run.updatedAt = Math.max(run.updatedAt, Number(existing.updated_at) + 1);
+      const data = JSON.stringify(run);
+      ensure(
+        Buffer.byteLength(data) <= 262_144,
+        "INCIDENT_LIMIT",
+        "گزارش بررسی بیش از سقف نگهداری است.",
+        413,
+      );
+      this.db
+        .prepare(
+          "INSERT INTO incident_runs VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET data_json=excluded.data_json,updated_at=excluded.updated_at",
+        )
+        .run(run.id, actorId, data, run.updatedAt);
+      this.db
+        .prepare(
+          "DELETE FROM incident_runs WHERE actor_id=? AND id NOT IN (SELECT id FROM incident_runs WHERE actor_id=? ORDER BY updated_at DESC,rowid DESC LIMIT 20)",
+        )
+        .run(actorId, actorId);
+      return run;
+    });
+  }
+  getIncidentRun(actorId: string, id?: string, kind?: "live" | "sample"): IncidentRun | null {
+    const row = id
+      ? this.db
+          .prepare("SELECT data_json FROM incident_runs WHERE actor_id=? AND id=?")
+          .get(actorId, id)
+      : kind
+        ? this.db
+            .prepare(
+              "SELECT data_json FROM incident_runs WHERE actor_id=? AND json_extract(data_json,'$.kind')=? ORDER BY updated_at DESC,rowid DESC LIMIT 1",
+            )
+            .get(actorId, kind)
+        : this.db
+            .prepare(
+              "SELECT data_json FROM incident_runs WHERE actor_id=? ORDER BY updated_at DESC,rowid DESC LIMIT 1",
+            )
+            .get(actorId);
+    return row ? parseIncidentRun(JSON.parse(string(row.data_json, 262_144))) : null;
+  }
+  claimIncidentAnalysis(actorId: string, id: string): IncidentRun {
+    return this.transaction(() => {
+      const run = this.getIncidentRun(actorId, id);
+      ensure(run?.kind === "live", "NOT_FOUND", "این بررسی پیدا نشد.", 404);
+      ensure(
+        run.analysis === "ready" || run.analysis === "unavailable",
+        "INCIDENT_ANALYSIS_CONFLICT",
+        "توضیح علت این بررسی قبلاً شروع شده است. برای جلوگیری از مصرف تکراری، خودکار دوباره اجرا نمی‌شود.",
+        409,
+      );
+      const connection = this.getConnection(actorId, "liara")?.view;
+      ensure(
+        connection?.status === "connected" &&
+          connection.teamId === run.evidence.scope.teamId &&
+          connection.selectedApp === run.evidence.scope.app,
+        "SCOPE_DENIED",
+        "برنامه یا حساب انتخاب‌شده تغییر کرده است. بررسی تازه‌ای روی همان مقصد شروع کنید.",
+        403,
+      );
+      const pending: IncidentRun = {
+        ...run,
+        analysis: "pending",
+        analysisMessage: "در حال توضیح شواهد…",
+        updatedAt: Math.max(Date.now(), run.updatedAt + 1),
+      };
+      this.db
+        .prepare("UPDATE incident_runs SET data_json=?,updated_at=? WHERE id=? AND actor_id=?")
+        .run(JSON.stringify(pending), pending.updatedAt, id, actorId);
+      return pending;
+    });
+  }
+  setProbeOrigin(actorId: string, scope: { teamId: string; app: string }, origin: string): void {
+    const parsed = parseProbeOrigins(JSON.stringify({ [scope.app]: origin }), [scope.app]);
+    const connection = this.getConnection(actorId, "liara")?.view;
+    ensure(
+      connection?.status === "connected" &&
+        connection.teamId === scope.teamId &&
+        connection.selectedApp === scope.app &&
+        connection.apps.some((app) => app.name === scope.app),
+      "SCOPE_DENIED",
+      "نشانی سایت باید به برنامه انتخاب‌شده حساب شما مربوط باشد.",
+      403,
+    );
+    this.db
+      .prepare(
+        "INSERT INTO probe_targets VALUES (?,?,?,?) ON CONFLICT(actor_id,team_id,app) DO UPDATE SET origin=excluded.origin",
+      )
+      .run(actorId, scope.teamId, scope.app, parsed[scope.app] || "");
+  }
+  getProbeOrigin(actorId: string, teamId: string, app: string): string | null {
+    const row = this.db
+      .prepare("SELECT origin FROM probe_targets WHERE actor_id=? AND team_id=? AND app=?")
+      .get(actorId, teamId, app);
+    if (!row) return null;
+    return (
+      parseProbeOrigins(JSON.stringify({ [app]: string(row.origin, 512) }), [app])[app] || null
     );
   }
 
@@ -608,6 +721,23 @@ export class Store {
           )
           .run(action.id);
         this.audit(action, "recovered_uncertain", now);
+      }
+      for (const raw of this.db
+        .prepare(
+          "SELECT id,actor_id,data_json FROM incident_runs WHERE json_extract(data_json,'$.analysis')='pending'",
+        )
+        .all()) {
+        const run = parseIncidentRun(JSON.parse(string(raw.data_json, 262_144)));
+        const recovered: IncidentRun = {
+          ...run,
+          analysis: "failed",
+          analysisMessage:
+            "پاسخ کامل بررسی قبلی در دسترس نیست. شواهد حفظ شده‌اند؛ توضیح خودکار تکرار نشد.",
+          updatedAt: now,
+        };
+        this.db
+          .prepare("UPDATE incident_runs SET data_json=?,updated_at=? WHERE id=? AND actor_id=?")
+          .run(JSON.stringify(recovered), now, string(raw.id, 36), string(raw.actor_id, 128));
       }
       return rows.length;
     });
