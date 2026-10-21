@@ -195,7 +195,7 @@ test("collection preserves partial errors, unknown units, stale log times and cu
   const client = new LiaraReadClient(active, async (url) => {
     const path = new URL(url).pathname;
     if (path.endsWith("/logs"))
-      return Response.json([{ datetime: "2020-01-01T00:00:00Z", message: "old CONFIG_REQUIRED" }]);
+      return Response.json({ data: [{ metaData: {}, values: [["1577836800000000000", '{"type":"stderr","_entry":"old CONFIG_REQUIRED"}']] }] });
     if (path.endsWith("/releases"))
       return Response.json({
         total: 8,
@@ -228,7 +228,7 @@ test("collection preserves partial errors, unknown units, stale log times and cu
       scope: evidence.scope,
       start: now - 300_000,
       end: now + 10_000,
-      since: "documentary-since",
+      since: new Date(now - 300_000).toISOString(),
       path: "/",
     },
     new RunBudget(active),
@@ -274,7 +274,7 @@ test("collection fences the selected app identity before reading evidence and ag
         });
       }
       otherReads++;
-      if (path.endsWith("/logs")) return Response.json([]);
+      if (path.endsWith("/logs")) return Response.json({ data: [] });
       if (path.endsWith("/events")) return Response.json({ data: [] });
       if (path.endsWith("/releases"))
         return Response.json({ total: 0, currentRelease: null, releases: [] });

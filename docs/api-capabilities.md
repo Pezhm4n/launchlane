@@ -25,14 +25,14 @@
 | ساخت app | `POST /v1/projects` | schema شامل `name,planID,platform,readOnlyRootFilesystem,network` است؛ نبود required کامل در schema مجوز حدس نیست | documented / approval required |
 | source upload | `POST /v2/projects/{name}/sources` | multipart، field `file`؛ نتیجه source filename با پسوند `.tar.gz`؛ manifest/hash و exclude secrets پیش از upload | live_verified محدود؛ approval required |
 | release | `POST /v2/projects/{name}/releases` | body schema شامل `sourceID,port,type`؛ نتیجه `releaseID`؛ accepted پایان deploy نیست | live_verified پذیرش محدود؛ approval required |
-| تاریخچه release | `GET /v1/projects/{name}/releases` | `page` و `count` در spec required و default 1/10 هستند | documented / live unverified |
-| وضعیت applets | `GET /v1/projects/{name}/applets` | معنی readiness/status باید با response واقعی روشن شود | documented / live unverified |
+| تاریخچه release | `GET /v1/projects/{name}/releases` | `page/count`، currentRelease و BUILDING/READY روی app آزمون تطبیق داده شدند | live_verified محدود |
+| وضعیت applets | `GET /v1/projects/{name}/applets` | در app آزمون زیرساخت جدید، 500؛ سلامت استنتاج نمی‌شود | live_checked unavailable |
 | restart | `POST /v1/projects/{name}/actions/restart` | ممکن است درخواست async باشد؛ اثر با readback بررسی شود | documented / approval required |
 | resize | `POST /v1/projects/{name}/resize` | body `planID`؛ هزینه و برگشت‌پذیری فرض نشود | documented / approval required |
 | env update | `POST /v1/projects/update-envs` | schema `project,variables:[{key,value}]`؛ merge/replace و اثر restart باید بررسی شود؛ مقادیر محرمانه log نشوند | documented / approval required |
-| logs | `GET /v1/projects/{name}/logs` | `since` رشته و required است؛ واحد/فرمت دقیق live بررسی شود | documented / live unverified |
-| events | `GET /v1/projects/{name}/events` | search، start/end اختیاری؛ spec timestamp عددی نمونه دارد؛ واحد را تأیید کنیم | documented / live unverified |
-| summary | `GET /v1/projects/{name}/metrics/summary` | cpuUsage/memoryUsage آرایه‌هایی با `value` mixed number/string و applet؛ unit/ساختار time نیازمند بررسی | documented / live unverified |
+| logs | `GET /v2/projects/{name}/logs`؛ قرارداد CLI 9.4.7 | start از تاریخ معتبر به Unix seconds؛ tuple نانوثانیه/JSON type و _entry؛ سقف 200 خط/20 گروه؛ v1 ISO since رد شد | live_verified محدود؛ v1 pure documentary parser محفوظ |
+| events | `GET /v1/projects/{name}/events` | lifecycle action/status/time/release و شکل مستند metaData/values محدود parse می‌شوند؛ زمان خام unverified | live_verified shape محدود |
+| summary | `GET /v1/projects/{name}/metrics/summary` | raw cpuUsage/memoryUsage در حساب دیده و parse شد؛ واحد و زمان هنوز unverified | live_checked؛ معنا unknown |
 | CPU / RAM | `GET /v1/projects/{name}/metrics/cpu` و `/metrics/memory` | `since` عددی required؛ نبود دسترسی/نمونه، unknown است | documented / live unverified |
 | دامنه | `GET /v1/domains`، `POST /v1/domains/set-project` | اتصال domain/project در schema با شناسه است؛ registrar و DNS provider جداست | documented / guide first |
 | هویت و catalog حساب | `GET /v1/me`؛ در حالت تیم با `teamID` | مستند حساب شامل اطلاعات حساس و planهاست؛ adapter فقط هویت مجاز را استخراج می‌کند؛ shape دقیق تیم و معنا/واحد قیمت هنوز تأیید نشده‌اند | documented / contract tested / live unverified |

@@ -8,6 +8,7 @@ import {
   parseApplets,
   parseEvents,
   parseLogs,
+  parseLogsV2,
   parseProject,
 } from "../../src/server/liara/read-contracts.ts";
 import { RunBudget } from "../../src/server/policy/budget.ts";
@@ -22,6 +23,49 @@ const config = readConfig({
 const signal = () => new AbortController().signal;
 const code = (expected: string) => (error: unknown) =>
   error instanceof AppError && error.code === expected;
+
+test("live-shaped v2 logs use seconds for start and nanoseconds for returned times; wrappers stay untrusted", async () => {
+  const since = "2026-10-21T22:40:00.123Z";
+  const time = "1792622777907327213";
+  const shape = {
+    data: [
+      {
+        metaData: { releaseId: "sanitized-release" },
+        values: [
+          [
+            time,
+            JSON.stringify({ type: "stderr", _entry: "CONFIG_REQUIRED password=private-value" }),
+          ],
+        ],
+      },
+    ],
+  };
+  const client = new LiaraReadClient({ ...config, enableLiveLiara: true }, async (url) => {
+    const target = new URL(url);
+    assert.equal(target.pathname, `/v2/projects/${scope.app}/logs`);
+    assert.equal(target.searchParams.get("start"), String(Math.floor(Date.parse(since) / 1000)));
+    assert.equal(target.searchParams.get("direction"), "forward");
+    assert.equal(target.searchParams.get("since"), null);
+    return Response.json(shape);
+  });
+  const result = await client.logs(scope, since, new RunBudget(config), signal());
+  assert.equal(result.contract, "liara_cli_v2");
+  assert.equal(result.entries[0]?.timeMs, 1792622777907);
+  assert.equal(result.entries[0]?.rawTime, time);
+  assert.ok(!result.entries[0]?.message.includes("private-value"));
+  assert.equal(result.entries[0]?.kind, "stderr");
+  for (const rawTime of ["1792622777.5", "NaN", "-1", "9".repeat(30)])
+    assert.throws(() =>
+      parseLogsV2(
+        { data: [{ metaData: {}, values: [[rawTime, '{"_entry":"x","type":"stdout"}']] }] },
+        since,
+        [],
+      ),
+    );
+  assert.throws(() =>
+    parseLogsV2({ data: [{ metaData: {}, values: [[time, "not JSON"]] }] }, since, []),
+  );
+});
 
 test("all Liara reads stop before transport and budget when live access is disabled", async () => {
   let calls = 0;
@@ -130,6 +174,28 @@ test("events retain raw tuples with unknown units; applet state does not establi
   );
   assert.equal(applets.readiness, "unverified");
   assert.equal(applets.applets[0]?.releaseId, "release-1");
+  const lifecycle = parseEvents(
+    {
+      data: [
+        {
+          id: "ignored-container",
+          status: "start",
+          action: "start",
+          time: "1792622777",
+          release: "sanitized-release",
+          tag: "v1",
+          password: "hidden",
+        },
+      ],
+    },
+    [],
+  );
+  assert.equal(lifecycle.timestampUnit, "unverified");
+  assert.deepEqual(lifecycle.series[0], {
+    metadata: { reason: "start", type: "start", releaseId: "sanitized-release" },
+    values: [["1792622777"]],
+  });
+  assert.ok(!JSON.stringify(lifecycle).includes("hidden"));
 });
 
 test("read errors, bad shape and late cancellation cannot turn into empty evidence", async () => {
@@ -162,7 +228,7 @@ test("read errors, bad shape and late cancellation cannot turn into empty eviden
     return Response.json([]);
   });
   await assert.rejects(
-    late.logs(scope, "since", new RunBudget(active), controller.signal),
+    late.logs(scope, "2026-10-21T10:00:00Z", new RunBudget(active), controller.signal),
     code("CANCELLED"),
   );
 });

@@ -2,6 +2,14 @@
 
 بخش نخست، سابقه P0 است؛ بخش P1 پایین همین فایل شواهد جاری را نگه می‌دارد. نتایج bootstrap جای قابلیت محصول و fixture جای اتصال زنده نیست.
 
+## T20/T30 — logs v2 و lifecycle؛ پایه fffea88
+
+قرارداد مستند v1 در حساب واقعی با ISO since پاسخ 400 «since باید عدد باشد» داد. CLI رسمی 9.4.7 در `commands/app/logs.js` از `GET /v2/projects/{app}/logs` با `start` بر حسب Unix seconds، direction=forward و last_lines=false استفاده می‌کند؛ داده گروه‌های metaData/values دارد و هر tuple شامل زمان نانوثانیه و JSON دارای `type/_entry` است. درخواست محدود همین قرارداد 200 داد. timestamp خام لاگ کنترل‌شده و ISO تولیدشده در خود پیام، با تقسیم دقیق BigInt به میلی‌ثانیه، حدود 2ms اختلاف داشتند؛ این شاهد به v2 logs محدود است و واحد metric/event را تأیید نمی‌کند.
+
+parser جدید group/line/byte/field/time را محدود و متن wrapper را untrusted و پاک‌سازی‌شده نگه می‌دارد. fixture قدیمی collector به protocol انتخاب‌شده منتقل شد؛ تست v1 pure همچنان زمان عددی نامشخص را unknown نگه می‌دارد. regression v2 قبل از اصلاح fail شد؛ traversal با تغییر endpoint از ورودی کاربر ممکن نیست و هیچ retry/fallback upstream اضافه نشده است. lifecycle واقعی `/events` ردیف‌های action/status/time/release دارد؛ به metadata محدود و زمان خام unverified تبدیل می‌شود. applets با 500 unavailable و metrics با rawPoint و واحد unverified باقی ماندند.
+
+`npm run test:domain` تازه 80/80، `npm run test:http` تازه 15/15، lint/typecheck/build pass. شش read محدود مستقیم و سپس reader واقعی production با fence هویت app، `500 /` و log تازه CONFIG_REQUIRED را parse و پایدار کردند. خواندن اول snapshot، log خالی داشت؛ بعد از درخواست 500 تازه و نوبت بعدی، پیام نمایان شد. empty اولیه دستکاری یا به تشخیص موفق تبدیل نشد؛ در این برش model صفر بار فراخوانی شد. مرورگر قبلی روی revision خودش باقی است؛ کیفیت diagnosis هنوز سنجیده نشده است.
+
 ## T22 — قرارداد واقعی رسید source؛ پایه 635198d
 
 سه attempt نخست فقط در upload متوقف شدند؛ هر approval جدا و مصرف‌شده باقی ماند، هیچ POST release از آن‌ها انجام نشد. پاسخ محدود transport واقعی نشان داد `sourceID` نامی به قالب UUID با پسوند `.tar.gz` است؛ شناسه خام در artifact خصوصی باقی ماند. parser قبلی پسوند را رد می‌کرد. `sourceReceiptId` مشترک در adapter/journal و بازیابی، همان نام محدود را بدون تغییر قبول می‌کند؛ traversal/URL/پسوند نامربوط همچنان رد می‌شوند و validation شناسه release گسترده نشده است. fixture با شناسه مصنوعی هم‌شکل ابتدا `UPSTREAM_UNCERTAIN` داد و پس از اصلاح، ذخیره/reopen/ارسال دقیق receipt را گذراند.

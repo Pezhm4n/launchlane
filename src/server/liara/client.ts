@@ -15,7 +15,8 @@ import { parseMetricSummary } from "./metrics.ts";
 import {
   parseApplets,
   parseEvents,
-  parseLogs,
+  parseLogsV2,
+  explicitIsoTime,
   parseProject,
   parseReleases,
 } from "./read-contracts.ts";
@@ -36,6 +37,7 @@ export class LiaraReadClient {
     budget: RunBudget,
     signal: AbortSignal,
     parse: (value: unknown, secrets: readonly string[]) => T,
+    version: "v1" | "v2" = "v1",
   ): Promise<T> {
     authorizeScope(scope, this.config);
     // This gate precedes transport and budget, even when credentials are configured.
@@ -58,7 +60,7 @@ export class LiaraReadClient {
       403,
     );
     const url = new URL(
-      `/v1/projects/${encodeURIComponent(scope.app)}${suffix}`,
+      `/${version}/projects/${encodeURIComponent(scope.app)}${suffix}`,
       this.config.liaraBaseUrl,
     );
     url.searchParams.set("teamID", scope.teamId);
@@ -134,8 +136,16 @@ export class LiaraReadClient {
   }
   logs(scope: Scope, since: string, budget: RunBudget, signal: AbortSignal) {
     string(since, 64);
-    return this.read(scope, "/logs", { since }, budget, signal, (value, secrets) =>
-      parseLogs(value, since, secrets),
+    const start = explicitIsoTime(since);
+    ensure(start !== null && start >= 0, "INVALID_INPUT", "زمان آغاز گزارش باید تاریخ معتبر باشد.");
+    return this.read(
+      scope,
+      "/logs",
+      { start: String(Math.floor(start / 1000)), direction: "forward", last_lines: "false" },
+      budget,
+      signal,
+      (value, secrets) => parseLogsV2(value, since, secrets),
+      "v2",
     );
   }
   events(scope: Scope, budget: RunBudget, signal: AbortSignal) {

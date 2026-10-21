@@ -4,6 +4,12 @@
 
 ## وضعیت فعال
 
+### T20/T30 — لاگ و رویداد واقعی زیرساخت جدید
+
+روی `fffea88`، GET واقعی v1/logs با ISO since پاسخ 400 داد؛ CLI رسمی نصب‌شده 9.4.7 مسیر v2/logs با start بر حسب ثانیه و wrapper پیام/زمان نانوثانیه را مصرف می‌کند. transport همین قرارداد مشخص را اجرا می‌کند؛ parser v1 مستند به‌صورت مستقل حفظ شد و fallback شبکه پنهان اضافه نشد. timestamp لاگ کنترل‌شده با زمان ISO خود پیام در حد میلی‌ثانیه تطبیق داشت. رویداد lifecycle جدید نیز با schema محدود parse می‌شود؛ زمان event و واحد metrics هنوز unverified هستند. applets واقعی 500 داد و unavailable باقی ماند.
+
+domain تازه 80/80، HTTP تازه 15/15، lint/typecheck/build pass. بازخوانی production واقعی، همان app و `/` با 500، نام متغیرهای موجود و log تازه CONFIG_REQUIRED/WELCOME_MESSAGE را در گزارش پایدار جمع کرد؛ model هنوز در این مرحله فراخوانی نشده است. مجموعه مرورگر برای تغییر backend جدا بازاجرا نشد. قدم بعد T31 با oracle مستقل و حداکثر دو فراخوانی مدل؛ سپس اصلاح تأییدشده و بررسی همان صفحه.
+
 ### T22 — رسید واقعی source و نخستین release
 
 روی `635198d`، پاسخ واقعی upload برابر نام opaque دارای پسوند `.tar.gz` بود؛ regex قبلی هم در adapter و هم journal آن را رد می‌کرد. parser مشترک با سقف طول و منع مسیر/URL، ذخیره و ارسال همان receipt را می‌پذیرد؛ قالب release ID تغییر نکرد. regression پاک‌سازی‌شده ابتدا fail و سپس pass شد. domain تازه 79/79، lint/typecheck/build pass. اولین upload→source receipt→release receipt واقعی از API محصول گذشت؛ build ابتدا BUILDING و سپس READY/current دیده شد، اما probe نخست 503 و خواندن بعدی همان `/`، 500 با revision مورد انتظار داد؛ سلامت اعلام نشد. نمونه liveness مستقل 200 بود و جای همین symptom پذیرفته نشد. ساخت پیشنهاد/تأیید تازه پس از توقف‌های source، replay approval قبلی نبود؛ هنوز فقط یک POST release انجام شده است.

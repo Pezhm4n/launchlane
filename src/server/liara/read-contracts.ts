@@ -1,7 +1,7 @@
 import { stripVTControlCharacters } from "node:util";
 import type { Scope } from "../../contracts/domain.ts";
 import { integer, object, string } from "../../contracts/validation.ts";
-import { ensure } from "../errors.ts";
+import { AppError, ensure } from "../errors.ts";
 import { containsCredential, redact } from "../policy/redaction.ts";
 
 export function evidenceText(value: unknown, max: number, secrets: readonly string[] = []): string {
@@ -107,7 +107,7 @@ export function parseReleases(
 }
 
 export type LogRead = {
-  contract: "openapi_v1";
+  contract: "openapi_v1" | "liara_cli_v2";
   since: string;
   entries: {
     kind: string | null;
@@ -143,6 +143,61 @@ export function parseLogs(body: unknown, since: string, secrets: readonly string
   };
 }
 
+export function parseLogsV2(body: unknown, since: string, secrets: readonly string[]): LogRead {
+  const raw = object(body);
+  ensure(
+    Array.isArray(raw.data) && raw.data.length <= 20,
+    "UPSTREAM_INVALID",
+    "گزارش‌های برنامه با قرارداد v2 تطبیق ندارند.",
+    502,
+  );
+  const entries: LogRead["entries"] = [];
+  for (const group of raw.data) {
+    const row = object(group);
+    object(row.metaData);
+    ensure(Array.isArray(row.values), "UPSTREAM_INVALID", "فهرست گزارش‌ها معتبر نیست.", 502);
+    ensure(
+      entries.length + row.values.length <= 200,
+      "UPSTREAM_LIMIT",
+      "تعداد گزارش‌ها بیش از سقف است.",
+      502,
+    );
+    for (const tuple of row.values) {
+      ensure(
+        Array.isArray(tuple) && tuple.length === 2,
+        "UPSTREAM_INVALID",
+        "پیام گزارش معتبر نیست.",
+        502,
+      );
+      const rawTime = string(tuple[0], 20);
+      ensure(/^\d{1,20}$/.test(rawTime), "UPSTREAM_INVALID", "زمان گزارش v2 معتبر نیست.", 502);
+      // The official CLI's v2 protocol returns nanoseconds, not the v1 documentary time field.
+      const timeMs = Number(BigInt(rawTime) / 1_000_000n);
+      ensure(
+        Number.isSafeInteger(timeMs) && timeMs <= 8_640_000_000_000_000,
+        "UPSTREAM_INVALID",
+        "زمان گزارش خارج از محدوده است.",
+        502,
+      );
+      let wrapped: unknown;
+      try {
+        wrapped = JSON.parse(string(tuple[1], 8192));
+      } catch {
+        throw new AppError("UPSTREAM_INVALID", "ساختار پیام گزارش v2 معتبر نیست.", 502);
+      }
+      const message = object(wrapped);
+      entries.push({
+        kind: evidenceText(message.type, 64, secrets),
+        rawTime,
+        timeMs,
+        message: evidenceText(message._entry, 4096, secrets),
+      });
+    }
+  }
+  entries.sort((a, b) => (a.timeMs ?? 0) - (b.timeMs ?? 0));
+  return { contract: "liara_cli_v2", since, entries };
+}
+
 export type EventRead = {
   timestampUnit: "unverified";
   series: { metadata: Record<string, string>; values: string[][] }[];
@@ -159,8 +214,19 @@ export function parseEvents(body: unknown, secrets: readonly string[]): EventRea
   return {
     timestampUnit: "unverified",
     series: raw.data.map((value: unknown) => {
-      const row = object(value),
-        meta = object(row.metaData),
+      const row = object(value);
+      if (row.metaData === undefined && row.values === undefined) {
+        // Lifecycle events do not establish readiness; their raw time stays unverified.
+        return {
+          metadata: {
+            reason: evidenceText(row.action, 128, secrets),
+            type: evidenceText(row.status, 128, secrets),
+            releaseId: id(row.release, secrets),
+          },
+          values: [[evidenceText(row.time, 64, secrets)]],
+        };
+      }
+      const meta = object(row.metaData),
         metadata: Record<string, string> = {};
       for (const key of ["reason", "type", "namespace", "pod", "container", "releaseId"])
         if (typeof meta[key] === "string") metadata[key] = evidenceText(meta[key], 256, secrets);
