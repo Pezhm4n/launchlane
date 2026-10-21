@@ -1,0 +1,28 @@
+{
+  "name": "launchlane",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A human-guided deployment and service reliability assistant.",
+  "engines": { "node": ">=24.15.0 <25" },
+  "scripts": {
+    "dev": "next dev --hostname 127.0.0.1",
+    "build": "next build",
+    "start": "next start --hostname 127.0.0.1",
+    "lint": "biome lint .",
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "node --test tests/bootstrap.test.mjs",
+    "check": "npm run lint && npm run typecheck && npm test"
+  },
+  "dependencies": {
+    "next": "16.4.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@biomejs/biome": "2.6.2",
+    "typescript": "6.0.3"
+  }
+}
