@@ -115,3 +115,11 @@ artifact مرورگر نهایی `.artifacts/p1/2026-10-21T17-01-48-065Z/` و de
 - بازبینی UI، حذف‌شدن دکمه متمرکز پس از نتیجه را یافت. heading نتیجه و بازگشت فوکوس پس از cancel اضافه و با DOM واقعی بررسی شدند؛ صرف live message جای حفظ focus نیست.
 
 گراف دوباره در دسترس بود اما coverage همان generation قدیمی، فایل‌های تازه not_tracked و docs excluded را نشان داد؛ تلاش پوشش تکمیلی به Transport closed رسید. exact source/import/diff و اجرای مستقیم مبنای نتیجه‌اند. NTFS/hard-link در این میزبان سنجیده شد؛ filesystem دیگر، چند process، screen reader انسانی و walkthrough تازه هنوز unconfirmed هستند. نگهداری archive سقف دارد ولی پاک‌سازی خودکار ندارد. env secret-reference، provider write adapter، probe امن، تشخیص و اصلاح زنده باقی‌اند؛ کار بعد مستقل قرارداد evidence و failures است.
+
+### بازتولید از Git روی `7ba2a2a`
+
+Candidate اجرایی: `7ba2a2a5c0b9b0cec1d51e6303a2dd58777894b3`. با `git archive` فقط فایل‌های tracked به پوشه موقت تازه منتقل شدند؛ env، DB، source archive و اسناد خصوصی workspace وارد export نشدند. روی همان Node/npm و Chromium نصب‌شده این میزبان، `npm ci` → `npm run setup:local` → `npm run build` → `npm run test:domain` → `npm run test:http` → `npm run test:browser` همگی exit 0 دادند. کلیدهای provider خالی و هر دو gate false تأیید شدند؛ setup فقط credential محلی همان export را ایجاد کرد.
+
+در این اجرای مستقل: domain برابر 26 pass، HTTP برابر 7 subtest + 1 parent pass و مرورگر برابر 23 حالت/7 عرض، با 0 fail/skip، browser error، external request و axe violation در دامنه سنجیده‌شده. این اعداد اجرای تازه‌اند و از جمع runها ساخته نشده‌اند. streaming enumeration نیز پیش از materialize شدن پوشه، سقف entry را enforce می‌کند؛ capture فقط بایت واقعی را نگه می‌دارد، نه buffer موقت کامل هر فایل.
+
+گزارش قدم‌ها، logها و تصاویر کپی‌شده در `.artifacts/repro/7ba2a2a5c0b9b0cec1d51e6303a2dd58777894b3/` محلی‌اند. حذف دو checkout موقت توسط policy محیط با `blocked by policy` رد شد؛ نگه داشته شدند و روش جایگزین حذف اجرا نشد. فایل خصوصی آن‌ها وارد Git نمی‌شود. بررسی 9 سند فنی/20 لینک نسبی: 0 لینک شکسته یا وابسته به فایل private. parse تعداد 11 build trace: 0 reference به `.local/.data/.artifacts/.env*`. پیش از commit source، 30 فایل staged و 11 فایل client بررسی شدند: 0 مسیر خصوصی و 0 تطابق با secretهای env تنظیم‌شده. این بررسی جای security audit جامع یا کشف همه انواع secret را نمی‌گیرد.
