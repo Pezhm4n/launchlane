@@ -33,6 +33,7 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
       async () => {
         await expects(await request("/api/workspace"), 401, "AUTH_REQUIRED");
         await expects(await request("/api/connections/github"), 401, "AUTH_REQUIRED");
+        await expects(await request("/api/connections/liara"), 401, "AUTH_REQUIRED");
         await expects(
           await request("/api/incidents/practice", { scenario: "configuration" }),
           401,
@@ -149,6 +150,39 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
           }),
           403,
           "GITHUB_AUTH_REQUIRED",
+        );
+      },
+    );
+    await t.test(
+      "Liara connection metadata does not validate or adopt a key without an explicit authorized request",
+      async () => {
+        const state = await expects(await request("/api/connections/liara"), 200);
+        assert.equal(state.connection, null);
+        assert.equal(state.configuredKey, false);
+        assert.equal(state.serviceReadsEnabled, false);
+        await expects(
+          await request(
+            "/api/connections/liara",
+            { operation: "connect", key: "synthetic-never-sent" },
+            { "x-csrf-token": "forged" },
+          ),
+          403,
+          "CSRF_DENIED",
+        );
+        await expects(
+          await request("/api/connections/liara", { operation: "connect" }),
+          400,
+          "LIARA_KEY_REQUIRED",
+        );
+        await expects(
+          await request("/api/connections/liara", { operation: "select", app: "sample-app" }),
+          403,
+          "LIARA_APP_REQUIRED",
+        );
+        await expects(
+          await request("/api/connections/liara", { operation: "execute" }),
+          400,
+          "INVALID_OPERATION",
         );
       },
     );
