@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { setTimeout as delay } from "node:timers/promises";
 import { readConfig } from "../../src/server/config.ts";
 import { AppError } from "../../src/server/errors.ts";
 import { LiaraReadClient } from "../../src/server/liara/client.ts";
@@ -164,4 +165,38 @@ test("read errors, bad shape and late cancellation cannot turn into empty eviden
     late.logs(scope, "since", new RunBudget(active), controller.signal),
     code("CANCELLED"),
   );
+});
+
+test("Liara read deadlines and cancellation bound both hung transport and a stalled response body", async () => {
+  const active = { ...config, enableLiveLiara: true, runTimeoutMs: 100 };
+  for (const stage of ["headers", "body"] as const) {
+    let calls = 0;
+    const client = new LiaraReadClient(active, async () => {
+      calls++;
+      if (stage === "headers") return new Promise<Response>(() => undefined);
+      return new Response(new ReadableStream({ start() {} }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+    for (const cancelled of [false, true]) {
+      const controller = new AbortController(),
+        budget = new RunBudget(active),
+        timer = cancelled ? setTimeout(() => controller.abort(), 10) : null;
+      try {
+        const outcome = await Promise.race([
+          client.events(scope, budget, controller.signal).then(
+            () => "unexpected_success",
+            (error: unknown) => (error instanceof AppError ? error.code : "unexpected_error"),
+          ),
+          delay(500, "hung"),
+        ]);
+        assert.equal(outcome, cancelled ? "CANCELLED" : "BUDGET_EXHAUSTED", stage);
+        assert.equal(budget.toolCalls, 1);
+      } finally {
+        if (timer) clearTimeout(timer);
+        controller.abort();
+      }
+    }
+    assert.equal(calls, 2, "one counted attempt per read, without retry");
+  }
 });

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { setTimeout as delay } from "node:timers/promises";
 import { readConfig } from "../../src/server/config.ts";
 import {
   connectLiara,
@@ -20,6 +21,40 @@ const config = readConfig({
 });
 const code = (expected: string) => (error: unknown) =>
   error instanceof AppError && error.code === expected;
+
+test("cancelling account validation bounds a transport or body that ignores abort and saves no connection", async () => {
+  const store = new Store(":memory:");
+  try {
+    for (const stage of ["headers", "body"] as const) {
+      let calls = 0;
+      const controller = new AbortController(),
+        timer = setTimeout(() => controller.abort(), 10);
+      try {
+        const outcome = await Promise.race([
+          connectLiara(config, store, "alice", key, controller.signal, async () => {
+            calls++;
+            if (stage === "headers") return new Promise<Response>(() => undefined);
+            return new Response(new ReadableStream({ start() {} }), {
+              headers: { "Content-Type": "application/json" },
+            });
+          }).then(
+            () => "unexpected_success",
+            (error: unknown) => (error instanceof AppError ? error.code : "unexpected_error"),
+          ),
+          delay(500, "hung"),
+        ]);
+        assert.equal(outcome, "CANCELLED", stage);
+        assert.equal(calls, 1);
+        assert.equal(store.getConnection("alice", "liara"), null);
+      } finally {
+        clearTimeout(timer);
+        controller.abort();
+      }
+    }
+  } finally {
+    store.close();
+  }
+});
 function transport(calls: string[], wrongTeam = false): Transport {
   return async (url, init) => {
     calls.push(url);

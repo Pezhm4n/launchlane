@@ -166,7 +166,7 @@ export function comparePracticeRun(
 
 type Reader = (
   config: Config,
-  input: { app: string; path: string },
+  input: { app: string; path: string; appId: string },
   budget: RunBudget,
   signal: AbortSignal,
 ) => Promise<EvidenceBundle>;
@@ -177,8 +177,9 @@ const readEvidence: Reader = (config, input, budget, signal) => {
     new WorkloadProbe(config),
     {
       scope: { teamId: config.teamId, app: input.app },
+      expectedAppId: input.appId,
       start: now - 300_000,
-      end: now + 15_000,
+      end: budget.deadline,
       since: new Date(now - 300_000).toISOString(),
       path: input.path,
     },
@@ -215,8 +216,9 @@ export async function createLiveIncidentRun(
   );
   const path = incidentPath(input.path, scoped.probeOrigins[input.app]);
   const appId = selectedAppId(store, actorId, input.app);
+  ensure(appId, "SCOPE_DENIED", "هویت برنامه انتخاب‌شده مشخص نیست؛ دوباره متصل شوید.", 403);
   const evidence = sanitizeEvidence(
-    await reader(scoped, { app: input.app, path }, new RunBudget(scoped), signal),
+    await reader(scoped, { app: input.app, path, appId }, new RunBudget(scoped), signal),
     scoped,
     input.app,
     path,
@@ -300,7 +302,7 @@ export async function recheckIncidentRun(
   const after = sanitizeEvidence(
     await reader(
       scoped,
-      { app: run.evidence.scope.app, path: run.path },
+      { app: run.evidence.scope.app, path: run.path, appId: run.appId },
       new RunBudget(scoped),
       signal,
     ),

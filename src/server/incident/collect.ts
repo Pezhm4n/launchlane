@@ -15,7 +15,14 @@ import type { RunBudget } from "../policy/budget.ts";
 export async function collectEvidence(
   client: LiaraReadClient,
   probe: WorkloadProbe,
-  input: { scope: Scope; start: number; end: number; since: string; path: string },
+  input: {
+    scope: Scope;
+    expectedAppId?: string;
+    start: number;
+    end: number;
+    since: string;
+    path: string;
+  },
   budget: RunBudget,
   signal: AbortSignal,
 ): Promise<EvidenceBundle> {
@@ -29,17 +36,29 @@ export async function collectEvidence(
   integer(input.start, 0, Number.MAX_SAFE_INTEGER);
   integer(input.end, input.start, input.start + 900_000);
   string(input.since, 64);
-  const collectedAt = Date.now(),
-    entries: EvidenceEntry[] = [];
+  const expectedAppId = input.expectedAppId === undefined ? null : string(input.expectedAppId, 128);
+  const entries: EvidenceEntry[] = [];
   const controller = new AbortController(),
     boundedSignal = AbortSignal.any([signal, controller.signal, budget.signal(signal)]);
+  const checkedProject = async () => {
+    const value = await client.project(input.scope, budget, boundedSignal);
+    ensure(
+      value.id === expectedAppId,
+      "SCOPE_MISMATCH",
+      "هویت برنامه در لیارا تغییر کرده است؛ اتصال و مقصد را دوباره بررسی کنید.",
+      409,
+    );
+    return value;
+  };
+  // A persisted incident belongs to an app identity, not a reusable public name.
+  const project = expectedAppId ? await checkedProject() : null;
   const entry = (
     source: EvidenceSource,
     state: EvidenceEntry["state"],
     summary: string,
     details: string[] = [],
     fact: EvidenceEntry["fact"] = null,
-    at: number | null = collectedAt,
+    at: number | null = Date.now(),
   ): EvidenceEntry => ({
     id: `${source}-${entries.length + 1}`,
     source,
@@ -103,7 +122,7 @@ export async function collectEvidence(
       ];
     }),
     read("project", async () => {
-      const value = await client.project(input.scope, budget, boundedSignal);
+      const value = project ?? (await client.project(input.scope, budget, boundedSignal));
       return [
         entry(
           "project",
@@ -189,6 +208,8 @@ export async function collectEvidence(
       ];
     }),
   ]);
+  // Reject a mixed snapshot if the provider replaced the app while the reads were running.
+  if (expectedAppId) await checkedProject();
   ensure(
     !boundedSignal.aborted && Date.now() < budget.deadline,
     signal.aborted ? "CANCELLED" : "BUDGET_EXHAUSTED",
@@ -202,11 +223,12 @@ export async function collectEvidence(
   entries.forEach((item, index) => {
     item.id = `${item.source}-${index + 1}`;
   });
+  const collectedAt = Date.now();
   return parseEvidenceBundle({
     version: 1,
     mode: "provider_contract",
     scope: input.scope,
-    window: { start: input.start, end: input.end },
+    window: { start: input.start, end: Math.min(input.end, collectedAt) },
     collectedAt,
     entries,
   });

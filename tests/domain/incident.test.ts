@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  inWindow,
   parseDiagnosis,
   parseEvidenceBundle,
   verifySameSymptom,
@@ -241,4 +242,90 @@ test("collection preserves partial errors, unknown units, stale log times and cu
   );
   const logs = result.entries.find((item) => item.source === "logs");
   assert.equal(logs?.at, Date.parse("2020-01-01T00:00:00Z"));
+});
+
+test("collection fences the selected app identity before reading evidence and again before returning it", async () => {
+  const active = {
+    ...config,
+    enableLiveLiara: true,
+    liaraToken: "synthetic-paas",
+    probeOrigins: { [evidence.scope.app]: "https://practice-node.example.com" },
+  };
+  for (const changedAt of ["before", "during", "never", "historical"] as const) {
+    let projectReads = 0,
+      otherReads = 0,
+      probes = 0;
+    const client = new LiaraReadClient(active, async (url, init) => {
+      assert.equal(init.method, "GET");
+      const path = new URL(url).pathname;
+      if (path === `/v1/projects/${evidence.scope.app}`) {
+        projectReads++;
+        return Response.json({
+          project: {
+            _id:
+              changedAt === "before" || (changedAt === "during" && projectReads > 1)
+                ? "recreated-app"
+                : "selected-app-id",
+            project_id: evidence.scope.app,
+            type: "node",
+            status: "Running",
+            envs: [],
+          },
+        });
+      }
+      otherReads++;
+      if (path.endsWith("/logs")) return Response.json([]);
+      if (path.endsWith("/events")) return Response.json({ data: [] });
+      if (path.endsWith("/releases"))
+        return Response.json({ total: 0, currentRelease: null, releases: [] });
+      if (path.endsWith("/applets")) return Response.json({ applets: [] });
+      return Response.json({ cpuUsage: null, memoryUsage: [] });
+    });
+    const probe = new WorkloadProbe(
+      active,
+      async () => [{ address: "93.184.216.34", family: 4 }],
+      async () => {
+        probes++;
+        return { status: 500, body: "failed", bytes: 6, durationMs: 12 };
+      },
+    );
+    const now = Date.now(),
+      end = changedAt === "historical" ? now - 300_000 : now + 10_000,
+      budget = new RunBudget(active),
+      result = collectEvidence(
+        client,
+        probe,
+        {
+          scope: evidence.scope,
+          expectedAppId: "selected-app-id",
+          start: end - 300_000,
+          end,
+          since: new Date(end - 300_000).toISOString(),
+          path: "/orders",
+        },
+        budget,
+        signal(),
+      );
+    if (changedAt === "never" || changedAt === "historical") {
+      const snapshot = await result;
+      assert.equal(snapshot.scope.app, evidence.scope.app);
+      assert.equal(projectReads, 2);
+      assert.equal(budget.toolCalls, 8);
+      if (changedAt === "historical") {
+        assert.equal(snapshot.window.end, end, "an explicit historical window is never renewed");
+        const workload = snapshot.entries.find((entry) => entry.source === "workload");
+        assert.ok(workload);
+        assert.equal(inWindow(workload, snapshot), false);
+        assert.equal(
+          parseDiagnosis({ summary: "داده کافی نیست", hypotheses: [] }, snapshot).status,
+          "insufficient_evidence",
+        );
+      }
+    } else await assert.rejects(result, code("SCOPE_MISMATCH"), changedAt);
+    if (changedAt === "before") {
+      assert.equal(projectReads, 1);
+      assert.equal(otherReads, 0);
+      assert.equal(probes, 0);
+    }
+  }
 });

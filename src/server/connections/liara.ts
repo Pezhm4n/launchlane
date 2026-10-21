@@ -3,7 +3,7 @@ import { identifier, object, string } from "../../contracts/validation.ts";
 import type { Config } from "../config.ts";
 import { AppError, ensure } from "../errors.ts";
 import type { Store } from "../persistence/store.ts";
-import { boundedJson, transport, type Transport } from "../providers/http.ts";
+import { abortable, boundedJson, transport, type Transport } from "../providers/http.ts";
 import { openCredential, sealCredential } from "./credentials.ts";
 
 function accountId(value: unknown): string {
@@ -96,51 +96,53 @@ export async function validateLiaraConnection(
   const read = async (path: string): Promise<unknown> => {
     ensure(!bounded.aborted, "CANCELLED", "بررسی اتصال متوقف شد.", 409);
     try {
-      const response = await send(`https://api.liara.ir${path}`, {
-        method: "GET",
-        redirect: "error",
-        cache: "no-store",
-        signal: bounded,
-        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-      });
-      if (!response.ok) {
-        await response.body?.cancel();
-        if (response.status === 401)
+      return await abortable(async () => {
+        const response = await send(`https://api.liara.ir${path}`, {
+          method: "GET",
+          redirect: "error",
+          cache: "no-store",
+          signal: bounded,
+          headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+        });
+        if (!response.ok) {
+          await response.body?.cancel();
+          if (response.status === 401)
+            throw new AppError(
+              "LIARA_AUTH_REQUIRED",
+              "این کلید معتبر نیست یا اعتبارش تمام شده است. کلید تازه‌ای از حساب لیارا دریافت کنید.",
+              403,
+            );
+          if (response.status === 403)
+            throw new AppError(
+              "LIARA_ACCESS_DENIED",
+              "این کلید اجازه خواندن تیم یا برنامه‌ها را ندارد. دسترسی همان تیم را در لیارا بررسی کنید.",
+              403,
+            );
+          if (response.status === 429)
+            throw new AppError(
+              "LIARA_RATE_LIMIT",
+              "سقف درخواست لیارا پر شده است. کمی بعد اتصال را دوباره بررسی کنید.",
+              429,
+              true,
+            );
           throw new AppError(
-            "LIARA_AUTH_REQUIRED",
-            "این کلید معتبر نیست یا اعتبارش تمام شده است. کلید تازه‌ای از حساب لیارا دریافت کنید.",
-            403,
+            "LIARA_UNAVAILABLE",
+            "لیارا اکنون پاسخ نداد. کلید ذخیره نشد؛ کمی بعد دوباره تلاش کنید.",
+            502,
+            response.status >= 500,
           );
-        if (response.status === 403)
-          throw new AppError(
-            "LIARA_ACCESS_DENIED",
-            "این کلید اجازه خواندن تیم یا برنامه‌ها را ندارد. دسترسی همان تیم را در لیارا بررسی کنید.",
-            403,
-          );
-        if (response.status === 429)
-          throw new AppError(
-            "LIARA_RATE_LIMIT",
-            "سقف درخواست لیارا پر شده است. کمی بعد اتصال را دوباره بررسی کنید.",
-            429,
-            true,
-          );
-        throw new AppError(
-          "LIARA_UNAVAILABLE",
-          "لیارا اکنون پاسخ نداد. کلید ذخیره نشد؛ کمی بعد دوباره تلاش کنید.",
-          502,
-          response.status >= 500,
+        }
+        const raw = await boundedJson(response, 1024 * 1024);
+        ensure(
+          !bounded.aborted,
+          "CANCELLED",
+          "پاسخ پس از پایان بررسی دریافت شد؛ اتصال ثبت نشد.",
+          409,
         );
-      }
-      const raw = await boundedJson(response, 1024 * 1024);
-      ensure(
-        !bounded.aborted,
-        "CANCELLED",
-        "پاسخ پس از پایان بررسی دریافت شد؛ اتصال ثبت نشد.",
-        409,
-      );
-      return raw;
+        return raw;
+      }, bounded);
     } catch (error) {
-      if (error instanceof AppError) throw error;
+      if (error instanceof AppError && !bounded.aborted) throw error;
       throw new AppError(
         bounded.aborted ? (signal.aborted ? "CANCELLED" : "LIARA_TIMEOUT") : "LIARA_NETWORK",
         bounded.aborted

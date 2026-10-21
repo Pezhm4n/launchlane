@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { parseEvidenceBundle, verifySameSymptom } from "../../src/contracts/incident.ts";
+import { inWindow, parseEvidenceBundle, verifySameSymptom } from "../../src/contracts/incident.ts";
 import { readConfig } from "../../src/server/config.ts";
 import { sealCredential } from "../../src/server/connections/credentials.ts";
 import { AppError } from "../../src/server/errors.ts";
@@ -13,6 +13,7 @@ import {
   recheckIncidentRun,
 } from "../../src/server/incident/runs.ts";
 import { Store } from "../../src/server/persistence/store.ts";
+import { WorkloadProbe } from "../../src/server/liara/probe.ts";
 import type { ModelTurn } from "../../src/server/agent/boxapi.ts";
 const scope = { teamId: "a".repeat(24), app: "sample-app" },
   origin = "https://sample.example.com",
@@ -77,6 +78,70 @@ const input = {
   problem: "صفحه اصلی خطای سرور دارد",
   path: "/",
 };
+
+test("the default incident reader retains a fresh business-path symptom after a slow authorized read", async (t) => {
+  const f = fixture(),
+    now = Date.now();
+  t.mock.timers.enable({ apis: ["Date"], now });
+  let projectReads = 0;
+  t.mock.method(globalThis, "fetch", async (url: string, init: RequestInit) => {
+    assert.equal(init.method, "GET");
+    const target = new URL(url);
+    assert.equal(target.origin, "https://api.liara.ir");
+    assert.equal(target.searchParams.get("teamID"), scope.teamId);
+    if (target.pathname === `/v1/projects/${scope.app}`) {
+      projectReads++;
+      if (projectReads === 1) t.mock.timers.tick(20_000);
+      return Response.json({
+        project: {
+          _id: "synthetic-app",
+          project_id: scope.app,
+          type: "node",
+          status: "Running",
+          envs: [],
+        },
+      });
+    }
+    if (target.pathname.endsWith("/logs")) return Response.json([]);
+    if (target.pathname.endsWith("/events")) return Response.json({ data: [] });
+    if (target.pathname.endsWith("/releases"))
+      return Response.json({ total: 0, currentRelease: null, releases: [] });
+    if (target.pathname.endsWith("/applets")) return Response.json({ applets: [] });
+    return Response.json({ cpuUsage: null, memoryUsage: [] });
+  });
+  t.mock.method(WorkloadProbe.prototype, "check", async () => {
+    await Promise.resolve();
+    return {
+      scope,
+      origin,
+      path: "/orders",
+      status: 500,
+      outcome: "response",
+      observedAt: Date.now(),
+      durationMs: 12,
+      body: "failed",
+      bytes: 6,
+    };
+  });
+  try {
+    const run = await createLiveIncidentRun(
+      f.config,
+      f.store,
+      "alice",
+      { ...input, path: "/orders" },
+      signal(),
+    );
+    const symptom = run.evidence.entries.find((entry) => entry.fact?.kind === "http");
+    assert.ok(symptom);
+    assert.equal(inWindow(symptom, run.evidence), true);
+    assert.equal(run.evidence.collectedAt, now + 20_000);
+    assert.equal(run.evidence.window.end, run.evidence.collectedAt);
+    assert.equal(projectReads, 2);
+    assert.equal(run.appId, "synthetic-app");
+  } finally {
+    f.store.close();
+  }
+});
 
 test("incident practice is actor-bound and its persisted comparison uses the original observation", async () => {
   const store = new Store(":memory:");

@@ -4,7 +4,13 @@ import type { Config } from "../config.ts";
 import { AppError, ensure } from "../errors.ts";
 import { authorizeScope } from "../policy/action.ts";
 import type { RunBudget } from "../policy/budget.ts";
-import { boundedJson, httpFailure, type Transport, transport } from "../providers/http.ts";
+import {
+  abortable,
+  boundedJson,
+  httpFailure,
+  type Transport,
+  transport,
+} from "../providers/http.ts";
 import { parseMetricSummary } from "./metrics.ts";
 import {
   parseApplets,
@@ -60,26 +66,32 @@ export class LiaraReadClient {
     budget.take("tool", signal);
     const boundedSignal = budget.signal(signal);
     try {
-      const response = await this.send(url.toString(), {
-        method: "GET",
-        redirect: "error",
-        cache: "no-store",
-        signal: boundedSignal,
-        headers: { Authorization: `Bearer ${this.config.liaraToken}`, Accept: "application/json" },
-      });
-      if (!response.ok) {
-        await response.body?.cancel();
-        throw httpFailure(response.status);
-      }
-      const result = parse(
-        await boundedJson(response),
-        [
-          this.config.liaraToken,
-          this.config.modelKey,
-          this.config.operatorToken,
-          this.config.sessionSecret,
-        ].filter(Boolean),
-      );
+      // Bound both headers and body independently of a transport's abort implementation.
+      const result = await abortable(async () => {
+        const response = await this.send(url.toString(), {
+          method: "GET",
+          redirect: "error",
+          cache: "no-store",
+          signal: boundedSignal,
+          headers: {
+            Authorization: `Bearer ${this.config.liaraToken}`,
+            Accept: "application/json",
+          },
+        });
+        if (!response.ok) {
+          await response.body?.cancel();
+          throw httpFailure(response.status);
+        }
+        return parse(
+          await boundedJson(response),
+          [
+            this.config.liaraToken,
+            this.config.modelKey,
+            this.config.operatorToken,
+            this.config.sessionSecret,
+          ].filter(Boolean),
+        );
+      }, boundedSignal);
       ensure(
         !boundedSignal.aborted,
         signal.aborted ? "CANCELLED" : "BUDGET_EXHAUSTED",
@@ -88,13 +100,13 @@ export class LiaraReadClient {
       );
       return result;
     } catch (error) {
-      if (error instanceof AppError && error.code !== "INVALID_INPUT") throw error;
       if (boundedSignal.aborted)
         throw new AppError(
           signal.aborted ? "CANCELLED" : "BUDGET_EXHAUSTED",
           "خواندن لیارا کامل نشد.",
           409,
         );
+      if (error instanceof AppError && error.code !== "INVALID_INPUT") throw error;
       throw new AppError(
         error instanceof AppError ? "UPSTREAM_INVALID" : "PROVIDER_TRANSPORT",
         "پاسخ لیارا با قرارداد تطبیق ندارد یا دریافت نشد؛ داده خالی فرض نشد.",
