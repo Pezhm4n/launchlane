@@ -5,7 +5,7 @@ Read this file first. Then read [project-overview.md](project-overview.md), [ARC
 ## Current scope and truth
 
 - P1 provides a local workbench: authenticated Node source inspection, a bounded manifest, immutable proposals and durable approve/reject decisions. It is not yet an implemented live deployment/diagnosis agent.
-- No live Liara/model integration is verified. Work on independent offline tasks and run a small real integration once authorized access is available.
+- No live Liara integration is verified. A small live BoxAPI `gpt-6-luna` chat-completions tool/result/terminal smoke passed with `reasoning_effort=none`; this does not verify real incident diagnosis. Keep the model and mutation gates off outside an explicitly bounded run.
 - Product name: **Launchlane**. Keep product UI and package names consistent.
 - Product acceptance is defined in `docs/acceptance.md`. Treat planned architecture as a proposal until implemented and verified.
 
@@ -26,6 +26,7 @@ Run from the repository root with Node **24.15+ within 24.x** and npm. Dependenc
 | HTTP boundary | `npm run test:http` | Requires a successful build; starts an isolated production server with synthetic scope and empty provider keys |
 | Browser flow | `npm run test:browser` | Requires a successful build and Playwright Chromium; starts an isolated production server; no real account |
 | Local operator setup | `npm run setup:local` | Preserves existing config; writes ignored operator access locally; prints no token |
+| Model compatibility smoke | `npm run smoke:model -- --live` | Opt-in, consumes BoxAPI credit, maximum two requests; synthetic evidence through real transport; never part of automatic checks |
 | Current aggregate | `npm run check` | Also requires a running server because it includes smoke |
 
 The smoke suite checks HTTP entry/liveness and truthful integration state. It does **not** test deployment, diagnosis, HITL or model quality. Add domain tests with actual commands when implementing those features; update this table and TASKS. Do not use `--passWithNoTests`, skipped providers, or fakes as live evidence. Verification results and conditions belong in [docs/verification.md](docs/verification.md).

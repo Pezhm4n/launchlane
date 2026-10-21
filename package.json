@@ -18,6 +18,7 @@
     "test:http": "node --test tests/http/*.test.mjs",
     "test:browser": "node scripts/test-browser.mjs",
     "setup:local": "node scripts/setup-local.mjs",
+    "smoke:model": "node scripts/smoke-model.mjs",
     "check": "npm run lint && npm run typecheck && npm run test:domain && npm test"
   },
   "dependencies": {

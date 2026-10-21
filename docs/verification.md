@@ -71,3 +71,16 @@
 گراف اولیه نسل `2026-10-21T14:08:53Z` در Tier 2 خوانده شد؛ coverage برای مسیرهای اولیه metadata_changed و docs/tests excluded داشت، پس source مستقیم خوانده شد. در بازبینی نهایی transport گراف قطع بود؛ coverage تازه برای فایل‌های اضافه‌شده قابل تأیید نیست و نتیجه نهایی بر exact source/diff و اجرا متکی است.
 
 screen reader واقعی، walkthrough فرد تازه، تمام stateهای provider، زمان/واحد metric واقعی، archive/upload، env secret reference، اجرای چند process، SSRF-safe probe و deployment/diagnosis/correction زنده هنوز تأیید/تکمیل نشده‌اند. هیچ نمره آمادگی یا نتیجه مسابقه از این تست‌ها استخراج نمی‌شود.
+
+## T24 — نخستین smoke واقعی BoxAPI
+
+Runtime پایه `fec8938` با اصلاح transport/config در working tree؛ `gpt-6-luna`، میزبان ثابت BoxAPI، Chat Completions non-streaming، output cap=512 و timeout=30s. هیچ درخواست Liara انجام نشد. داده ارسالی فقط protocol-smoke مصنوعی است و شامل source/log/account واقعی نیست.
+
+- 16:15:49 UTC: یک درخواست، HTTP 400، 5.526s؛ جزئیات در نسخه نخست ثبت نشده بود. consumption و مبلغ unknown.
+- 16:17:11 UTC: یک درخواست تشخیصی همان case، HTTP 400، 2.799s؛ سرویس ناسازگاری tools با reasoning پیش‌فرض gpt-6-luna در Chat Completions را اعلام کرد. پاسخ sanitizer شد؛ retry خودکار وجود نداشت.
+- اصلاح: `MODEL_REASONING_EFFORT=none` به‌صورت صریح، `PROVIDER_REJECTED` برای 400/422 و regression روی body واقعی transport. endpoint، مدل و oracle تغییر نکردند. Responses به دلیل نبودن در فهرست endpointهای این اعتبار استفاده نشد.
+- 16:18:21 UTC: دو درخواست HTTP 200، tool-call واقعی→result همان ID→JSON terminal با app/evidenceId/status/outcome مطابق oracle؛ 616 total tokens گزارش‌شده، 10.505s کل run. preflight cancel هیچ upstream اضافه‌ای نداشت. توقف پردازش/عدم billing پس از in-flight cancel آزموده نشده است.
+
+گزارش‌های sanitize شده در `.artifacts/model/2026-10-21T16-15-49-733Z/`، `2026-10-21T16-17-11-767Z/` و `2026-10-21T16-18-21-569Z/` محلی نگه داشته شدند. در این سه run مجموعاً چهار HTTP attempt وجود داشت؛ usage فقط برای دو درخواست موفق گزارش شد و خطاها رایگان فرض نمی‌شوند. این سه snapshot را یک ارزیابی مدل یا accuracy عمومی نمی‌نامیم.
+
+پس از smoke، مدل‌های مجاز Chat در config/client محدود و CLI به حداکثر دو درخواست کاهش یافت. `npm run smoke:model -- --live` صریحاً opt-in است؛ automatic check آن را اجرا نمی‌کند و gate ذخیره‌شده false می‌ماند. تغییر scope آزمون fixture یا انتخاب مدل/endpoint fallback پنهان وجود ندارد. اعتبارسنجی candidate نهایی در رکورد بعدی جدا ثبت خواهد شد.

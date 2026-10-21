@@ -3,6 +3,19 @@ import { AppError, ensure } from "./errors.ts";
 
 export type Config = ReturnType<typeof readConfig>;
 
+export const permittedChatModels: readonly string[] = [
+  "gpt-6.1-sol",
+  "gpt-6-astra",
+  "gpt-6-luna",
+  "gpt-6-sol",
+  "gpt-5-mini",
+  "gpt-5.6-luna",
+  "gpt-5.6-terra",
+  "gpt-5.6-sol",
+  "gpt-5.4-mini",
+  "gpt-5.3-codex",
+];
+
 type Environment = Readonly<Record<string, string | undefined>>;
 
 function flag(env: Environment, key: string): boolean {
@@ -75,6 +88,20 @@ export function readConfig(env: Environment = process.env) {
   );
   const operatorToken = env.LAUNCHLANE_OPERATOR_TOKEN || "";
   const sessionSecret = env.LAUNCHLANE_SESSION_SECRET || "";
+  const modelReasoningEffort = env.MODEL_REASONING_EFFORT || "none";
+  const modelId = env.MODEL_ID || "";
+  ensure(
+    !modelId || permittedChatModels.includes(modelId),
+    "CONFIG_INVALID",
+    "مدل انتخابی در فهرست مجاز Chat این نصب نیست.",
+    503,
+  );
+  ensure(
+    ["none", "low", "medium", "high"].includes(modelReasoningEffort),
+    "CONFIG_INVALID",
+    "سطح reasoning تنظیم‌شده معتبر نیست.",
+    503,
+  );
   ensure(
     (!operatorToken || operatorToken.length >= 32) &&
       (!sessionSecret || sessionSecret.length >= 32) &&
@@ -99,7 +126,8 @@ export function readConfig(env: Environment = process.env) {
     liaraToken: env.LIARA_API_TOKEN || "",
     modelBaseUrl: fixedUrl(env.MODEL_BASE_URL, "https://ai.boxapi.ir/ai/v1"),
     modelKey: env.MODEL_API_KEY || "",
-    modelId: env.MODEL_ID || "",
+    modelId,
+    modelReasoningEffort,
     enableMutations: flag(env, "LAUNCHLANE_ENABLE_MUTATIONS"),
     enableLiveModel: flag(env, "LAUNCHLANE_ENABLE_LIVE_MODEL"),
     maxModelCalls: limit(env, "LAUNCHLANE_MAX_MODEL_CALLS", 8, 1, 8),

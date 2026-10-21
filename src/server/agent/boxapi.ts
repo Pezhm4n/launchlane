@@ -1,5 +1,5 @@
 import { exactKeys, identifier, integer, object, text } from "../../contracts/validation.ts";
-import type { Config } from "../config.ts";
+import { permittedChatModels, type Config } from "../config.ts";
 import { AppError, ensure } from "../errors.ts";
 import type { RunBudget } from "../policy/budget.ts";
 import { redact } from "../policy/redaction.ts";
@@ -160,6 +160,12 @@ export class BoxApiClient {
       503,
     );
     ensure(
+      permittedChatModels.includes(config.modelId),
+      "MODEL_DENIED",
+      "مدل درخواست‌شده در فهرست مجاز نیست.",
+      403,
+    );
+    ensure(
       config.modelBaseUrl === "https://ai.boxapi.ir/ai/v1",
       "MODEL_HOST_DENIED",
       "مقصد کلید مدل فقط BoxAPI است.",
@@ -190,6 +196,8 @@ export class BoxApiClient {
       parallel_tool_calls: false,
       stream: false,
       max_completion_tokens: config.modelOutputTokens,
+      // BoxAPI's gpt-6-luna rejects function tools with its implicit reasoning default on this endpoint.
+      reasoning_effort: config.modelReasoningEffort,
     });
     ensure(
       Buffer.byteLength(body) <= 32 * 1024,

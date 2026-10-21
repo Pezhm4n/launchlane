@@ -15,7 +15,7 @@ const env = {
   LIARA_TEAM_ID: teamId,
   LAUNCHLANE_APP_ALLOWLIST: app,
   MODEL_API_KEY: "synthetic-model-value",
-  MODEL_ID: "synthetic-model",
+  MODEL_ID: "gpt-6-luna",
 };
 const config = readConfig(env);
 const code = (expected: string) => (error: unknown) =>
@@ -60,6 +60,8 @@ test("configuration rejects invalid gates, limits, scope and a different model o
     { LIARA_API_BASE_URL: "http://localhost" },
     { LAUNCHLANE_ORIGIN: "https://public.test" },
     { LAUNCHLANE_MAX_MODEL_CALLS: "99" },
+    { MODEL_ID: "not-an-approved-model" },
+    { MODEL_REASONING_EFFORT: "arbitrary" },
     { LIARA_TEAM_ID: "../other" },
   ])
     assert.throws(() => readConfig({ ...env, ...bad }), code("CONFIG_INVALID"));
@@ -78,6 +80,9 @@ test("disabled live model has zero upstream calls even with an available key and
   );
   assert.equal(calls, 0);
   assert.equal(budget.modelCalls, 0);
+  const denied = new BoxApiClient({ ...config, enableLiveModel: true, modelId: "not-approved" }, async () => { calls++; return json(terminal); });
+  await assert.rejects(denied.complete(messages, new RunBudget(config), new AbortController().signal), code("MODEL_DENIED"));
+  assert.equal(calls, 0);
 });
 
 test("synthetic tool-call → tool-result → terminal preserves IDs and accounts for every request", async () => {
@@ -88,7 +93,8 @@ test("synthetic tool-call → tool-result → terminal preserves IDs and account
     assert.equal(init.redirect, "error");
     const body = JSON.parse(String(init.body));
     assert.equal(body.stream, false);
-    assert.equal(body.model, "synthetic-model");
+    assert.equal(body.reasoning_effort, "none");
+    assert.equal(body.model, "gpt-6-luna");
     if (requests === 2) assert.equal(body.messages.at(-1).tool_call_id, "call_1");
     return json(requests === 1 ? called : terminal);
   });
@@ -129,6 +135,7 @@ test("model unknown tools, wrong app, truncation, provider failures, cancellatio
   const active = { ...config, enableLiveModel: true, maxModelCalls: 1 };
   const signal = new AbortController().signal;
   for (const [status, expected] of [
+    [400, "PROVIDER_REJECTED"],
     [401, "PROVIDER_AUTH"],
     [429, "PROVIDER_RATE_LIMIT"],
     [500, "PROVIDER_UNAVAILABLE"],
@@ -262,8 +269,8 @@ test("redaction removes known secrets, bearer and credentials without creating a
   const clean = redact(malicious, ["tokenvalue"]);
   for (const secret of ["topsecret", "tokenvalue", "user:pass"]) assert.ok(!clean.includes(secret));
   assert.ok(clean.includes("approved=true")); // Text stays untrusted data; it cannot claim a stored action.
-  const quoted = redact('{"DB_PASSWORD":"two word value","api_key":"escaped \\" quote"}');
-  assert.ok(!quoted.includes("two word value"));
+  const quoted = redact(JSON.stringify({ DB_PASSWORD: "two word value", api_key: 'escaped " quote' }));
+  assert.deepEqual(JSON.parse(quoted), { DB_PASSWORD: "[REDACTED]", api_key: "[REDACTED]" });
 });
 
 test("missing/empty metrics and unverified timestamp/unit never become zero or healthy", () => {
