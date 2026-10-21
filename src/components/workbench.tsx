@@ -222,11 +222,13 @@ function Proposal({
             <p>
               {action.deployment.observation.outcome === "verified"
                 ? "پاسخ و نسخه مورد انتظار همین صفحه تأیید شدند؛ این مشاهده فقط همین زمان و مسیر را پوشش می‌دهد."
-                : action.deployment.observation.outcome === "failed"
-                  ? "انتشار یا پاسخ مورد انتظار سایت تأیید نشد. رفع مشکل اعلام نمی‌شود."
-                  : action.deployment.observation.outcome === "pending"
-                    ? "آماده‌شدن release هنوز تأیید نشده است. کمی بعد فقط نتیجه را بررسی کنید."
-                    : "داده کافی برای تأیید نتیجه نداریم. ارسال دوباره انجام نشد."}
+                : action.deployment.observation.outcome === "not_started"
+                  ? "انتشار نسخه شروع نشده است. وضعیت بارگذاری بسته ممکن است نامعلوم باشد؛ پیشنهاد تازه به تأیید دوباره نیاز دارد."
+                  : action.deployment.observation.outcome === "failed"
+                    ? "انتشار یا پاسخ مورد انتظار سایت تأیید نشد. رفع مشکل اعلام نمی‌شود."
+                    : action.deployment.observation.outcome === "pending"
+                      ? "آماده‌شدن release هنوز تأیید نشده است. کمی بعد فقط نتیجه را بررسی کنید."
+                      : "داده کافی برای تأیید نتیجه نداریم. ارسال دوباره انجام نشد."}
             </p>
           ) : null}
         </div>

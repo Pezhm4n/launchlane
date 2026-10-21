@@ -9,7 +9,7 @@ export type WorkloadExpectation = Readonly<{
   revision: string;
 }>;
 export type DeploymentObservation = Readonly<{
-  outcome: "verified" | "failed" | "pending" | "inconclusive";
+  outcome: "verified" | "failed" | "not_started" | "pending" | "inconclusive";
   code: string;
   checkedAt: number;
   releaseId: string | null;
@@ -78,6 +78,7 @@ export function parseDeploymentProgress(value: unknown): DeploymentProgress {
     ensure(
       item.outcome === "verified" ||
         item.outcome === "failed" ||
+        item.outcome === "not_started" ||
         item.outcome === "pending" ||
         item.outcome === "inconclusive",
       "INVALID_RESPONSE",

@@ -2,6 +2,14 @@
 
 بخش نخست، سابقه P0 است؛ بخش P1 پایین همین فایل شواهد جاری را نگه می‌دارد. نتایج bootstrap جای قابلیت محصول و fixture جای اتصال زنده نیست.
 
+## T22 — توقف پیش از release؛ پایه 7c8c988
+
+برنامه Node آزمایشی با مجوز مالک، سقف 30,000 تومان، حداکثر سه انتشار و حذف پس از آزمون ساخته شد. `small-g2` همراه `basic` در catalog موجود بود، اما ساخت بدون شبکه با `400 g2_plan_unavailable` رد شد؛ GET بعدی نبود app را تأیید کرد. پس از ساخت شبکه اختصاصی آزمون با همان تیم، ساخت app و readback شناسه/پلن موفق شدند. این provisioning یک harness خصوصی اپراتور با approval/attempt پایدار بود؛ ساخت app/network هنوز قابلیت UI محصول نیست. نرخ پاسخ catalog، جمع سخت‌افزار و بسته، 1041.66 تومان/ساعت است؛ مبلغ واقعی کسرشده هنوز اندازه‌گیری نشده است.
+
+سرور production جدا با gateهای مقطعی و تنها app آزمون اجرا شد؛ model خاموش ماند. APIهای واقعی session → اتصال/انتخاب Liara → prepare محلی → پیشنهاد/تصمیم v4 گذشتند. نخستین execute در مرحله `upload_started` بدون source receipt به uncertain رسید؛ هنوز release ارسال نشده و علت transport باز است. عمل تکرار نشد. مرورگر واقعی نتیجه را پس از restart بازیابی و فقط observe را فراخواند. journal پیش از release، fresh GET هویت/پلن و Store transition ثابت کردند درخواست انتشار این attempt شروع نشده است؛ نتیجه `not_started` با توضیح احتمال source یتیم ثبت شد. این شاهد deploy موفق یا سالم‌بودن workload نیست.
+
+regression اصلی source-503 و counterexample release-503 حفظ شدند: هر دو ابتدا uncertain، بدون replay و پس از reopen هستند؛ فقط توقف پیش از `release_started` پس از observe به failed/not_started می‌رود و پیشنهاد مستقل دوباره approval می‌خواهد. release با رسید گم‌شده همچنان uncertain است و جعل `not_started` در همان مرحله رد می‌شود. نخستین اجرای regression جدید fail بود. `npm run test:domain` تازه 78/78، `npm run test:http` تازه 15/15، lint/typecheck/build pass؛ `node scripts/test-deployment-browser.mjs` تازه 18 حالت در عرض‌های 280/360/768/1280، بدون overflow/axe violation/browser error/external request در حالت‌های سنجیده‌شده. artifact خصوصی: `.artifacts/deployment-ui/2026-10-21T22-39-34.507Z/`. providerهای suite خودکار مصنوعی‌اند؛ بازخوانی دستی بالا GET واقعی داشت. مجموعه کامل browser قبلی این برش بازاجرا نشده است. تصمیم ایمنی در ADR 0002 است.
+
 ## T20 — حساب و تیم واقعی؛ پایه cfbe099
 
 ۲۰۲۶-۱۰-۲۲ Asia/Tehran؛ main و working tree این برش. چهار commit تازه و source/call flow بررسی شدند. گراف Tier 2 نسل 2026-10-21T19:24:24Z مسیر validation را نشان داد؛ coverage برای adapterهای تازه not_tracked و برای مسیرهای قبلی metadata_changed بود و tests excluded بودند. source جاری و اجرای مستقیم مبنای ادعاها هستند.

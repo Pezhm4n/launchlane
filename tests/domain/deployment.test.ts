@@ -332,7 +332,7 @@ test("rejection, expiry, changed source, app identity, plan, host and disabled g
   }
 });
 
-test("503 after an upload or release side effect never replays; checkpoint and uncertainty survive process recovery", async () => {
+test("lost upload and release responses remain distinct after recovery and readback; neither approval replays", async () => {
   for (const failAt of ["sources", "releases"]) {
     const f = await fixture({
       write: async (url) =>
@@ -363,12 +363,34 @@ test("503 after an upload or release side effect never replays; checkpoint and u
         signal(),
         f.deps,
       );
-      assert.equal(observed.state, "uncertain");
-      assert.equal(observed.deployment?.observation?.code, "RELEASE_RECEIPT_MISSING");
-      await assert.rejects(
-        proposeDeployment(f.config, f.store, session.actorId, f.input, signal(), f.deps),
-        code("UNRESOLVED_EFFECT"),
+      assert.equal(observed.state, failAt === "sources" ? "failed" : "uncertain");
+      assert.equal(
+        observed.deployment?.observation?.code,
+        failAt === "sources" ? "RELEASE_NOT_STARTED" : "RELEASE_RECEIPT_MISSING",
       );
+      assert.equal(
+        observed.deployment?.observation?.outcome,
+        failAt === "sources" ? "not_started" : "inconclusive",
+      );
+      if (failAt === "releases")
+        assert.throws(
+          () => f.store.recordDeploymentObservation(f.action.id, session.actorId, {
+            outcome: "not_started", code: "RELEASE_NOT_STARTED", checkedAt: Date.now() + 100,
+            releaseId: null, releaseState: null, status: null,
+          }),
+          code("EVIDENCE_MISMATCH"),
+        );
+      if (failAt === "sources") {
+        const next = await proposeDeployment(f.config, f.store, session.actorId, f.input, signal(), f.deps);
+        assert.equal(next.state, "awaiting_approval");
+        await assert.rejects(
+          executeDeployment(f.config, f.store, session, next.id, signal(), f.deps),
+          code("ACTION_CONFLICT"),
+        );
+      } else await assert.rejects(
+          proposeDeployment(f.config, f.store, session.actorId, f.input, signal(), f.deps),
+          code("UNRESOLVED_EFFECT"),
+        );
       assert.equal(f.writes, failAt === "sources" ? 1 : 2);
     } finally {
       await f.cleanup();

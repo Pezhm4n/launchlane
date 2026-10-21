@@ -829,11 +829,21 @@ export class Store {
         "نتیجه موفق به رسید قطعی release نیاز دارد.",
         409,
       );
+      ensure(
+        observation.outcome !== "not_started" ||
+          (action.state === "uncertain" &&
+            action.remoteId === null &&
+            ["claimed", "upload_started", "uploaded"].includes(action.deployment.stage) &&
+            observation.code === "RELEASE_NOT_STARTED"),
+        "EVIDENCE_MISMATCH",
+        "درخواست انتشار شروع‌شده با نبود رسید، اجرا‌نشده فرض نمی‌شود.",
+        409,
+      );
       this.writeDeploymentProgress(id, { ...action.deployment, observation });
       const state =
         observation.outcome === "verified"
           ? "succeeded"
-          : observation.outcome === "failed"
+          : observation.outcome === "failed" || observation.outcome === "not_started"
             ? "failed"
             : action.state;
       this.db

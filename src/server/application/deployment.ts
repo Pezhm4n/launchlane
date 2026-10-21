@@ -243,7 +243,16 @@ export async function observeDeployment(
     status: null,
   };
   try {
-    if (action.remoteId) {
+    if (
+      !action.remoteId &&
+      action.state === "uncertain" &&
+      ["claimed", "upload_started", "uploaded"].includes(action.deployment.stage)
+    ) {
+      await checkProject(client, spec, budget, signal);
+      // release_started is committed before the only release send. A stopped upload
+      // may have left an orphan source, but cannot have started this app's release.
+      result = { ...result, outcome: "not_started", code: "RELEASE_NOT_STARTED" };
+    } else if (action.remoteId) {
       await checkProject(client, spec, budget, signal);
       const releases = await client.releases(spec.scope, 1, 50, budget, signal);
       const release = releases.releases.find((row) => row.id === action.remoteId);

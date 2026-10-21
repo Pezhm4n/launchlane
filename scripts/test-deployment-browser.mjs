@@ -181,11 +181,13 @@ try {
           ? "WORKLOAD_VERIFIED"
           : observation === "failed"
             ? "WORKLOAD_MISMATCH"
+            : observation === "not_started"
+              ? "RELEASE_NOT_STARTED"
             : "RELEASE_PENDING",
       checkedAt: Math.max(Date.now(), (old.deployment.observation?.checkedAt || 0) + 1),
       releaseId: old.remoteId,
-      releaseState: observation === "pending" ? "BUILDING" : "READY",
-      status: observation === "pending" ? null : 200,
+      releaseState: observation === "not_started" ? null : observation === "pending" ? "BUILDING" : "READY",
+      status: observation === "pending" || observation === "not_started" ? null : 200,
     };
     return route.fulfill({
       json: { action: store.recordDeploymentObservation(id, actor, result) },
@@ -309,6 +311,12 @@ try {
     document.documentElement.style.fontSize = "200%";
   });
   await state("uncertain-text-200-percent", 360);
+  observation = "not_started";
+  await page.getByRole("button", { name: "بررسی نتیجه بدون ارسال دوباره", exact: true }).press("Enter");
+  await page.getByText("انتشار نسخه شروع نشده است. وضعیت بارگذاری بسته ممکن است نامعلوم باشد؛ پیشنهاد تازه به تأیید دوباره نیاز دارد.", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "دریافت پیشنهاد تازه", exact: true }).waitFor();
+  for (const width of [360, 768, 1280]) await state("stopped-before-release-needs-new-approval", width);
+  assert.equal(sends, 3);
   assert.deepEqual(errors, []);
   assert.deepEqual(external, []);
   assert.equal(await page.evaluate(() => localStorage.length), 0);
