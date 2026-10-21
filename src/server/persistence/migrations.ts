@@ -1,0 +1,29 @@
+// Append-only. Never edit an entry after it has been applied to a user's database.
+export const migrations = [
+  {
+    version: 1,
+    sql: `
+CREATE TABLE sessions (
+  id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, expires_at INTEGER NOT NULL
+) STRICT;
+CREATE TABLE login_limits (
+  bucket TEXT PRIMARY KEY, attempts INTEGER NOT NULL, reset_at INTEGER NOT NULL
+) STRICT;
+CREATE TABLE actions (
+  id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, spec TEXT NOT NULL, hash TEXT NOT NULL,
+  state TEXT NOT NULL CHECK(state IN ('awaiting_approval','approved','cancelled','expired','executing','observing','uncertain','succeeded','failed')),
+  team_id TEXT NOT NULL, app TEXT NOT NULL, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL,
+  approval_session_id TEXT, consumed_at INTEGER, attempt_id TEXT UNIQUE, remote_id TEXT, error_code TEXT
+) STRICT;
+CREATE INDEX actions_scope_state ON actions(team_id, app, state);
+CREATE TABLE attempts (
+  id TEXT PRIMARY KEY, action_id TEXT NOT NULL UNIQUE REFERENCES actions(id), started_at INTEGER NOT NULL,
+  remote_id TEXT
+) STRICT;
+CREATE TABLE audit_events (
+  sequence INTEGER PRIMARY KEY, action_id TEXT NOT NULL REFERENCES actions(id),
+  actor_id TEXT NOT NULL, event TEXT NOT NULL, at INTEGER NOT NULL
+) STRICT;
+`,
+  },
+] as const;
