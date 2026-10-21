@@ -6,8 +6,8 @@ export function GET() {
     {
       service: "launchlane",
       status: "ok",
-      stage: "preparation",
-      integrations: { liara: "unverified", model: "unconfigured" },
+      stage: "offline_foundation",
+      integrations: { liara: "unverified", model: "unverified" },
     },
     { headers: { "Cache-Control": "no-store" } },
   );

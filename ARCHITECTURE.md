@@ -10,15 +10,15 @@
 | D2 | اجرای operator-local و یک scope در MVP | دسترسی به پروژه کاربر و کاهش پیچیدگی auth/cloud upload | loopback کافی برای مجوز نیست؛ session/Origin/CSRF قبل از write؛ public SaaS نیازمند طراحی جدا |
 | D3 | یک orchestrator محدود با ابزارهای typed | چرخه اصلی قابل پیش‌بینی است؛ انتخاب/توضیح و diagnosis از مدل کمک می‌گیرد | multi-agent/MCP wrapper فقط پس از evidence نیاز؛ no arbitrary shell |
 | D4 | HTTP adapter مستقیم مبتنی بر OpenAPI؛ CLI رسمی فقط fallback مستند | کنترل timeout/خطا/آرگومان و تست قرارداد آسان‌تر | source archive/release protocol و team scope پیش از اولین write، live بررسی شود؛ endpoint نمونه غیررسمی مرجع نهایی نیست |
-| D5 | SQLite با `node:sqlite` برای state عملیاتی در P1، پیش از P2 | approval و اثر نامطمئن باید restart را تحمل کند؛ DB service اضافی لازم نیست | اتصال/transaction کوتاه، یک process؛ module روی Node 24.18 این ماشین import شد، storage هنوز ساخته نشده؛ scale-out نیازمند بازنگری |
-| D6 | مدل و SDK پس از compatibility smoke و بودجه | provider/model و دسترسی مجاز فعلاً مشخص نیست | یک adapter؛ مدل ارزان‌تر فقط اگر eval همان کیفیت را حفظ کند؛ بدون rewrite framework |
+| D5 | SQLite با `node:sqlite`، implemented_offline | approval و اثر نامطمئن باید restart را تحمل کند؛ DB service اضافی لازم نیست | migration/checksum، race و recovery روی Node 24.18 تست شده؛ فقط یک process؛ [ADR](docs/decisions/0001-local-workflow.md) |
+| D6 | BoxAPI؛ transport مستقیم chat-completions، بدون SDK تازه | provider با دستور مالک مشخص است؛ کنترل مقصد و بودجه ساده می‌ماند | قرارداد ابزارها fixture-tested؛ انتخاب/کیفیت مدل به smoke واقعی و oracle وابسته است |
 | D7 | Biome برای lint و منع `any` | سطح dependency کمتر؛ config اولیه ESLint وابستگی dev دارای advisory بدون fix سازگار داشت | typecheck و build جدا؛ lint شاهد امنیت محصول نیست |
 
-Node 24.18.0 و SQLite 3.53.1 در محیط فعلی مشاهده شدند. نسخه‌های package دقیق در lockfile هستند. خود Next.js بر لیارا قابل استقرار است، اما این scaffold در این مرحله روی لیارا deploy نشده است. هیچ ORM یا migration runner فعلاً نصب/پیاده نشده است.
+Node 24.18.0 و SQLite 3.53.1 در محیط فعلی مشاهده شدند. نسخه‌های package دقیق در lockfile هستند. محصول در این مرحله روی Liara deploy نشده است. ORM نصب نشده؛ migration runner کوچک با transaction و checksum در persistence پیاده شده است.
 
 ## ساختار موجود و هدف
 
-موجود: `src/app/layout.tsx`، `src/app/page.tsx`، `src/app/api/health/route.ts`، `tests/bootstrap.test.mjs`، configها و این مستندات. پوشه‌های زیر **هنگام نیاز** ایجاد شوند؛ اسکلت خالی فراوان نسازیم:
+موجود: workbench، contracts، session/policy، source inspector، persistence، APIهای محلی و transportهای محدود model/Liara. ساختار زیر بر حسب نیاز پر شده است؛ deployment/incident orchestrator زنده هنوز ساخته نشده:
 
 ```text
 src/app/                 UI و route handlers باریک
@@ -55,7 +55,9 @@ flowchart LR
 
 read و تشخیص می‌توانند بدون تأیید هر بار انجام شوند، در محدوده session و app مجاز. create، upload، deploy، env، restart، resize و domain write، در MVP همگی approval لازم دارند. شارژ حساب و registrar identity دستی‌اند. این gate یک تصمیم معماری برای نسخه پایه است.
 
-## مدل داده پیشنهادی؛ هنوز schema ساخته نشده
+## مدل داده؛ موجود و برنامه‌ریزی‌شده
+
+موجود در migration شماره ۱: sessions، login_limits، actions، attempts، audit_events و schema_migrations. `ProjectProfile` و manifest فعلاً پاسخ محلی‌اند؛ در DB ذخیره نمی‌شوند. Run/Observation/Incident و env secret reference زیر هنوز طرح‌اند. در P1 فقط deploy/restart به‌عنوان operation معتبرند؛ سایر نام‌ها رد می‌شوند.
 
 - `OperatorSession`: actor ID، expiry و scope؛ ورود با operator token قوی از env سمت سرور، مقایسه امن و تلاش محدود. session با secret جدا امضا می‌شود؛ کوکی HttpOnly و SameSite=Strict، Secure روی HTTPS، نه browser storage. token یا session secret خالی، دسترسی privileged را می‌بندد.
 - `ProjectProfile`: runtime، port، نیاز env با **نام بدون مقدار**، build/start پیشنهادی، workspace/source fingerprint و اطلاعات نامعلوم.
@@ -80,7 +82,9 @@ SQL با parameter binding؛ migration شماره‌دار، checksum و transac
 
 timeout بعد از احتمال write: `uncertain`؛ write خودکار تکرار نشود. scope/release/events و precondition برای reconcile خوانده شود. correlation قطعی در دسترس نیست، نامعلوم بماند و کاربر مسیر حل داشته باشد. پشتیبانی idempotency سمت لیارا فرض نشده است.
 
-## API داخلی پیشنهادی؛ فعلاً فقط health موجود است
+## API داخلی موجود و مسیرهای بعدی
+
+موجود: health، session (POST/DELETE)، `GET /api/workspace` (capabilities و history)، inspect، `POST /api/actions`، decision و execute. execute به adapter زنده وصل نیست و قبل از claim بسته می‌ماند. مسیرهای runs/incidents/observe/handoff در جدول زیر همچنان طرح‌اند؛ capabilities در workspace ادغام شده است.
 
 | مسیر هدف | مسئولیت و شرط |
 | --- | --- |
@@ -116,4 +120,4 @@ Boundaryها: browser→session/API؛ محتوا/مدل→policy؛ policy→Liar
 
 ## وضعیت وابستگی‌ها
 
-مدل/SDK، validation library و SQLite adapter هنوز پیاده نشده‌اند. SDK را پس از smoke واقعی tool calling/structured output/stream انتخاب کنیم؛ این foundation به provider خاص یا framework بزرگ وابسته نیست. هیچ source از مخزن قبلی یا GitHub بدون بازبینی compatibility/license کپی نشده است. طرح جایگزین MCP-only مجاز است اما برای UX کاربر کم‌تجربه، وب‌اپ تصمیم اولیه ماست.
+validation صریح با `unknown` و narrowing، SQLite adapter و transportهای کوچک پیاده شده‌اند؛ SDK مدل، ORM، queue و framework Agent نصب نشده‌اند. browser/axe فقط dependency توسعه‌اند. هنوز هیچ write adapter، SSRF-safe health probe، diagnosis runtime یا ابزار env متصل نیست. مدل واقعی باید روی همان protocol و oracle مستقل سنجیده شود؛ transport compatibility جای آن نیست.

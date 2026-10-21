@@ -25,7 +25,7 @@ export function capabilities(config: Config): Capabilities {
     model: {
       state: "unavailable",
       reason: !config.enableLiveModel
-        ? "مدل واقعی خاموش است؛ اعتبار و سقف مصرف تأیید نشده‌اند."
+        ? "فراخوانی مدل در این نصب خاموش است."
         : !config.modelId
           ? "مدل فعال انتخاب نشده است."
           : "سازگاری مدل انتخابی با BoxAPI هنوز تأیید نشده است.",

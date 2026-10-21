@@ -2,18 +2,19 @@
 
 دستیار استقرار و بررسی سلامت سرویس، با پیشنهاد مبتنی بر شواهد و تأیید شما پیش از اقدام حساس.
 
-**وضعیت فعلی:** پایهٔ پروژه و برنامه پیاده‌سازی آماده شده‌اند؛ Agent، اتصال لیارا، مدل، عملیات deploy و diagnosis هنوز پیاده نشده‌اند. صفحه اصلی و `/api/health` فقط سلامت اجرای scaffold را نشان می‌دهند.
+**وضعیت فعلی:** میز کار محلی برای ورود امن، بررسی پروژه Node، نمایش manifest، پیشنهاد انتشار و ثبت تأیید/رد ساخته شده است. تصمیم‌ها در SQLite می‌مانند. اتصال زنده Liara، upload/deploy و diagnosis هنوز انجام نشده‌اند؛ تأیید یک پیشنهاد فعلاً چیزی را منتشر نمی‌کند. قرارداد مدل BoxAPI و بخشی از Liara با داده مصنوعی آزموده شده‌اند.
 
-## اجرای پایه
+## اجرای محلی
 
-Node 24.15+ از شاخه 24.x و npm لازم است. برای scaffold کلید API لازم نیست.
+Node 24.15+ از شاخه 24.x و npm لازم است. برای مسیر آفلاین کلید Liara/مدل لازم نیست.
 
 ```text
 npm ci
+npm run setup:local
 npm run dev
 ```
 
-صفحه پیش‌فرض: `http://127.0.0.1:3000`. برای اجرای production:
+صفحه پیش‌فرض: `http://127.0.0.1:3000`. کلید ورود را از `.local/operator-access.txt` به‌صورت محلی بردارید؛ این فایل و `.env.local` خصوصی‌اند و وارد Git نمی‌شوند. setup مقدار موجود credentialها را حفظ می‌کند. پس از تغییر config، server را restart کنید. برای اجرای production:
 
 ```text
 npm run build
@@ -25,10 +26,30 @@ npm start
 ```text
 npm run lint
 npm run typecheck
+npm run test:domain
 npm test
 ```
 
-`npm test` فعلاً smoke HTTP محلی است. تست‌های قابلیت و provider در مراحل بعد اضافه می‌شوند؛ این نتیجه به معنای درست‌بودن deploy یا تشخیص خطا نیست. برای پورت دیگر، `TEST_BASE_URL` را در محیط همان terminal تنظیم کن. `.env.example` نام‌های config برنامه‌ریزی‌شده را دارد؛ تا پیش از P1/P2 بیشترشان هنوز مصرف نمی‌شوند. مقدار واقعی را فقط در `.env.local` ignored نگه دار.
+`npm test` دو smoke اجرای server است. `test:domain` policy، persistence، source و قرارداد transport/خطا را می‌سنجد. برای پورت دیگر، `LAUNCHLANE_ORIGIN` و پورت اجرا را با هم عوض کنید و برای smoke، `TEST_BASE_URL` را نیز تنظیم کنید.
+
+برای HTTP و UI، پس از build و بدون نیاز به اجرای server جداگانه:
+
+```text
+npm run test:http
+npx playwright install chromium
+npm run test:browser
+```
+
+این دو دستور server تولیدی موقت با scope مصنوعی و کلیدهای provider خالی ایجاد می‌کنند. آزمون مرورگر ۶ عرض، approve/reject، خطا، لغو، کیبورد، بزرگ‌نمایی متن و axe را می‌سنجد؛ تصاویر و گزارش در `.artifacts/` محلی می‌مانند. نتیجه، شاهد deploy یا کیفیت مدل واقعی نیست.
+
+## استفاده از میز کار
+
+1. وارد شوید و پوشه نسبی زیر `LAUNCHLANE_WORKSPACE_ROOT` را وارد کنید. setup ریشه همین checkout را پیش‌فرض می‌گذارد؛ نمونه آماده `examples/node-service` است.
+2. runtime، port، start، نام envها، unknownها و فهرست فایل‌های مجاز را بررسی کنید. scanner هیچ script اجرا نمی‌کند، فایل env را نمی‌خواند و archive نمی‌سازد.
+3. پس از مشخص‌شدن تیم/app واقعی، app آزمایشی را در `LAUNCHLANE_APP_ALLOWLIST` و تیم را در `LIARA_TEAM_ID` بگذارید. محصول app تصادفی انتخاب نمی‌کند. تا آن زمان بررسی source فعال و ساخت action بسته است.
+4. پیشنهاد به app، port و source hash همان لحظه متصل می‌شود. تأیید/رد در server ثبت می‌شود؛ تغییر source نیاز به بررسی و پیشنهاد تازه دارد. پلن/قیمت هنوز نامعلوم است.
+
+`.env.example` با config مصرف‌شده هماهنگ است. هر دو gate `LAUNCHLANE_ENABLE_MUTATIONS` و `LAUNCHLANE_ENABLE_LIVE_MODEL` پیش‌فرض false هستند. حتی فعال‌کردن flag mutation، adapter زنده یا approval ایجاد نمی‌کند. رمز پنل Liara توکن PaaS نیست؛ کلید مدل فقط به میزبان ثابت BoxAPI مجاز است.
 
 ## نقشه مستندات
 
@@ -36,7 +57,7 @@ npm test
 | --- | --- |
 | [project-overview.md](project-overview.md) | نیاز کاربر، core flow، محدوده و معیارهای موفقیت |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | معماری موجود/هدف، مرزها، مدل داده و تصمیم‌ها |
-| [DESIGN.md](DESIGN.md) | اصول ثابت؛ تکمیل طرح واقعی با Coding Agent |
+| [DESIGN.md](DESIGN.md) | توکن‌ها، ایران‌یکان، RTL و رفتار responsive نزدیک زبان بصری Liara |
 | [TASKS.md](TASKS.md) | فاز فعال، وابستگی، پذیرش و وضعیت هر Task |
 | [docs/acceptance.md](docs/acceptance.md) | رفتار قابل سنجش و تست‌های پذیرش |
 | [docs/api-capabilities.md](docs/api-capabilities.md) | API مستند در برابر دسترسی زنده تأییدنشده |
@@ -44,6 +65,8 @@ npm test
 
 ## محدوده و دسترسی
 
-MVP پیشنهادی یک operator و یک scope مجاز دارد. runtime به‌صورت loopback شروع می‌شود؛ پیش از فعال‌کردن write، session/policy و approval پایدار باید ساخته شوند. پشتیبانی multi-tenant و پایش ۲۴ساعته جزو پایه نیستند. source خصوصی، کلیدها و state اجرایی وارد Git نمی‌شوند.
+MVP یک operator و یک scope مجاز دارد. privileged read/write به session، Host/Origin و در درخواست تغییر، CSRF وابسته‌اند؛ loopback جای authentication نیست. SQLite برای یک process است و approval/attempt به حافظه fallback نمی‌کنند. پاسخ گم‌شده یا قطع process، action را uncertain و write متعارض app را مسدود می‌کند.
+
+تشخیص source محدود و static است؛ پشتیبانی همه frameworkها، archive/upload واقعی، قیمت/پلن، env secret-reference، health probe شبکه‌ای، diagnosis و اصلاح واقعی هنوز تکمیل نشده‌اند. پشتیبانی چند process، میزبانی عمومی و پایش ۲۴ساعته در محدوده این نسخه نیستند.
 
 قابلیت پیاده‌نشده و بررسی زنده انجام‌نشده در گزارش وضعیت محصول صریح ثبت می‌شوند.
