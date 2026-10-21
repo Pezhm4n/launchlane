@@ -1,4 +1,6 @@
 "use client";
+
+import { canReadDeploymentResult } from "../contracts/deployment.ts";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import type { Action, ActionState, WorkspaceView } from "../contracts/domain.ts";
 import { decodeAction, decodeWorkspace } from "../contracts/client-decode.ts";
@@ -195,6 +197,22 @@ function Proposal({
         </>
       ) : state === "succeeded" ? (
         <button type="button" className="button-secondary" disabled={busy || expired} onClick={onNextVersion}>آماده‌سازی نسخه بعدی</button>
+      ) : state === "failed" && canReadDeploymentResult(action) ? (
+        <>
+          <div className="button-row">
+            <button type="button" disabled={busy || expired || !workspace.features.serviceReads} onClick={() => onOperation("observe")}>
+              بررسی دوباره پاسخ و نسخه سایت
+            </button>
+            <button type="button" className="button-secondary" disabled={busy || expired} onClick={onNewProposal}>
+              دریافت پیشنهاد تازه
+            </button>
+          </div>
+          <p className="hint">
+            {workspace.features.serviceReads
+              ? "بررسی دوباره فقط همین نسخه را می‌خواند؛ فایل یا درخواست انتشار دوباره ارسال نمی‌شود."
+              : "خواندن اطلاعات لیارا در این نصب غیرفعال است؛ برای فعال‌کردن آن از مسئول نصب کمک بگیرید."}
+          </p>
+        </>
       ) : state === "cancelled" || state === "expired" || state === "failed" ? (
         <button
           type="button"

@@ -1,6 +1,7 @@
 import type { Action, Session } from "../../contracts/domain.ts";
 import {
   parseWorkloadExpectation,
+  canReadDeploymentResult,
   type DeploymentObservation,
 } from "../../contracts/deployment.ts";
 import { identifier } from "../../contracts/validation.ts";
@@ -223,7 +224,7 @@ export async function observeDeployment(
   ensure(
     action.spec.version === 4 &&
       action.deployment &&
-      (action.state === "observing" || action.state === "uncertain"),
+      canReadDeploymentResult(action),
     "ACTION_CONFLICT",
     "این انتشار منتظر بررسی نتیجه نیست.",
     409,

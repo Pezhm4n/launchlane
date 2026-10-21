@@ -432,6 +432,60 @@ test("double submit has one durable winner and at most one upload/release pair",
   }
 });
 
+test("a failed workload check can be read again without replaying a write or accepting a different revision", async () => {
+  const f = await fixture();
+  try {
+    f.approve();
+    const accepted = await executeDeployment(
+      f.config,
+      f.store,
+      session,
+      f.action.id,
+      signal(),
+      f.deps,
+    );
+    f.set({ status: 503 });
+    const failed = await observeDeployment(
+      f.config,
+      f.store,
+      session,
+      f.action.id,
+      signal(),
+      f.deps,
+    );
+    assert.equal(failed.state, "failed");
+    f.reopen();
+    f.set({ status: 200, body: '{"revision":"older-version"}' });
+    const wrong = await observeDeployment(
+      f.config,
+      f.store,
+      session,
+      f.action.id,
+      signal(),
+      f.deps,
+    );
+    assert.equal(wrong.state, "failed");
+    f.set({ body: '{"revision":"sample-v2"}' });
+    const verified = await observeDeployment(
+      f.config,
+      f.store,
+      session,
+      f.action.id,
+      signal(),
+      f.deps,
+    );
+    assert.equal(verified.state, "succeeded");
+    assert.equal(verified.attemptId, accepted.attemptId);
+    assert.equal(f.writes, 2);
+    await assert.rejects(
+      executeDeployment(f.config, f.store, session, f.action.id, signal(), f.deps),
+      code("ACTION_CONFLICT"),
+    );
+  } finally {
+    await f.cleanup();
+  }
+});
+
 test("READY is insufficient: 404, 500, wrong revision, liveness JSON, redirects and a release change cannot verify the deployment", async () => {
   for (const variation of [
     "404",

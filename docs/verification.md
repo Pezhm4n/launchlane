@@ -2,6 +2,12 @@
 
 بخش نخست، سابقه P0 است؛ بخش P1 پایین همین فایل شواهد جاری را نگه می‌دارد. نتایج bootstrap جای قابلیت محصول و fixture جای اتصال زنده نیست.
 
+## T22/UX — بازخوانی پس از پاسخ ناموفق؛ پایه bf276b1
+
+نخستین release واقعی READY/current بود ولی probe اولیه 503 داد. نتیجه به‌درستی healthy نشد، اما UI دیگر امکان خواندن دوباره همان رسید را نداشت. `canReadDeploymentResult` در contract، application، Store و UI اکنون failed دارای receipt قطعی و stage=release_accepted را هم برای observe فقط‌خواندنی مجاز می‌کند. state/attempt/approval هیچ‌گاه به write-ready برنمی‌گردند. پس از reopen، 200 با revision غلط نیز شکست می‌ماند؛ فقط همان release/current/READY و status/revision دقیق می‌تواند آخرین مشاهده را موفق کند. case پیش از اصلاح ACTION_CONFLICT داشت؛ پس از اصلاح pass شد. بازخوانی واقعی action نسخه نخست، 500 را ثبت و failure را حفظ کرد؛ write اضافه‌ای نداشت.
+
+گزارش اختلال اکنون reason مقایسه را یک‌بار نمایش می‌دهد و تغییر مستقیم env را از انتشار کد اصلاح‌شده جدا توضیح می‌دهد. `npm run test:domain` تازه 81/81، HTTP تازه 15/15، lint/typecheck/build pass؛ browser تازه مسیر عادی 55 حالت در 9 عرض و انتشار 19 حالت در 4 عرض، بدون overflow/axe violation/browser error/external request در حالت‌های سنجیده‌شده. artifactهای خصوصی: `.artifacts/ux/2026-10-21T23-07-43-359Z/` و `.artifacts/deployment-ui/2026-10-21T23-08-19.860Z/`. اجرای قبلی پس از تغییر متن گزارش، روی assertion متن کوتاه قدیمی timeout شد؛ case حفظ و matcher به همان reason کامل منتقل شد. این failure و تصویرش در `.artifacts/ux/2026-10-21T23-06-19-238Z/` باقی است. outcome مقایسه یا fixture برای سبزشدن تغییر نکردند. این suiteها provider مصنوعی دارند و صرفاً بخش UI/contract را ثابت می‌کنند.
+
 ## T20/T30 — logs v2 و lifecycle؛ پایه fffea88
 
 قرارداد مستند v1 در حساب واقعی با ISO since پاسخ 400 «since باید عدد باشد» داد. CLI رسمی 9.4.7 در `commands/app/logs.js` از `GET /v2/projects/{app}/logs` با `start` بر حسب Unix seconds، direction=forward و last_lines=false استفاده می‌کند؛ داده گروه‌های metaData/values دارد و هر tuple شامل زمان نانوثانیه و JSON دارای `type/_entry` است. درخواست محدود همین قرارداد 200 داد. timestamp خام لاگ کنترل‌شده و ISO تولیدشده در خود پیام، با تقسیم دقیق BigInt به میلی‌ثانیه، حدود 2ms اختلاف داشتند؛ این شاهد به v2 logs محدود است و واحد metric/event را تأیید نمی‌کند.

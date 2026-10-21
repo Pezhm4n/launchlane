@@ -39,7 +39,7 @@ export function capabilities(config: Config, liara?: ConnectionView | null): Cap
         ? "توضیح خودکار علت مشکل در این نصب فعال نیست."
         : !config.modelId || !config.modelKey
           ? "توضیح خودکار علت مشکل هنوز آماده نیست."
-          : "کیفیت تشخیص علت مشکل در حساب واقعی هنوز بررسی نشده است.",
+          : "توضیح علت با شواهد همین برنامه قابل درخواست است؛ نتیجه یک فرضیه قابل بررسی است.",
       nextStep: "می‌توانید گزارش‌های در دسترس را جمع‌آوری و شواهد را بررسی کنید.",
     },
     mutations: {
@@ -47,11 +47,15 @@ export function capabilities(config: Config, liara?: ConnectionView | null): Cap
         config.enableMutations && config.enableLiveLiara && connected
           ? "unverified"
           : "unavailable",
-      reason: !config.enableMutations
-        ? "انتشار و تغییر زیرساخت در این نسخه غیرفعال است."
-        : "انتشار محدود برنامه Node موجود آماده بررسی قراردادی است؛ سازگاری حساب واقعی هنوز تأیید نشده است.",
+      reason: !config.enableMutations || !config.enableLiveLiara
+        ? "انتشار و تغییر زیرساخت در این نصب غیرفعال است."
+        : !connected
+          ? "برای انتشار، حساب لیارا و برنامه مقصد را متصل و بررسی کنید."
+          : !liara.selectedApp
+            ? "برنامه مقصد را از حساب متصل انتخاب کنید."
+            : "انتشار نسخه تازه روی برنامه انتخاب‌شده به پیشنهاد مشخص و تأیید شما نیاز دارد.",
       nextStep:
-        "فعلاً پروژه و فهرست فایل‌ها را بررسی و پیشنهاد را آماده کنید؛ تأیید به‌تنهایی چیزی را منتشر نمی‌کند.",
+        "پیشنهاد را بررسی کنید؛ ثبت تأیید و آغاز انتشار دو مرحله جدا هستند.",
     },
     scope: {
       teamId: config.teamId || null,

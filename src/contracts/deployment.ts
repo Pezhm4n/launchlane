@@ -1,5 +1,6 @@
 import { AppError, ensure } from "../server/errors.ts";
 import { exactKeys, integer, object, string } from "./validation.ts";
+import type { Action } from "./domain.ts";
 
 // This is a bounded GET oracle, never a model-supplied URL or executable expression.
 export type WorkloadExpectation = Readonly<{
@@ -21,6 +22,18 @@ export type DeploymentProgress = Readonly<{
   sourceId: string | null;
   observation: DeploymentObservation | null;
 }>;
+
+export function canReadDeploymentResult(action: Action): boolean {
+  return (
+    action.spec.version === 4 &&
+    Boolean(action.deployment) &&
+    (action.state === "observing" ||
+      action.state === "uncertain" ||
+      (action.state === "failed" &&
+        Boolean(action.remoteId) &&
+        action.deployment?.stage === "release_accepted"))
+  );
+}
 
 export function sourceReceiptId(value: unknown): string {
   const result = string(value, 128);

@@ -17,6 +17,7 @@ import { parseIncidentRun, type IncidentRun } from "../../contracts/incident-run
 import { parseProbeOrigins } from "../policy/probe-target.ts";
 import {
   parseDeploymentProgress,
+  canReadDeploymentResult,
   sourceReceiptId,
   type DeploymentProgress,
   type DeploymentObservation,
@@ -789,7 +790,7 @@ export class Store {
       ensure(
         action.spec.version === 4 &&
           action.deployment &&
-          (action.state === "observing" || action.state === "uncertain"),
+          canReadDeploymentResult(action),
         "ACTION_CONFLICT",
         "این انتشار منتظر مشاهده نیست.",
         409,

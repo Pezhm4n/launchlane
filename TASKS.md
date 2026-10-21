@@ -4,6 +4,10 @@
 
 ## وضعیت فعال
 
+### T22/UX64–66 — بازخوانی امن پس از پاسخ ناموفق سایت
+
+بر پایه `bf276b1`، release واقعی ابتدا READY/503 بود؛ action به failed رفت و UI فقط پیشنهاد تازه داشت. predicate مشترک contract اکنون بازخوانی action دارای receipt را حتی پس از پاسخ ناموفق مجاز می‌کند؛ server و Store همان معیار را enforce می‌کنند. receipt/attempt/approval مصرف‌شده تغییر نمی‌کنند. regression اولیه fail شد؛ 503 سپس 200 با revision غلط همچنان failed و فقط 200 با همان revision موفق است؛ write همان دو فراخوانی باقی می‌ماند. بازخوانی واقعی نسخه نخست بعداً 500 را دید و موفق اعلام نکرد. CTA و دلیل غیرفعال‌بودن آن روشن شدند؛ گزارش اختلال متن تکراری ندارد و محدودیت env را با انتشار کد اصلاح‌شده اشتباه نمی‌کند. domain تازه 81/81، HTTP 15/15، lint/typecheck/build و browser تازه 55 حالت/9 عرض + 19 حالت/4 عرض pass. assertion قدیمی متن کوتاه پس از یکسان‌کردن متن گزارش به timeout رسید؛ assertion به معنی همان نتیجه منتقل و suite کامل تازه pass شد، oracle outcome تغییر نکرد. شواهد و config در verification هستند.
+
 ### T20/T30 — لاگ و رویداد واقعی زیرساخت جدید
 
 روی `fffea88`، GET واقعی v1/logs با ISO since پاسخ 400 داد؛ CLI رسمی نصب‌شده 9.4.7 مسیر v2/logs با start بر حسب ثانیه و wrapper پیام/زمان نانوثانیه را مصرف می‌کند. transport همین قرارداد مشخص را اجرا می‌کند؛ parser v1 مستند به‌صورت مستقل حفظ شد و fallback شبکه پنهان اضافه نشد. timestamp لاگ کنترل‌شده با زمان ISO خود پیام در حد میلی‌ثانیه تطبیق داشت. رویداد lifecycle جدید نیز با schema محدود parse می‌شود؛ زمان event و واحد metrics هنوز unverified هستند. applets واقعی 500 داد و unavailable باقی ماند.

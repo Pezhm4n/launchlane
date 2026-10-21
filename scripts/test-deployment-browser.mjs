@@ -245,6 +245,11 @@ try {
     .waitFor();
   await state("ready-with-wrong-version-is-failed");
   assert.equal(sends, 1);
+  await page.reload();
+  await page.getByRole("button", { name: "بررسی دوباره پاسخ و نسخه سایت", exact: true }).press("Enter");
+  await page.getByText("انتشار یا پاسخ مورد انتظار سایت تأیید نشد. رفع مشکل اعلام نمی‌شود.", { exact: true }).waitFor();
+  assert.equal(sends, 1);
+  await state("failed-workload-read-again-without-send");
   await page.getByRole("button", { name: "دریافت پیشنهاد تازه", exact: true }).click();
   // The form is explicit state, while the saved action retains its immutable expected revision.
   await page

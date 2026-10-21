@@ -344,12 +344,12 @@ try {
   await incidentReport
     .getByRole("button", { name: "امتحان تغییر نامرتبط در نمونه", exact: true })
     .click();
-  await incidentReport.getByText("خطای سرور در همان صفحه باقی است.", { exact: true }).waitFor();
+  await incidentReport.getByText(/همان صفحه هنوز خطای سرور دارد/).waitFor();
   await incidentReport
     .getByRole("button", { name: "امتحان اصلاح مرتبط در نمونه", exact: true })
     .click();
   await incidentReport
-    .getByText("همان صفحه در بررسی تازه پاسخ موفق داد.", { exact: true })
+    .getByText(/همان صفحه در بررسی تازه پاسخ موفق داد/)
     .waitFor();
   for (const width of [280, 320, 360, 390, 414, 559, 560, 768, 1280]) {
     await page.setViewportSize({ width, height: width >= 768 ? 1000 : 844 });
@@ -366,7 +366,7 @@ try {
   await page.reload();
   await incidentReport.waitFor();
   await incidentReport
-    .getByText("همان صفحه در بررسی تازه پاسخ موفق داد.", { exact: true })
+    .getByText(/همان صفحه در بررسی تازه پاسخ موفق داد/)
     .waitFor();
   await page.getByRole("button", { name: "بازگشت به بررسی سایت من", exact: true }).click();
   await incidentTitle.waitFor();
@@ -461,7 +461,7 @@ try {
   const liveId = new URL(page.url()).searchParams.get("incident");
   incidentStatus = 200;
   await liveReport.getByRole("button", { name: "بررسی دوباره همین صفحه", exact: true }).click();
-  await liveReport.getByText("همان صفحه در بررسی تازه پاسخ موفق داد.", { exact: true }).waitFor();
+  await liveReport.getByText(/همان صفحه در بررسی تازه پاسخ موفق داد/).waitFor();
   await layout(360, "ordinary-incident-controlled-read-and-same-page-recheck");
   await page.reload();
   await liveReport.waitFor();
