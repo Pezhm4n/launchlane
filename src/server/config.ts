@@ -126,6 +126,9 @@ export function readConfig(env: Environment = process.env) {
     probeOrigins: parseProbeOrigins(env.LAUNCHLANE_PROBE_ORIGINS, apps),
     liaraBaseUrl: fixedUrl(env.LIARA_API_BASE_URL, "https://api.liara.ir"),
     liaraToken: env.LIARA_API_TOKEN || "",
+    githubCliPath: env.LAUNCHLANE_GITHUB_CLI_PATH
+      ? resolve(/* turbopackIgnore: true */ env.LAUNCHLANE_GITHUB_CLI_PATH)
+      : "",
     modelBaseUrl: fixedUrl(env.MODEL_BASE_URL, "https://ai.boxapi.ir/ai/v1"),
     modelKey: env.MODEL_API_KEY || "",
     modelId,

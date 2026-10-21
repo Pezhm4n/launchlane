@@ -32,6 +32,7 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
       "privileged reads require a session; host and cross-origin are rejected",
       async () => {
         await expects(await request("/api/workspace"), 401, "AUTH_REQUIRED");
+        await expects(await request("/api/connections/github"), 401, "AUTH_REQUIRED");
         await expects(
           await request("/api/incidents/practice", { scenario: "configuration" }),
           401,
@@ -110,6 +111,45 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
         assert.equal(workspace.capabilities.model.state, "unavailable");
         assert.equal(workspace.capabilities.mutations.state, "unavailable");
         assert.ok(!JSON.stringify(workspace).includes(server.token));
+      },
+    );
+    await t.test(
+      "GitHub account metadata is private and connection commands require CSRF without starting login",
+      async () => {
+        const state = await expects(await request("/api/connections/github"), 200);
+        assert.equal(state.connection, null);
+        assert.equal(typeof state.toolReady, "boolean");
+        await expects(
+          await request(
+            "/api/connections/github",
+            { operation: "start" },
+            { "x-csrf-token": "forged" },
+          ),
+          403,
+          "CSRF_DENIED",
+        );
+        await expects(
+          await request("/api/connections/github", { operation: "shell" }),
+          400,
+          "INVALID_OPERATION",
+        );
+        await expects(
+          await request("/api/connections/github", {
+            operation: "status",
+            id: "not-an-active-run",
+          }),
+          410,
+          "GITHUB_LOGIN_EXPIRED",
+        );
+        await expects(
+          await request("/api/connections/github", {
+            operation: "repositories",
+            query: "",
+            page: 1,
+          }),
+          403,
+          "GITHUB_AUTH_REQUIRED",
+        );
       },
     );
     let profile, artifact;

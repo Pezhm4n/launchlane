@@ -2,6 +2,13 @@
 
 بخش نخست، سابقه P0 است؛ بخش P1 پایین همین فایل شواهد جاری را نگه می‌دارد. نتایج bootstrap جای قابلیت محصول و fixture جای اتصال زنده نیست.
 
+## UX61 — backend ورود و catalog GitHub، پس از 6dc7e85
+
+- CLI رسمی pinned 2.103.0 با npm run setup:github و SHA-256 همان asset رسمی اجرا شد؛ بدون grant، تغییر PATH یا ورود حساب.
+- lint، typecheck و build موفق؛ test:domain برابر 49 pass/0 fail/0 skip و test:http برابر 11 pass/0 fail/0 skip روی server ایزوله. UI این slice تغییر نکرد؛ browser تکرار نشد. تست HTTP جدید session/CSRF، metadata و operation ناشناخته را بدون شروع ورود واقعی بررسی می‌کند.
+- تست‌های جدید با transport مصنوعی: جست‌وجوی مخزن خصوصی در pagination همان حساب، حذف فیلدهای credential، 401/403/429/404/409/5xx، keyring در برابر fallback ناامن، نشانی device نامعتبر، تأیید هویت/حساب، actor متفاوت، لغو و race تغییر حساب.
+- این شاهد، ورود واقعی حساب یا دریافت مخزن خصوصی نیست. spike قبلی بدون grant در 20 ثانیه کد دریافت نکرد؛ مسیر شبکه/حساب همچنان UNCONFIRMED است. UI اتصال، دریافت محدود archive و binding revision در slice بعدی تکمیل می‌شوند.
+
 ## محیط و شرایط
 
 - تاریخ: 2026-10-21؛ Windows PowerShell؛ Node 24.18.0، npm 11.16.0.
