@@ -4,7 +4,7 @@
 
 ## جریان پروژه و حساب‌ها؛ backend پیاده‌شده
 
-API project-flows انتخاب محلی/نمونه/GitHub را به بررسی ایستا و آماده‌سازی خودکار archive خصوصی وصل می‌کند. انتخاب و profile در SQLite به actor متصل‌اند؛ URL فقط شناسه flow را می‌گیرد و هیچ کد/credential در browser storage ذخیره نمی‌شود. بازیابی، محتوای فعلی و archive را بررسی می‌کند؛ انتخاب تازه یا محتوای تغییرکرده پیشنهاد قبلی را باطل می‌کند. ActionSpec v3 علاوه بر source/archive، flow و selectionHash شامل هویت مخزن/شاخه/revision/زیرپوشه را می‌بندد. v1/v2 برای تاریخچه حفظ شده‌اند. UI هنوز در حال انتقال به این مسیر است.
+API project-flows انتخاب محلی/نمونه/GitHub را به بررسی ایستا و آماده‌سازی خودکار archive خصوصی وصل می‌کند. UI از همین مسیر استفاده می‌کند. انتخاب و profile در SQLite به actor متصل‌اند؛ URL فقط شناسه flow را می‌گیرد و هیچ کد/credential در browser storage ذخیره نمی‌شود. بازیابی، محتوای فعلی و archive را بررسی می‌کند؛ انتخاب تازه یا محتوای تغییرکرده پیشنهاد قبلی را باطل می‌کند. ActionSpec v3 علاوه بر source/archive، flow و selectionHash شامل هویت مخزن/شاخه/revision/زیرپوشه را می‌بندد. v1/v2 برای تاریخچه حفظ شده‌اند.
 
 GitHub از CLI رسمی pinned برای device login و خواندن API استفاده می‌کند؛ credential باید در keyring باشد و هویت واقعی پیش از تأیید حساب/خواندن catalog تطبیق داده می‌شود. دریافت روی commit دقیق و با tar/gzip محدود انجام می‌شود؛ script، hooks و کد پروژه اجرا نمی‌شوند. مسیر ورودی از مرورگر، filesystem سرور و نسخه GitHub سه مفهوم متفاوت‌اند؛ upload پوشه مرورگر در این نسخه پیاده نشده است. snapshotهای GitHub در state خصوصی جدا از workspace مجاز نگه داشته می‌شوند.
 
@@ -12,7 +12,7 @@ GitHub از CLI رسمی pinned برای device login و خواندن API است
 
 ## تصمیم‌ها و پیامدها
 
-نتیجه incident و نشانی سایت برای بررسی در migration 5 به SQLite افزوده شده‌اند. run شامل شواهد محدود و پاک‌سازی‌شده، نوع واقعی/نمونه و وضعیت مستقل توضیح علت است؛ browser storage وارد این مسیر نمی‌شود. مدل فقط پس از claim پایدار و اتمیک همان run فراخوانی می‌شود؛ pending پس از restart به failed می‌رود و بازپخش خودکار ندارد. رقابت با recheck از طریق updatedAt یکنواخت و CAS رد می‌شود. ثبت نشانی سایت یک مجوز خواندن محلی، متصل به actor/team/app انتخابی است؛ مالکیت DNS سرویس را اثبات نمی‌کند و تغییر دامنه زیرساختی نیست. تنظیم ثابت مدیر نصب مقدم است و درخواست واقعی همچنان از DNS عمومی/pin/TLS و gate سرویس عبور می‌کند. UI این مرز در حال تکمیل است.
+نتیجه incident و نشانی سایت برای بررسی در migration 5 به SQLite افزوده شده‌اند. run شامل شواهد محدود و پاک‌سازی‌شده، نوع واقعی/نمونه و وضعیت مستقل توضیح علت است؛ browser storage وارد این مسیر نمی‌شود. مدل فقط پس از claim پایدار و اتمیک همان run فراخوانی می‌شود؛ pending پس از restart به failed می‌رود و بازپخش خودکار ندارد. رقابت با recheck از طریق updatedAt یکنواخت و CAS رد می‌شود. ثبت نشانی سایت یک مجوز خواندن محلی، متصل به actor/team/app انتخابی است؛ مالکیت DNS سرویس را اثبات نمی‌کند و تغییر دامنه زیرساختی نیست. تنظیم ثابت مدیر نصب مقدم است و درخواست واقعی همچنان از DNS عمومی/pin/TLS و gate سرویس عبور می‌کند. UI عادی برنامه/نشانه/صفحه و نمونه اختیاری از API runs استفاده می‌کنند؛ گزارش اولیه/تازه و وضعیت تحلیل پس از reload بازیابی می‌شوند.
 
 | ID | تصمیم داخلی | دلیل | پیامد/شرط بازنگری |
 | --- | --- | --- | --- |
@@ -142,8 +142,8 @@ Boundaryها: browser→session/API؛ محتوا/مدل→policy؛ policy→Liar
 
 ## وضعیت وابستگی‌ها
 
-نگهداری اتصال actor-bound با migration 3 اضافه شده است؛ credential Liara با AES-256-GCM و AAD همان actor/provider ذخیره می‌شود. اتصال رابط و اعتبارسنجی upstream هنوز در حال تکمیل‌اند؛ وجود row یا token نشانه تأیید سرویس نیست. دلیل انتخاب روش ورود در [تصمیم اتصال حساب‌ها](docs/decisions/0001-account-connections.md) ثبت است. migrationهای قبلی بدون تغییر مانده‌اند.
+نگهداری اتصال actor-bound با migration 3 اضافه شده است؛ credential Liara با AES-256-GCM و AAD همان actor/provider ذخیره می‌شود. رابط اتصال و validation upstream پیاده‌اند؛ فقط پاسخ معتبر هویت/تیم/برنامه‌ها اتصال را ثبت می‌کند. آزمون حساب واقعی باقی است و وجود row یا token نشانه تأیید زنده سرویس نیست. دلیل انتخاب روش ورود در [تصمیم اتصال حساب‌ها](docs/decisions/0001-account-connections.md) ثبت است. migrationهای قبلی بدون تغییر مانده‌اند.
 
 validation صریح با `unknown` و narrowing، SQLite adapter و transportهای کوچک پیاده شده‌اند؛ SDK مدل، ORM، queue و framework Agent نصب نشده‌اند. browser/axe فقط dependency توسعه‌اند. readهای محدود Liara و probe با origin allowlist، DNS pin و رد redirect ساخته و با transport مصنوعی آزموده شده‌اند؛ هیچ تماس واقعی Liara ندارند. collector خطای هر منبع را از empty/unknown جدا می‌کند؛ زمان خام نامعلوم به زمان deploy تبدیل نمی‌شود. diagnosis runtime به snapshot ثابت همان scope و یک evidence tool محدود است؛ قبل از terminal باید tool result خوانده شود. خروجی حداکثر سه فرضیه و next check است؛ citation/time validation اثبات صحت معنایی یا کیفیت مدل نیست.
 
-UI تمرینی از scripted model مستقل استفاده می‌کند و هرگز fallback شکست provider نیست. مقایسه symptom فقط همان app/origin/path و مشاهده تازه را می‌پذیرد؛ این helper هیچ action را succeeded نمی‌کند و اثر env/release را اثبات نمی‌کند. snapshot/diagnosis incident هنوز persistence ندارد و با خروج از نمای تمرین پاک می‌شود. write adapter و ابزار env متصل نیستند. مدل واقعی باید روی همان protocol و oracle مستقل سنجیده شود؛ transport compatibility جای آن نیست.
+UI تمرینی از scripted model مستقل استفاده می‌کند و هرگز fallback شکست provider نیست. مقایسه symptom فقط همان app/origin/path و مشاهده تازه را می‌پذیرد؛ این helper هیچ action را succeeded نمی‌کند و اثر env/release را اثبات نمی‌کند. snapshot/diagnosis با GET/POST `/api/incidents/runs` در SQLite نگهداری و با کنترل مالکیت بازیابی می‌شوند. write adapter و ابزار env متصل نیستند. مدل واقعی باید روی همان protocol و oracle مستقل سنجیده شود؛ transport compatibility جای آن نیست.

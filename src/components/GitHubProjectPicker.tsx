@@ -38,6 +38,8 @@ export function GitHubProjectPicker({
     heading = useRef<HTMLHeadingElement>(null),
     errorBox = useRef<HTMLDivElement>(null),
     pending = useRef<AbortController | null>(null);
+  const importControl = useRef<HTMLButtonElement>(null),
+    cancelledImport = useRef(false);
   const [connection, setConnection] = useState(initialConnection),
     [toolReady, setToolReady] = useState<boolean | null>(null),
     [login, setLogin] = useState<GitHubLoginView | null>(null);
@@ -105,6 +107,12 @@ export function GitHubProjectPicker({
   useEffect(() => {
     if (repo) heading.current?.focus();
   }, [repo]);
+  useEffect(() => {
+    if (!busy && cancelledImport.current) {
+      cancelledImport.current = false;
+      importControl.current?.focus();
+    }
+  }, [busy]);
   useEffect(() => {
     if (!login || !["starting", "awaiting_user", "checking"].includes(login.state)) return;
     const controller = new AbortController();
@@ -313,6 +321,10 @@ export function GitHubProjectPicker({
         signal,
       );
       if (accepted) onClose(true);
+      else if (signal.aborted) {
+        cancelledImport.current = true;
+        setNotice("دریافت پروژه متوقف شد. پروژه قبلی حفظ شده است.");
+      }
     });
   }
   function close() {
@@ -618,6 +630,7 @@ export function GitHubProjectPicker({
                     </p>
                     <button
                       type="button"
+                      ref={importControl}
                       disabled={busy !== null}
                       onClick={() => void importProject()}
                     >

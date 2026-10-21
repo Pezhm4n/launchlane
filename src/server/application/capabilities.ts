@@ -33,10 +33,11 @@ export function capabilities(config: Config, liara?: ConnectionView | null): Cap
         : "از اتصال حساب لیارا وارد شوید؛ بررسی محلی پروژه به این اتصال وابسته نیست.",
     },
     model: {
-      state: "unavailable",
+      state:
+        config.enableLiveModel && config.modelKey && config.modelId ? "unverified" : "unavailable",
       reason: !config.enableLiveModel
         ? "توضیح خودکار علت مشکل در این نصب فعال نیست."
-        : !config.modelId
+        : !config.modelId || !config.modelKey
           ? "توضیح خودکار علت مشکل هنوز آماده نیست."
           : "کیفیت تشخیص علت مشکل در حساب واقعی هنوز بررسی نشده است.",
       nextStep: "می‌توانید گزارش‌های در دسترس را جمع‌آوری و شواهد را بررسی کنید.",

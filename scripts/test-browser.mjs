@@ -7,6 +7,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { Store } from "../src/server/persistence/store.ts";
 import { sealCredential } from "../src/server/connections/credentials.ts";
 import { startTestServer } from "./test-server.mjs";
+import { importedProject, incidentResponse } from "./browser-fixtures.mjs";
 
 const server = await startTestServer(),
   browser = await chromium.launch({ headless: true });
@@ -156,7 +157,7 @@ try {
   await layout(360, "local-project-restored-and-cancel-preserved");
   await page.getByRole("button", { name: "بررسی مشکل سایت", exact: true }).click();
   await page
-    .getByRole("heading", { name: "بررسی اختلال، از کجا شروع کنیم؟", exact: true })
+    .getByRole("heading", { name: "مشکل سایت را از کجا بررسی کنیم؟", exact: true })
     .waitFor();
   await page.getByRole("button", { name: "انتشار پروژه", exact: true }).click();
   await heading().waitFor();
@@ -166,7 +167,7 @@ try {
   );
   await page.goBack();
   await page
-    .getByRole("heading", { name: "بررسی اختلال، از کجا شروع کنیم؟", exact: true })
+    .getByRole("heading", { name: "مشکل سایت را از کجا بررسی کنیم؟", exact: true })
     .waitFor();
   await page.goForward();
   await heading().waitFor();
@@ -242,6 +243,24 @@ try {
     })
     .waitFor();
   await layout(360, "connected-account-and-narrow-app-selection-fixture");
+  await accounts.locator(".site-address summary").click();
+  await accounts.getByLabel("نام سایت", { exact: true }).fill("http://127.0.0.1");
+  await accounts.getByRole("button", { name: "ذخیره نشانی برای بررسی", exact: true }).click();
+  await accounts.getByRole("alert", { name: "اتصال حساب کامل نشد" }).waitFor();
+  assert.equal(
+    await accounts.getByLabel("نام سایت", { exact: true }).getAttribute("aria-invalid"),
+    "true",
+  );
+  await layout(360, "site-origin-rejects-internal-address");
+  await accounts.getByLabel("نام سایت", { exact: true }).fill("sample.example.com");
+  await accounts.getByRole("button", { name: "ذخیره نشانی برای بررسی", exact: true }).click();
+  await accounts
+    .getByText("نشانی برای بررسی ذخیره شد؛ هنوز درخواستی به سایت ارسال نشده است.", { exact: true })
+    .waitFor();
+  assert.equal(
+    store.getProbeOrigin(actorId, server.teamId, server.app),
+    "https://sample.example.com",
+  );
   await closeDialog("حساب‌ها و دسترسی");
   await page.getByRole("button", { name: "دریافت پیشنهاد انتشار", exact: true }).click();
   await page.getByRole("heading", { name: "پیشنهاد انتشار", exact: true }).waitFor();
@@ -291,6 +310,196 @@ try {
   await page.reload();
   await page.getByText("نیاز به بررسی دوباره", { exact: true }).waitFor();
   await layout(360, "stale-source-invalidates-proposal");
+
+  await page.getByRole("button", { name: "بررسی مشکل سایت", exact: true }).click();
+  const incidentTitle = page.getByRole("heading", {
+    name: "مشکل سایت را از کجا بررسی کنیم؟",
+    exact: true,
+  });
+  await incidentTitle.waitFor();
+  const collectButton = page
+    .locator("form")
+    .getByRole("button", { name: "بررسی مشکل سایت", exact: true });
+  assert.equal(await collectButton.isEnabled(), false);
+  await page.getByRole("button", { name: "بازخوانی وضعیت دسترسی", exact: true }).waitFor();
+  await layout(360, "ordinary-incident-disabled-with-actionable-access");
+  await page.getByRole("button", { name: "امتحان با نمونه اختلال", exact: true }).click();
+  const incidentReport = page.getByRole("region", { name: "نتیجه بررسی نمونه", exact: true });
+  await incidentReport.waitFor();
+  const incidentId = new URL(page.url()).searchParams.get("incident");
+  assert.ok(incidentId);
+  await incidentReport.getByText("دلیل این فرضیه و شواهد مرتبط", { exact: true }).click();
+  await incidentReport
+    .getByRole("button", { name: "مشاهده گزارش‌های برنامه", exact: true })
+    .press("Enter");
+  assert.equal(
+    await page
+      .locator("#incident-evidence-logs-1")
+      .evaluate((element) => element === document.activeElement),
+    true,
+  );
+  await layout(360, "sample-hypothesis-links-focus-exact-evidence");
+  await incidentReport.locator(".incident-evidence summary").first().click();
+  await incidentReport.locator(".sample-comparison summary").click();
+  await incidentReport
+    .getByRole("button", { name: "امتحان تغییر نامرتبط در نمونه", exact: true })
+    .click();
+  await incidentReport.getByText("خطای سرور در همان صفحه باقی است.", { exact: true }).waitFor();
+  await incidentReport
+    .getByRole("button", { name: "امتحان اصلاح مرتبط در نمونه", exact: true })
+    .click();
+  await incidentReport
+    .getByText("همان صفحه در بررسی تازه پاسخ موفق داد.", { exact: true })
+    .waitFor();
+  for (const width of [280, 320, 360, 390, 414, 559, 560, 768, 1280]) {
+    await page.setViewportSize({ width, height: width >= 768 ? 1000 : 844 });
+    await layout(width, "persisted-sample-incident-report");
+    if ([360, 768, 1280].includes(width))
+      await page.screenshot({ path: resolve(output, `incident-${width}.png`), fullPage: true });
+  }
+  await page.setViewportSize({ width: 360, height: 844 });
+  await page.getByRole("button", { name: "انتشار پروژه", exact: true }).click();
+  await heading().waitFor();
+  await page.getByRole("button", { name: "بررسی مشکل سایت", exact: true }).click();
+  await incidentReport.waitFor();
+  assert.equal(new URL(page.url()).searchParams.get("incident"), incidentId);
+  await page.reload();
+  await incidentReport.waitFor();
+  await incidentReport
+    .getByText("همان صفحه در بررسی تازه پاسخ موفق داد.", { exact: true })
+    .waitFor();
+  await page.getByRole("button", { name: "بازگشت به بررسی سایت من", exact: true }).click();
+  await incidentTitle.waitFor();
+  await page.goBack();
+  await incidentReport.waitFor();
+  await page.goForward();
+  await incidentTitle.waitFor();
+
+  let controlledReads = false,
+    incidentStatus = 500,
+    failIncident = false,
+    holdIncident = false;
+  let pendingIncident, startedIncident;
+  await page.route("**/api/workspace", async (route) => {
+    if (!controlledReads) return route.continue();
+    const response = await route.fetch(),
+      value = await response.json();
+    return route.fulfill({
+      json: { ...value, features: { ...value.features, serviceReads: true } },
+    });
+  });
+  await page.route("**/api/incidents/runs", async (route) => {
+    if (!controlledReads || route.request().method() !== "POST") return route.continue();
+    const input = route.request().postDataJSON();
+    if (!["collect", "recheck"].includes(input.operation)) return route.continue();
+    providerFixtures.push(`incident-${input.operation}-controlled-reader`);
+    if (holdIncident) {
+      startedIncident?.();
+      await new Promise((done) => {
+        pendingIncident = done;
+      });
+      return route
+        .fulfill({
+          status: 409,
+          json: {
+            error: {
+              code: "CANCELLED",
+              message: "بررسی متوقف شد.",
+              retryable: false,
+              requestId: "synthetic-cancel",
+            },
+          },
+        })
+        .catch(() => undefined);
+    }
+    if (failIncident)
+      return route.fulfill({
+        status: 502,
+        json: {
+          error: {
+            code: "PROVIDER_UNAVAILABLE",
+            message: "اطلاعات برنامه دریافت نشد. کمی بعد دوباره بررسی کنید.",
+            retryable: true,
+            requestId: "synthetic-request",
+          },
+        },
+      });
+    try {
+      const run = await incidentResponse(server, store, actorId, input, incidentStatus);
+      return route.fulfill({ json: { run } });
+    } catch (error) {
+      return route.fulfill({
+        status: error.status || 500,
+        json: {
+          error: {
+            code: error.code,
+            message: error.message,
+            retryable: false,
+            requestId: "synthetic-validation",
+          },
+        },
+      });
+    }
+  });
+  controlledReads = true;
+  await page.getByRole("button", { name: "بازخوانی وضعیت دسترسی", exact: true }).click();
+  for (const width of [360, 768, 1280]) {
+    await page.setViewportSize({ width, height: width >= 768 ? 1000 : 844 });
+    await layout(width, "ordinary-incident-app-and-symptom-form-fixture");
+  }
+  await page.setViewportSize({ width: 360, height: 844 });
+  await page.getByLabel("خطا نشان می‌دهد", { exact: true }).check();
+  await page
+    .getByLabel("توضیح مشکل (اختیاری)", { exact: true })
+    .fill("بعد از انتشار، صفحه اصلی خطا می‌دهد.");
+  await collectButton.click();
+  const liveReport = page.getByRole("region", { name: `نتیجه بررسی ${server.app}`, exact: true });
+  await liveReport.waitFor();
+  await liveReport.getByText("صفحه بررسی‌شده خطای سرور 500 داد.", { exact: true }).waitFor();
+  assert.equal(await liveReport.getByText("از حساب متصل", { exact: true }).isVisible(), true);
+  assert.equal(await liveReport.getByRole("button", { name: /توضیح علت با شواهد/ }).count(), 0);
+  const liveId = new URL(page.url()).searchParams.get("incident");
+  incidentStatus = 200;
+  await liveReport.getByRole("button", { name: "بررسی دوباره همین صفحه", exact: true }).click();
+  await liveReport.getByText("همان صفحه در بررسی تازه پاسخ موفق داد.", { exact: true }).waitFor();
+  await layout(360, "ordinary-incident-controlled-read-and-same-page-recheck");
+  await page.reload();
+  await liveReport.waitFor();
+  assert.equal(new URL(page.url()).searchParams.get("incident"), liveId);
+  failIncident = true;
+  await collectButton.click();
+  await page.getByRole("alert", { name: "بررسی مشکل کامل نشد", exact: true }).waitFor();
+  assert.equal(await liveReport.isVisible(), true);
+  assert.equal(
+    await page.getByLabel("توضیح مشکل (اختیاری)", { exact: true }).inputValue(),
+    "بعد از انتشار، صفحه اصلی خطا می‌دهد.",
+  );
+  await layout(360, "failed-investigation-preserves-input-and-result");
+  failIncident = false;
+  holdIncident = true;
+  const incidentStarted = new Promise((done) => {
+    startedIncident = done;
+  });
+  await collectButton.click();
+  await incidentStarted;
+  await page.getByRole("button", { name: "لغو بررسی", exact: true }).click();
+  await page
+    .getByText("درخواست متوقف شد. ورودی‌ها و نتیجه قبلی حفظ شده‌اند.", { exact: true })
+    .waitFor();
+  pendingIncident?.();
+  holdIncident = false;
+  assert.equal(new URL(page.url()).searchParams.get("incident"), liveId);
+  await layout(360, "cancel-investigation-keeps-last-result");
+  await context.clearCookies();
+  await page.reload();
+  await page.getByRole("heading", { name: "وارد میز کار محلی شوید", exact: true }).waitFor();
+  await page.getByLabel("کلید ورود محلی", { exact: true }).fill(server.token);
+  await page.getByRole("button", { name: "ورود به میز کار", exact: true }).click();
+  await liveReport.waitFor();
+  assert.equal(new URL(page.url()).searchParams.get("incident"), liveId);
+  controlledReads = false;
+  await page.getByRole("button", { name: "انتشار پروژه", exact: true }).click();
+  await heading().waitFor();
 
   let githubLogin = null,
     githubConnection = null,
@@ -434,7 +643,77 @@ try {
   await github.getByRole("button", { name: "apps", exact: true }).click();
   await github.getByRole("button", { name: "web", exact: true }).click();
   await layout(360, "github-branch-and-subfolder-fixture");
-  await github.getByRole("button", { name: "تغییر مخزن", exact: true }).click();
+  let importMode = "error",
+    releaseImport,
+    importStarted;
+  const previousProject = new URL(page.url()).searchParams.get("project");
+  await page.route("**/api/project-flows", async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    const body = route.request().postDataJSON();
+    if (body.operation !== "prepare" || body.selection.kind !== "github") return route.continue();
+    providerFixtures.push(`github-import-${importMode}`);
+    if (importMode === "error")
+      return route.fulfill({
+        status: 403,
+        json: {
+          error: {
+            code: "GITHUB_ACCESS_DENIED",
+            message: "اجازه دریافت این مخزن کافی نیست. دسترسی مخزن را بررسی کنید.",
+            retryable: false,
+            requestId: "synthetic-import-denied",
+          },
+        },
+      });
+    if (importMode === "cancel") {
+      importStarted?.();
+      await new Promise((done) => {
+        releaseImport = done;
+      });
+      return route.abort().catch(() => undefined);
+    }
+    const flow = await importedProject(server, store, actorId, body.selection);
+    return route.fulfill({ json: { flow, action: null } });
+  });
+  const importButton = github.getByRole("button", {
+    name: "انتخاب این پوشه و بررسی پروژه",
+    exact: true,
+  });
+  await importButton.click();
+  await github.getByRole("alert", { name: "GitHub کامل نشد", exact: true }).waitFor();
+  assert.equal(new URL(page.url()).searchParams.get("project"), previousProject);
+  await layout(360, "github-download-denied-preserves-project-fixture");
+  importMode = "cancel";
+  const importing = new Promise((done) => {
+    importStarted = done;
+  });
+  await importButton.click();
+  await importing;
+  await github.getByRole("button", { name: "لغو دریافت پروژه", exact: true }).click();
+  await github
+    .getByText("دریافت پروژه متوقف شد. پروژه قبلی حفظ شده است.", { exact: true })
+    .waitFor();
+  releaseImport?.();
+  assert.equal(new URL(page.url()).searchParams.get("project"), previousProject);
+  assert.equal(await importButton.evaluate((element) => element === document.activeElement), true);
+  await layout(360, "github-download-cancel-restores-focus-fixture");
+  importMode = "success";
+  await importButton.click();
+  await github.waitFor({ state: "detached" });
+  await heading().waitFor();
+  const imported = store.getProjectFlow(actorId);
+  assert.equal(imported.selection.kind, "github");
+  assert.equal(imported.selection.revision, revision);
+  assert.equal(imported.selection.directory, "apps/web");
+  assert.deepEqual(
+    imported.profile.manifest.map((row) => row.path),
+    ["package.json", "server.mjs"],
+  );
+  await page.reload();
+  await heading().waitFor();
+  assert.equal(new URL(page.url()).searchParams.get("project"), imported.id);
+  await layout(360, "github-import-restored-pinned-snapshot-fixture");
+  await page.getByRole("button", { name: "انتخاب از GitHub", exact: true }).click();
+  await github.getByRole("button", { name: new RegExp(longName) }).waitFor();
   await github.getByRole("button", { name: "قطع اتصال GitHub", exact: true }).click();
   await github.getByRole("button", { name: "اتصال به GitHub", exact: true }).waitFor();
   await closeDialog("انتخاب پروژه از GitHub");

@@ -2,6 +2,18 @@
 
 بخش نخست، سابقه P0 است؛ بخش P1 پایین همین فایل شواهد جاری را نگه می‌دارد. نتایج bootstrap جای قابلیت محصول و fixture جای اتصال زنده نیست.
 
+## UX63/65/66 — مسیر عادی مشکل سایت و بازیابی؛ پایه 0947c6b
+
+۲۰۲۶-۱۰-۲۲ Asia/Tehran؛ Node 24.18.0/npm 11.16.0، working tree همین برش. برنامه/نشانه/صفحه → جمع‌آوری مجاز → گزارش → بررسی دوباره، به backend و SQLite وصل شد. تمرین اختیاری و صریحاً scripted است. Site origin فقط برای خواندن همان برنامه ثبت می‌شود؛ DNS/شبکه روی ذخیره فرم اجرا نمی‌شود. پروژه/گزارش پس از reload، Back/Forward، جابه‌جایی و ورود مجدد حفظ می‌شوند. لغو/خطای دریافت قبلی را پاک نمی‌کند. تحلیل و provider gates در تنظیم واقعی خاموش ماندند.
+
+`npm run lint`، `npm run typecheck` و `npm run build`: pass. `npm run test:domain`: 59 pass، 0 fail/skip؛ `npm run test:http`: 13 subtest + 1 parent pass، 0 fail/skip. `npm run test:browser`: 55 حالت در 280/320/360/390/414/559/560/768/1280، 0 overflow/axe violation/browser error/external browser request در حالت‌های سنجیده‌شده. artifact: `.artifacts/ux/2026-10-21T20-40-33-738Z/`؛ timestamp پوشه UTC است.
+
+Browser fixture فقط پاسخ upstream اتصال/دریافت را کنترل می‌کند؛ import GitHub از application واقعی، tar/gzip، snapshot خصوصی، scan و SQLite می‌گذرد. فایل خصوصی حذف می‌شود و کد ناشناس هرگز اجرا نمی‌شود. دریافت ناموفق/لغوشده، پروژه قبلی و focus را حفظ می‌کند. مسیر عادی incident با reader مصنوعی از application واقعی و SQLite عبور می‌کند؛ درخواست model/زیرساخت واقعی 0. خواندن 500 سپس 200 روی همان صفحه، حفظ نتیجه پس از failure/cancel/session loss و تفاوت تأیید/اجرا/نتیجه نامعلوم آزموده شدند. کیفیت علت مدل و مجوز حساب از این نتیجه استنتاج نمی‌شوند.
+
+با CUA در مرورگر واقعی، اتصال لازم در مسیر عادی، نمونه اختیاری با Enter، انتقال focus به نتیجه، اصلاح نامرتبط و مرتبط و reload همان شناسه مشاهده شدند. در snapshot موبایل گزارش چهار پاسخ اصلی را پیش از شواهد بازشدنی نشان می‌دهد. failure اولیه `.artifacts/ux/2026-10-21T20-33-01-942Z/` ساختار نامعتبر definition-list را یافت؛ توضیحات داخل dd اصلاح و همان case پاس شد. run بعدی `.2026-10-21T20-34-57-788Z/` locator متن dd را پس از افزودن توضیح پیدا نمی‌کرد؛ متن نتیجه به span مشخص تبدیل شد، بدون تغییر oracle یا نتیجه 500/200.
+
+spike محدود GitHub با CLI رسمی و config خالی، در 30s کد ورود نداد و با `GITHUB_LOGIN_TIMEOUT` پایان یافت؛ grant/credential صادر نشد. GET بدون احراز هویت به github.com و api.github.com به‌ترتیب 302/200 داد؛ این شاهد، علت timeout مسیر device را مشخص نمی‌کند. ورود/مخزن واقعی GitHub، ساختار تیم Liara و حساب/سایت واقعی همچنان unconfirmed هستند. آزمون تازه پولی مدل یا write زیرساختی اجرا نشد. اسکیل‌های مؤثر: ux-ui-agent-skills، web-design-guidelines، frontend-design، vercel-react-best-practices، webapp-testing و competition-agent-engineer؛ graph list/coverage در این جلسه Transport closed داشت و source/test مستقیم مبنا بود.
+
 ## UX61 — backend ورود و catalog GitHub، پس از 6dc7e85
 
 - CLI رسمی pinned 2.103.0 با npm run setup:github و SHA-256 همان asset رسمی اجرا شد؛ بدون grant، تغییر PATH یا ورود حساب.

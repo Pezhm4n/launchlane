@@ -23,6 +23,20 @@ button,
 input {
   font: inherit;
 }
+textarea {
+  font: inherit;
+  inline-size: 100%;
+  min-block-size: var(--description-height);
+  padding: var(--space-3);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  border: var(--border-width) solid var(--color-muted);
+  border-radius: var(--radius-sm);
+  resize: vertical;
+}
+textarea[aria-invalid="true"] {
+  border-color: var(--color-danger);
+}
 button,
 a,
 input,
@@ -908,6 +922,57 @@ button[aria-busy="true"] {
 }
 .task-main {
   padding-block-start: var(--space-3);
+}
+.incident-workbench {
+  max-inline-size: var(--layout-max);
+}
+.incident-summary {
+  margin-block: var(--space-5);
+  display: grid;
+  gap: var(--space-5);
+}
+.incident-report :where(h2, dt, li[tabindex]) {
+  scroll-margin-block: var(--space-4);
+}
+.incident-summary dt {
+  color: var(--color-ink);
+  font-size: var(--text-base);
+  font-weight: 700;
+  margin-block-end: var(--space-2);
+}
+.incident-summary dd {
+  color: var(--color-muted);
+  font-weight: 400;
+  font-size: var(--text-base);
+}
+.incident-summary .hint {
+  margin-block: var(--space-2) var(--space-0);
+}
+.incident-summary bdi {
+  overflow-wrap: anywhere;
+}
+.incident-evidence {
+  margin-block: var(--space-5);
+}
+.evidence-links,
+.symptom-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.evidence-links {
+  margin-block: var(--space-3);
+}
+.sample-entry {
+  margin-block-start: var(--space-5);
+}
+.sample-entry p {
+  margin-block-end: var(--space-2);
+}
+.sample-cases,
+.sample-comparison,
+.site-address {
+  margin-block: var(--space-4);
 }
 .task-switch {
   margin-block-end: var(--space-4);

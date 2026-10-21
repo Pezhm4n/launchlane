@@ -36,9 +36,9 @@ export function practiceEvidence(scenario: PracticeScenario, now = Date.now()): 
         state: unknown ? "unavailable" : "observed",
         at: unknown ? null : now - 1000,
         summary: unknown
-          ? "دسترسی به logs ممکن نشد؛ علت نامعلوم است."
+          ? "دسترسی به گزارش‌های برنامه ممکن نشد؛ علت نامعلوم است."
           : "پیام برنامه در بازه همین خطا دریافت شد.",
-        details: unknown ? [] : ["release: practice-v1"],
+        details: unknown ? [] : ["نسخه: practice-v1"],
         code: unknown ? "PROVIDER_AUTH" : null,
         fact: unknown
           ? null
@@ -55,8 +55,8 @@ export function practiceEvidence(scenario: PracticeScenario, now = Date.now()): 
         source: "metrics",
         state: "unknown",
         at: null,
-        summary: "CPU و RAM قابل تفسیر نیستند؛ واحد و زمان تأیید نشده‌اند.",
-        details: ["missing metric ≠ zero"],
+        summary: "داده پردازنده و حافظه قابل تفسیر نیست؛ واحد و زمان تأیید نشده‌اند.",
+        details: ["نبود داده به معنی مصرف صفر نیست."],
         code: null,
         fact: null,
       },
@@ -78,8 +78,8 @@ export async function runPractice(scenario: PracticeScenario, signal: AbortSigna
     evidenceIds: scenario === "configuration" ? ["workload-1", "logs-1"] : ["workload-1"],
     nextCheck:
       scenario === "configuration"
-        ? "وجود و خالی‌نبودن WELCOME_MESSAGE را روی همان app بررسی کنید؛ مقدار آن نباید به مدل یا گزارش برود."
-        : "logs همان بازه و پاسخ وابستگی را بدون تغییر زیرساخت بررسی کنید.",
+        ? "وجود و خالی‌نبودن WELCOME_MESSAGE را روی همان برنامه بررسی کنید؛ مقدار آن نباید وارد گزارش شود."
+        : "گزارش‌های همان بازه و پاسخ سرویس وابسته را بدون تغییر زیرساخت بررسی کنید.",
   };
   const scripted = {
     async complete(
@@ -128,7 +128,7 @@ export function practiceComparison(
       : "همان درخواست اصلی هنوز HTTP 500 دارد.";
     item.details = [
       `GET / → ${item.fact.status}`,
-      "این نتیجه، fixture تمرینی است؛ هیچ env یا سرویس واقعی تغییر نکرده است.",
+      "این نتیجه، داده تمرینی است؛ هیچ تنظیمات یا سرویس واقعی تغییر نکرده است.",
     ];
   }
   return {

@@ -254,10 +254,13 @@ export function Workbench() {
     (nextMode: "source" | "incident", project: string | null, replace = false) => {
       const url = new URL(window.location.href);
       const incident = url.searchParams.get("incident");
+      const incidentMode = url.searchParams.get("incident_mode");
       url.search = "";
       url.searchParams.set("view", nextMode === "source" ? "publish" : "incident");
       if (project) url.searchParams.set("project", project);
       if (incident && /^[a-f0-9-]{36}$/.test(incident)) url.searchParams.set("incident", incident);
+      if (incidentMode === "live" || incidentMode === "sample")
+        url.searchParams.set("incident_mode", incidentMode);
       window.history[replace ? "replaceState" : "pushState"]({}, "", url);
     },
     [],
@@ -1123,7 +1126,10 @@ export function Workbench() {
             </div>
             <div hidden={mode !== "incident"}>
               <IncidentWorkbench
-                csrf={workspace.session.csrfToken}
+                workspace={workspace}
+                active={mode === "incident"}
+                onConnect={openAccounts}
+                onRefresh={refresh}
                 disabled={expired}
                 onSessionExpired={onSessionExpired}
               />
@@ -1146,6 +1152,7 @@ export function Workbench() {
             {accountsOpen ? (
               <ConnectionDialog
                 workspace={workspace}
+                purpose={mode}
                 onRefresh={refresh}
                 onGitHub={() => {
                   setAccountsOpen(false);

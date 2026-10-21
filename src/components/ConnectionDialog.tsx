@@ -7,12 +7,14 @@ import { api, ClientError } from "./api.ts";
 
 export function ConnectionDialog({
   workspace,
+  purpose,
   onRefresh,
   onGitHub,
   onClose,
   onSessionExpired,
 }: {
   workspace: WorkspaceView;
+  purpose: "source" | "incident";
   onRefresh: () => Promise<unknown>;
   onGitHub: () => void;
   onClose: () => void;
@@ -31,8 +33,12 @@ export function ConnectionDialog({
   } | null>(null);
   const [enterKey, setEnterKey] = useState(false);
   const [pendingApp, setPendingApp] = useState<string | null>(null);
+  const [site, setSite] = useState(workspace.features.probeOrigin || "");
   const liara = workspace.connections.liara,
     github = workspace.connections.github;
+  useEffect(() => {
+    setSite(liara?.selectedApp ? workspace.features.probeOrigin || "" : "");
+  }, [workspace.features.probeOrigin, liara?.selectedApp]);
   useEffect(() => {
     const node = dialog.current;
     node?.showModal();
@@ -65,7 +71,7 @@ export function ConnectionDialog({
     if (error) errorBox.current?.focus();
   }, [error]);
   async function act(
-    operation: "connect" | "refresh" | "select" | "disconnect",
+    operation: "connect" | "refresh" | "select" | "disconnect" | "site",
     app?: string,
     suppliedKey?: string,
   ) {
@@ -88,6 +94,7 @@ export function ConnectionDialog({
             operation,
             ...(operation === "select" ? { app } : {}),
             ...(suppliedKey ? { key: suppliedKey } : {}),
+            ...(operation === "site" ? { origin: site } : {}),
           },
           csrf: workspace.session.csrfToken,
           signal: controller.signal,
@@ -97,9 +104,11 @@ export function ConnectionDialog({
       setNotice(
         operation === "disconnect"
           ? "اتصال از Launchlane حذف شد. کلید شما در لیارا همچنان معتبر است."
-          : operation === "select"
-            ? "برنامه مقصد انتخاب شد. هر تغییر حساس همچنان به تأیید شما نیاز دارد."
-            : "حساب و تیم بررسی و اتصال ثبت شد. اکنون برنامه مقصد را انتخاب کنید.",
+          : operation === "site"
+            ? "نشانی برای بررسی ذخیره شد؛ هنوز درخواستی به سایت ارسال نشده است."
+            : operation === "select"
+              ? "برنامه مقصد انتخاب شد. هر تغییر حساس همچنان به تأیید شما نیاز دارد."
+              : "حساب و تیم بررسی و اتصال ثبت شد. اکنون برنامه مقصد را انتخاب کنید.",
       );
       setEnterKey(false);
     } catch (error) {
@@ -212,6 +221,64 @@ export function ConnectionDialog({
                 </p>
               )}
             </fieldset>
+            {liara.selectedApp ? (
+              <details
+                className="site-address"
+                open={purpose === "incident" && !workspace.features.probeOrigin}
+              >
+                <summary>
+                  {workspace.features.probeOrigin
+                    ? "نشانی سایت برای بررسی مشکل"
+                    : "افزودن نشانی سایت (اختیاری برای انتشار)"}
+                </summary>
+                <p className="hint">
+                  نشانی باید متعلق به برنامه <bdi>{liara.selectedApp}</bdi> باشد. فقط برای خواندن
+                  پاسخ سایت استفاده می‌شود؛ دامنه یا تنظیمات لیارا تغییر نمی‌کند.
+                </p>
+                {workspace.features.probeOrigin ? (
+                  <p>
+                    نشانی ثبت‌شده: <bdi>{workspace.features.probeOrigin}</bdi>
+                  </p>
+                ) : null}
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void act("site");
+                  }}
+                >
+                  <label htmlFor="site-origin">نام سایت</label>
+                  <input
+                    id="site-origin"
+                    dir="ltr"
+                    type="text"
+                    inputMode="url"
+                    value={site}
+                    placeholder="example.com"
+                    onChange={(event) => setSite(event.target.value)}
+                    required
+                    maxLength={512}
+                    disabled={busy !== null}
+                    aria-describedby={
+                      error?.code.startsWith("SITE_")
+                        ? "site-origin-help liara-connection-error"
+                        : "site-origin-help"
+                    }
+                    aria-invalid={error?.code.startsWith("SITE_") || undefined}
+                  />
+                  <p id="site-origin-help" className="hint">
+                    نام سایت را بدون مسیر صفحه وارد کنید. اتصال امن لازم است؛ نشانی داخلی و محلی
+                    قابل بررسی نیست.
+                  </p>
+                  <button
+                    type="submit"
+                    className="button-secondary"
+                    disabled={busy !== null || !site.trim()}
+                  >
+                    ذخیره نشانی برای بررسی
+                  </button>
+                </form>
+              </details>
+            ) : null}
             <div className="button-row">
               <button
                 type="button"

@@ -224,7 +224,10 @@ export async function createLiveIncidentRun(
     evidence,
     diagnosis: null,
     analysis: scoped.enableLiveModel && scoped.modelKey && scoped.modelId ? "ready" : "unavailable",
-    analysisMessage: "توضیح خودکار علت هنوز انجام نشده است. ابتدا شواهد این بررسی را ببینید.",
+    analysisMessage:
+      scoped.enableLiveModel && scoped.modelKey && scoped.modelId
+        ? "توضیح علت آماده آغاز است؛ شواهد این بررسی را مرور کنید."
+        : "توضیح خودکار علت در این نصب فعال نیست. شواهد جمع‌آوری‌شده همچنان قابل بررسی‌اند.",
     after: null,
     updatedAt: Date.now(),
   };
