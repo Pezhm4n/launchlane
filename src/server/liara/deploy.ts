@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { ActionSpec } from "../../contracts/domain.ts";
+import { sourceReceiptId } from "../../contracts/deployment.ts";
 import { object, string } from "../../contracts/validation.ts";
 import type { Config } from "../config.ts";
 import { AppError, ensure } from "../errors.ts";
@@ -75,9 +76,9 @@ export class LiaraDeployClient {
       }
       const raw = object(await abortable(() => boundedJson(response, 16_384), bounded));
       ensure(!bounded.aborted, "UPSTREAM_UNCERTAIN", "پاسخ پس از پایان ارسال دریافت شد.", 409);
-      const remoteId = string(raw[field], 128);
+      const remoteId = field === "sourceID" ? sourceReceiptId(raw[field]) : string(raw[field], 128);
       ensure(
-        /^[a-zA-Z0-9_-]+$/.test(remoteId) &&
+        (field === "sourceID" || /^[a-zA-Z0-9_-]+$/.test(remoteId)) &&
           !containsCredential(remoteId, [
             this.config.liaraToken,
             this.config.modelKey,
@@ -128,12 +129,7 @@ export class LiaraDeployClient {
     budget: RunBudget,
     signal: AbortSignal,
   ): Promise<string> {
-    ensure(
-      /^[a-zA-Z0-9_-]{1,128}$/.test(sourceId),
-      "UPSTREAM_INVALID",
-      "شناسه source معتبر نیست.",
-      502,
-    );
+    sourceReceiptId(sourceId);
     // Deliberately no env/plan/create operation. planId is a precondition, never a resize request.
     return this.write(
       spec,

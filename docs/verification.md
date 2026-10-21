@@ -2,6 +2,12 @@
 
 بخش نخست، سابقه P0 است؛ بخش P1 پایین همین فایل شواهد جاری را نگه می‌دارد. نتایج bootstrap جای قابلیت محصول و fixture جای اتصال زنده نیست.
 
+## T22 — قرارداد واقعی رسید source؛ پایه 635198d
+
+سه attempt نخست فقط در upload متوقف شدند؛ هر approval جدا و مصرف‌شده باقی ماند، هیچ POST release از آن‌ها انجام نشد. پاسخ محدود transport واقعی نشان داد `sourceID` نامی به قالب UUID با پسوند `.tar.gz` است؛ شناسه خام در artifact خصوصی باقی ماند. parser قبلی پسوند را رد می‌کرد. `sourceReceiptId` مشترک در adapter/journal و بازیابی، همان نام محدود را بدون تغییر قبول می‌کند؛ traversal/URL/پسوند نامربوط همچنان رد می‌شوند و validation شناسه release گسترده نشده است. fixture با شناسه مصنوعی هم‌شکل ابتدا `UPSTREAM_UNCERTAIN` داد و پس از اصلاح، ذخیره/reopen/ارسال دقیق receipt را گذراند.
+
+`node --test tests/domain/deployment.test.ts` تازه 12/12 و `npm run test:domain` تازه 79/79؛ lint/typecheck/build pass. روی همان source اجرایی، درخواست upload واقعی 200 و release واقعی 201 داد؛ مرحله اجرا 2646ms بود. observer ابتدا BUILDING/pending را ثبت کرد، سپس READY/current همراه 503 را failed/WORKLOAD_MISMATCH دانست؛ probe خواندنی بعدی همان `/`، 500 و JSON revision مورد انتظار را مشاهده کرد. `/healthz` مستقل 200 بود و به‌عنوان اصلاح خطای صفحه اصلی پذیرفته نشد. این سناریو عمداً پیکربندی ناقص دارد؛ هنوز اصلاح واقعی یا diagnosis مدل انجام نشده است. مجموعه مرورگر/HTTP این اصلاح receipt جدا بازاجرا نشده‌اند؛ نتایج بخش قبلی با همان revision حفظ‌اند.
+
 ## T22 — توقف پیش از release؛ پایه 7c8c988
 
 برنامه Node آزمایشی با مجوز مالک، سقف 30,000 تومان، حداکثر سه انتشار و حذف پس از آزمون ساخته شد. `small-g2` همراه `basic` در catalog موجود بود، اما ساخت بدون شبکه با `400 g2_plan_unavailable` رد شد؛ GET بعدی نبود app را تأیید کرد. پس از ساخت شبکه اختصاصی آزمون با همان تیم، ساخت app و readback شناسه/پلن موفق شدند. این provisioning یک harness خصوصی اپراتور با approval/attempt پایدار بود؛ ساخت app/network هنوز قابلیت UI محصول نیست. نرخ پاسخ catalog، جمع سخت‌افزار و بسته، 1041.66 تومان/ساعت است؛ مبلغ واقعی کسرشده هنوز اندازه‌گیری نشده است.

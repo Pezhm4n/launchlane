@@ -4,6 +4,12 @@
 
 ## وضعیت فعال
 
+### T22 — رسید واقعی source و نخستین release
+
+روی `635198d`، پاسخ واقعی upload برابر نام opaque دارای پسوند `.tar.gz` بود؛ regex قبلی هم در adapter و هم journal آن را رد می‌کرد. parser مشترک با سقف طول و منع مسیر/URL، ذخیره و ارسال همان receipt را می‌پذیرد؛ قالب release ID تغییر نکرد. regression پاک‌سازی‌شده ابتدا fail و سپس pass شد. domain تازه 79/79، lint/typecheck/build pass. اولین upload→source receipt→release receipt واقعی از API محصول گذشت؛ build ابتدا BUILDING و سپس READY/current دیده شد، اما probe نخست 503 و خواندن بعدی همان `/`، 500 با revision مورد انتظار داد؛ سلامت اعلام نشد. نمونه liveness مستقل 200 بود و جای همین symptom پذیرفته نشد. ساخت پیشنهاد/تأیید تازه پس از توقف‌های source، replay approval قبلی نبود؛ هنوز فقط یک POST release انجام شده است.
+
+مرز بعدی T20/T30: project و release واقعی parse شدند؛ logs با since از نوع ISO رد شد، events با shape مستند قدیمی فرق دارد، applets پاسخ 500 داد؛ metrics مقدار خام دارد ولی واحد/زمان هنوز unknown است. این failures نباید داده خالی یا سلامت تلقی شوند. gate مدل و تنظیمات پیش‌فرض نصب همچنان خاموش‌اند.
+
 ### T22 / AC06/13 — بازیابی توقف پیش از درخواست انتشار
 
 روی `7c8c988` برنامه Node جداگانه با مجوز صریح و بودجه محدود ساخته شد؛ ساخت app و شبکه لازم، fixture اپراتور بودند و قابلیت ساخت برنامه در محصول ادعا نمی‌شوند. اتصال واقعی حساب، انتخاب app، prepare و پیشنهاد v4 از مسیر production گذشتند. نخستین اجرا در `upload_started` بدون رسید source متوقف و uncertain شد؛ علت transport در حال بررسی است و انتشار موفق اعلام نشده است.

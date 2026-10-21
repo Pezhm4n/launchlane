@@ -6,6 +6,8 @@
 
 به‌روزرسانی قرارداد محلی ۲۰۲۶-۱۰-۲۲: `LiaraDeployClient` اکنون source multipart با `file` و release JSON با `sourceID/port/type` را، فقط در workflow تأییدشده v4، پیاده می‌کند. origin/workload و پلن موجود در پیشنهاد بسته‌اند؛ resize/env/create انجام نمی‌شوند. هر write یک attempt شبکه دارد و شکست پس از احتمال ارسال uncertain است. journal SQLite مرحله source را پیش از release نگه می‌دارد. `observeDeployment` فقط readback همان release/current/READY و status/JSON revision همان صفحه است؛ واحد قیمت یا سلامت از accepted ساخته نمی‌شود. این قرارداد با transport مصنوعی آزموده شده و **پذیرش واقعی حساب/API هنوز unverified است**. هر دو gate Liara/mutation در نصب پیش‌فرض خاموش می‌مانند؛ gate model مستقل است.
 
+تطبیق write محدود در ۲۰۲۶-۱۰-۲۲: multipart `file` در مسیر واقعی محصول 200 و `sourceID` با پسوند `.tar.gz` داد؛ release JSON حداقلی 201 و `releaseID` داد. شناسه source با همان پسوند باید در journal و release حفظ شود؛ قالب path یا URL مجاز نیست. project/release/current و BUILDING→READY نیز در همین app آزمون خوانده شدند؛ پاسخ صفحه 500 بود و این پذیرش write به معنی سلامت نیست. logs/events/applets و معنای metrics همچنان نیازمند تطبیق‌اند. provisioning app/network با harness اپراتور انجام شد و هنوز قابلیت محصول نیست.
+
 ## منابع معتبر
 
 - [Liara API و احراز هویت](https://docs.liara.ir/references/api/about/): PaaS روی `https://api.liara.ir`؛ header از نوع `Authorization: Bearer TOKEN`؛ در حالت تیم پارامتر `teamID` لازم است.
@@ -19,10 +21,10 @@
 
 | Capability | روش و مسیر مستند | جزئیات مهم | وضعیت |
 | --- | --- | --- | --- |
-| فهرست و جزئیات app | `GET /v1/projects`، `GET /v1/projects/{name}` | app در scope کاربر؛ response validate شود | documented / live unverified |
+| فهرست و جزئیات app | `GET /v1/projects`، `GET /v1/projects/{name}` | app در scope کاربر؛ response validate شود | live_verified محدود به تیم و Node app آزمون |
 | ساخت app | `POST /v1/projects` | schema شامل `name,planID,platform,readOnlyRootFilesystem,network` است؛ نبود required کامل در schema مجوز حدس نیست | documented / approval required |
-| source upload | `POST /v2/projects/{name}/sources` | multipart، field `file` با فایل `.gz`؛ نتیجه `sourceID`؛ manifest/hash و exclude secrets پیش از upload | documented / approval required |
-| release | `POST /v2/projects/{name}/releases` | body schema شامل `sourceID,port,type`؛ نتیجه `releaseID`؛ accepted پایان deploy نیست | documented / approval required |
+| source upload | `POST /v2/projects/{name}/sources` | multipart، field `file`؛ نتیجه source filename با پسوند `.tar.gz`؛ manifest/hash و exclude secrets پیش از upload | live_verified محدود؛ approval required |
+| release | `POST /v2/projects/{name}/releases` | body schema شامل `sourceID,port,type`؛ نتیجه `releaseID`؛ accepted پایان deploy نیست | live_verified پذیرش محدود؛ approval required |
 | تاریخچه release | `GET /v1/projects/{name}/releases` | `page` و `count` در spec required و default 1/10 هستند | documented / live unverified |
 | وضعیت applets | `GET /v1/projects/{name}/applets` | معنی readiness/status باید با response واقعی روشن شود | documented / live unverified |
 | restart | `POST /v1/projects/{name}/actions/restart` | ممکن است درخواست async باشد؛ اثر با readback بررسی شود | documented / approval required |

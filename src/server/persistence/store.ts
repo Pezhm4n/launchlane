@@ -17,6 +17,7 @@ import { parseIncidentRun, type IncidentRun } from "../../contracts/incident-run
 import { parseProbeOrigins } from "../policy/probe-target.ts";
 import {
   parseDeploymentProgress,
+  sourceReceiptId,
   type DeploymentProgress,
   type DeploymentObservation,
 } from "../../contracts/deployment.ts";
@@ -772,13 +773,7 @@ export class Store {
         "مرحله انتشار تکراری یا خارج از ترتیب است.",
         409,
       );
-      if (sourceId !== null)
-        ensure(
-          /^[a-zA-Z0-9_-]{1,128}$/.test(sourceId),
-          "UPSTREAM_INVALID",
-          "شناسه source معتبر نیست.",
-          502,
-        );
+      if (sourceId !== null) sourceReceiptId(sourceId);
       this.writeDeploymentProgress(id, { stage, sourceId, observation: null });
       this.audit(action, stage, Date.now());
     });

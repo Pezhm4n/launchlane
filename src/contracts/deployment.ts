@@ -22,6 +22,18 @@ export type DeploymentProgress = Readonly<{
   observation: DeploymentObservation | null;
 }>;
 
+export function sourceReceiptId(value: unknown): string {
+  const result = string(value, 128);
+  // Liara returns an opaque source filename, including the tar.gz suffix.
+  ensure(
+    /^[a-zA-Z0-9_-]+(?:\.tar\.gz)?$/.test(result),
+    "UPSTREAM_INVALID",
+    "شناسه بسته دریافتی معتبر نیست.",
+    502,
+  );
+  return result;
+}
+
 export function parseWorkloadExpectation(value: unknown): WorkloadExpectation {
   const row = object(value);
   exactKeys(row, ["origin", "path", "status", "revision"]);
@@ -95,7 +107,7 @@ export function parseDeploymentProgress(value: unknown): DeploymentProgress {
   }
   return {
     stage: row.stage,
-    sourceId: row.sourceId === null ? null : string(row.sourceId, 128),
+    sourceId: row.sourceId === null ? null : sourceReceiptId(row.sourceId),
     observation,
   };
 }

@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { test } from "node:test";
 import type { Session } from "../../src/contracts/domain.ts";
 import { decodeAction } from "../../src/contracts/client-decode.ts";
+import { sourceReceiptId } from "../../src/contracts/deployment.ts";
 import {
   executeDeployment,
   observeDeployment,
@@ -34,8 +35,9 @@ const signal = () => AbortSignal.timeout(5000);
 const code = (expected: string) => (error: unknown) =>
   error instanceof AppError && error.code === expected;
 async function fixture(
-  options: { write?: (url: string, init: RequestInit, store: Store) => Promise<Response> } = {},
+  options: { sourceId?: string; write?: (url: string, init: RequestInit, store: Store) => Promise<Response> } = {},
 ) {
+  const sourceId = options.sourceId ?? "source-exact";
   const root = await mkdtemp(join(tmpdir(), "launchlane-deploy-")),
     stateDir = join(root, "state"),
     path = join(stateDir, "state.sqlite");
@@ -131,9 +133,9 @@ async function fixture(
       assert.equal(claimed.spec.version === 4 && claimed.spec.artifactHash, digest);
     } else {
       assert.equal(claimed.deployment?.stage, "release_started");
-      assert.equal(claimed.deployment?.sourceId, "source-exact");
+      assert.equal(claimed.deployment?.sourceId, sourceId);
       assert.deepEqual(JSON.parse(String(init.body)), {
-        sourceID: "source-exact",
+        sourceID: sourceId,
         port: 3000,
         type: "node",
       });
@@ -141,7 +143,7 @@ async function fixture(
     if (options.write) return options.write(url, init, store);
     return Response.json(
       new URL(url).pathname.endsWith("/sources")
-        ? { sourceID: "source-exact" }
+        ? { sourceID: sourceId }
         : { releaseID: "release-exact" },
     );
   };
@@ -222,6 +224,22 @@ async function fixture(
     },
   };
 }
+
+test("a live-shaped tar.gz source receipt is persisted and sent unchanged to the release endpoint", async () => {
+  const sourceId = "11111111-2222-4333-8444-555555555555.tar.gz";
+  const f = await fixture({ sourceId });
+  try {
+    f.approve();
+    const accepted = await executeDeployment(f.config, f.store, session, f.action.id, signal(), f.deps);
+    assert.equal(accepted.state, "observing");
+    assert.equal(accepted.deployment?.sourceId, sourceId);
+    assert.equal(f.writes, 2);
+    f.reopen();
+    assert.equal(f.store.getAction(f.action.id, session.actorId).deployment?.sourceId, sourceId);
+  } finally { await f.cleanup(); }
+  for (const invalid of ["../source.tar.gz", "source.tar.gz/next", "source.zip", "a.b", "https://example.test/source", "x".repeat(129)])
+    assert.throws(() => sourceReceiptId(invalid));
+});
 
 test("approved deployment sends the exact archive then a durable source receipt; only matching release and workload revision finish it", async () => {
   const f = await fixture();
