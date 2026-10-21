@@ -2,6 +2,8 @@
 
 بررسی مستندات عمومی در ۲۰۲۶-۱۰-۲۱؛ **هیچ درخواست احرازشده به API لیارا در این آماده‌سازی اجرا نشده است**. `documented` با `live_verified` فرق دارد.
 
+تطبیق زنده محدود در ۲۰۲۶-۱۰-۲۲: هویت حساب و تیم منتخب با `GET /v1/me` و پارامتر teamID تأیید و فهرست خالی برنامه‌های همان تیم با `GET /v1/projects` مشاهده شد. فیلد واقعی نام تیم `team.teamName` است؛ parser مطابق پاسخ و regression پاک‌سازی‌شده اصلاح شد. این شاهد به account/team/list محدود است؛ سایر ردیف‌های live-unverified و رفتار write هنوز بازند.
+
 به‌روزرسانی قرارداد محلی ۲۰۲۶-۱۰-۲۲: `LiaraDeployClient` اکنون source multipart با `file` و release JSON با `sourceID/port/type` را، فقط در workflow تأییدشده v4، پیاده می‌کند. origin/workload و پلن موجود در پیشنهاد بسته‌اند؛ resize/env/create انجام نمی‌شوند. هر write یک attempt شبکه دارد و شکست پس از احتمال ارسال uncertain است. journal SQLite مرحله source را پیش از release نگه می‌دارد. `observeDeployment` فقط readback همان release/current/READY و status/JSON revision همان صفحه است؛ واحد قیمت یا سلامت از accepted ساخته نمی‌شود. این قرارداد با transport مصنوعی آزموده شده و **پذیرش واقعی حساب/API هنوز unverified است**. هر دو gate Liara/mutation در نصب پیش‌فرض خاموش می‌مانند؛ gate model مستقل است.
 
 ## منابع معتبر

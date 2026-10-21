@@ -2,6 +2,14 @@
 
 بخش نخست، سابقه P0 است؛ بخش P1 پایین همین فایل شواهد جاری را نگه می‌دارد. نتایج bootstrap جای قابلیت محصول و fixture جای اتصال زنده نیست.
 
+## T20 — حساب و تیم واقعی؛ پایه cfbe099
+
+۲۰۲۶-۱۰-۲۲ Asia/Tehran؛ main و working tree این برش. چهار commit تازه و source/call flow بررسی شدند. گراف Tier 2 نسل 2026-10-21T19:24:24Z مسیر validation را نشان داد؛ coverage برای adapterهای تازه not_tracked و برای مسیرهای قبلی metadata_changed بود و tests excluded بودند. source جاری و اجرای مستقیم مبنای ادعاها هستند.
+
+خواندن واقعی محدود: اجرای نخست `GET /v1/me` و همان endpoint با teamID هر دو 200 دادند؛ اتصال به علت انتظار `team.name` رد شد. پاسخ واقعی `team.teamName` دارد. fixture پاک‌سازی‌شده همان field و شناسه مصنوعی، ابتدا fail شد؛ parser و دو fixture قبلی اصلاح شدند. اجرای بعدی سه GET هویت، تیم و `/v1/projects?teamID=...` را از validation واقعی گذراند؛ حساب/تیم موردنظر تطبیق و فهرست خالی مشاهده شد. یک GET تیمی billing هم 200 داد؛ raw account/billing ذخیره یا وارد مدل نشد. مجموع این دو اجرای محدود 6 GET، بدون retry، write زیرساخت یا درخواست مدل بود. catalogue طرح‌ها فقط داده پاسخ است؛ قیمت و واحد مصرف هنوز به‌عنوان قرارداد محصول پذیرفته نشده‌اند.
+
+`node --test tests/domain/liara-connection.test.ts tests/domain/project-flows.test.ts`: 10 pass/0 fail/skip؛ `npm run test:domain`: 78/78 pass تازه؛ lint/typecheck/build pass. SQLite خصوصی ابتدا با readOnly بررسی شد: migrations 1/2 و صفر action. پیش از هر migration، backup بومی SQLite گرفته و نسخه/checksum آن تطبیق داده شد؛ backup فقط محلی است. این برش upload/release، schema برنامه، logs/metrics یا تشخیص واقعی را تأیید نمی‌کند. منبع عمومی auth/team: [Liara API](https://docs.liara.ir/references/api/about/) و [اطلاعات حساب](https://docs.liara.ir/references/api/get-info/).
+
 ## ثبت مرحله‌ای تغییرات در Git — ۲۰۲۶-۱۰-۲۲
 
 سه commit کد به‌ترتیب `1eee3c4`، `4c9b44f` و `7100111` روی `main` ثبت شدند؛ مستندات قرارداد/طراحی/شواهد در commit جدا می‌آیند. کد اجرایی در این مرحله تغییر تازه‌ای نکرد؛ فقط دسته‌بندی و ثبت تغییرات موجود انجام شد.

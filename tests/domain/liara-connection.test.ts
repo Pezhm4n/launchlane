@@ -5,6 +5,7 @@ import { readConfig } from "../../src/server/config.ts";
 import {
   connectLiara,
   connectedLiaraConfig,
+  parseLiaraTeam,
   validateLiaraConnection,
 } from "../../src/server/connections/liara.ts";
 import { AppError } from "../../src/server/errors.ts";
@@ -21,6 +22,21 @@ const config = readConfig({
 });
 const code = (expected: string) => (error: unknown) =>
   error instanceof AppError && error.code === expected;
+test("live Liara team responses use teamName and preserve exact team identity", () => {
+  const response = {
+    team: {
+      _id: team,
+      teamName: "تیم آزمون",
+      isTeam: true,
+      balance: 2000000,
+      teamCreator: { email: "must-not-leave-boundary@example.test" },
+      teamMemberPermissions: ["apps.read"],
+    },
+  };
+  assert.deepEqual(parseLiaraTeam(response, team), { id: team, name: "تیم آزمون" });
+  assert.throws(() => parseLiaraTeam(response, "b".repeat(24)), code("LIARA_TEAM_MISMATCH"));
+  assert.throws(() => parseLiaraTeam({ team: { _id: team, name: "synthetic-old-shape" } }, team));
+});
 
 test("cancelling account validation bounds a transport or body that ignores abort and saves no connection", async () => {
   const store = new Store(":memory:");
@@ -75,7 +91,7 @@ function transport(calls: string[], wrongTeam = false): Transport {
           }
         : url.includes("teamID")
           ? {
-              team: { _id: wrongTeam ? "b".repeat(24) : team, name: "تیم نمونه" },
+              team: { _id: wrongTeam ? "b".repeat(24) : team, teamName: "تیم نمونه" },
               privateMemberDetails: "discard-member-private",
             }
           : {

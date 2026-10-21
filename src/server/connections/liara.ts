@@ -37,7 +37,7 @@ export function parseLiaraTeam(value: unknown, expectedTeam: string): { id: stri
     "این اتصال متعلق به تیم مجاز این نصب نیست. کلید همان تیم را در لیارا دریافت کنید.",
     403,
   );
-  return { id, name: string(team.name, 160) };
+  return { id, name: string(team.teamName, 160) };
 }
 export function parseLiaraApps(
   value: unknown,

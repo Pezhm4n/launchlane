@@ -345,7 +345,7 @@ test("a recreated Liara app cannot inherit approval or the previous site's read 
               projects: [{ _id: appId, project_id: scope.app, type: "node" }],
             }
           : url.includes("teamID")
-            ? { team: { _id: scope.teamId, name: "تیم آزمون" } }
+            ? { team: { _id: scope.teamId, teamName: "تیم آزمون" } }
             : {
                 user: {
                   _id: "c".repeat(24),
