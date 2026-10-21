@@ -36,4 +36,15 @@ CREATE TABLE source_artifacts (
 ) STRICT;
 `,
   },
+  {
+    version: 3,
+    sql: `
+CREATE TABLE account_connections (
+  actor_id TEXT NOT NULL, provider TEXT NOT NULL CHECK(provider IN ('github','liara')),
+  public_json TEXT NOT NULL, credential_ciphertext TEXT,
+  credential_source TEXT NOT NULL CHECK(credential_source IN ('token','cli_private','cli_system')),
+  PRIMARY KEY(actor_id, provider)
+) STRICT;
+`,
+  },
 ] as const;

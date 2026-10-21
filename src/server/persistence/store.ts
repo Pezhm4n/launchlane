@@ -12,6 +12,17 @@ import { object, string } from "../../contracts/validation.ts";
 import { AppError, ensure } from "../errors.ts";
 import { fingerprint, parseActionSpec } from "../policy/action.ts";
 import { migrations } from "./migrations.ts";
+import {
+  parseConnection,
+  type ConnectionProvider,
+  type ConnectionView,
+} from "../../contracts/connections.ts";
+
+export type StoredConnection = {
+  view: ConnectionView;
+  ciphertext: string | null;
+  source: "token" | "cli_private" | "cli_system";
+};
 
 const states: readonly ActionState[] = [
   "awaiting_approval",
@@ -99,6 +110,52 @@ export class Store {
 
   close(): void {
     this.db.close();
+  }
+
+  saveConnection(actorId: string, input: StoredConnection): ConnectionView {
+    const view = parseConnection(input.view);
+    ensure(
+      (view.provider === "liara" &&
+        input.source === "token" &&
+        input.ciphertext?.startsWith("v1.") &&
+        input.ciphertext.length <= 12000) ||
+        (view.provider === "github" && input.source !== "token" && input.ciphertext === null),
+      "CONNECTION_INVALID",
+      "روش نگهداری اتصال معتبر نیست.",
+    );
+    this.db
+      .prepare(
+        "INSERT INTO account_connections(actor_id,provider,public_json,credential_ciphertext,credential_source) VALUES (?,?,?,?,?) ON CONFLICT(actor_id,provider) DO UPDATE SET public_json=excluded.public_json,credential_ciphertext=excluded.credential_ciphertext,credential_source=excluded.credential_source",
+      )
+      .run(actorId, view.provider, JSON.stringify(view), input.ciphertext, input.source);
+    return view;
+  }
+  getConnection(actorId: string, provider: ConnectionProvider): StoredConnection | null {
+    const row = this.db
+      .prepare("SELECT * FROM account_connections WHERE actor_id=? AND provider=?")
+      .get(actorId, provider);
+    if (!row) return null;
+    const view = parseConnection(JSON.parse(string(row.public_json, 100_000)));
+    ensure(
+      view.provider === provider &&
+        (row.credential_source === "token" ||
+          row.credential_source === "cli_private" ||
+          row.credential_source === "cli_system"),
+      "STORAGE_INVALID",
+      "اتصال ذخیره‌شده معتبر نیست.",
+      503,
+    );
+    return {
+      view,
+      source: row.credential_source,
+      ciphertext:
+        row.credential_ciphertext === null ? null : string(row.credential_ciphertext, 12000),
+    };
+  }
+  disconnectConnection(actorId: string, provider: ConnectionProvider): void {
+    this.db
+      .prepare("DELETE FROM account_connections WHERE actor_id=? AND provider=?")
+      .run(actorId, provider);
   }
 
   private transaction<T>(operation: () => T): T {

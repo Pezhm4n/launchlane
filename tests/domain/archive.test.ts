@@ -18,6 +18,7 @@ import { extract } from "tar-stream";
 import type { ActionSpec, Session } from "../../src/contracts/domain.ts";
 import { readConfig } from "../../src/server/config.ts";
 import { Store } from "../../src/server/persistence/store.ts";
+import { migrations } from "../../src/server/persistence/migrations.ts";
 import { inspectProject } from "../../src/server/workspace/inspect.ts";
 import { readArtifact } from "../../src/server/workspace/archive.ts";
 import { prepareArchive } from "../../src/server/application/prepare-source.ts";
@@ -338,7 +339,10 @@ test("v1 state upgrades without rehashing legacy approvals; legacy deployment ca
       upgraded.getAction(action.id, session.actorId).hash,
       fingerprint({ actorId: session.actorId, spec: legacy }),
     );
-    assert.equal(upgraded.db.prepare("SELECT count(*) AS n FROM schema_migrations").get()?.n, 2);
+    assert.equal(
+      upgraded.db.prepare("SELECT count(*) AS n FROM schema_migrations").get()?.n,
+      migrations.length,
+    );
     let writes = 0;
     await assert.rejects(
       executeApproved({
