@@ -33,6 +33,11 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
       async () => {
         await expects(await request("/api/workspace"), 401, "AUTH_REQUIRED");
         await expects(
+          await request("/api/incidents/practice", { scenario: "configuration" }),
+          401,
+          "AUTH_REQUIRED",
+        );
+        await expects(
           await request("/api/projects/archive", {
             directory: "examples/node-service",
             sourceHash: "a".repeat(64),
@@ -108,6 +113,56 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
       },
     );
     let profile, artifact;
+    await t.test(
+      "incident practice stays explicitly simulated, validates input and cannot enable live reads",
+      async () => {
+        await expects(
+          await request(
+            "/api/incidents/practice",
+            { scenario: "configuration" },
+            { "x-csrf-token": "forged" },
+          ),
+          403,
+          "CSRF_DENIED",
+        );
+        await expects(
+          await request("/api/incidents/practice", { scenario: "unknown" }),
+          400,
+          "INVALID_INPUT",
+        );
+        const practice = await expects(
+          await request("/api/incidents/practice", { scenario: "configuration" }),
+          200,
+        );
+        assert.equal(practice.evidence.mode, "simulated");
+        assert.equal(practice.analysis, "scripted");
+        assert.equal(practice.providerRequests, 0);
+        assert.ok(!JSON.stringify(practice).includes(server.token));
+        for (const [choice, expected] of [
+          ["related", "verified"],
+          ["unrelated", "still_failing"],
+        ]) {
+          const compare = await expects(
+            await request("/api/incidents/practice", { scenario: "configuration", choice }),
+            200,
+          );
+          assert.equal(compare.verification.outcome, expected);
+          assert.equal(compare.changedInfrastructure, false);
+        }
+        const now = Date.now();
+        await expects(
+          await request("/api/incidents/evidence", {
+            app: server.app,
+            start: now - 60_000,
+            end: now + 10_000,
+            since: "documentary-only",
+            path: "/",
+          }),
+          403,
+          "LIVE_LIARA_DISABLED",
+        );
+      },
+    );
     await t.test(
       "inspection stays local, detects the sample, excludes traversal and never uploads",
       async () => {

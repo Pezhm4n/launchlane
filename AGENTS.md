@@ -4,7 +4,7 @@ Read this file first. Then read [project-overview.md](project-overview.md), [ARC
 
 ## Current scope and truth
 
-- P1 provides a local workbench: authenticated Node source inspection, a bounded manifest and private tar.gz snapshot, immutable proposals and durable approve/reject decisions. It is not yet an implemented live deployment/diagnosis agent.
+- P1 provides a local workbench: authenticated Node source inspection, a bounded manifest and private tar.gz snapshot, immutable proposals and durable approve/reject decisions. Bounded evidence collection and diagnosis orchestration have synthetic contract tests; a separate scripted incident practice shows evidence, uncertainty and same-symptom comparison. It is not yet a verified live deployment/diagnosis agent.
 - No live Liara integration is verified. A small live BoxAPI `gpt-6-luna` chat-completions tool/result/terminal smoke passed with `reasoning_effort=none`; this does not verify real incident diagnosis. Keep the model and mutation gates off outside an explicitly bounded run.
 - Product name: **Launchlane**. Keep product UI and package names consistent.
 - Product acceptance is defined in `docs/acceptance.md`. Treat planned architecture as a proposal until implemented and verified.

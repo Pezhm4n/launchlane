@@ -16,49 +16,8 @@ import {
   decodeWorkspace,
 } from "../contracts/client-decode.ts";
 import { object } from "../contracts/validation.ts";
-
-class ClientError extends Error {
-  code: string;
-  requestId: string | null;
-  constructor(code: string, message: string, requestId: string | null = null) {
-    super(message);
-    this.code = code;
-    this.requestId = requestId;
-  }
-}
-
-async function api<T>(
-  path: string,
-  decode: (value: unknown) => T,
-  options: {
-    body?: unknown;
-    csrf?: string;
-    method?: string;
-    signal?: AbortSignal;
-  } = {},
-): Promise<T> {
-  const headers: Record<string, string> = {};
-  if (options.body !== undefined) headers["Content-Type"] = "application/json";
-  if (options.csrf) headers["X-CSRF-Token"] = options.csrf;
-  const response = await fetch(path, {
-    method: options.method || (options.body !== undefined ? "POST" : "GET"),
-    credentials: "same-origin",
-    cache: "no-store",
-    headers,
-    ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
-    ...(options.signal ? { signal: options.signal } : {}),
-  });
-  const value: unknown = await response.json();
-  if (!response.ok) {
-    const error = object(object(value).error);
-    throw new ClientError(
-      typeof error.code === "string" ? error.code : "UNKNOWN",
-      typeof error.message === "string" ? error.message : "درخواست کامل نشد.",
-      typeof error.requestId === "string" ? error.requestId : null,
-    );
-  }
-  return decode(value);
-}
+import { api, ClientError } from "./api.ts";
+import { IncidentWorkbench } from "./IncidentWorkbench.tsx";
 
 const stateNames: Record<ActionState, string> = {
   awaiting_approval: "منتظر تصمیم شما",
@@ -211,6 +170,7 @@ function ActionCard({
 }
 
 export function Workbench() {
+  const [workbenchMode, setWorkbenchMode] = useState<"source" | "incident">("source");
   const [view, setView] = useState<WorkspaceView | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
@@ -471,9 +431,15 @@ export function Workbench() {
           <p className="eyebrow">{view ? "میز کار محلی" : "از پروژه تا نتیجه، با شواهد"}</p>
           <h1>
             {view ? (
-              <>
-                پروژه را آماده <span>انتشار کنید.</span>
-              </>
+              workbenchMode === "incident" ? (
+                <>
+                  اختلال را با <span>شواهد بررسی کنید.</span>
+                </>
+              ) : (
+                <>
+                  پروژه را آماده <span>انتشار کنید.</span>
+                </>
+              )
             ) : (
               <>
                 انتشار، قدم‌به‌قدم
@@ -484,29 +450,63 @@ export function Workbench() {
           </h1>
           <p className="intro-text">
             {view
-              ? "ابتدا پروژه را بررسی و مقصد انتشار را مشخص کنید."
+              ? workbenchMode === "incident"
+                ? "از مشاهده خطا تا مقایسه نتیجه؛ فعلاً در یک تمرین صریح آفلاین."
+                : "ابتدا پروژه را بررسی و مقصد انتشار را مشخص کنید."
               : "پروژه‌تان را بشناسید، پیشنهاد را بررسی کنید و پیش از هر تغییر تصمیم بگیرید. هر نتیجه باید شاهد داشته باشد."}
           </p>
         </div>
-        <nav className="journey" aria-label="مسیر انتشار">
-          <ol>
-            {["شناخت پروژه", "پیشنهاد", "تأیید شما", "انتشار", "بررسی نتیجه"].map(
-              (label, index) => (
-                <li
-                  key={label}
-                  className={index === step ? "current" : index < step ? "visited" : ""}
-                  aria-current={index === step ? "step" : undefined}
-                >
-                  <span className="step-number" aria-hidden="true">
-                    {number(index + 1)}
-                  </span>
-                  <span>{label}</span>
-                  {index >= 3 ? <span className="step-lock">نیازمند اتصال</span> : null}
-                </li>
-              ),
-            )}
-          </ol>
-        </nav>
+        {view ? (
+          <nav className="workbench-switch" aria-label="ابزارهای میز کار">
+            <button
+              type="button"
+              className="button-secondary"
+              aria-pressed={workbenchMode === "source"}
+              disabled={busy !== null}
+              onClick={() => {
+                setWorkbenchMode("source");
+                setNotice("");
+                setError(null);
+              }}
+            >
+              آماده‌سازی انتشار
+            </button>
+            <button
+              type="button"
+              className="button-secondary"
+              aria-pressed={workbenchMode === "incident"}
+              disabled={busy !== null}
+              onClick={() => {
+                setWorkbenchMode("incident");
+                setNotice("");
+                setError(null);
+              }}
+            >
+              بررسی اختلال
+            </button>
+          </nav>
+        ) : null}
+        {workbenchMode === "source" ? (
+          <nav className="journey" aria-label="مسیر انتشار">
+            <ol>
+              {["شناخت پروژه", "پیشنهاد", "تأیید شما", "انتشار", "بررسی نتیجه"].map(
+                (label, index) => (
+                  <li
+                    key={label}
+                    className={index === step ? "current" : index < step ? "visited" : ""}
+                    aria-current={index === step ? "step" : undefined}
+                  >
+                    <span className="step-number" aria-hidden="true">
+                      {number(index + 1)}
+                    </span>
+                    <span>{label}</span>
+                    {index >= 3 ? <span className="step-lock">نیازمند اتصال</span> : null}
+                  </li>
+                ),
+              )}
+            </ol>
+          </nav>
+        ) : null}
         <div className="live-message" role="status" aria-live="polite" aria-atomic="true">
           {loading ? "در حال بررسی نشست محلی…" : notice}
         </div>
@@ -582,6 +582,12 @@ export function Workbench() {
               </p>
             </aside>
           </div>
+        ) : workbenchMode === "incident" ? (
+          <IncidentWorkbench
+            csrf={view.session.csrfToken}
+            disabled={expired}
+            onSessionExpired={() => setView(null)}
+          />
         ) : (
           <div className="workbench-grid">
             <div className="primary-column">

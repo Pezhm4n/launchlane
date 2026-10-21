@@ -26,7 +26,7 @@
 | T11 | API adapter interface و schemaهای ورودی/پاسخ از OpenAPI؛ fixture صادقانه | T03 | AC01,08,13؛ teamID، pagination، null، 401/429 و unit/time contracts؛ synthetic بودن صریح | partial_offline؛ readهای project/release/logs/events/applets/summary و probe امن، gate مستقل Liara؛ write و تطبیق زنده باقی است |
 | T12 | تشخیص read-only یک اپ Node و archive manifest مجاز | T02 | AC02,03؛ runtime/port/env names؛ traversal/symlink/secret و no script execution | implemented_offline؛ manifest و tar.gz خصوصی، هش مستقل archive و approval v2؛ upload لیارا انجام نشده |
 | T13 | operator session، policy، action immutable، approval و state SQLite | T02 | AC04,13,16؛ deny/expiry/replay/race/restart/storage-down؛ CAS پیش از write | implemented_offline؛ فقط deploy/restart، executor زنده و secret-reference برای env هنوز ساخته نشده |
-| T14 | تعریف oracle و demo fixture برای deploy و incident؛ توسعه تست domain با ابزار مناسب | T11,T12 | AC05,09,11؛ golden و counterexample؛ commandهای واقعی به AGENTS اضافه شود | partial_offline؛ workload 500/اصلاح غلط/درست و protocol fixtures؛ eval مدل/deploy زنده باقی است |
+| T14 | تعریف oracle و demo fixture برای deploy و incident؛ توسعه تست domain با ابزار مناسب | T11,T12 | AC05,09,11؛ golden و counterexample؛ commandهای واقعی به AGENTS اضافه شود | partial_offline؛ workload oracle، tool/result/terminal، خطای 500/اصلاح غلط/درست، تناقض و داده ناکافی؛ eval مدل/deploy زنده باقی است |
 
 P1 شامل کدنویسی محصول توسط Coding Agent بعدی است. در صورت پایان قراردادهای مستقل، به علت نبود token کل پروژه متوقف نشود؛ اما وضعیت fake به live ارتقا نیابد.
 
@@ -47,9 +47,9 @@ T20 و T24 مستقل‌اند؛ نبود مدل نباید مشاهده/آزم�
 
 | Task | هدف/محدوده | وابستگی | پذیرش/تست | وضعیت |
 | --- | --- | --- | --- | --- |
-| T30 | خواندن محدود logs/events/release/health/CPU/RAM و evidence panel | T11,T20 | AC08,14؛ app/time/unit، empty/unsupported؛ داده ناکافی به‌عنوان unknown | partial_offline؛ قرارداد خواندن و probe آزموده؛ جمع‌آوری و panel در ادامه؛ live وابسته به T20 |
-| T31 | diagnosis مبتنی بر evidence و فرضیه رتبه‌دار | T14,T30,T24 | AC09؛ oracle 500، paraphrase، contradictory log، injection و redaction؛ کیفیت با مدل واقعی | not_started |
-| T32 | اصلاح دارای approval و verification همان symptom؛ بسته قبل/بعد | T13,T22,T31 | AC11؛ اصلاح واقعی/ناموفق، timeout و replay؛ success فقط با readback | not_started |
+| T30 | خواندن محدود logs/events/release/health/CPU/RAM و evidence panel | T11,T20 | AC08,14؛ app/time/unit، empty/unsupported؛ داده ناکافی به‌عنوان unknown | implemented_offline؛ collector با failure مستقل هر منبع و panel تمرینی؛ schema/unit/time و workload زنده وابسته به T20 |
+| T31 | diagnosis مبتنی بر evidence و فرضیه رتبه‌دار | T14,T30,T24 | AC09؛ oracle 500، paraphrase، contradictory log، injection و redaction؛ کیفیت با مدل واقعی | implemented_offline_contract؛ چرخه محدود ابزار→snapshot→فرضیه، scope/citation/time/cancel/budget؛ UI scripted است؛ کیفیت و oracle مدل واقعی unverified |
+| T32 | اصلاح دارای approval و verification همان symptom؛ بسته قبل/بعد | T13,T22,T31 | AC11؛ اصلاح واقعی/ناموفق، timeout و replay؛ success فقط با readback | partial_offline؛ مقایسه همان app/origin/path/time، اصلاح غلط 500 و متفاوت‌بودن healthz؛ env write/approval و اثر واقعی باقی است |
 | T33 | سناریوی مستقل کندی/منابع و پیشنهاد بهینه‌سازی | T30,T31 | AC10؛ latency و مصرف هم‌شرایط؛ بدون ادعای علت قطعی از یک نمودار | not_started |
 | T34 | handoff پاک‌سازی‌شده برای Coding Agent | T31 | AC12؛ reproduction، evidence، محدوده اصلاح و acceptance قابل فهم برای reader تازه؛ بدون فایل/command ساختگی | not_started |
 
@@ -84,6 +84,8 @@ T32 هسته است. T25، T33 و T34 توسعه‌های P1 هستند؛ فقط
 | D7 Biome | dependency lint ساده‌تر و حذف advisoryهای dev مسیر اولیه ESLint | صرفاً با نیاز اثبات‌شده |
 
 ## قالب به‌روزرسانی هر مرحله
+
+برش اختلال روی پایه `7af1b76`: AC08/09/11/13/14؛ collector و diagnosis runtime محدود با transport مصنوعی، تمرین scripted و مقایسه symptom ساخته شدند. 42 domain، 9 HTTP و 51 حالت مرورگر/7 عرض، lint/type/build pass؛ real provider request تازه 0. محدودیت‌های live، persistence incident و env/write در verification باقی‌اند. Skillهای مؤثر competition-agent-engineer و ux-ui-agent-skills؛ مرحله بعد مرز secret-reference و عملیات ماندگار است.
 
 برش جاری T11/T30 روی پایه `7db15be`: read contracts و probe با DNS pin، redaction و live gate مستقل ساخته شدند؛ 36 domain و 8 HTTP، lint/type/build pass. هیچ تماس تازه Liara/مدل وجود ندارد؛ شواهد و failureهای اصلاح‌شده در verification ثبت‌اند. جمع‌آوری evidence و تشخیص/verification آفلاین در ادامه‌اند.
 

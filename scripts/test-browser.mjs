@@ -284,6 +284,137 @@ try {
   await page.evaluate(() => {
     document.documentElement.style.fontSize = "";
   });
+  await page.getByRole("button", { name: "بررسی اختلال", exact: true }).click();
+  const incidentTitle = page.getByRole("heading", {
+    name: "بررسی اختلال، از کجا شروع کنیم؟",
+    exact: true,
+  });
+  await incidentTitle.waitFor();
+  assert.equal(await incidentTitle.evaluate((element) => element === document.activeElement), true);
+  async function openScenarioPicker() {
+    const picker = page.locator("details.scenario-picker");
+    if ((await picker.getAttribute("open")) === null) await picker.locator("summary").click();
+  }
+  for (const width of [280, 320, 360, 390, 414, 768, 1280]) {
+    await page.setViewportSize({ width, height: width >= 768 ? 1000 : 844 });
+    await openScenarioPicker();
+    await page.getByRole("radio", { name: /تنظیمات ناقص/ }).check();
+    await page.getByRole("button", { name: "بررسی سناریوی انتخابی", exact: true }).click();
+    const evidenceTitle = page.getByRole("heading", { name: "شواهد همین اختلال", exact: true });
+    await evidenceTitle.waitFor();
+    assert.equal(
+      await evidenceTitle.evaluate((element) => element === document.activeElement),
+      true,
+    );
+    await layout(width, "incident-evidence");
+    if ([360, 1280].includes(width))
+      await page.screenshot({ path: resolve(output, `evidence-${width}.png`), fullPage: true });
+    await page.getByRole("button", { name: "۳ · مقایسه", exact: true }).click();
+    await page.getByRole("button", { name: "مقایسه با تغییر نامرتبط", exact: true }).click();
+    await page.getByRole("heading", { name: "خطای ۵۰۰ در تمرین باقی ماند", exact: true }).waitFor();
+    await layout(width, "incident-wrong-fix");
+    await page.getByRole("button", { name: "مقایسه با اصلاح تنظیمات", exact: true }).click();
+    const verified = page.getByRole("heading", {
+      name: "همان درخواست در تمرین پاسخ موفق داد",
+      exact: true,
+    });
+    await verified.waitFor();
+    assert.equal(await verified.evaluate((element) => element === document.activeElement), true);
+    await layout(width, "incident-same-symptom-verified");
+    if ([360, 1280].includes(width))
+      await page.screenshot({ path: resolve(output, `incident-${width}.png`), fullPage: true });
+  }
+  for (const scenario of ["شواهد متناقض", "شواهد ناکافی"]) {
+    await page.setViewportSize({ width: 320, height: 844 });
+    await openScenarioPicker();
+    await page.getByRole("radio", { name: new RegExp(scenario) }).check();
+    assert.equal(
+      await page.getByRole("heading", { name: "شواهد همین اختلال", exact: true }).count(),
+      0,
+    );
+    await page.getByRole("button", { name: "بررسی سناریوی انتخابی", exact: true }).click();
+    await page.getByRole("heading", { name: "شواهد همین اختلال", exact: true }).waitFor();
+    await page.getByRole("button", { name: "۲ · فرضیه", exact: true }).click();
+    await page.getByText("شواهد برای تعیین علت کافی نیست.", { exact: true }).waitFor();
+    await layout(
+      320,
+      scenario === "شواهد متناقض" ? "incident-conflicting-log" : "incident-insufficient",
+    );
+  }
+  await page.getByRole("link", { name: "workload-1", exact: true }).click();
+  assert.equal(
+    await page
+      .locator("#evidence-workload-1")
+      .evaluate((element) => element === document.activeElement),
+    true,
+  );
+  await layout(320, "incident-evidence-reference");
+  let releasePractice;
+  const practiceBarrier = new Promise((resolve) => {
+    releasePractice = resolve;
+  });
+  await page.route("**/api/incidents/practice", async (route) => {
+    await practiceBarrier;
+    await route
+      .fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({
+          error: {
+            code: "TEST_UNAVAILABLE",
+            message: "پاسخ تمرین موقتاً در دسترس نیست.",
+            requestId: "synthetic-request",
+          },
+        }),
+      })
+      .catch(() => undefined);
+  });
+  try {
+    await openScenarioPicker();
+    await page.getByRole("button", { name: "بررسی سناریوی انتخابی", exact: true }).click();
+    await page.getByRole("button", { name: "لغو تمرین", exact: true }).waitFor();
+    await layout(320, "incident-loading");
+    await page.getByRole("button", { name: "لغو تمرین", exact: true }).click();
+    assert.equal(
+      await page
+        .getByRole("button", { name: "بررسی سناریوی انتخابی", exact: true })
+        .evaluate((element) => element === document.activeElement),
+      true,
+    );
+    await layout(320, "incident-cancelled");
+  } finally {
+    releasePractice();
+    await page.unroute("**/api/incidents/practice");
+  }
+  await page.route("**/api/incidents/practice", (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: {
+          code: "TEST_UNAVAILABLE",
+          message: "پاسخ تمرین موقتاً در دسترس نیست.",
+          requestId: "synthetic-request",
+        },
+      }),
+    }),
+  );
+  await page.getByRole("button", { name: "بررسی سناریوی انتخابی", exact: true }).click();
+  const practiceError = page.getByRole("alert").filter({ hasText: "تمرین کامل نشد" });
+  await practiceError.waitFor();
+  assert.equal(await practiceError.evaluate((element) => element === document.activeElement), true);
+  await layout(320, "incident-error");
+  await page.unroute("**/api/incidents/practice");
+  await page.getByRole("button", { name: "تلاش دوباره", exact: true }).click();
+  await page.getByRole("heading", { name: "شواهد همین اختلال", exact: true }).waitFor();
+  await page.setViewportSize({ width: 1280, height: 1000 });
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "200%";
+  });
+  await layout(1280, "incident-text-200-percent");
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "";
+  });
   await page.getByRole("button", { name: "خروج", exact: true }).click();
   await page.getByRole("heading", { name: "وارد میز کار محلی شوید" }).waitFor();
   assert.deepEqual(errors, [], "No browser runtime errors");
