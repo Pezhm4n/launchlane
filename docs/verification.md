@@ -20,6 +20,10 @@ spike محدود GitHub با CLI رسمی و config خالی، در 30s کد و�
 
 `npm run lint`، `npm run typecheck` و `npm run build`: pass؛ domain تازه 61/61 و HTTP تازه 14/14، 0 fail/skip. Browser تازه 55 حالت/9 عرض با همان شاخص‌های صفر، artifact `.artifacts/ux/2026-10-21T20-45-29-679Z/`. تست app با نام یکسان و شناسه متفاوت، عدم ایجاد attempt، ابطال approval، پاک‌شدن نشانی قدیمی و عدم تماس recheck/model را سنجید؛ refresh همان شناسه، انتخاب و تأیید معتبر را حفظ کرد. نخستین expectation آزمون جدید کد خطای PROJECT_CHANGED را فرض کرده بود؛ مرز زودتر PROJECT_ACCESS_CHANGED برگرداند. کد معتبر همان boundary و assert صفر attempt ثبت شدند؛ منع اجرا ضعیف نشد. هیچ درخواست واقعی Liara/مدل یا grant حساب انجام نشد.
 
+### بازبینی نهایی responsive روی پایه fced65e
+
+چیدمان چهار پاسخ گزارش در 768+ دو ستون شد و دکمه اتصال تکراری کارت وضعیت حذف شد. lint/build و browser تازه pass؛ 55 حالت/9 عرض، 0 overflow/axe violation/page error/external browser request در `.artifacts/ux/2026-10-21T20-48-10-308Z/`. domain/HTTP بازاجرای قبلی روی همین منطق server به‌ترتیب 61/14 pass بودند؛ برای تغییر CSS دوباره شمرده نشده‌اند. مرور دستی CUA در 360/768/1280 شامل Enter در انتخاب‌گر پوشه واقعی، آماده‌سازی خودکار، مسیر اتصال لازم، نمونه اختلال، focus، Back و reload همان شناسه بود. عرض واقعی DOM تبلت 753 با scrollbar، content=753 و دو ستون 309.5px دیده شد؛ screen reader واقعی و کاربر تازه هنوز سنجیده نشده‌اند. screenshot و axe به‌تنهایی اثبات UX یا WCAG کامل نیستند.
+
 ## UX61 — backend ورود و catalog GitHub، پس از 6dc7e85
 
 - CLI رسمی pinned 2.103.0 با npm run setup:github و SHA-256 همان asset رسمی اجرا شد؛ بدون grant، تغییر PATH یا ورود حساب.

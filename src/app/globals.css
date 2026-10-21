@@ -1141,6 +1141,9 @@ button[aria-busy="true"] {
   }
 }
 @media (min-width: 768px) {
+  .incident-summary {
+    grid-template-columns: repeat(2, minmax(var(--column-min), 1fr));
+  }
   .incident-layout {
     grid-template-columns: minmax(var(--column-min), 2fr) minmax(var(--column-min), 1fr);
   }

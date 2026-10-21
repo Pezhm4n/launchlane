@@ -1108,14 +1108,16 @@ export function Workbench() {
                           "حساب لیارا متصل نشده است."
                         )}
                       </p>
-                      <button
-                        type="button"
-                        className="button-secondary"
-                        disabled={disabled}
-                        onClick={openAccounts}
-                      >
-                        {connected ? "بررسی یا تغییر مقصد" : "اتصال حساب لیارا"}
-                      </button>
+                      {connected ? (
+                        <button
+                          type="button"
+                          className="button-secondary"
+                          disabled={disabled}
+                          onClick={openAccounts}
+                        >
+                          بررسی یا تغییر مقصد
+                        </button>
+                      ) : null}
                       <p className="hint">
                         هزینه، ارسال فایل و تغییر زیرساخت با اتصال حساب شروع نمی‌شوند.
                       </p>
