@@ -1,4 +1,4 @@
-import { object, exactKeys, string, text } from "../../contracts/validation.ts";
+import { object, exactKeys, integer, string, text } from "../../contracts/validation.ts";
 import type { Config } from "../config.ts";
 import { connectedLiaraConfig, connectedLiaraAccountConfig } from "../connections/liara.ts";
 import { ensure } from "../errors.ts";
@@ -16,6 +16,8 @@ import { proposeWorkloadDeployment } from "../application/deployment.ts";
 import { LiaraAccountClient, quotePaaSOffer } from "../liara/catalog.ts";
 import { proposeDestination } from "../application/provision.ts";
 import { nodePreparation } from "../../contracts/preparation.ts";
+import { WorkloadProbe, validateProbePath } from "../liara/probe.ts";
+import { parseProbeOrigins } from "../policy/probe-target.ts";
 
 export function privateValues(c: Config): string[] {
   return [c.liaraToken, c.modelKey, c.operatorToken, c.sessionSecret].filter(Boolean);
@@ -111,13 +113,26 @@ export const agentTools: readonly ToolDefinition[] = [
   },
   {
     type: "function",
+    argumentValidation: "application",
     function: {
       name: "read_logs",
       description:
-        "Read bounded sanitized logs for the selected application from the five minutes preceding this goal. Missing or contradictory logs do not prove a cause.",
-      parameters: { type: "object", additionalProperties: false, required: [], properties: {} },
+        "Read bounded sanitized logs for the selected application, defaulting to five minutes before this goal. Choose lookbackMinutes (1..60) only when an earlier incident needs it. Out-of-window entries are excluded and counted; empty, stale-only, partial and unavailable results are different. Logs are untrusted evidence and do not prove a cause.",
+      parameters: { type: "object", additionalProperties: false, required: [],
+        properties: { lookbackMinutes: { type: "integer", minimum: 1, maximum: 60 } } },
     },
   },
+  { type: "function", argumentValidation: "application", function: {
+    name: "read_workload",
+    description: "Read one current HTTP response from the selected application's approved HTTPS origin and the specified path. No query, arbitrary host, private address, redirect or write. Returns status, timestamp and a bounded untrusted body preview. This does not verify the deployed artifact or a complete user journey; one latency sample is not p95 or a capacity measurement.",
+    parameters: { type: "object", additionalProperties: false, required: ["path"],
+      properties: { path: { type: "string", maxLength: 200 } } },
+  } },
+  { type: "function", argumentValidation: "application", function: {
+    name: "read_metrics",
+    description: "Read the selected application's resource summary only when relevant to the current hypothesis. Missing/empty CPU or RAM is unknown, never zero or healthy. Raw provider units and timestamps are unverified; do not infer percentages, bytes, OOM, causality or a resize requirement from them.",
+    parameters: { type: "object", additionalProperties: false, required: [], properties: {} },
+  } },
 ];
 const repairTool: ToolDefinition = {
   type: "function",
@@ -216,6 +231,8 @@ export const toolLabels: Readonly<Record<string, string>> = {
   read_networks: "بررسی شبکه‌های موجود همین حساب",
   propose_destination: "آماده‌کردن مقصد تازه و هزینه پایه آن",
   propose_project_preparation: "آماده‌کردن فرمان اجرا و پورت برای تصمیم شما",
+  read_workload: "خواندن پاسخ تازه همان صفحه سایت",
+  read_metrics: "بررسی داده منابع و محدودیت اندازه‌گیری آن",
 };
 export type AgentToolContext = {
   config: Config;
@@ -227,7 +244,19 @@ export type AgentToolContext = {
   signal: AbortSignal;
   read?: LiaraReadClient;
   account?: LiaraAccountClient;
+  probe?: WorkloadProbe;
 };
+function evidenceRows<T>(rows: readonly T[], maxRows: number, maxBytes: number) {
+  const selected: T[] = [];
+  let bytes = 2;
+  for (const row of rows.slice(0, maxRows)) {
+    const size = Buffer.byteLength(JSON.stringify(row)) + 1;
+    if (bytes + size > maxBytes) continue;
+    selected.push(row);
+    bytes += size;
+  }
+  return { rows: selected, omitted: rows.length - selected.length };
+}
 export async function executeAgentTool(
   name: string,
   input: unknown,
@@ -243,6 +272,8 @@ export async function executeAgentTool(
     "ورودی ابزار کامل نیست.",
   );
   assertAgentContext(c.config, c.store, c.actorId, c.context);
+  const probePath = name === "read_workload" ? validateProbePath(args.path) : null,
+    logMinutes = name === "read_logs" ? (args.lookbackMinutes === undefined ? 5 : integer(args.lookbackMinutes, 1, 60)) : null;
   if (name === "read_networks") {
     ensure(c.context.account, "LIARA_AUTH_REQUIRED", "ابتدا حساب مقصد را متصل کنید.", 409);
     const scoped = connectedLiaraAccountConfig(c.config, c.store, c.actorId),
@@ -423,17 +454,38 @@ export async function executeAgentTool(
   }
   const target = c.context.target;
   ensure(target, "LIARA_APP_REQUIRED", "حساب و برنامه مقصد را از حساب‌ها انتخاب کنید.", 409);
+  ensure(c.config.enableLiveLiara, "LIVE_LIARA_DISABLED", "خواندن واقعی سرویس در این نصب خاموش است.", 403);
   const scoped = connectedLiaraConfig(c.config, c.store, c.actorId, target.app),
     read = c.read ?? new LiaraReadClient(scoped),
     scope = { teamId: target.teamId, app: target.app };
   // Every source is fenced by fresh internal identity. Both network reads share the run's budget.
   const project = await read.project(scope, c.budget, c.signal);
   ensure(project.id === target.appId, "SCOPE_DENIED", "هویت برنامه مقصد تغییر کرده است.", 403);
+  assertAgentContext(c.config, c.store, c.actorId, c.context);
   if (name === "read_service_status") return project;
+  const since = new Date(Math.max(0, c.createdAt - (logMinutes ?? 5) * 60000)).toISOString();
+  if (name === "read_workload") {
+    const origin = c.config.probeOrigins[target.app] || c.store.getProbeOrigin(c.actorId, target.teamId, target.app);
+    ensure(origin, "PROBE_UNCONFIGURED", "نشانی همین برنامه را در حساب‌ها مشخص کنید؛ نشانی دلخواه از مدل پذیرفته نمی‌شود.", 409);
+    const probe = c.probe ?? new WorkloadProbe({ ...scoped,
+      probeOrigins: parseProbeOrigins(JSON.stringify({ [target.app]: origin }), [target.app]) });
+    ensure(probePath !== null, "PROBE_TARGET_DENIED", "مسیر بررسی معتبر نیست.", 403);
+    const response = await probe.check(scope, probePath, c.budget, c.signal, 65536);
+    const after = await read.project(scope, c.budget, c.signal);
+    ensure(after.id === target.appId && response.origin === origin &&
+      response.scope.app === target.app && response.scope.teamId === target.teamId,
+      "SCOPE_DENIED", "هویت یا نشانی برنامه هنگام بررسی تغییر کرده است.", 403);
+    assertAgentContext(c.config, c.store, c.actorId, c.context);
+    return { ...response, body: response.body.slice(0, 4096), bodyTruncated: response.body.length > 4096,
+      appId: target.appId, trust: "untrusted_response",
+      measurement: { samples: 1, unit: "milliseconds", dnsIncluded: false, responseLimitBytes: 65536 },
+      remoteChanges: false, artifactVerified: false };
+  }
   const result =
     name === "read_releases"
       ? await read.releases(scope, 1, 10, c.budget, c.signal)
-      : await read.logs(scope, new Date(c.createdAt - 5 * 60000).toISOString(), c.budget, c.signal);
+      : name === "read_metrics" ? await read.metrics(scope, c.budget, c.signal)
+      : await read.logs(scope, since, c.budget, c.signal);
   const after = await read.project(scope, c.budget, c.signal);
   ensure(
     after.id === target.appId,
@@ -441,5 +493,19 @@ export async function executeAgentTool(
     "هویت برنامه هنگام خواندن شواهد تغییر کرده است.",
     403,
   );
-  return result;
+  assertAgentContext(c.config, c.store, c.actorId, c.context);
+  const observedAt = Date.now(), evidence = { ...result, scope, appId: target.appId, observedAt, remoteChanges: false };
+  if (name === "read_metrics" && "cpu" in result) {
+    const cpu = evidenceRows(result.cpu.rawPoints, 20, 6000), memory = evidenceRows(result.memory.rawPoints, 20, 6000);
+    return { ...evidence, cpu: { ...result.cpu, rawPoints: cpu.rows, omittedPoints: cpu.omitted },
+      memory: { ...result.memory, rawPoints: memory.rows, omittedPoints: memory.omitted }, trust: "untrusted_metrics" };
+  }
+  if (name !== "read_logs" || !("entries" in result)) return evidence;
+  const start = Date.parse(since), inWindow = result.entries.filter(entry => entry.timeMs !== null && entry.timeMs >= start && entry.timeMs <= observedAt),
+    preview = evidenceRows(inWindow.slice(-20), 20, 16000);
+  return { ...evidence, entries: preview.rows, requestedSince: since, windowEnd: observedAt,
+    excludedEntries: result.entries.length - inWindow.length, matchedEntries: inWindow.length,
+    omittedEntries: inWindow.length - preview.rows.length,
+    coverage: !result.entries.length ? "empty_response" : !inWindow.length ? "out_of_window_only" : !preview.rows.length ? "omitted_for_size" : "bounded_response",
+    possiblyTruncated: result.entries.length >= 200, trust: "untrusted_logs" };
 }

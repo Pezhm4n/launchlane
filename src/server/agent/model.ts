@@ -22,6 +22,7 @@ export type ModelMessage =
   | { role: "tool"; tool_call_id: string; content: string };
 export type ToolDefinition = {
   type: "function";
+  argumentValidation?: "application";
   function: {
     name: string;
     description: string;
@@ -113,7 +114,7 @@ export class GoalModelClient implements ModelPort {
         content:
           typeof message.content === "string" ? redact(message.content, secrets) : message.content,
       })),
-      tools,
+      tools: tools.map(({ type, function: definition }) => ({ type, function: definition })),
       parallel_tool_calls: false,
       stream: false,
       reasoning_effort: c.modelReasoningEffort,
@@ -195,13 +196,15 @@ export class GoalModelClient implements ModelPort {
         }
         const definition = tools.find((tool) => tool.function.name === name);
         ensure(definition, "TOOL_DENIED", "ابزار مجاز نیست.", 403);
-        exactKeys(parsed, Object.keys(definition.function.parameters.properties));
-        ensure(
-          definition.function.parameters.required.every((key) => key in parsed),
-          "MODEL_PROTOCOL",
-          "اطلاعات لازم ابزار کامل نیست.",
-          502,
-        );
+        if (definition.argumentValidation !== "application") {
+          exactKeys(parsed, Object.keys(definition.function.parameters.properties));
+          ensure(
+            definition.function.parameters.required.every((key) => key in parsed),
+            "MODEL_PROTOCOL",
+            "اطلاعات لازم ابزار کامل نیست.",
+            502,
+          );
+        }
         return {
           calls: [{ id, type: "function", function: { name, arguments: JSON.stringify(parsed) } }],
           content: null,

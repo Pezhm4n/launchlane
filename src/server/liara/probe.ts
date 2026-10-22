@@ -27,6 +27,12 @@ export type ProbeTransport = (
   signal: AbortSignal,
   maxBytes?: number,
 ) => Promise<{ status: number; body: string; bytes: number; durationMs: number }>;
+export function validateProbePath(path: unknown): string {
+  ensure(typeof path === "string" && /^\/(?:[A-Za-z0-9_./-]*)$/.test(path) &&
+    path.length <= 200 && !path.startsWith("//") && !path.split("/").includes(".."),
+    "PROBE_TARGET_DENIED", "مسیر بررسی معتبر نیست؛ query و مقصد دلخواه مجاز نیست.", 403);
+  return path;
+}
 const blocked = new BlockList();
 for (const [address, prefix] of [
   ["0.0.0.0", 8],
@@ -161,15 +167,7 @@ export class WorkloadProbe {
       "میزبان دقیق workload هنوز در تنظیمات سرور تأیید نشده است.",
       503,
     );
-    ensure(
-      /^\/(?:[A-Za-z0-9_./-]*)$/.test(path) &&
-        path.length <= 200 &&
-        !path.startsWith("//") &&
-        !path.split("/").includes(".."),
-      "PROBE_TARGET_DENIED",
-      "مسیر بررسی معتبر نیست؛ query و مقصد دلخواه مجاز نیست.",
-      403,
-    );
+    validateProbePath(path);
     const url = new URL(path, origin);
     ensure(url.origin === origin, "PROBE_TARGET_DENIED", "مقصد بررسی تغییر کرده است.", 403);
     budget.take("tool", signal);
