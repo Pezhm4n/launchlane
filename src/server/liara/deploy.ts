@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { ActionSpec } from "../../contracts/domain.ts";
 import { sourceReceiptId } from "../../contracts/deployment.ts";
+import { parseNodeVersion } from "../../contracts/node-runtime.ts";
 import { object, string } from "../../contracts/validation.ts";
 import type { Config } from "../config.ts";
 import { AppError, ensure } from "../errors.ts";
@@ -15,7 +16,7 @@ import {
   type Transport,
 } from "../providers/http.ts";
 
-export type DeploySpec = Extract<ActionSpec, { version: 4 }>;
+export type DeploySpec = Extract<ActionSpec, { version: 5 }>;
 export class LiaraDeployClient {
   readonly config: Config;
   readonly send: Transport;
@@ -32,6 +33,8 @@ export class LiaraDeployClient {
     budget: RunBudget,
     signal: AbortSignal,
   ): Promise<string> {
+    ensure(spec.version === 5, "DEPLOYMENT_PROPOSAL_REQUIRED", "پیشنهاد تازه با نسخه Node مشخص لازم است.", 409);
+    parseNodeVersion(spec.nodeVersion);
     authorizeScope(spec.scope, this.config);
     ensure(
       this.config.enableMutations && this.config.enableLiveLiara,
@@ -138,6 +141,7 @@ export class LiaraDeployClient {
         sourceID: sourceId,
         port: spec.args.port,
         type: "node",
+        platformConfig: { version: parseNodeVersion(spec.nodeVersion) },
       }),
       "releaseID",
       budget,

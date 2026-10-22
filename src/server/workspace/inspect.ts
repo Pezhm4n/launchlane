@@ -5,6 +5,7 @@ import { relative, resolve, sep } from "node:path";
 import type { ManifestEntry, ProjectProfile } from "../../contracts/domain.ts";
 import { hasControl, object } from "../../contracts/validation.ts";
 import { AppError, ensure } from "../errors.ts";
+import { resolveNodeRuntime } from "./node-runtime.ts";
 import { fingerprint } from "../policy/action.ts";
 import { containsCredential } from "../policy/redaction.ts";
 import {
@@ -227,7 +228,7 @@ async function scanProject(
   const pkg: Record<string, unknown> = packageJson ?? {};
   const liara: Record<string, unknown> = liaraJson ?? {};
   const scripts = pkg.scripts === undefined ? {} : object(pkg.scripts);
-  const engines = pkg.engines === undefined ? {} : object(pkg.engines);
+  const nodeRuntime = resolveNodeRuntime(pkg.engines, liara.node);
   if (
     typeof liara.port === "number" &&
     Number.isInteger(liara.port) &&
@@ -246,13 +247,15 @@ async function scanProject(
   if (!packageJson) missing.push("package.json پیدا نشد؛ پروژه Node تأیید نشده است.");
   if (!start) missing.push("دستور start مشخص نیست؛ قبل از انتشار آن را تعیین کنید.");
   if (port === null) missing.push("پورت قطعی نیست؛ پورت برنامه را وارد کنید.");
+  if (packageJson && !nodeRuntime.version) missing.push(nodeRuntime.detail);
   if (envNames.size)
     missing.push("فقط نام envها شناسایی شد؛ مقدار و کافی‌بودن آن‌ها هنوز بررسی نشده است.");
   manifest.sort((a, b) => a.path.localeCompare(b.path, "en"));
   const profile: ProjectProfile = {
     directory,
     runtime: packageJson ? "node" : "unknown",
-    nodeVersion: typeof engines.node === "string" ? safeScript(engines.node) : null,
+    nodeVersion: nodeRuntime.requirement,
+    nodeRuntime,
     port,
     start,
     build,

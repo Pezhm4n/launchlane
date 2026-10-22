@@ -2,6 +2,8 @@ import type { Action, Session } from "../../contracts/domain.ts";
 import {
   parseWorkloadExpectation,
   canReadDeploymentResult,
+  isDeploymentSpec,
+  type DeploymentSpec,
   type DeploymentObservation,
 } from "../../contracts/deployment.ts";
 import { identifier } from "../../contracts/validation.ts";
@@ -31,7 +33,7 @@ function authorize(
   config: Config,
   store: Store,
   actorId: string,
-  spec: DeploySpec,
+  spec: DeploymentSpec,
   actionId?: string,
   requireActiveProject = true,
 ): void {
@@ -55,7 +57,7 @@ function authorize(
 }
 async function checkProject(
   client: LiaraReadClient,
-  spec: DeploySpec,
+  spec: DeploymentSpec,
   budget: RunBudget,
   signal: AbortSignal,
 ): Promise<void> {
@@ -112,7 +114,7 @@ export async function proposeDeployment(
     flow?.status === "ready" &&
       flow.artifact &&
       flow.profile.runtime === "node" &&
-      flow.profile.start,
+      flow.profile.start && flow.profile.nodeRuntime?.version,
     "PROJECT_INCOMPLETE",
     "ابتدا یک پروژه Node با دستور start مشخص آماده کنید.",
     409,
@@ -127,7 +129,8 @@ export async function proposeDeployment(
     409,
   );
   const spec: DeploySpec = {
-    version: 4,
+    version: 5,
+    nodeVersion: flow.profile.nodeRuntime.version,
     operation: "deploy",
     scope: { teamId: scoped.teamId, app: input.app },
     sourceHash: flow.profile.sourceHash,
@@ -159,9 +162,9 @@ export async function executeDeployment(
   );
   const action = store.getAction(id, session.actorId);
   ensure(
-    action.spec.version === 4,
+    action.spec.version === 5,
     "DEPLOYMENT_PROPOSAL_REQUIRED",
-    "این پیشنهاد قدیمی قابل انتشار نیست؛ پیشنهاد اجرایی تازه با معیار بررسی نسخه بسازید.",
+    "این پیشنهاد قدیمی قابل انتشار نیست؛ پیشنهاد تازه با نسخه Node و معیار بررسی سایت بسازید.",
     409,
   );
   ensure(
@@ -222,7 +225,7 @@ export async function observeDeployment(
 ): Promise<Action> {
   const action = store.getAction(id, session.actorId);
   ensure(
-    action.spec.version === 4 &&
+    isDeploymentSpec(action.spec) &&
       action.deployment &&
       canReadDeploymentResult(action),
     "ACTION_CONFLICT",

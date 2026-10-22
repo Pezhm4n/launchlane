@@ -90,7 +90,7 @@ export async function prepareProjectFlow(
       secrets: privateValues,
     });
     const artifact =
-      profile.runtime === "node" && profile.start
+      profile.runtime === "node" && profile.start && profile.nodeRuntime?.version
         ? await prepareArchive({
             store,
             stateDir: config.stateDir,
@@ -112,6 +112,8 @@ export async function prepareProjectFlow(
       status: artifact ? "ready" : "incomplete",
       message: artifact
         ? null
+        : profile.runtime === "node" && profile.start && !profile.nodeRuntime?.version
+          ? profile.nodeRuntime?.detail || "نسخه Node را در تنظیمات پروژه تعیین کنید."
         : profile.manifest.length === 0
           ? "این پوشه خالی است یا فایل پروژه قابل بررسی ندارد. پوشه دارای package.json را انتخاب کنید."
           : "پوشه یک برنامه Node با package.json معتبر و دستور start مشخص را انتخاب کنید؛ در پروژه چندبخشی، زیرپوشه همان برنامه لازم است.",
@@ -155,10 +157,12 @@ export async function restoreProjectFlow(
       );
     if (flow.status === "ready" && (current.runtime !== "node" || !current.start))
       return store.staleProjectFlow(actorId, flow.id, current.missing[0] || "پروژه با محدوده پشتیبانی‌شده این نسخه تطبیق ندارد؛ پوشه همان برنامه را دوباره انتخاب کنید.");
+    if (flow.status === "ready" && (!current.nodeRuntime?.version || flow.profile.nodeRuntime?.version !== current.nodeRuntime.version))
+      return store.staleProjectFlow(actorId, flow.id, "نسخه Node این نتیجه نیاز به بررسی تازه دارد؛ پروژه را دوباره بررسی و پیشنهاد تازه دریافت کنید.");
     if (flow.artifact)
       await readArtifact(config.stateDir, store.getArtifact(actorId, flow.artifact.archiveHash));
     // Restoring a result never renews an approval or revives a previously invalidated flow.
-    return flow;
+    return { ...flow, profile: current };
   } catch (error) {
     if (signal.aborted) throw new AppError("CANCELLED", "بازیابی پروژه لغو شد.", 409);
     const message =
@@ -176,7 +180,7 @@ export async function validateProjectAction(
   spec: ActionSpec,
   signal: AbortSignal,
 ): Promise<void> {
-  if (spec.version !== 3 && spec.version !== 4) return;
+  if (spec.version !== 3 && spec.version !== 4 && spec.version !== 5) return;
   const flow = await restoreProjectFlow(config, store, actorId, signal, spec.projectFlowId);
   ensure(
     flow?.status === "ready",
@@ -185,6 +189,7 @@ export async function validateProjectAction(
     409,
   );
   store.assertProjectAction(actorId, spec);
+  ensure(spec.version !== 5 || flow.profile.nodeRuntime?.version === spec.nodeVersion, "NODE_VERSION_CHANGED", "نسخه Node پیشنهاد با پروژه برابر نیست؛ پیشنهاد تازه دریافت کنید.", 409);
 }
 
 export async function proposeProjectFlow(

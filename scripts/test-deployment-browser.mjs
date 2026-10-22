@@ -42,7 +42,8 @@ function guard(handler) {
 }
 let executionMode = "accepted",
   observation = "pending",
-  sends = 0;
+  sends = 0,
+  deploymentEnabled = true;
 let fixtureRevision = "sample-v2";
 let started = () => undefined,
   release = () => undefined;
@@ -101,7 +102,7 @@ try {
     return route.fulfill({
       json: {
         ...value,
-        features: { ...value.features, deployment: true, serviceReads: true },
+        features: { ...value.features, deployment: deploymentEnabled, serviceReads: true },
       },
     });
   }));
@@ -121,7 +122,8 @@ try {
       revision: fixtureRevision,
     });
     const action = store.createAction(actor, {
-      version: 4,
+      version: 5,
+      nodeVersion: "24",
       operation: "deploy",
       scope: { teamId: server.teamId, app: server.app },
       sourceHash: flow.profile.sourceHash,
@@ -203,7 +205,21 @@ try {
   for (const width of [280, 360, 768, 1280]) await state("explicit-workload-oracle", width);
   await page.getByRole("button", { name: "دریافت پیشنهاد انتشار", exact: true }).press("Enter");
   await page.getByRole("heading", { name: "پیشنهاد انتشار", exact: true }).waitFor();
-  await state("v4-decision-cost-unknown");
+  await page.getByText("Node.js 24", { exact: true }).waitFor();
+  await state("v5-decision-node-version-cost-unknown");
+  const selectedFlow = store.getProjectFlow(actor);
+  assert.ok(selectedFlow?.actionId);
+  const currentAction = store.getAction(selectedFlow.actionId, actor);
+  const { nodeVersion: _runtimeVersion, ...historicalSpec } = currentAction.spec;
+  store.createAction(actor, { ...historicalSpec, version: 4 });
+  await page.reload();
+  await page.getByText("این پیشنهاد قدیمی نسخه Node مشخص ندارد.", { exact: false }).waitFor();
+  assert.equal(await page.getByRole("button", { name: `تأیید پیشنهاد برای ${server.app}`, exact: true }).count(), 0);
+  assert.equal(sends, 0);
+  await state("legacy-v4-needs-fresh-consent");
+  await page.getByRole("button", { name: "دریافت پیشنهاد تازه", exact: true }).press("Enter");
+  await page.getByText("Node.js 24", { exact: true }).waitFor();
+  await state("fresh-v5-after-historical-proposal");
   await page
     .getByRole("button", {
       name: `تأیید پیشنهاد برای ${server.app}`,
@@ -215,6 +231,16 @@ try {
   await page.reload();
   await page.getByText("تأیید ثبت شد؛ اجرا نشده", { exact: true }).waitFor();
   await state("approved-is-not-executed");
+  deploymentEnabled = false;
+  await page.reload();
+  const disabledPublish = page.getByRole("button", { name: `انتشار این نسخه روی ${server.app}`, exact: true });
+  await disabledPublish.waitFor();
+  assert.equal(await disabledPublish.isDisabled(), true);
+  await page.locator(".proposal-panel").getByText("انتشار و تغییر زیرساخت در این نصب غیرفعال است.", { exact: false }).waitFor();
+  assert.equal(sends, 0);
+  await state("approved-disabled-gate-explains-next-step");
+  deploymentEnabled = true;
+  await page.reload();
   const begin = new Promise((done) => {
     started = done;
   });

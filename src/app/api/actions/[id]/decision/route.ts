@@ -4,6 +4,7 @@ import { endpoint, jsonBody, reply } from "../../../../../server/http.ts";
 import { authorizeScope } from "../../../../../server/policy/action.ts";
 import { connectedLiaraConfig } from "../../../../../server/connections/liara.ts";
 import { validateProjectAction } from "../../../../../server/application/project-flows.ts";
+import { isDeploymentSpec } from "../../../../../contracts/deployment.ts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,7 +22,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const action = store.getAction(id, session.actorId);
     authorizeScope(
       action.spec.scope,
-      action.spec.version === 3 || action.spec.version === 4
+      action.spec.version === 3 || isDeploymentSpec(action.spec)
         ? connectedLiaraConfig(config, store, session.actorId, action.spec.scope.app)
         : config,
     );

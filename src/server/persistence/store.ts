@@ -18,6 +18,7 @@ import { parseProbeOrigins } from "../policy/probe-target.ts";
 import {
   parseDeploymentProgress,
   canReadDeploymentResult,
+  isDeploymentSpec,
   sourceReceiptId,
   type DeploymentProgress,
   type DeploymentObservation,
@@ -261,7 +262,7 @@ export class Store {
     });
   }
   assertProjectAction(actorId: string, spec: ActionSpec, existingId?: string): void {
-    if (spec.version !== 3 && spec.version !== 4) return;
+    if (spec.version !== 3 && spec.version !== 4 && spec.version !== 5) return;
     const flow = this.getProjectFlow(actorId);
     ensure(
       flow &&
@@ -275,6 +276,7 @@ export class Store {
       "پروژه یا فایل‌های آن تغییر کرده‌اند. پروژه را دوباره بررسی و پیشنهاد تازه دریافت کنید.",
       409,
     );
+    ensure(spec.version !== 5 || flow.profile.nodeRuntime?.version === spec.nodeVersion, "NODE_VERSION_CHANGED", "نسخه Node پیشنهاد با بررسی پروژه برابر نیست؛ پیشنهاد تازه دریافت کنید.", 409);
     const connection = this.getConnection(actorId, "liara")?.view;
     ensure(
       connection?.status === "connected" &&
@@ -282,7 +284,7 @@ export class Store {
         connection.selectedApp === spec.scope.app &&
         connection.apps.some(
           (app) =>
-            app.name === spec.scope.app && (spec.version !== 4 || app.id === spec.targetAppId),
+            app.name === spec.scope.app && (!isDeploymentSpec(spec) || app.id === spec.targetAppId),
         ),
       "PROJECT_ACCESS_CHANGED",
       "حساب یا برنامه مقصد تغییر کرده است. اتصال را بررسی و پیشنهاد تازه دریافت کنید.",
@@ -521,7 +523,7 @@ export class Store {
       this.ensureNoConflict(spec);
       this.assertProjectAction(actorId, spec);
       if (
-        (spec.version === 2 || spec.version === 3 || spec.version === 4) &&
+        (spec.version === 2 || spec.version === 3 || spec.version === 4 || spec.version === 5) &&
         spec.operation === "deploy"
       ) {
         const artifact = this.getArtifact(actorId, spec.artifactHash ?? "");
@@ -560,7 +562,7 @@ export class Store {
           action.expiresAt,
         );
       this.audit(action, "proposed", now);
-      if (spec.version === 3 || spec.version === 4) {
+      if (spec.version === 3 || spec.version === 4 || spec.version === 5) {
         const flow = this.getProjectFlow(actorId);
         if (flow) this.invalidateProjectAction(flow, actorId);
         this.db
@@ -692,7 +694,7 @@ export class Store {
         )
         .run(now, attemptId, id);
       ensure(changed.changes === 1, "ACTION_CONFLICT", "تأیید قبلاً مصرف شده است.", 409);
-      if (action.spec.version === 4)
+      if (isDeploymentSpec(action.spec))
         this.writeDeploymentProgress(id, {
           stage: "claimed",
           sourceId: null,
@@ -719,7 +721,7 @@ export class Store {
         "شناسه نتیجه سرویس معتبر نیست.",
         502,
       );
-      if (action.spec.version === 4) {
+      if (isDeploymentSpec(action.spec)) {
         ensure(
           action.deployment?.stage === "release_started",
           "ACTION_CONFLICT",
@@ -758,7 +760,7 @@ export class Store {
       const action = this.getAction(id, actorId),
         previous = action.deployment;
       ensure(
-        action.spec.version === 4 && action.state === "executing" && action.attemptId,
+        isDeploymentSpec(action.spec) && action.state === "executing" && action.attemptId,
         "ACTION_CONFLICT",
         "اجرای انتشار claim نشده است.",
         409,
@@ -788,7 +790,7 @@ export class Store {
     return this.transaction(() => {
       const action = this.getAction(id, actorId);
       ensure(
-        action.spec.version === 4 &&
+        isDeploymentSpec(action.spec) &&
           action.deployment &&
           canReadDeploymentResult(action),
         "ACTION_CONFLICT",
@@ -803,7 +805,7 @@ export class Store {
           connection.apps.some(
             (app) =>
               app.name === action.spec.scope.app &&
-              action.spec.version === 4 &&
+              isDeploymentSpec(action.spec) &&
               app.id === action.spec.targetAppId,
           ),
         "SCOPE_DENIED",
@@ -912,7 +914,7 @@ export class Store {
     return this.transaction(() => {
       const action = this.getAction(id, actorId);
       ensure(
-        action.spec.version !== 4,
+        !isDeploymentSpec(action.spec),
         "DEPLOYMENT_OBSERVATION_REQUIRED",
         "این انتشار باید با معیار پاسخ و نسخه خودش بررسی شود.",
         409,

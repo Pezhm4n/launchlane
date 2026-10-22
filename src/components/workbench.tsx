@@ -1,6 +1,6 @@
 "use client";
 
-import { canReadDeploymentResult } from "../contracts/deployment.ts";
+import { canReadDeploymentResult, isDeploymentSpec } from "../contracts/deployment.ts";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import type { Action, ActionState, WorkspaceView } from "../contracts/domain.ts";
 import { decodeAction, decodeWorkspace } from "../contracts/client-decode.ts";
@@ -107,7 +107,7 @@ function Proposal({
         <div>
           <dt>هزینه و پلن</dt>
           <dd>
-            {action.spec.version === 4 ? (
+            {isDeploymentSpec(action.spec) ? (
               <>
                 پلن فعلی <bdi>{action.spec.args.planId}</bdi> حفظ می‌شود؛ هزینه نامعلوم است
               </>
@@ -120,25 +120,35 @@ function Proposal({
           <dt>اثر انتشار</dt>
           <dd>جایگزینی نسخه فعلی برنامه</dd>
         </div>
+        {action.spec.version === 5 ? <div>
+          <dt>نسخه اجرای برنامه</dt>
+          <dd><bdi>Node.js {action.spec.nodeVersion}</bdi></dd>
+        </div> : null}
       </dl>
       <p className="note">
         ممکن است هنگام انتشار دسترسی سایت موقتاً قطع شود. قیمت و منابع مورد نیاز هنوز تأیید نشده‌اند.
-        {action.spec.version === 4
+        {isDeploymentSpec(action.spec)
           ? " این پیشنهاد فقط نسخه برنامه موجود را منتشر می‌کند؛ پلن و متغیرهای محیطی را تغییر نمی‌دهد."
           : " اجرای واقعی این پیشنهاد بسته است."}
       </p>
-      {action.spec.version === 4 ? (
+      {isDeploymentSpec(action.spec) ? (
         <p className="hint">
           معیار نتیجه: پاسخ <bdi>{action.spec.workload.status}</bdi> از{" "}
           <bdi>{action.spec.workload.path}</bdi> با نسخه <bdi>{action.spec.workload.revision}</bdi>.
           آماده‌شدن release به‌تنهایی نتیجه موفق نیست.
         </p>
       ) : null}
+      {action.spec.version === 5 ? <p className="hint">این انتخاب شاخه اصلی Node را تعیین می‌کند؛ نسخه جزئی محیط اجرا هنوز تأیید نشده است.</p> : null}
       <p>
         تصمیم شما به همین مقصد و همین فایل‌ها مربوط است. تغییر پروژه، نسخه یا تنظیمات، پیشنهاد و
         تأیید تازه می‌خواهد.
       </p>
-      {state === "awaiting_approval" ? (
+      {action.spec.version === 4 && (state === "awaiting_approval" || state === "approved") ? (
+        <>
+          <p className="note">این پیشنهاد قدیمی نسخه Node مشخص ندارد. فایل‌ها و نتیجه قبلی حفظ شده‌اند؛ برای انتشار پیشنهاد تازه دریافت کنید.</p>
+          <button type="button" disabled={busy || expired} onClick={onNewProposal}>دریافت پیشنهاد تازه</button>
+        </>
+      ) : state === "awaiting_approval" ? (
         <>
           <div className="button-row">
             <button
@@ -163,28 +173,29 @@ function Proposal({
         <>
           <p className="note">
             تصمیم شما ثبت شده است؛ انتشار اجرا نشده و سلامت سایت بررسی نشده است.
-            {action.spec.version === 4
+            {action.spec.version === 5 && workspace.features.deployment
               ? " برای شروع، انتشار همین نسخه را انتخاب کنید."
               : " مسیر اجرای این پیشنهاد هنوز بسته است."}
           </p>
-          {action.spec.version === 4 && workspace.features.deployment ? (
-            <button type="button" disabled={busy || expired} onClick={() => onOperation("execute")}>
+          {action.spec.version === 5 ? (
+            <button type="button" disabled={busy || expired || !workspace.features.deployment} onClick={() => onOperation("execute")}>
               انتشار این نسخه روی <bdi>{action.spec.scope.app}</bdi>
             </button>
           ) : null}
+          {action.spec.version === 5 && !workspace.features.deployment ? <p className="hint">{workspace.capabilities.mutations.reason} برای بررسی امکان اجرا از مسئول نصب کمک بگیرید؛ تأیید ثبت‌شده، دسترسی اجرا ایجاد نمی‌کند.</p> : null}
         </>
       ) : state === "uncertain" ? (
         <>
           <p className="note note-danger">
             اجرای دوباره مجاز نیست. ابتدا باید نتیجه همین عملیات از لیارا خوانده و مشخص شود.
           </p>
-          {action.spec.version === 4 && workspace.features.serviceReads ? (
+          {isDeploymentSpec(action.spec) && workspace.features.serviceReads ? (
             <button type="button" disabled={busy || expired} onClick={() => onOperation("observe")}>
               بررسی نتیجه بدون ارسال دوباره
             </button>
           ) : null}
         </>
-      ) : state === "observing" && action.spec.version === 4 ? (
+      ) : state === "observing" && isDeploymentSpec(action.spec) ? (
         <>
           <p className="note">درخواست انتشار رسید دارد؛ پاسخ و نسخه سایت هنوز باید بررسی شوند.</p>
           <button
@@ -357,7 +368,7 @@ export function Workbench() {
     setFlow(data.flow);
     setAction(data.action);
     setPort(data.flow?.profile.port === null || !data.flow ? "" : String(data.flow.profile.port));
-    if (data.action?.spec.version === 4) {
+    if (data.action && isDeploymentSpec(data.action.spec)) {
       setWorkloadPath(data.action.spec.workload.path);
       setExpectedRevision(data.action.spec.workload.revision);
     } else if (changed) {
@@ -750,7 +761,8 @@ export function Workbench() {
       ? 0
       : !connected || !liara.selectedApp
         ? 1
-        : !action || ["cancelled", "expired", "failed"].includes(effectiveState || "")
+        : !action || ["cancelled", "expired", "failed"].includes(effectiveState || "") ||
+          (action.spec.version === 4 && (effectiveState === "awaiting_approval" || effectiveState === "approved"))
           ? 2
           : effectiveState === "awaiting_approval"
             ? 3
@@ -1122,6 +1134,7 @@ export function Workbench() {
                           واردکردن دوباره آن نیست.
                         </p>
                       ) : null}
+                      {profile.runtime === "node" && profile.nodeRuntime ? <p className="hint">{profile.nodeRuntime.detail}</p> : null}
                       <details className="manifest">
                         <summary>
                           فایل‌های قابل ارسال را ببینید ({number(profile.manifest.length)})
@@ -1341,10 +1354,14 @@ export function Workbench() {
                         ))}
                       </ol>
                       <p className="hint">
-                        {action?.state === "uncertain"
+                        {effectiveState === "uncertain"
                           ? "نتیجه نامعلوم است؛ اجرای تازه بسته می‌ماند."
-                          : action?.state === "approved"
-                            ? "تأیید ثبت شده، اما انتشار واقعی در این نصب هنوز آماده نیست."
+                          : action?.spec.version === 4 && (effectiveState === "awaiting_approval" || effectiveState === "approved")
+                            ? "این پیشنهاد به نسخه Node مشخص متصل نیست؛ پیشنهاد تازه دریافت کنید."
+                          : effectiveState === "approved"
+                            ? action?.spec.version === 5 && workspace.features.deployment
+                              ? "تأیید ثبت شده است؛ می‌توانید انتشار همین نسخه را آغاز کنید."
+                              : "تأیید ثبت شده است؛ مسیر اجرای این پیشنهاد فعلاً بسته است."
                             : !connected
                               ? "بررسی محلی کامل است؛ اتصال حساب مرحله مستقل بعدی است."
                               : "هر مرحله فقط با نتیجه واقعی همان پروژه جلو می‌رود."}

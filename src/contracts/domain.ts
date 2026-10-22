@@ -9,6 +9,8 @@ export type ProjectProfile = Readonly<{
   directory: string;
   runtime: "node" | "unknown";
   nodeVersion: string | null;
+  // Historical profiles predate runtime selection; fresh inspection always supplies it.
+  nodeRuntime?: import("./node-runtime.ts").NodeRuntime;
   port: number | null;
   start: string | null;
   build: string | null;
@@ -55,6 +57,15 @@ export type ActionSpec = ActionInputs &
         selectionHash: string;
         targetAppId: string;
         workload: import("./deployment.ts").WorkloadExpectation;
+      }>
+    | Readonly<{
+        version: 5;
+        artifactHash: string;
+        projectFlowId: string;
+        selectionHash: string;
+        targetAppId: string;
+        workload: import("./deployment.ts").WorkloadExpectation;
+        nodeVersion: import("./node-runtime.ts").NodeVersion;
       }>
   );
 

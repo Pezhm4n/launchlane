@@ -35,7 +35,7 @@ const signal = () => AbortSignal.timeout(5000);
 const code = (expected: string) => (error: unknown) =>
   error instanceof AppError && error.code === expected;
 async function fixture(
-  options: { sourceId?: string; write?: (url: string, init: RequestInit, store: Store) => Promise<Response> } = {},
+  options: { sourceId?: string; nodeRange?: string; write?: (url: string, init: RequestInit, store: Store) => Promise<Response> } = {},
 ) {
   const sourceId = options.sourceId ?? "source-exact";
   const root = await mkdtemp(join(tmpdir(), "launchlane-deploy-")),
@@ -45,7 +45,7 @@ async function fixture(
   await mkdir(join(root, "app"));
   await writeFile(
     join(root, "app/package.json"),
-    JSON.stringify({ scripts: { start: "node server.mjs" } }),
+    JSON.stringify({ scripts: { start: "node server.mjs" }, ...(options.nodeRange ? { engines: { node: options.nodeRange } } : {}) }),
   );
   await writeFile(join(root, "app/server.mjs"), "app.listen(3000); // immutable, never executed");
   const config = readConfig({
@@ -110,6 +110,7 @@ async function fixture(
           },
     );
   });
+  const releaseBodies: unknown[] = [];
   const send: Transport = async (url, init) => {
     writes++;
     const action = store.getProjectFlow(session.actorId)?.actionId;
@@ -130,14 +131,16 @@ async function fixture(
       const digest = createHash("sha256")
         .update(Buffer.from(await file.arrayBuffer()))
         .digest("hex");
-      assert.equal(claimed.spec.version === 4 && claimed.spec.artifactHash, digest);
+      assert.equal(claimed.spec.version === 5 && claimed.spec.artifactHash, digest);
     } else {
       assert.equal(claimed.deployment?.stage, "release_started");
       assert.equal(claimed.deployment?.sourceId, sourceId);
+      releaseBodies.push(JSON.parse(String(init.body)));
       assert.deepEqual(JSON.parse(String(init.body)), {
         sourceID: sourceId,
         port: 3000,
         type: "node",
+        platformConfig: { version: options.nodeRange ? "24" : "22" },
       });
     }
     if (options.write) return options.write(url, init, store);
@@ -178,6 +181,7 @@ async function fixture(
     action,
     input,
     deps,
+    releaseBodies,
     get store() {
       return store;
     },
@@ -224,6 +228,23 @@ async function fixture(
     },
   };
 }
+
+test("a Node 24 project cannot silently publish with the provider's Node 22 default", async () => {
+  const f = await fixture({ nodeRange: ">=24.15.0 <25" });
+  try {
+    f.approve();
+    await executeDeployment(f.config, f.store, session, f.action.id, signal(), f.deps);
+    assert.deepEqual(f.releaseBodies, [{
+      sourceID: "source-exact", port: 3000, type: "node", platformConfig: { version: "24" },
+    }]);
+    f.reopen();
+    const restored = decodeAction(f.store.getAction(f.action.id, session.actorId));
+    assert.equal(restored.hash, f.action.hash);
+    assert.equal(restored.spec.version === 5 && restored.spec.nodeVersion, "24");
+  } finally {
+    await f.cleanup();
+  }
+});
 
 test("a live-shaped tar.gz source receipt is persisted and sent unchanged to the release endpoint", async () => {
   const sourceId = "11111111-2222-4333-8444-555555555555.tar.gz";
@@ -536,13 +557,14 @@ test("approval binds expected revision, path, app identity and plan without chan
   try {
     f.approve();
     const spec = f.action.spec;
-    assert.equal(spec.version, 4);
-    if (spec.version !== 4) return;
+    assert.equal(spec.version, 5);
+    if (spec.version !== 5) return;
     for (const changed of [
       { ...spec, targetAppId: "different-id" },
       { ...spec, workload: { ...spec.workload, revision: "other" } },
       { ...spec, workload: { ...spec.workload, path: "/healthz" } },
       { ...spec, args: { ...spec.args, planId: "other" } },
+      { ...spec, nodeVersion: "24" as const },
     ])
       assert.throws(
         () => f.store.claim(f.action.id, session.actorId, session.id, changed),
@@ -576,6 +598,73 @@ test("approval binds expected revision, path, app identity and plan without chan
     };
     assert.equal(fingerprint(parseActionSpec(legacy)), fingerprint(legacy));
     assert.equal(f.writes, 0);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test("a historical v4 deployment keeps its hash and readback but cannot start a new live write", async () => {
+  const f = await fixture();
+  try {
+    assert.equal(f.action.spec.version, 5);
+    if (f.action.spec.version !== 5) return;
+    const { nodeVersion: _newVersion, ...previous } = f.action.spec;
+    const legacy = { ...previous, version: 4 as const };
+    assert.equal(fingerprint(parseActionSpec(legacy)), fingerprint(legacy));
+    assert.throws(() => parseActionSpec({ ...legacy, nodeVersion: "24" }), code("INVALID_INPUT"));
+    const action = f.store.createAction(session.actorId, legacy);
+    f.store.decide(action.id, session.actorId, session.id, action.hash, "approve");
+    await assert.rejects(executeDeployment(f.config, f.store, session, action.id, signal(), f.deps), code("DEPLOYMENT_PROPOSAL_REQUIRED"));
+    assert.equal(f.writes, 0);
+    assert.equal(f.store.getAction(action.id, session.actorId).attemptId, null);
+    // Seed an already-started historical journal, not a new provider send.
+    f.store.claim(action.id, session.actorId, session.id, action.spec);
+    f.store.deploymentStep(action.id, session.actorId, "upload_started");
+    f.store.deploymentStep(action.id, session.actorId, "uploaded", "old-source.tar.gz");
+    f.store.deploymentStep(action.id, session.actorId, "release_started", "old-source.tar.gz");
+    f.store.receipt(action.id, session.actorId, "release-exact");
+    f.reopen();
+    const restored = f.store.getAction(action.id, session.actorId);
+    assert.equal(restored.hash, action.hash);
+    assert.equal(decodeAction(restored).spec.version, 4);
+    const observed = await observeDeployment(f.config, f.store, session, action.id, signal(), f.deps);
+    assert.equal(observed.state, "succeeded");
+    assert.equal(f.writes, 0);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test("changing Node requirements after approval invalidates source before preflight or upload", async () => {
+  const f = await fixture({ nodeRange: ">=24.15.0 <25" });
+  try {
+    f.approve();
+    const before = f.reads;
+    await writeFile(join(f.root, "app/package.json"), JSON.stringify({ engines: { node: "22.x" }, scripts: { start: "node server.mjs" } }));
+    await assert.rejects(executeDeployment(f.config, f.store, session, f.action.id, signal(), f.deps), code("PROJECT_CHANGED"));
+    assert.equal(f.reads, before);
+    assert.equal(f.writes, 0);
+    assert.equal(f.store.getAction(f.action.id, session.actorId).attemptId, null);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test("conflicting Node configuration and a forged selected version stop before provider calls", async () => {
+  const f = await fixture({ nodeRange: ">=24.15.0 <25" });
+  try {
+    const spec = f.action.spec;
+    assert.equal(spec.version, 5);
+    if (spec.version !== 5) return;
+    assert.throws(() => f.store.createAction(session.actorId, { ...spec, nodeVersion: "20" }), code("NODE_VERSION_CHANGED"));
+    const before = f.reads;
+    await writeFile(join(f.root, "app/liara.json"), JSON.stringify({ node: { version: "22" } }));
+    const invalid = await prepareProjectFlow(f.config, f.store, session.actorId, { kind: "local", directory: "app" }, signal());
+    assert.equal(invalid.status, "incomplete");
+    await assert.rejects(proposeDeployment(f.config, f.store, session.actorId, { ...f.input, flowId: invalid.id }, signal(), { read: f.deps.read }), code("PROJECT_INCOMPLETE"));
+    assert.equal(f.reads, before);
+    assert.equal(f.writes, 0);
+    assert.equal(f.store.db.prepare("SELECT count(*) AS n FROM attempts").get()?.n, 0);
   } finally {
     await f.cleanup();
   }

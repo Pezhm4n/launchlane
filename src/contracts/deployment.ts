@@ -1,6 +1,11 @@
 import { AppError, ensure } from "../server/errors.ts";
 import { exactKeys, integer, object, string } from "./validation.ts";
-import type { Action } from "./domain.ts";
+import type { Action, ActionSpec } from "./domain.ts";
+
+export type DeploymentSpec = Extract<ActionSpec, { version: 4 | 5 }>;
+export function isDeploymentSpec(spec: ActionSpec): spec is DeploymentSpec {
+  return spec.version === 4 || spec.version === 5;
+}
 
 // This is a bounded GET oracle, never a model-supplied URL or executable expression.
 export type WorkloadExpectation = Readonly<{
@@ -25,7 +30,7 @@ export type DeploymentProgress = Readonly<{
 
 export function canReadDeploymentResult(action: Action): boolean {
   return (
-    action.spec.version === 4 &&
+    isDeploymentSpec(action.spec) &&
     Boolean(action.deployment) &&
     (action.state === "observing" ||
       action.state === "uncertain" ||

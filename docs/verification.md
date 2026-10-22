@@ -2,7 +2,17 @@
 
 شواهد جاری ابتدا و سابقه مراحل پیشین پایین‌تر ثبت شده‌اند. هر نتیجه به revision و شرایط خودش تعلق دارد؛ نتایج bootstrap جای قابلیت محصول و fixture جای اتصال زنده نیست.
 
-## چرخه زنده محدود و candidate جاری 869035a
+## T21 — انتخاب Node و approval v5؛ پایه 667227b
+
+مرز نخست خراب: profile دارای نیاز `>=24.15.0 <25` بود ولی release JSON هیچ platformConfig نداشت. regression مستقل ابتدا diff نبود `platformConfig.version=24` داد؛ پس از اصلاح همان case pass شد. helper server-only محدوده کامل semver را با catalog مستند تطبیق می‌دهد، تنظیم صریح liara.json را با engines می‌سنجد و به runtime رایانه fallback نمی‌کند. semver 7.8.5 و types 7.8.0 با lockfile pinned شدند؛ همان نسخه runtime پیش‌تر dependency غیرمستقیم sharp بود و اکنون direct و deduplicated است.
+
+ActionSpec v5 شاخه Node را در hash دارد؛ نسخه جعل‌شده، تغییر فایل‌ها، source/target/plan و approval مصرف‌شده مسیر تازه‌ای ایجاد نمی‌کنند. canonicalization قبلی تغییر نکرده است. v4 قدیمی اجرا نمی‌شود ولی journal/receipt/observe آن پس از reopen قابل خواندن است. profile تاریخی فاقد انتخاب runtime، با حفظ نتیجه به بررسی تازه نیاز دارد. تعارض engines/liara و نسخه نامعتبر پیش از provider، صفر read/write/attempt دارند. شرط نسخه جزئی صرفاً با انتخاب major یا پاسخ JSON سایت اثبات نمی‌شود.
+
+`npm run lint`، `npm run typecheck` و `npm run build` pass؛ اجرای تازه `npm run test:domain` برابر 89/89 و `npm run test:http` برابر 15/15، بدون fail/skip/cancel. `npm run test:browser` تازه 55 حالت در 9 عرض و 22 حالت انتشار در 4 عرض را بدون overflow/axe violation/browser error/external request در حالت‌های سنجیده‌شده گذراند: `.artifacts/ux/2026-10-21T23-53-26-482Z/` و `.artifacts/deployment-ui/2026-10-21T23-54-00.460Z/`. اجرای قبلی در `.artifacts/deployment-ui/2026-10-21T23-49-55.758Z/` پس از دکمه پیشنهاد تازه، به‌اشتباه منتظر فرم دوم ماند؛ کنترل موجود مستقیماً پیشنهاد جدید می‌ساخت. انتظار کلیک اضافی از test حذف شد؛ oracle نسخه v5، تأیید تازه و صفر send ثابت ماندند. case اولیه و failure artifact حفظ‌اند.
+
+مرور دستی CUA روی production ایزوله با حساب/برنامه مصنوعی، کلیدهای provider خالی و gateهای خاموش انجام شد. تأیید با Enter، انتقال focus به پیشنهاد، نسخه Node، بازیابی و دکمه اجرای غیرفعال با علت/گام بعد بررسی شدند. client/content در 360/768/1280 به‌ترتیب 345/345، 753/753 و 1265/1265 بود؛ تصاویر در `.artifacts/node-runtime-manual/` خصوصی‌اند. screen reader و کاربر تازه سنجیده نشده‌اند. ستون اصلی تبلت در 768 بیش از نیاز باریک و کنار آن خالی بود؛ این مشکل خوانایی با نبود overflow متفاوت است و برش بعدی UX آن را دنبال می‌کند. درخواست واقعی Liara/مدل و write زیرساختی این مرحله صفر بودند؛ شاهد زنده چرخه قبلی به v5 تعمیم داده نمی‌شود.
+
+## چرخه زنده محدود روی 869035a
 
 گزارش مستقل از چت در [controlled-live-cycle.md](evidence/controlled-live-cycle.md) است. سه release واقعی روی برنامه Node آزمایشی، 500 کنترل‌شده، تحلیل واقعی با دو فراخوانی/1653 توکن، تغییر نامرتبط همچنان 500 و اصلاح source دارای approval با پاسخ 200/live-v3 و release متناظر بررسی شدند. این cycle، env write، اصلاح خودکار کد توسط مدل یا پشتیبانی همه پروژه‌ها نیست. revision هر مرحله و حدود مصرف در همان گزارش ثبت‌اند.
 

@@ -13,6 +13,7 @@ import { hash, integer, object, string } from "./validation.ts";
 import { parseArtifact } from "./source.ts";
 import { parseConnection } from "./connections.ts";
 import { parseWorkloadExpectation, parseDeploymentProgress } from "./deployment.ts";
+import { parseNodeRuntime, parseNodeVersion } from "./node-runtime.ts";
 
 function nullableString(value: unknown, max = 256): string | null {
   return value === null ? null : string(value, max);
@@ -57,7 +58,7 @@ export function decodeAction(value: unknown): Action {
   const state = states.find((state) => state === raw.state);
   ensure(
     state &&
-      (spec.version === 1 || spec.version === 2 || spec.version === 3 || spec.version === 4) &&
+      (spec.version === 1 || spec.version === 2 || spec.version === 3 || spec.version === 4 || spec.version === 5) &&
       (spec.operation === "deploy" || spec.operation === "restart"),
     "INVALID_RESPONSE",
     "ساختار اقدام معتبر نیست.",
@@ -71,32 +72,25 @@ export function decodeAction(value: unknown): Action {
       planId: nullableString(args.planId),
     },
   };
-  const parsedSpec: ActionSpec =
-    spec.version === 1
-      ? { ...common, version: 1 }
-      : spec.version === 4
-        ? {
-            ...common,
-            version: 4,
-            artifactHash: hash(spec.artifactHash),
-            projectFlowId: string(spec.projectFlowId, 36),
-            selectionHash: hash(spec.selectionHash),
-            targetAppId: string(spec.targetAppId, 128),
-            workload: parseWorkloadExpectation(spec.workload),
-          }
-        : spec.version === 3
-          ? {
-              ...common,
-              version: 3,
-              artifactHash: hash(spec.artifactHash),
-              projectFlowId: string(spec.projectFlowId, 36),
-              selectionHash: hash(spec.selectionHash),
-            }
-          : {
-              ...common,
-              version: 2,
-              artifactHash: spec.artifactHash === null ? null : hash(spec.artifactHash),
-            };
+  let parsedSpec: ActionSpec;
+  if (spec.version === 1) parsedSpec = { ...common, version: 1 };
+  else if (spec.version === 4 || spec.version === 5) {
+    const deployment = {
+      ...common,
+      artifactHash: hash(spec.artifactHash),
+      projectFlowId: string(spec.projectFlowId, 36),
+      selectionHash: hash(spec.selectionHash),
+      targetAppId: string(spec.targetAppId, 128),
+      workload: parseWorkloadExpectation(spec.workload),
+    };
+    parsedSpec = spec.version === 5
+      ? { ...deployment, version: 5, nodeVersion: parseNodeVersion(spec.nodeVersion) }
+      : { ...deployment, version: 4 };
+  } else if (spec.version === 3) parsedSpec = {
+    ...common, version: 3, artifactHash: hash(spec.artifactHash),
+    projectFlowId: string(spec.projectFlowId, 36), selectionHash: hash(spec.selectionHash),
+  };
+  else parsedSpec = { ...common, version: 2, artifactHash: spec.artifactHash === null ? null : hash(spec.artifactHash) };
   return {
     id: string(raw.id),
     actorId: string(raw.actorId),
@@ -180,6 +174,7 @@ export function decodeProfile(value: unknown): ProjectProfile {
     directory: string(raw.directory, 240),
     runtime: raw.runtime,
     nodeVersion: nullableString(raw.nodeVersion),
+    ...(raw.nodeRuntime === undefined ? {} : { nodeRuntime: parseNodeRuntime(raw.nodeRuntime) }),
     port: raw.port === null ? null : integer(raw.port, 1, 65535),
     start: nullableString(raw.start),
     build: nullableString(raw.build),
