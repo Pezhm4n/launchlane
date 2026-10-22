@@ -60,7 +60,7 @@ test("cancelling account validation bounds a transport or body that ignores abor
           delay(500, "hung"),
         ]);
         assert.equal(outcome, "CANCELLED", stage);
-        assert.equal(calls, 1);
+        assert.equal(calls, 3);
         assert.equal(store.getConnection("alice", "liara"), null);
       } finally {
         clearTimeout(timer);
@@ -106,6 +106,70 @@ function transport(calls: string[], wrongTeam = false): Transport {
     );
   };
 }
+
+test("independent connection reads start together and persist only after all three validate", async () => {
+  const store = new Store(":memory:"),
+    started: string[] = [],
+    gate = Promise.withResolvers<void>(),
+    reply = transport([]);
+  try {
+    const connected = connectLiara(
+      config,
+      store,
+      "alice",
+      key,
+      AbortSignal.timeout(1000),
+      async (url, init) => {
+        started.push(url);
+        assert.equal(store.getConnection("alice", "liara"), null);
+        if (started.length === 3) gate.resolve();
+        await gate.promise;
+        return reply(url, init);
+      },
+    );
+    assert.equal(started.length, 3);
+    assert.equal(store.getConnection("alice", "liara"), null);
+    const view = await connected;
+    assert.equal(view.status, "connected");
+    assert.equal(view.teamId, team);
+    assert.deepEqual(view.apps.map((app) => app.name), ["sample-app"]);
+    assert.deepEqual(store.getConnection("alice", "liara")?.view, view);
+  } finally {
+    gate.resolve();
+    store.close();
+  }
+});
+
+test("a failed team read cancels siblings, preserves its typed error and cannot replace a saved account late", async () => {
+  const store = new Store(":memory:"),
+    late = Promise.withResolvers<void>(),
+    signals: AbortSignal[] = [],
+    reply = transport([]);
+  try {
+    await connectLiara(config, store, "alice", key, AbortSignal.timeout(1000), reply);
+    const previous = store.getConnection("alice", "liara");
+    await assert.rejects(
+      connectLiara(config, store, "alice", key, AbortSignal.timeout(1000), async (url, init) => {
+        assert.ok(init.signal);
+        signals.push(init.signal);
+        if (url.includes("/me?"))
+          return Response.json({ team: { _id: "b".repeat(24), teamName: "different team" } });
+        await late.promise;
+        return reply(url, init);
+      }),
+      code("LIARA_TEAM_MISMATCH"),
+    );
+    assert.equal(signals.length, 3);
+    assert.ok(signals.every((signal) => signal.aborted));
+    assert.deepEqual(store.getConnection("alice", "liara"), previous);
+    late.resolve();
+    await delay(0);
+    assert.deepEqual(store.getConnection("alice", "liara"), previous);
+  } finally {
+    late.resolve();
+    store.close();
+  }
+});
 test("explicit Liara connection verifies identity and the fixed team before encrypted storage; selection grants one app only", async () => {
   const calls: string[] = [],
     store = new Store(":memory:");
@@ -160,7 +224,7 @@ test("wrong Liara team, invalid credentials, denied permissions, limits and canc
       connectLiara(config, store, "alice", key, AbortSignal.timeout(2000), transport(calls, true)),
       code("LIARA_TEAM_MISMATCH"),
     );
-    assert.equal(calls.length, 2);
+    assert.equal(calls.length, 3);
     assert.equal(store.getConnection("alice", "liara"), null);
     let upstream = 0;
     await assert.rejects(

@@ -92,7 +92,8 @@ export async function validateLiaraConnection(
     "LIARA_KEY_INVALID",
     "فقط خود کلید دسترسی را بدون فاصله وارد کنید؛ رمز ورود حساب قابل استفاده نیست.",
   );
-  const bounded = AbortSignal.any([signal, AbortSignal.timeout(15_000)]);
+  const stopped = new AbortController();
+  const bounded = AbortSignal.any([signal, AbortSignal.timeout(15_000), stopped.signal]);
   const read = async (path: string): Promise<unknown> => {
     ensure(!bounded.aborted, "CANCELLED", "بررسی اتصال متوقف شد.", 409);
     try {
@@ -153,9 +154,12 @@ export async function validateLiaraConnection(
     }
   };
   try {
-    const identity = parseLiaraIdentity(await read("/v1/me"));
-    const team = parseLiaraTeam(await read(`/v1/me?teamID=${config.teamId}`), config.teamId);
-    const apps = parseLiaraApps(await read(`/v1/projects?teamID=${config.teamId}`), config.apps);
+    // Independent reads share one deadline so upstream latency does not consume it three times.
+    const [identity, team, apps] = await Promise.all([
+      read("/v1/me").then(parseLiaraIdentity),
+      read(`/v1/me?teamID=${config.teamId}`).then((raw) => parseLiaraTeam(raw, config.teamId)),
+      read(`/v1/projects?teamID=${config.teamId}`).then((raw) => parseLiaraApps(raw, config.apps)),
+    ]);
     return {
       provider: "liara",
       status: "connected",
@@ -173,6 +177,9 @@ export async function validateLiaraConnection(
       "ساختار اطلاعات حساب یا تیم با این نسخه سازگار نیست. اتصال ثبت نشد؛ شناسه پیگیری را برای پشتیبانی نگه دارید.",
       502,
     );
+  } finally {
+    // A failed response must stop sibling reads without replacing the original typed failure.
+    stopped.abort();
   }
 }
 
