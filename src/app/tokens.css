@@ -1,4 +1,6 @@
 :root {
+  --assistant-width: 26rem;
+  --assistant-height: 38rem;
   color-scheme: dark;
   --color-paper: #191c22;
   --color-surface: #222730;

@@ -1,4 +1,5 @@
 @import "./tokens.css";
+@import "./publication.css";
 @font-face {
   font-family: IRANYekan;
   src: url("/fonts/iranyekanwebregular.woff2") format("woff2");

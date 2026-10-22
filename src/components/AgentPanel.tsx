@@ -7,6 +7,7 @@ import { api, ClientError } from "./api.ts";
 import { AgentPublication } from "./AgentPublication.tsx";
 import { AgentDestination } from "./AgentDestination.tsx";
 import { RichText } from "./RichText.tsx";
+import { FloatingAssistant } from "./FloatingAssistant.tsx";
 
 function decodeRun(value: unknown): AgentView | null {
   const row = object(value);
@@ -95,6 +96,14 @@ export function AgentPanel({
   onManualPublish,
   onExpired,
   onProjectChanged,
+  projectHash,
+  blocked = false,
+  guided = false,
+  onLockChanged,
+  accountReady = false,
+  appSelected = false,
+  chatOnly = false,
+  onChatLockChanged,
 }: {
   projectId: string | null;
   projectName: string | null;
@@ -109,6 +118,14 @@ export function AgentPanel({
   onManualPublish: () => void;
   onExpired: () => void;
   onProjectChanged: (projectId: string) => Promise<void>;
+  projectHash?: string | undefined;
+  blocked?: boolean;
+  guided?: boolean;
+  onLockChanged?: (locked: boolean) => void;
+  accountReady?: boolean;
+  appSelected?: boolean;
+  chatOnly?: boolean;
+  onChatLockChanged?: (locked: boolean) => void;
 }) {
   const [run, setRun] = useState<AgentView | null>(null),
     [draft, setDraft] = useState(""),
@@ -121,6 +138,8 @@ export function AgentPanel({
     [retryable, setRetryable] = useState<{ message: string; projectId: string | null } | null>(
       null,
     );
+  const [missionPath, setMissionPath] = useState("/"), [expectedText, setExpectedText] = useState("");
+  const missionKey = useRef<{ input: string; key: string } | null>(null);
   const input = useRef<HTMLTextAreaElement>(null),
     transcript = useRef<HTMLElement>(null),
     latest = useRef<AgentView | null>(null),
@@ -133,6 +152,11 @@ export function AgentPanel({
     draftSkipSave = useRef(false),
     draftValue = useRef("");
   const syncedProject = useRef<string | null>(null);
+  const previousProject = useRef(projectId);
+  useEffect(() => {
+    if (guided && activeView && projectId && previousProject.current !== projectId) document.getElementById("publication-agent-title")?.focus();
+    previousProject.current = projectId;
+  }, [projectId, guided, activeView]);
   const draftKey = `launchlane:agent:draft:${projectId ?? "none"}`,
     emptyProjectKey = "launchlane:agent:draft:none";
   const active = run?.state === "queued" || run?.state === "working",
@@ -163,8 +187,10 @@ export function AgentPanel({
   );
   useEffect(() => {
     const controller = new AbortController();
-    api("/api/agent/runs", decodeRun, { signal: controller.signal })
-      .then(accept)
+    accept(null);
+    setRestoring(true);
+    api(`/api/agent/runs?project=${projectId ?? "none"}${guided ? "&kind=publication" : chatOnly ? "&kind=conversation" : ""}`, decodeRun, { signal: controller.signal })
+      .then(value => { if (!controller.signal.aborted) accept(value); })
       .catch((cause) => {
         if (!controller.signal.aborted) failed(cause);
       })
@@ -172,16 +198,19 @@ export function AgentPanel({
         if (!controller.signal.aborted) setRestoring(false);
       });
     return () => controller.abort();
-  }, [accept, failed]);
+  }, [accept, failed, projectId, guided, chatOnly]);
   useEffect(() => {
-    if (!active || !runId || !activeView) return;
+    onLockChanged?.(busy || active || ["approved", "executing", "observing", "uncertain"].includes(run?.publication?.state ?? "") || ["approved", "executing", "observing", "uncertain"].includes(run?.destination?.state ?? ""));
+  }, [busy, active, run?.publication?.state, run?.destination?.state, onLockChanged]);
+  useEffect(() => {
+    if (!active || !runId) return;
     const controller = new AbortController();
     let inFlight = false;
     const timer = window.setInterval(() => {
       if (inFlight) return;
       inFlight = true;
       api(`/api/agent/runs/${runId}`, decodeRun, { signal: controller.signal })
-        .then(accept)
+        .then(value => { if (!controller.signal.aborted) accept(value); })
         .catch((cause) => {
           if (!controller.signal.aborted) failed(cause);
         })
@@ -193,7 +222,7 @@ export function AgentPanel({
       controller.abort();
       window.clearInterval(timer);
     };
-  }, [runId, active, activeView, accept, failed]);
+  }, [runId, active, accept, failed]);
   useEffect(() => () => pending.current?.abort(), []);
   useEffect(() => {
     const node = transcript.current;
@@ -298,11 +327,24 @@ export function AgentPanel({
     }
     await send(message);
   }
+  async function startPublication(event?: FormEvent) {
+    event?.preventDefault();
+    if (!projectId || !projectHash || busy || active || disabled || !enabled || restoring) return;
+    const publication = { projectId, sourceHash: projectHash, path: missionPath, expectedText: expectedText.trim() || null };
+    const encoded = JSON.stringify(publication);
+    if (missionKey.current?.input !== encoded) missionKey.current = { input: encoded, key: crypto.randomUUID() };
+    setBusy(true); setError(null);
+    try {
+      accept(await api("/api/agent/runs", decodeRun, { csrf,
+        body: { operation: "publish", requestKey: missionKey.current.key, publication } }));
+    } catch (cause) { failed(cause); }
+    finally { setBusy(false); }
+  }
   async function send(message: string) {
     if (busy || active || restoring || disabled || !enabled || run?.state === "needs_approval")
       return;
     const continueRun =
-      run && sameProject && (run.state === "needs_input" || run.state === "partially_completed")
+      run && sameProject && (!chatOnly || run.channel === "conversation") && (run.state === "needs_input" || run.state === "partially_completed")
         ? run
         : null;
     const previous = submission.current;
@@ -330,7 +372,7 @@ export function AgentPanel({
                 requestKey: request.key,
                 message,
               }
-            : { requestKey: request.key, goal: message, projectId },
+            : { requestKey: request.key, goal: message, projectId, ...(chatOnly ? { operation: "question" } : {}) },
         },
       );
       accept(result);
@@ -354,7 +396,7 @@ export function AgentPanel({
     setRetryable(null);
     setError(null);
     try {
-      const value = await api(run ? `/api/agent/runs/${run.id}` : "/api/agent/runs", decodeRun);
+      const value = await api(run ? `/api/agent/runs/${run.id}` : `/api/agent/runs?project=${projectId ?? "none"}${guided ? "&kind=publication" : chatOnly ? "&kind=conversation" : ""}`, decodeRun);
       accept(value);
       if (value) submission.current = null;
     } catch (cause) {
@@ -463,98 +505,7 @@ export function AgentPanel({
     .at(-1)?.message;
   const startedAt = run?.events.find((event) => event.at > 0)?.at ?? now;
   const action = run?.nextAction;
-  return (
-    <section className="panel agent-panel" aria-labelledby="agent-title" aria-busy={busy || active}>
-      <div className="section-heading">
-        <h2 id="agent-title">چه کاری انجام بدهم؟</h2>
-        {run ? <span className="badge badge-quiet">{stateLabels[run.state]}</span> : null}
-      </div>
-      {run && !active && run.state !== "needs_approval" ? (
-        <div className="agent-new-conversation">
-          <button
-            type="button"
-            className="button-quiet"
-            disabled={disabled || busy}
-            aria-describedby="agent-new-conversation-help"
-            onClick={() => {
-              accept(null);
-              setError(null);
-              setRetryable(null);
-              submission.current = null;
-              seen.current = { runId: null, messages: 0 };
-              setNewCount(0);
-              input.current?.focus();
-            }}
-          >
-            گفت‌وگوی تازه
-          </button>
-          <span id="agent-new-conversation-help" className="hint">
-            نمای فعلی بسته می‌شود؛ سابقه قبلی حذف نمی‌شود.
-          </span>
-        </div>
-      ) : null}
-      <div className="button-row agent-project-actions">
-        <button
-          type="button"
-          className="button-secondary"
-          disabled={disabled || busy || active}
-          onClick={(event) => onChooseProject(event.currentTarget)}
-        >
-          {projectName ? "تغییر پروژه" : "انتخاب پروژه"}
-        </button>
-        <button
-          type="button"
-          className="button-quiet"
-          disabled={disabled || busy || active}
-          onClick={(event) => onGitHub(event.currentTarget)}
-        >
-          انتخاب از GitHub
-        </button>
-      </div>
-      {!run && !restoring && enabled ? (
-        <p className="hint agent-empty">
-          {projectName
-            ? "هدف را در کادر پایین بنویسید؛ مثلاً «این پروژه را بررسی کن و برای انتشار آماده کن»."
-            : "برای شروع، ابتدا پروژه را انتخاب کنید؛ سپس هدف را در کادر پایین بنویسید."}
-        </p>
-      ) : null}
-      {restoring ? <p role="status">در حال بازیابی گفت‌وگو…</p> : null}
-      {!enabled ? (
-        <section className="note agent-unavailable" aria-labelledby="agent-unavailable-title">
-          <h3 id="agent-unavailable-title">دستیار در این نصب خاموش است</h3>
-          <p>
-            این وضعیت عمدی است. برای محافظت از حساب و هزینه، دستیار و عملیات واقعی به‌صورت خودکار
-            روشن نمی‌شوند و این صفحه تنها وضعیت نصب را نشان می‌دهد.
-          </p>
-          <p>
-            می‌توانید همین حالا پروژه را دستی بررسی کنید. انتشار همچنان پیشنهاد، تأیید و بررسی نتیجه
-            جداگانه دارد.
-          </p>
-          <div className="button-row">
-            <button type="button" onClick={onManualPublish} disabled={disabled || busy}>
-              ادامه با انتشار دستی
-            </button>
-          </div>
-        </section>
-      ) : null}
-      {run ? (
-        <>
-          <p className="agent-effect">{run.effect === "remote_changes_verified" ? "نسخه منتشرشده و پاسخ مورد انتظار بررسی شدند."
-            : run.effect === "destination_created" ? "مقصد ساخته و تنظیمات آن تأیید شد؛ انتشار هنوز جداگانه بررسی می‌شود."
-            : run.effect === "remote_changes_unverified" ? "ارسال به سرویس آغاز شده است؛ نتیجه نهایی هنوز تأیید نشده است."
-            : "تغییری در سایت منتشر نشده است."}</p>
-          {run.state === "failed" ? (
-            <p className="note">
-              این بررسی کامل نشد و نتیجه‌ای تأیید نشد. نتیجه‌های ثبت‌شده حفظ شده‌اند؛ برای ادامه،
-              هدف را در کادر پایین دوباره بنویسید. درخواست تازه جدا ثبت می‌شود.
-            </p>
-          ) : null}
-          {!sameProject ? (
-            <p className="note">
-              این گفت‌وگو برای پروژه قبلی است. پیام بعدی، بررسی تازه‌ای برای پروژه انتخاب‌شده آغاز
-              می‌کند.
-            </p>
-          ) : null}
+  const conversation = run && sameProject ? <>
           <section
             ref={transcript}
             className="agent-transcript"
@@ -602,9 +553,185 @@ export function AgentPanel({
               {new Intl.NumberFormat("fa-IR").format(newCount)} پیام تازه
             </button>
           ) : null}
+
+</> : <p className="hint">درباره پروژه و انتشار سؤال کنید. رمز یا کلید را در پیام وارد نکنید.</p>;
+  const composer = enabled && run?.state !== "needs_approval" ? (
+        <form className="agent-composer" onSubmit={(event) => void submit(event)}>
+          <label htmlFor="agent-goal">{run && sameProject ? "پیام بعدی" : "هدف شما"}</label>
+          <textarea
+            ref={input}
+            id="agent-goal"
+            name="goal"
+            autoComplete="off"
+            dir="auto"
+            rows={2}
+            enterKeyHint="send"
+            maxLength={2000}
+            placeholder="مثلاً این پروژه را برای انتشار بررسی کن…"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (
+                event.key !== "Enter" ||
+                event.shiftKey ||
+                event.nativeEvent.isComposing ||
+                active ||
+                busy
+              )
+                return;
+              event.preventDefault();
+              event.currentTarget.form?.requestSubmit();
+            }}
+            disabled={disabled || busy}
+            aria-describedby={[
+              "agent-help",
+              active ? "agent-active-help" : "",
+              error ? "agent-error" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            aria-invalid={error?.code === "EMPTY_GOAL" || undefined}
+          />
+          <p id="agent-help" className="hint">
+            رمز یا کلید وارد نکنید · Enter ارسال · Shift+Enter خط تازه
+          </p>
+          {active ? (
+            <p id="agent-active-help" className="hint">
+              بررسی در حال اجراست؛ نوشتن آزاد است و ارسال پس از پایان ممکن می‌شود.
+            </p>
+          ) : null}
+          <div className="button-row">
+            <button
+              type="submit"
+              disabled={disabled || busy || restoring || active}
+              aria-describedby={active ? "agent-active-help" : undefined}
+            >
+              {busy ? "در حال ثبت…" : "ارسال درخواست"}
+            </button>
+            {active ? (
+              <button
+                type="button"
+                className="button-secondary"
+                disabled={busy || disabled}
+                onClick={() => void cancel()}
+              >
+                توقف بررسی
+              </button>
+            ) : null}
+          </div>
+        </form>
+      ) : null;
+  return (<>
+    <section className={`panel agent-panel ${guided ? "publication-journey" : "optional-chat"}`} hidden={guided && (!activeView || !projectId)} aria-labelledby={guided ? "publication-agent-title" : "agent-title"} aria-busy={busy || active}>
+      <div className="section-heading">
+        <h2 id={guided ? "publication-agent-title" : "agent-title"} tabIndex={-1}>{guided ? "آماده‌سازی و انتشار پروژه" : "گفت‌وگوی پروژه"}</h2>
+        {run ? <span className="badge badge-quiet">{stateLabels[run.state]}</span> : null}
+      </div>
+      {!guided && run && !active && run.state !== "needs_approval" ? (
+        <div className="agent-new-conversation">
+          <button
+            type="button"
+            className="button-quiet"
+            disabled={disabled || busy}
+            aria-describedby="agent-new-conversation-help"
+            onClick={() => {
+              accept(null);
+              setError(null);
+              setRetryable(null);
+              submission.current = null;
+              seen.current = { runId: null, messages: 0 };
+              setNewCount(0);
+              input.current?.focus();
+            }}
+          >
+            گفت‌وگوی تازه
+          </button>
+          <span id="agent-new-conversation-help" className="hint">
+            نمای فعلی بسته می‌شود؛ سابقه قبلی حذف نمی‌شود.
+          </span>
+        </div>
+      ) : null}
+      <div className="button-row agent-project-actions" hidden={guided || chatOnly}>
+        <button
+          type="button"
+          className="button-secondary"
+          disabled={disabled || busy || active}
+          onClick={(event) => onChooseProject(event.currentTarget)}
+        >
+          {projectName ? "تغییر پروژه" : "انتخاب پروژه"}
+        </button>
+        <button
+          type="button"
+          className="button-quiet"
+          disabled={disabled || busy || active}
+          onClick={(event) => onGitHub(event.currentTarget)}
+        >
+          انتخاب از GitHub
+        </button>
+      </div>
+      {!guided && !run && !restoring && enabled ? (
+        <p className="hint agent-empty">
+          {projectName
+            ? "هدف را در کادر پایین بنویسید؛ مثلاً «این پروژه را بررسی کن و برای انتشار آماده کن»."
+            : "برای شروع، ابتدا پروژه را انتخاب کنید؛ سپس هدف را در کادر پایین بنویسید."}
+        </p>
+      ) : null}
+      {restoring ? <p role="status">در حال بازیابی وضعیت…</p> : null}
+      {guided && enabled && projectId && !restoring && !active && run?.state !== "needs_approval" && (!run?.mission || (run.state === "needs_input" && ((run.nextAction === "connect_account" && accountReady) || (run.nextAction === "select_app" && appSelected)))) ? (
+        <form onSubmit={event => void startPublication(event)} className="publication-start">
+          <p>روش اجرای پروژه و مقصد بررسی می‌شوند. تغییرات لازم و هزینه پیش از اجرا برای تصمیم شما نمایش داده می‌شوند.</p>
+          <details><summary>صفحه و نشانه مورد انتظار</summary>
+            <label htmlFor="mission-path">کدام صفحه را بررسی کنیم؟</label>
+            <input id="mission-path" dir="ltr" value={missionPath} onChange={event => setMissionPath(event.target.value)} maxLength={200} required disabled={busy || disabled} />
+            <label htmlFor="mission-expectation">متنی که باید در پاسخ باشد (اختیاری)</label>
+            <input id="mission-expectation" value={expectedText} onChange={event => setExpectedText(event.target.value)} maxLength={240} disabled={busy || disabled} />
+            <p className="hint">پیش‌فرض صفحه اصلی است. اگر نشانه را وارد نکنید، از فایل‌های همان صفحه استخراج می‌شود.</p>
+          </details>
+          <button type="submit" disabled={busy || disabled}>{busy ? "در حال ثبت…" : "بررسی و آماده‌سازی انتشار"}</button>
+        </form>
+      ) : null}
+      {!enabled ? (
+        <section className="note agent-unavailable" aria-labelledby="agent-unavailable-title">
+          <h3 id="agent-unavailable-title">دستیار در این نصب خاموش است</h3>
+          <p>
+            این وضعیت عمدی است. برای محافظت از حساب و هزینه، دستیار و عملیات واقعی به‌صورت خودکار
+            روشن نمی‌شوند و این صفحه تنها وضعیت نصب را نشان می‌دهد.
+          </p>
+          <p>
+            می‌توانید همین حالا پروژه را دستی بررسی کنید. انتشار همچنان پیشنهاد، تأیید و بررسی نتیجه
+            جداگانه دارد.
+          </p>
+          <div className="button-row">
+            <button type="button" onClick={onManualPublish} disabled={disabled || busy}>
+              ادامه با انتشار دستی
+            </button>
+          </div>
+        </section>
+      ) : null}
+      {run && sameProject ? (
+        <>
+          {!guided ? conversation : null}
+          {guided && !active && run.events.filter(event => event.kind === "assistant").at(-1)?.message ? <div className="mission-summary"><RichText text={run.events.filter(event => event.kind === "assistant").at(-1)?.message ?? ""} /></div> : null}
+          <p className="agent-effect">{run.effect === "remote_changes_verified" ? "نسخه منتشرشده و پاسخ مورد انتظار بررسی شدند."
+            : run.effect === "destination_created" ? "مقصد ساخته و تنظیمات آن تأیید شد؛ انتشار هنوز جداگانه بررسی می‌شود."
+            : run.effect === "remote_changes_unverified" ? "ارسال به سرویس آغاز شده است؛ نتیجه نهایی هنوز تأیید نشده است."
+            : "تغییری در سایت منتشر نشده است."}</p>
+          {run.state === "failed" ? (
+            <p className="note">
+              این مرحله کامل نشد. رسیدها و نتیجه‌های مراحل پیشین حفظ شده‌اند؛ برای ادامه،
+              خطای ثبت‌شده را در مراحل بررسی ببینید و وضعیت را دوباره دریافت کنید. هیچ عملیات ابری خودکار تکرار نمی‌شود.
+            </p>
+          ) : null}
+          {!sameProject ? (
+            <p className="note">
+              این گفت‌وگو برای پروژه قبلی است. پیام بعدی، بررسی تازه‌ای برای پروژه انتخاب‌شده آغاز
+              می‌کند.
+            </p>
+          ) : null}
           {active ? (
             <div className="agent-progress">
               <p role="status" aria-live="polite" aria-atomic="true" className="hint">
+
                 {progress ?? "در حال بررسی درخواست…"}
               </p>
               <span className="hint agent-elapsed" aria-hidden="true">
@@ -619,7 +746,7 @@ export function AgentPanel({
           {run.repair ? (
             <section className="agent-repair" aria-labelledby="repair-title">
               <h3 id="repair-title">اصلاح نسخه جدا از پروژه</h3>
-              <details open={run.state === "needs_approval"}>
+              <details>
                 <summary>جزئیات اصلاح و رسید آزمون</summary>
                 <p>{run.repair.goal}</p>
                 <p className="hint">فقط این فایل‌ها قابل تغییرند:</p>
@@ -633,8 +760,7 @@ export function AgentPanel({
                 <p className="hint">همین آزمون موجود، پیش و پس از اصلاح اجرا می‌شود:</p>
                 <code dir="ltr">node --test -- {run.repair.testFiles.join(" ")}</code>
                 <p className="hint">
-                  فرمان در نسخه جدا با دسترسی محدود Node اجرا می‌شود. پوشه اصلی تغییر نمی‌کند. این
-                  اجرا محیط مجازی با شبکه جدا نیست.
+                  {run.repair.execution === "container" ? "آزمون در container محدود، بدون شبکه و بدون دسترسی نوشتن به پوشه اصلی اجرا می‌شود." : "فرمان در نسخه جدا با دسترسی محدود Node اجرا می‌شود. این روش شبکه جدا یا sandbox سیستم‌عامل نیست."} پوشه اصلی تغییر نمی‌کند.
                 </p>
                 {run.repair.diff ? (
                   <pre dir="ltr">
@@ -700,7 +826,7 @@ export function AgentPanel({
               ) : null}
             </section>
           ) : null}
-          {run.destination ? <AgentDestination action={run.destination} waiting={run.state === "needs_approval" && (run.destination.state === "awaiting_approval" || run.destination.state === "expired")}
+          {run.destination && !run.destinationContinued ? <AgentDestination action={run.destination} waiting={run.state === "needs_approval" && (run.destination.state === "awaiting_approval" || run.destination.state === "expired")}
             disabled={disabled || busy || active || !sameProject}
             resumable={run.destination.state === "succeeded" && !run.destinationContinued}
             onDecision={(decision) => void destinationRequest(decision)}
@@ -709,7 +835,7 @@ export function AgentPanel({
             disabled={disabled || busy || active || !sameProject}
             onDecision={(decision) => void publicationRequest(decision)}
             onObserve={() => void publicationRequest()} /> : null}
-          {sameProject && action && action !== "reply" ? (
+          {sameProject && action && action !== "reply" && action !== "review_project" && !(guided && ((action === "connect_account" && accountReady) || (action === "select_app" && appSelected))) ? (
             <div className="button-row">
               <button
                 type="button"
@@ -731,6 +857,13 @@ export function AgentPanel({
               </button>
             </div>
           ) : null}
+          {guided && active ? <button type="button" className="button-secondary" disabled={busy || disabled} onClick={() => void cancel()}>توقف ادامه عملیات</button> : null}
+          {guided && run.state === "needs_input" && run.question && action === "reply" ? <form onSubmit={event => void submit(event)}>
+            <label htmlFor="publication-answer">اطلاعات موردنیاز برای ادامه</label>
+            <textarea id="publication-answer" value={draft} onChange={event => setDraft(event.target.value)} rows={2} maxLength={2000} required disabled={busy || disabled} />
+            <p className="hint">مقدار محرمانه وارد نکنید.</p>
+            <button type="submit" disabled={busy || disabled}>ثبت اطلاعات و ادامه</button>
+          </form> : null}
           <details>
             <summary>مراحل بررسی</summary>
             <ol className="agent-events">
@@ -781,72 +914,14 @@ export function AgentPanel({
           ) : null}
         </div>
       ) : null}
-      {enabled && run?.state !== "needs_approval" ? (
-        <form className="agent-composer" onSubmit={(event) => void submit(event)}>
-          <label htmlFor="agent-goal">{run && sameProject ? "پیام بعدی" : "هدف شما"}</label>
-          <textarea
-            ref={input}
-            id="agent-goal"
-            name="goal"
-            autoComplete="off"
-            dir="auto"
-            rows={2}
-            enterKeyHint="send"
-            maxLength={2000}
-            placeholder="مثلاً این پروژه را برای انتشار بررسی کن…"
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (
-                event.key !== "Enter" ||
-                event.shiftKey ||
-                event.nativeEvent.isComposing ||
-                active ||
-                busy
-              )
-                return;
-              event.preventDefault();
-              event.currentTarget.form?.requestSubmit();
-            }}
-            disabled={disabled || busy}
-            aria-describedby={[
-              "agent-help",
-              active ? "agent-active-help" : "",
-              error ? "agent-error" : "",
-            ]
-              .filter(Boolean)
-              .join(" ")}
-            aria-invalid={error?.code === "EMPTY_GOAL" || undefined}
-          />
-          <p id="agent-help" className="hint">
-            رمز یا کلید وارد نکنید · Enter ارسال · Shift+Enter خط تازه
-          </p>
-          {active ? (
-            <p id="agent-active-help" className="hint">
-              بررسی در حال اجراست؛ نوشتن آزاد است و ارسال پس از پایان ممکن می‌شود.
-            </p>
-          ) : null}
-          <div className="button-row">
-            <button
-              type="submit"
-              disabled={disabled || busy || restoring || active}
-              aria-describedby={active ? "agent-active-help" : undefined}
-            >
-              {busy ? "در حال ثبت…" : "ارسال درخواست"}
-            </button>
-            {active ? (
-              <button
-                type="button"
-                className="button-secondary"
-                disabled={busy || disabled}
-                onClick={() => void cancel()}
-              >
-                توقف بررسی
-              </button>
-            ) : null}
-          </div>
-        </form>
-      ) : null}
+      {!guided ? composer : null}
     </section>
+    {guided ? <FloatingAssistant blocked={blocked || run?.state === "needs_approval"} projectName={projectName}>
+      <AgentPanel projectId={projectId} projectName={projectName} csrf={csrf} enabled={enabled} disabled={disabled}
+        activeView chatOnly onAccounts={onAccounts} onChooseProject={onChooseProject} onGitHub={onGitHub} onReview={onReview}
+        onManualPublish={onManualPublish} onExpired={onExpired} onProjectChanged={onProjectChanged}
+        {...(onChatLockChanged ? { onLockChanged: onChatLockChanged } : {})} />
+    </FloatingAssistant> : null}
+    </>
   );
 }

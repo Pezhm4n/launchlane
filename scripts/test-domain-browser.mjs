@@ -1,3 +1,4 @@
+import {reviewProject,editProject} from "./browser-project.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -78,7 +79,7 @@ async function layout(width, label) {
 async function prepare(hostname) {
   if (hostname !== undefined) await region.getByLabel("نام دامنه", { exact: true }).fill(hostname);
   await submit.click();
-  await heading().waitFor();
+  await reviewProject(page);
   await page.waitForFunction(() => document.activeElement?.matches(".domain-guide-result h3"));
   const focusBox = await heading().boundingBox();
   assert.ok(focusBox && focusBox.y >= 6, "The focused guide heading and its outline must remain inside the viewport");
@@ -108,7 +109,7 @@ try {
   await page.getByLabel("کلید ورود محلی", { exact: true }).fill(server.token);
   await page.getByRole("button", { name: "ورود به میز کار", exact: true }).click();
   await page.getByRole("button", { name: "امتحان با پروژه نمونه", exact: true }).click();
-  await page.getByRole("heading", { name: "نتیجه بررسی پروژه", exact: true }).waitFor();
+  await reviewProject(page);
   store = new Store(join(server.stateDir, "state.sqlite"));
   await summary.press("Enter");
   await region.getByLabel("نام دامنه", { exact: true }).waitFor();
@@ -201,7 +202,8 @@ try {
 
   saveConnection();
   await page.reload();
-  await page.getByRole("heading", { name: "نتیجه بررسی پروژه", exact: true }).waitFor();
+  await reviewProject(page);
+  await reviewProject(page);
   await summary.press("Enter");
   const longHostname = `${"a".repeat(63)}.${"b".repeat(63)}.${"c".repeat(63)}.${"d".repeat(57)}.ir`;
   await prepare(longHostname);
@@ -239,7 +241,8 @@ try {
   await layout(360, "changed-target-invalidates-guide-keeps-name");
   saveConnection({ status: "reauth_required" });
   await page.reload();
-  await page.getByRole("heading", { name: "نتیجه بررسی پروژه", exact: true }).waitFor();
+  await reviewProject(page);
+  await reviewProject(page);
   await summary.press("Enter");
   await prepare("example.ir");
   assert.match(await region.textContent(), /اتصال لیارا نیاز به بررسی دوباره دارد/);

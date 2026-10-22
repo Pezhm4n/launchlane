@@ -1,5 +1,18 @@
 # شواهد اعتبارسنجی Launchlane
 
+## انتشار مرحله‌ای؛ working tree پس از e7fffd1
+
+دو تب و پیش‌فرض انتشار، ثبت structured، join درخواست هم‌زمان، تاریخچه scoped، چت اختیاری فقط‌خواندنی، expectation ثابت و worker container Node22 پیاده شدند. [گزارش تفکیکی](evidence/guided-publication.md) دو چرخه مدل/PaaS واقعی، failureهای حفظ‌شده و حدود آن‌ها را دارد. آماده‌سازی پروژه خراب، تست fail→patch→همان تست pass→انتشار همان artifact از وب و بدون چت گذشت؛ این شاهد، شکست انتشار اولیه و redeploy نیست.
+
+مرورگر تازه 17 حالت در320/360/390/768/1280، متن200٪، ارتفاع کوتاه، keyboard/focus، draft، URL قدیمی و reload بدون model/write را با transport مصنوعی و صفر درخواست خارجی گذراند. sandbox واقعی با مدل مصنوعی، source اصلی محفوظ، پنج کنترل containment و حذف دو container را سنجید. پس از رفع regression قفلِ بیش از حد روی مشاهده تاریخی، domain تازه256/256 بدون skip گذشت؛ target32/32 پیش از full نیز ثبت است. build export و lint بدون error گذشتند. این شمارها متعلق به snapshotهای یادشده‌اند؛ نتیجه نهایی staged candidate جدا ثبت می‌شود.
+
+generic Node/Next dependency/build، env امن، GitHub دارای build در تجربه تازه، چرخه تازه fail-deploy→repair→redeploy، reader/screen-reader و موبایل فیزیکی UNCONFIRMED/باز هستند. Docker این برش executor تست مستقیم موجود است؛ نصب dependency یا shell مدل اجرا نمی‌کند. این مرزها به‌عنوان پذیرش کامل مأموریت معرفی نمی‌شوند.
+
+هسته روی index کامیت `568345a`: domain256/256، HTTP هدف5/5، build و lint بدون error (28warning/1info). candidate مستقل رابط با CSS/nav خود این برش و بدون فایل‌های همکار: HTTP26/26، شش suite مرورگر به‌ترتیب75/27/27/22/17/5، typecheck، build و lint بدون error (30warning/1info) گذشتند. آزمون‌های قدیمی پس از reload صریحاً بخش فنی را باز می‌کنند؛ default بسته می‌ماند. همه این browser/HTTPها synthetic و صفر درخواست خارجی‌اند.
+
+gate خود کیت UX در نصب Windows اجرا شد و12/52 گذشت؛ dependency مرورگر کیت نصب نبود و بخشی از scriptها به shell/Pythonencoding آن وابسته‌اند. این self-test کیت، امتیاز Launchlane یا شاهد رد/قبول UI آن نیست؛ آزمون مستقل Playwright/axe محصول بالا مرجع است. reader و صفحه‌کلید موبایل فیزیکی همچنان UNCONFIRMED هستند.
+
+
 شواهد جاری ابتدا و سابقه مراحل پیشین پایین‌تر ثبت شده‌اند. هر نتیجه به revision و شرایط خودش تعلق دارد؛ نتایج bootstrap جای قابلیت محصول و fixture جای اتصال زنده نیست.
 
 ## A09 و رفع timeout اتصال؛ پس از8d5abf2

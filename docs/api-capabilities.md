@@ -1,5 +1,7 @@
 # قرارداد و وضعیت API لیارا
 
+مسیر مرحله‌ای جدید از همان API محلی Agent استفاده می‌کند: POST /api/agent/runs با operation=publish، requestKey و publication {projectId,sourceHash,path,expectedText}. host context، ابزار و approval را مالک است. GET همان مسیر با project و kind=publication|conversation فقط replay scoped است؛ operation=question فقط read tools دارد. این‌ها endpoint لیارا نیستند. canonicalizationهای ActionSpec تاریخی و transport cloud تغییر نکرده‌اند. worker container محدود Node22 به معنی install/build عمومی یا env write نیست.
+
 ## توسعه Agent؛ وضعیت جاری و قراردادهای باز
 
 برنامه Agent در [agent-experience](agent-experience.md) و A00–A19 تعریف شده است. ساخت Node app با شبکه موجود و ادامه به انتشار همان artifact اکنون ابزار محصول است و چرخه واقعی وب دارد؛ ساخت شبکه، env و resize هنوز بازند. وضعیت documented با implementation و شاهد زنده یکی نیست.

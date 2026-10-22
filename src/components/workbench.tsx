@@ -17,9 +17,10 @@ import { GitHubProjectPicker } from "./GitHubProjectPicker.tsx";
 import { IncidentWorkbench } from "./IncidentWorkbench.tsx";
 import { DomainGuidePanel } from "./DomainGuidePanel.tsx";
 import { AgentPanel } from "./AgentPanel.tsx";
+import { workbenchLocation } from "../contracts/navigation.ts";
 
 type FlowResult = { flow: ProjectFlow | null; action: Action | null };
-type WorkbenchMode="agent"|"source"|"incident";
+type WorkbenchMode="source"|"incident";
 function decodeFlow(value: unknown): FlowResult {
   const row = object(value);
   return {
@@ -28,14 +29,12 @@ function decodeFlow(value: unknown): FlowResult {
   };
 }
 const number = (value: number) => new Intl.NumberFormat("fa-IR").format(value);
-const workbenchModes: WorkbenchMode[] = ["agent", "source", "incident"];
+const workbenchModes: WorkbenchMode[] = ["source", "incident"];
 const modeNames: Record<WorkbenchMode, string> = {
-  agent: "دستیار پروژه",
   source: "انتشار پروژه",
   incident: "بررسی مشکل سایت",
 };
 const modeShortNames: Record<WorkbenchMode, string> = {
-  agent: "دستیار",
   source: "انتشار",
   incident: "مشکل سایت",
 };
@@ -58,13 +57,7 @@ const stateNames: Record<ActionState, string> = {
   succeeded: "نتیجه تأیید شد",
   failed: "عملیات ناموفق بود",
 };
-function locationState() {
-  const params = new URLSearchParams(window.location.search);
-  return {
-    mode: params.get("view") === "incident" ? ("incident" as const) : params.get("view")==="publish" ? ("source" as const) : ("agent" as const),
-    project: /^[a-f0-9-]{36}$/.test(params.get("project") || "") ? params.get("project") : null,
-  };
-}
+function locationState() { return workbenchLocation(window.location.search); }
 function projectName(flow: ProjectFlow): string {
   if (flow.displayName) return flow.displayName;
   if(flow.selection.kind==="repair")return "نسخه اصلاح‌شده پروژه";
@@ -322,10 +315,11 @@ function Proposal({
 }
 
 export function Workbench() {
+  const [editingProject, setEditingProject] = useState(false), [agentLocked, setAgentLocked] = useState(false), [chatLocked, setChatLocked] = useState(false);
   const [workspace, setWorkspace] = useState<WorkspaceView | null>(null),
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState<string | null>(null);
-  const [mode, setMode] = useState<WorkbenchMode>("agent"),
+  const [mode, setMode] = useState<WorkbenchMode>("source"),
     [flow, setFlow] = useState<ProjectFlow | null>(null),
     [action, setAction] = useState<Action | null>(null);
   const [token, setToken] = useState(""),
@@ -361,7 +355,7 @@ export function Workbench() {
     focusProposal = useRef(false),
     sessionNotice = useRef("");
   const expired = Boolean(workspace && clock >= workspace.session.expiresAt),
-    disabled = busy !== null || expired;
+    disabled = busy !== null || expired || agentLocked || chatLocked;
   const onSessionExpired = useCallback(() => {
     sessionNotice.current = "expired";
     pending.current?.abort();
@@ -583,8 +577,8 @@ export function Workbench() {
       setFlow(null);
       setAction(null);
       setNotice("از این نصب خارج شدید. برای ادامه دوباره وارد شوید.");
-      writeLocation("agent", null, true);
-      setMode("agent");
+      writeLocation("source", null, true);
+      setMode("source");
     } catch (error) {
       fail(error);
     } finally {
@@ -615,10 +609,11 @@ export function Workbench() {
         signal,
       });
       if (signal.aborted) return false;
-      focusResult.current = mode!=="agent";
+      focusResult.current = false;
+      setEditingProject(false);
       applyFlow(result);
-      writeLocation(mode==="agent"?"agent":"source", result.flow?.id ?? null);
-      setMode(mode==="agent"?"agent":"source");
+      writeLocation("source", result.flow?.id ?? null);
+      setMode("source");
       setNotice("فایل‌ها بررسی و نتیجه ذخیره شد. هیچ فایلی به لیارا ارسال نشده است.");
       return true;
     } catch (error) {
@@ -907,20 +902,10 @@ export function Workbench() {
             </p>
             <nav className="workbench-switch task-switch app-nav" aria-label="بخش‌های میز کار">
               {workbenchModes.map((item) => (
-                <a
-                  key={item}
-                  className="app-nav-link"
-                  href={modeHref(item)}
-                  aria-label={modeNames[item]}
-                  aria-current={mode === item ? "page" : undefined}
-                  aria-disabled={busy !== null || undefined}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    navigate(item);
-                  }}
-                >
-                  <span className="nav-label-full">{modeNames[item]}</span>
-                  <span className="nav-label-short">{modeShortNames[item]}</span>
+                <a key={item} className="app-nav-link" href={modeHref(item)} aria-label={modeNames[item]}
+                  aria-current={mode === item ? "page" : undefined} aria-disabled={busy !== null || undefined}
+                  onClick={(event) => { event.preventDefault(); navigate(item); }}>
+                  <span className="nav-label-full">{modeNames[item]}</span><span className="nav-label-short">{modeShortNames[item]}</span>
                 </a>
               ))}
             </nav>
@@ -929,7 +914,7 @@ export function Workbench() {
       </header>
       <main
         id="main-content"
-        className={`app-main task-main${workspace && mode === "agent" ? " agent-workspace" : ""}`}
+        className="app-main task-main"
       >
         <div className={`page-intro ${workspace ? "page-intro-compact" : ""}`}>
           <h1>
@@ -1057,25 +1042,14 @@ export function Workbench() {
                 {projectError.requestId ? <details><summary>شناسه پیگیری</summary><code>{projectError.requestId}</code></details> : null}
               </div>
             ) : null}
-            <div hidden={mode !== "agent"}>
-              <AgentPanel
-                projectId={flow?.id ?? null}
-                projectName={flow ? projectName(flow) : null}
-                csrf={workspace.session.csrfToken}
-                enabled={workspace.features.analysis}
-                disabled={disabled}
-                activeView={mode==="agent"}
-                onAccounts={(trigger)=>{accountReturnTarget.current=trigger;setAccountsOpen(true);restoreFocus.current="accounts";}}
-                onChooseProject={(trigger)=>{projectReturnTarget.current=trigger;restoreFocus.current="folder";setFolderOpen(true);}}
-                onGitHub={(trigger)=>{projectReturnTarget.current=trigger;restoreFocus.current="github";setGitHubOpen(true);}}
-                onReview={() => {navigate("source");requestAnimationFrame(()=>resultHeading.current?.focus());}}
-                onManualPublish={() => {navigate("source");requestAnimationFrame(()=>chooseProjectHeading.current?.focus());}}
-                onExpired={onSessionExpired}
-                onProjectChanged={syncAgentProject}
-              />
-            </div>
             <div hidden={mode !== "source"}>
-              <section
+              {flow && !editingProject ? <section className="panel project-summary" aria-label="پروژه انتخاب‌شده">
+                <div className="section-heading"><div><span className="hint">پروژه انتخاب‌شده</span><p><strong><bdi>{projectName(flow)}</bdi></strong></p></div>
+                <button type="button" className="button-quiet" disabled={disabled} onClick={() => setEditingProject(true)}>تغییر پروژه</button></div>
+                <p className="hint">{flow.selection.kind === "github" ? "از GitHub؛ نسخه انتخاب‌شده ثبت شده" : flow.selection.kind === "repair" ? "نسخه اصلاح‌شده و آزموده‌شده" : "از پوشه‌های مجاز همین رایانه"}</p>
+                {flow.selection.kind === "sample" ? <span className="badge badge-warning">پروژه نمونه</span> : null}
+              </section> : null}
+              <section hidden={Boolean(flow && !editingProject)}
                 className="panel project-choice"
                 aria-labelledby="choose-project-title"
                 aria-busy={busy === "prepare"}
@@ -1084,7 +1058,7 @@ export function Workbench() {
                   <h2 id="choose-project-title" tabIndex={-1} ref={chooseProjectHeading}>
                     {flow ? "پروژه انتخاب‌شده" : "پروژه‌تان را انتخاب کنید"}
                   </h2>
-                  {flow?.selection.kind === "sample" ? (
+                  {flow?.selection.kind === "sample" && editingProject ? (
                     <span className="badge badge-warning">پروژه نمونه</span>
                   ) : flow ? (
                     <span className="badge badge-quiet">
@@ -1209,9 +1183,10 @@ export function Workbench() {
                 </details>
               </section>
               {flow && profile ? (
+                <details className="project-technical"><summary>جزئیات پروژه و فایل‌های قابل ارسال</summary>
                 <div className="workbench-grid project-review">
                   <div className="primary-column">
-                    <section className="journey-strip" aria-label="مراحل انتشار">
+                    <section hidden={workspace.features.analysis} className="journey-strip" aria-label="مراحل انتشار">
                       <p className="journey-strip-current">
                         <span>
                           قدم {number(step + 1)} از {number(journeySteps.length)}
@@ -1334,7 +1309,7 @@ export function Workbench() {
                         </div>
                       ) : null}
                     </section>
-                    {!action && flow.status === "ready" ? (
+                    {!workspace.features.analysis && !action && flow.status === "ready" ? (
                       <section className="panel" aria-labelledby="next-title">
                         <h2 id="next-title">
                           {!connected
@@ -1441,7 +1416,7 @@ export function Workbench() {
                         )}
                       </section>
                     ) : null}
-                    {action ? (
+                    {action && !workspace.features.analysis ? (
                       <div ref={proposalHeading} tabIndex={-1}>
                         <Proposal
                           action={action}
@@ -1465,7 +1440,7 @@ export function Workbench() {
                       </div>
                     ) : null}
                   </div>
-                  <aside className="context-column">
+                  <aside hidden={workspace.features.analysis} className="context-column">
                     <section className="panel journey-panel" aria-labelledby="journey-title">
                       <h2 id="journey-title">قدم بعدی</h2>
                       <ol className="task-progress">
@@ -1528,8 +1503,32 @@ export function Workbench() {
                     onSessionExpired={onSessionExpired}
                   />
                 </div>
+                </details>
               ) : null}
             </div>
+              <AgentPanel
+                guided
+                accountReady={connected}
+                appSelected={Boolean(liara?.selectedApp)}
+                projectHash={flow?.profile.sourceHash}
+                blocked={folderOpen || githubOpen || accountsOpen}
+                onLockChanged={setAgentLocked}
+                onChatLockChanged={setChatLocked}
+                projectId={flow?.id ?? null}
+                projectName={flow ? projectName(flow) : null}
+                csrf={workspace.session.csrfToken}
+                enabled={workspace.features.analysis}
+                disabled={busy !== null || expired}
+                activeView={mode === "source"}
+                onAccounts={(trigger)=>{accountReturnTarget.current=trigger;setAccountsOpen(true);restoreFocus.current="accounts";}}
+                onChooseProject={(trigger)=>{projectReturnTarget.current=trigger;restoreFocus.current="folder";setFolderOpen(true);}}
+                onGitHub={(trigger)=>{projectReturnTarget.current=trigger;restoreFocus.current="github";setGitHubOpen(true);}}
+                onReview={() => {navigate("source");requestAnimationFrame(()=>resultHeading.current?.focus());}}
+                onManualPublish={() => {navigate("source");requestAnimationFrame(()=>{const details=document.querySelector<HTMLDetailsElement>(".project-technical");if(details){details.open=true;resultHeading.current?.focus();}else chooseProjectHeading.current?.focus();});}}
+                onExpired={onSessionExpired}
+                onProjectChanged={syncAgentProject}
+              />
+
             <div hidden={mode !== "incident"}>
               <IncidentWorkbench
                 workspace={workspace}
@@ -1547,7 +1546,7 @@ export function Workbench() {
                 initial={flow?.selection.kind === "local" ? flow.selection.directory : "."}
                 onSelect={(directory) => {
                   setFolderOpen(false);
-                  restoreFocus.current = mode === "agent" ? "folder" : null;
+                  restoreFocus.current = null;
                   void prepare({ kind: "local", directory }, "folder");
                 }}
                 onCancel={() => {
@@ -1559,7 +1558,7 @@ export function Workbench() {
             {accountsOpen ? (
               <ConnectionDialog
                 workspace={workspace}
-                purpose={mode==="agent"?"source":mode}
+                purpose={mode}
                 onRefresh={refresh}
                 onGitHub={() => {
                   setAccountsOpen(false);
@@ -1582,7 +1581,7 @@ export function Workbench() {
                 onSelect={(selection, signal) => prepare(selection, "github", signal)}
                 onClose={(selected) => {
                   setGitHubOpen(false);
-                  restoreFocus.current = accountReturnTarget.current ? "accounts" : selected && mode !== "agent" ? null : "github";
+                  restoreFocus.current = accountReturnTarget.current ? "accounts" : selected ? null : "github";
                 }}
                 onSessionExpired={onSessionExpired}
               />

@@ -1,5 +1,15 @@
 # معماری Launchlane
 
+## مسیر اصلی مرحله‌ای؛ تصمیم جاری
+
+تب انتشار از POST /api/agent/runs با operation=publish و publication ساختاریافته استفاده می‌کند. projectId/sourceHash، path و نشانه پاسخ validate می‌شوند؛ context معتبر منبع، نسخه Node، حساب/تیم و مقصد را از host می‌گیرد. مأموریت در JSON همان AgentRun ذخیره می‌شود؛ migration و approval engine دوم ندارد. ورودی یکسان در دو tab به همان run متصل می‌شود. نتیجه قبلی، معیار بعد از شکست و snapshot اصلاح‌شده قابل جابه‌جایی دلخواه مدل نیستند.
+
+GET با project و kind=publication|conversation تاریخچه همان پروژه و کاربرد را برمی‌گرداند. چت operation=question از همان loop و application استفاده می‌کند ولی فقط ابزارهای خواندن دارد؛ سؤال معمولی مأموریت انتشار را جایگزین نمی‌کند و اختیار repair/create/deploy نمی‌سازد. تغییر context، تصمیم منتظر را اتمیک لغو می‌کند؛ هنگام کار فعال یا اثر حل‌نشده مأموریت هدایت‌شده، تغییر و write متداخل بسته‌اند. claim، قفل Agent را برای action متعلق به همان run رعایت می‌کند. مشاهده تاریخیِ انتشارهای قدیمی مستقل از source جاری حفظ شده است.
+
+اصلاح مسیر هدایت‌شده Node22 از همان CodeRepair adapter با executor container استفاده می‌کند: image با digest ثابت، user غیرریشه، شبکه none، root و source mount فقط‌خواندنی، tmpfs64MiB، CPU1/RAM256MiB/pids64، watchdog20s و خروجی32KiB. host مستقل TAP بدون skip را می‌سنجد و فقط artifact آزموده‌شده را قابل انتخاب می‌کند. Docker CLI یا پوشه موقت به مدل داده نمی‌شود. این برش install/build عمومی نیست؛ [ADR0011](docs/decisions/0011-container-worker.md). worker تاریخی Node permission و رسیدهای قبلی با مرز خودشان خوانده می‌شوند. runtime cache برای Store contract جدید باید بازراه‌اندازی شود؛ schema اعمال‌شده تغییر نمی‌کند.
+
+بخش‌های تب مستقل دستیار در ادامه، سابقه‌اند؛ تجربه جاری از [مشخصات](docs/agent-experience.md) و شواهد [انتشار هدایت‌شده](docs/evidence/guided-publication.md) خوانده شود.
+
 ## برش اجرایی Agent؛ A01/A02/A03/A06
 
 `server/agent/runs.ts` حلقه هدف جدید را از diagnosis تاریخی جدا نگه می‌دارد. `toolsForAgent` یک registry نوع‌دار برای inspect/file/destination/status/releases/logs و پیشنهاد اصلاح gated است؛ همه اجراها application و policy فعلی را مصرف می‌کنند. نتیجه واقعی ابزار با call ID به پیام بعدی مدل متصل است. GET، reload و event replay هیچ مدل یا write را اجرا نمی‌کنند؛ POST معتبر، کار محدود را با `after` آغاز می‌کند. پایان این برش فقط نیاز به ورودی یا نتیجه جزئی است؛ متن مدل رسید انتشار تولید نمی‌کند.

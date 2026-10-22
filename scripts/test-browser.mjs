@@ -1,3 +1,4 @@
+import {reviewProject,editProject} from "./browser-project.mjs";
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
@@ -104,9 +105,10 @@ async function layout(width, label) {
 const heading = () => page.getByRole("heading", { name: "نتیجه بررسی پروژه", exact: true });
 async function sample() {
   const previous = page.url();
+  await editProject(page);
   await page.getByRole("button", { name: "امتحان با پروژه نمونه", exact: true }).click();
   await page.waitForURL((url) => url.href !== previous);
-  await heading().waitFor();
+  await reviewProject(page);
   await page.getByText("فایل‌ها آماده‌اند", { exact: true }).waitFor();
   await page.evaluate(() => window.scrollTo({ top: 0 }));
 }
@@ -154,13 +156,13 @@ try {
   await folders.getByRole("button", { name: /examples/ }).click();
   await folders.getByRole("button", { name: /node-service/ }).click();
   await folders.getByRole("button", { name: "انتخاب همین پوشه", exact: true }).click();
-  await heading().waitFor();
+  await reviewProject(page);
   assert.ok((await page.locator(".selected-project").textContent()).includes("node-service"));
   await page.waitForFunction(
     () => document.title.includes("انتشار پروژه") && document.title.includes("node-service"),
   );
   const navLinks = page.locator(".app-nav .app-nav-link");
-  assert.equal(await navLinks.count(), 3);
+  assert.equal(await navLinks.count(), 2);
   assert.equal(
     await navLinks.filter({ hasText: "انتشار پروژه" }).getAttribute("aria-current"),
     "page",
@@ -212,6 +214,7 @@ try {
   assert.equal(await page.getByRole("button", { name: /ساخت بسته/ }).count(), 0);
   assert.equal(await page.getByLabel("پورت برنامه", { exact: true }).count(), 0);
   assert.equal(await heading().evaluate((element) => element === document.activeElement), true);
+  await editProject(page);
   await page.getByRole("button", { name: "تغییر پوشه پروژه", exact: true }).click();
   await folders.waitFor();
   await closeDialog("انتخاب پوشه پروژه");
@@ -224,7 +227,7 @@ try {
   );
   const firstUrl = page.url();
   await page.reload();
-  await heading().waitFor();
+  await reviewProject(page);
   assert.equal(page.url(), firstUrl);
   await layout(360, "local-project-restored-and-cancel-preserved");
   await page.getByRole("link", { name: "بررسی مشکل سایت", exact: true }).click();
@@ -233,7 +236,7 @@ try {
     .waitFor();
   await page.waitForFunction(() => document.title.includes("بررسی مشکل سایت"));
   await page.getByRole("link", { name: "انتشار پروژه", exact: true }).click();
-  await heading().waitFor();
+  await reviewProject(page);
   await page.waitForFunction(() => document.title.includes("انتشار پروژه"));
   assert.equal(
     new URL(page.url()).searchParams.get("project"),
@@ -244,11 +247,12 @@ try {
     .getByRole("heading", { name: "مشکل سایت را از کجا بررسی کنیم؟", exact: true })
     .waitFor();
   await page.goForward();
-  await heading().waitFor();
+  await reviewProject(page);
   await page.locator(".manifest summary").click();
   const manifest = await page.locator(".file-manifest").textContent();
   assert.ok(manifest.includes("package.json"));
   assert.ok(!/[a-f0-9]{64}/.test(manifest), "file review must not require reading hashes");
+  await editProject(page);
   await page.locator(".advanced-choice summary").click();
   await page.getByLabel("پوشه پروژه", { exact: true }).fill("missing-folder");
   await page.getByRole("button", { name: "بررسی پوشه واردشده", exact: true }).click();
@@ -362,6 +366,7 @@ try {
   await page.getByText("تأیید ثبت شد؛ اجرا نشده", { exact: true }).waitFor();
   await layout(360, "approval-is-not-deployment");
   await page.reload();
+  await reviewProject(page);
   await page.getByText("تأیید ثبت شد؛ اجرا نشده", { exact: true }).waitFor();
   assert.equal(await page.getByRole("button", { name: /اجرای انتشار/ }).count(), 0);
   const action = store.listActions(actorId)[0];
@@ -371,10 +376,12 @@ try {
     .get(action.id).approval_session_id;
   store.claim(action.id, actorId, session, action.spec);
   await page.reload();
+  await reviewProject(page);
   await page.getByText("در حال اجرا", { exact: true }).waitFor();
   await layout(360, "executing-fixture");
   store.uncertain(action.id, actorId);
   await page.reload();
+  await reviewProject(page);
   await page.getByText("نتیجه اجرا نامعلوم", { exact: true }).waitFor();
   await layout(360, "uncertain-has-no-blind-retry-fixture");
   // Only isolated persisted state is exercised; no adapter or infrastructure request runs.
@@ -383,13 +390,14 @@ try {
     join(server.workspace, "examples/node-service/server.mjs"),
     "\n// changed synthetic source\n",
   );
+  await editProject(page);
   await page.getByRole("button", { name: "تغییر پوشه پروژه", exact: true }).click();
   await folders.getByRole("button", { name: /examples/ }).click();
   await folders.getByRole("button", { name: /node-service/ }).click();
   const oldProject = new URL(page.url()).searchParams.get("project");
   await folders.getByRole("button", { name: "انتخاب همین پوشه", exact: true }).click();
   await page.waitForURL((url) => url.searchParams.get("project") !== oldProject);
-  await heading().waitFor();
+  await reviewProject(page);
   const restoredFlow = store.getProjectFlow(actorId);
   assert.ok(restoredFlow);
   assert.equal(restoredFlow.selection.kind, "local");
@@ -398,6 +406,7 @@ try {
     "\n// changed after inspection\n",
   );
   await page.reload();
+  await reviewProject(page);
   await page.getByText("نیاز به بررسی دوباره", { exact: true }).waitFor();
   await layout(360, "stale-source-invalidates-proposal");
 
@@ -515,7 +524,7 @@ try {
   assert.equal(await handoffPanel.getByRole("link", { name: "دریافت فایل گزارش", exact: true }).count(), 0);
   await layout(360, "handoff-session-expiry-preserves-incident-and-clears-preview");
   await page.getByRole("link", { name: "انتشار پروژه", exact: true }).click();
-  await heading().waitFor();
+  await reviewProject(page);
   await page.getByRole("link", { name: "بررسی مشکل سایت", exact: true }).click();
   await incidentReport.waitFor();
   assert.equal(new URL(page.url()).searchParams.get("incident"), incidentId);
@@ -715,7 +724,7 @@ try {
   assert.equal(new URL(page.url()).searchParams.get("incident"), liveId);
   controlledReads = false;
   await page.getByRole("link", { name: "انتشار پروژه", exact: true }).click();
-  await heading().waitFor();
+  await reviewProject(page);
 
   let githubLogin = null,
     githubConnection = null,
@@ -835,6 +844,7 @@ try {
       },
     });
   });
+  await editProject(page);
   await page.getByRole("button", { name: "انتخاب از GitHub", exact: true }).click();
   const github = page.getByRole("dialog", { name: "انتخاب پروژه از GitHub", exact: true });
   await github.getByRole("button", { name: "اتصال به GitHub", exact: true }).click();
@@ -919,7 +929,7 @@ try {
   importMode = "success";
   await importButton.click();
   await github.waitFor({ state: "detached" });
-  await heading().waitFor();
+  await reviewProject(page);
   const imported = store.getProjectFlow(actorId);
   assert.equal(imported.selection.kind, "github");
   assert.equal(imported.selection.revision, revision);
@@ -929,9 +939,10 @@ try {
     ["package.json", "server.mjs"],
   );
   await page.reload();
-  await heading().waitFor();
+  await reviewProject(page);
   assert.equal(new URL(page.url()).searchParams.get("project"), imported.id);
   await layout(360, "github-import-restored-pinned-snapshot-fixture");
+  await editProject(page);
   await page.getByRole("button", { name: "انتخاب پوشه محلی", exact: true }).click();
   await page.getByRole("dialog", { name: "انتخاب پوشه پروژه", exact: true }).waitFor();
   await closeDialog("انتخاب پوشه پروژه");

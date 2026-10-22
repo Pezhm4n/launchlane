@@ -1,3 +1,4 @@
+import {reviewProject,editProject} from "./browser-project.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -199,7 +200,7 @@ try {
   await page.getByLabel("کلید ورود محلی", { exact: true }).fill(server.token);
   await page.getByRole("button", { name: "ورود به میز کار", exact: true }).click();
   await page.getByRole("button", { name: "امتحان با پروژه نمونه", exact: true }).click();
-  await page.getByRole("heading", { name: "نتیجه بررسی پروژه", exact: true }).waitFor();
+  await reviewProject(page);
   await page.getByLabel("مسیر بررسی نسخه", { exact: true }).fill("/checkout");
   await page.getByLabel("نسخه مورد انتظار", { exact: true }).fill("sample-v2");
   for (const width of [280, 360, 768, 959, 960, 1280]) await state("explicit-workload-oracle", width);
@@ -213,6 +214,7 @@ try {
   const { nodeVersion: _runtimeVersion, ...historicalSpec } = currentAction.spec;
   store.createAction(actor, { ...historicalSpec, version: 4 });
   await page.reload();
+  await reviewProject(page);
   await page.getByText("این پیشنهاد قدیمی نسخه Node مشخص ندارد.", { exact: false }).waitFor();
   assert.equal(await page.getByRole("button", { name: `تأیید پیشنهاد برای ${server.app}`, exact: true }).count(), 0);
   assert.equal(sends, 0);
@@ -229,10 +231,12 @@ try {
   await page.getByText("تأیید ثبت شد؛ اجرا نشده", { exact: true }).waitFor();
   assert.equal(sends, 0);
   await page.reload();
+  await reviewProject(page);
   await page.getByText("تأیید ثبت شد؛ اجرا نشده", { exact: true }).waitFor();
   await state("approved-is-not-executed");
   deploymentEnabled = false;
   await page.reload();
+  await reviewProject(page);
   const disabledPublish = page.getByRole("button", { name: `انتشار این نسخه روی ${server.app}`, exact: true });
   await disabledPublish.waitFor();
   assert.equal(await disabledPublish.isDisabled(), true);
@@ -241,6 +245,7 @@ try {
   await state("approved-disabled-gate-explains-next-step");
   deploymentEnabled = true;
   await page.reload();
+  await reviewProject(page);
   const begin = new Promise((done) => {
     started = done;
   });
@@ -272,6 +277,7 @@ try {
   await state("ready-with-wrong-version-is-failed");
   assert.equal(sends, 1);
   await page.reload();
+  await reviewProject(page);
   await page.getByRole("button", { name: "بررسی دوباره پاسخ و نسخه سایت", exact: true }).press("Enter");
   await page.getByText("انتشار یا پاسخ مورد انتظار سایت تأیید نشد. رفع مشکل اعلام نمی‌شود.", { exact: true }).waitFor();
   assert.equal(sends, 1);
@@ -336,6 +342,7 @@ try {
   );
   await page.getByRole("button", { name: "بررسی نتیجه بدون ارسال دوباره", exact: true }).waitFor();
   await page.reload();
+  await reviewProject(page);
   await page.getByText("نتیجه اجرا نامعلوم", { exact: true }).waitFor();
   await state("cancel-recovery-no-blind-retry");
   await page.evaluate(() => {

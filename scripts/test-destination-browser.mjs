@@ -5,6 +5,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { chromium } from "playwright";
 import { startTestServer } from "./test-server.mjs";
 import { seedDestinationProposal } from "../tests/helpers/destination-proposal.mjs";
+import { fingerprint } from "../src/server/policy/action.ts";
 
 const server = await startTestServer({ agentFixture: true }), browser = await chromium.launch({ headless: true }),
   context = await browser.newContext({ locale: "fa-IR", reducedMotion: "reduce" }), output = resolve(".artifacts/destination-ui", new Date().toISOString().replaceAll(":", "-"));
@@ -30,6 +31,10 @@ async function layout(width, label) {
 }
 try {
   fixture = await seedDestinationProposal(server);
+  const flow = fixture.store.getProjectFlow(fixture.actor);
+  const input = { projectId: flow.id, sourceHash: flow.profile.sourceHash, path: "/", expectedText: null };
+  fixture.run.mission = { ...input, kind: "publication", identity: fingerprint({ input, context: fixture.run.context }) };
+  fixture.repository.save(fixture.actor, fixture.run);
   await page.goto(server.origin);
   await page.getByLabel("کلید ورود محلی", { exact: true }).fill(server.token);
   await page.getByRole("button", { name: "ورود به میز کار", exact: true }).click();
