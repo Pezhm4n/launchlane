@@ -1,9 +1,22 @@
 import { AppError, ensure } from "../errors.ts";
 import { setTimeout as delay } from "node:timers/promises";
 import type { RunBudget } from "../policy/budget.ts";
+import { Pool } from "undici";
 
 export type Transport = (url: string, init: RequestInit) => Promise<Response>;
-export const transport: Transport = (url, init) => fetch(url, init);
+// Slow TLS handshakes were exhausting fetch's 10s connection limit before the run deadline.
+const liaraPool = new Pool("https://api.liara.ir", {
+  connections: 4,
+  connectTimeout: 30_000,
+  keepAliveTimeout: 30_000,
+  keepAliveMaxTimeout: 60_000,
+  allowH2: false,
+});
+export const transport: Transport = (url, init) => {
+  const options: RequestInit & { dispatcher?: Pool } =
+    new URL(url).origin === "https://api.liara.ir" ? { ...init, dispatcher: liaraPool } : init;
+  return fetch(url, options);
+};
 
 export async function sendRead(
   send: Transport,

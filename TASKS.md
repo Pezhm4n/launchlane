@@ -43,6 +43,8 @@
 
 ادامه پس از83d961d: شش browser suite ثابت75/27/27/22/20/5 گذشتند. دو اجرای زنده پیش از create با GET transport failure متوقف شدند؛ در دومی، خطای UND_ERR_CONNECT_TIMEOUT ثبت شد. retry واحد فقط برای همین خطای GET، هزینه هر ارسال در budget و allowance write قبل از claim اضافه شد؛ POST، HTTP errors و schema error تکرار نمی‌شوند. هشت regression تازه، domain244/244، lint/typecheck/build و HTTP21/21 export ثابت گذشتند. قدم بعد تکرار SRE واقعی با همان مصرف تجمعی و حفظ failureهاست؛ A09 partial مانده است.
 
+ادامه پس ازb525c18: شش browser suite ثابت75/27/27/22/20/5 دوباره گذشتند. POST ساخت پس از preflight نامعلوم شد؛ receipt و منع replay حفظ شدند و سه خواندن بعدی404 بودند. TLS واقعی5–7s در برابر TCP چندمیلی‌ثانیه‌ای، Pool محدود فقط برای API و dependency دقیق سازگار7.30.1 را توجیه کرد؛ [ADR0009](docs/decisions/0009-liara-transport-pool.md). سه regression تازه با HTTP/multipart/cancel و POST بدون replay واقعی محلی؛ domain247/247، lint/typecheck/build و HTTP21/21 export ثابت و bootstrap2/2 primary گذشتند. dispatcher8 ناسازگار به regression تبدیل شد. قدم بعد، SRE واقعی در مقصد تازه و journal جدا با همان دفتر مصرف است؛ create قبلی تکرار نمی‌شود و A09 partial است.
+
 ## وضعیت ثبت‌شده پایه و کارهای هم‌زمان
 
 ### بررسی کامل انتخاب GitHub و آماده‌سازی پیش از مرحله Agent — bounded_live_verified

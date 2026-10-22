@@ -70,6 +70,8 @@ CodeRepairJob محدودِ پیاده‌شده، و plan approval و WorkloadCon
 
 خواندن provider و اعتبارسنجی اتصال، انتظار برای header و body را با abort/deadline محدود می‌کنند، حتی اگر transport به signal واکنش ندهد. فقط GET دو client حساب/شواهد و فقط UND_ERR_CONNECT_TIMEOUT یک تلاش مجدد پس از250ms دارد؛ همان signal و بودجه نگه داشته می‌شوند. HTTP failure یا داده نامعتبر و همه writeها retry خودکار ندارند. پیش از claim، allowance لازم برای ادامه writeها دوباره کنترل می‌شود؛ [ADR 0008](docs/decisions/0008-bounded-read-recovery.md). پاسخ دیررس اتصال تازه‌ای ذخیره نمی‌کند؛ پایان انتظار client اثبات توقف پردازش upstream نیست. شکل‌های محدود حساب/project/release/logs تطبیق داده شده‌اند؛ واحد metric و زمان event هنوز unverified هستند.
 
+transport فقط برای origin دقیق API لیارا، Pool مشترک undici7.30.1 با سقف۴ اتصال، handshake30s و idle30s/max60s دارد. AbortSignal همان درخواست، deadline کوتاه‌تر را حفظ می‌کند؛ credential و body بین درخواست‌ها مشترک نمی‌شوند. dispatcher مدل و probe یا global dispatcher عوض نمی‌شود و این لایه retry ندارد. اندازه‌گیری TLS واقعی و compatibility native، علت dependency و حدود را در [ADR 0009](docs/decisions/0009-liara-transport-pool.md) ثبت می‌کنند.
+
 ## جریان پروژه و حساب‌ها؛ backend پیاده‌شده
 
 API project-flows انتخاب محلی/نمونه/GitHub را به بررسی ایستا و آماده‌سازی خودکار archive خصوصی وصل می‌کند. UI از همین مسیر استفاده می‌کند. انتخاب و profile در SQLite به actor متصل‌اند؛ URL فقط شناسه flow را می‌گیرد و هیچ کد/credential در browser storage ذخیره نمی‌شود. بازیابی، محتوای فعلی و archive را بررسی می‌کند؛ انتخاب تازه یا محتوای تغییرکرده پیشنهاد قبلی را باطل می‌کند. ActionSpec v3 علاوه بر source/archive، flow و selectionHash شامل هویت مخزن/شاخه/revision/زیرپوشه را می‌بندد. v1/v2 برای تاریخچه حفظ شده‌اند.
