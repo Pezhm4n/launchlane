@@ -2,6 +2,10 @@
 
 شواهد جاری ابتدا و سابقه مراحل پیشین پایین‌تر ثبت شده‌اند. هر نتیجه به revision و شرایط خودش تعلق دارد؛ نتایج bootstrap جای قابلیت محصول و fixture جای اتصال زنده نیست.
 
+## T34 — قرارداد گزارش قابل تحویل؛ پایه 4a01dfb و تغییرات این برش
+
+API مشتق از incident پایدار همان actor، بدون فراخوانی provider، با پاک‌سازی دوباره credential، نقل امن داده نامطمئن و سقف خروجی ساخته شد. lint روی 129 فایل pass و typecheck/build pass؛ domain تازه 138/138 و HTTP تازه 16/16 pass، صفر fail/skip/cancel. شش case جدید، دسترسی actor، export پس از قطع اتصال/gate خاموش، log حاوی credential و prompt injection، حذف query، نمونه صریح، آخرین پاسخ restart بدون replay/ادعای پایان، اطلاعات ناموجود/کندی و محدودیت حجم/نام فایل را پوشش می‌دهند. آزمون HTTP واقعی محلی، auth/Origin، id نامعتبر/تکراری/ناموجود و headerهای no-store/nosniff را نیز سنجید. providerها و داده حساب مصنوعی‌اند؛ SQLite و routeهای production واقعی محلی‌اند. شکست اولیه نام method قطع اتصال در fixture بود؛ به method واقعی Store اصلاح شد. UI و بررسی reader تازه هنوز پذیرش این برش نیستند؛ هیچ اعتبار تازه یا write واقعی مصرف نشد.
+
 ## بازتولید مستقل candidate روی 0738e91
 
 فایل‌های tracked این revision با `git archive` در پوشه موقت مستقل استخراج شدند؛ `.env.local`، DB، ابزارهای خصوصی و context محلی کپی نشدند. Node 24.18.0 و lockfile همان candidate: `npm ci --no-audit --no-fund`، `npm run setup:local`، typecheck و build pass؛ domain تازه 132/132، HTTP تازه 16/16 و bootstrap تازه 2/2 روی server production ایزوله pass، بدون fail/skip/cancel. این شاهد clean tracked export است؛ clone مستقیم GitHub یا بازبینی انسان تازه نیست. مجموعه browser روی همان source revision در بخش بعد ثبت شده و در export دوباره اجرا نشد.

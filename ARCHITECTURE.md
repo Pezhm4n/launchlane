@@ -130,7 +130,7 @@ timeout بعد از احتمال write: `uncertain`؛ write خودکار تکر�
 
 ## API داخلی موجود و مسیرهای بعدی
 
-موجود: health، session (POST/DELETE)، `GET /api/workspace`، inspect/archive/project-flows، connectionها، actions/decision/execute/observe و incident runs/evidence/practice. execute برای v4 در چرخه محدود زنده آزموده شد؛ gateهای نصب پس از آزمون خاموش‌اند. handoff و routeهای عمومی runs در جدول زیر همچنان طرح‌اند؛ capabilities در workspace ادغام شده است.
+موجود: health، session (POST/DELETE)، `GET /api/workspace`، inspect/archive/project-flows، connectionها، actions/decision/execute/observe و incident runs/evidence/practice/handoff. execute برای v4 در چرخه محدود زنده آزموده شد؛ gateهای نصب پس از آزمون خاموش‌اند. routeهای عمومی runs در جدول زیر همچنان طرح‌اند؛ capabilities در workspace ادغام شده است.
 
 | مسیر هدف | مسئولیت و شرط |
 | --- | --- |
@@ -148,9 +148,11 @@ timeout بعد از احتمال write: `uncertain`؛ write خودکار تکر�
 | `POST /api/incidents` | تشخیص بر اساس app/time scope؛ همان runtime و evidence |
 | `POST /api/incidents/evidence` | موجود؛ session/Origin/CSRF، app/since/path/window معتبر، هفت read مستقل؛ gate Liara خاموش؛ بدون مدل/write |
 | `POST /api/incidents/practice` | موجود؛ فقط fixture با mode=simulated و analysis=scripted، صفر provider request؛ تشخیص و مقایسه تمرینی |
-| `GET /api/incidents/{id}/handoff` | بسته پاک‌شده برای Coding Agent، بدون ارتباط خارجی خودکار |
+| `GET /api/incidents/handoff?id=...` | موجود؛ نشست/Host/Origin معتبر، گزارش Markdown مشتق از incident همان actor، بدون ارتباط خارجی یا نیاز به gate زنده |
 
 نام routeها طرح داخلی‌اند و API لیارا نیستند. Coding Agent هنگام ساخت می‌تواند آن‌ها را ساده کند، مشروط به حفظ پذیرش و به‌روزرسانی سند. Error envelope پیشنهادی: `{error:{code,message,retryable,requestId,actionId?}}`، موفقیت/unknown به‌صورت discriminated union. کدهای policy، auth، unavailable، rate_limit، upstream و uncertain از هم جدا باشند.
+
+گزارش handoff از snapshot ذخیره‌شده ساخته می‌شود؛ فقط زمان ساخت گزارش تازه است و وضعیت سایت را دوباره نمی‌خواند. تابع مشترک `latestIncidentEvidence` آخرین مشاهده restart همان run/app داخلی/team/page/origin را با `run.after` مقایسه می‌کند. query مستقل read-only به مشاهده‌های همان incident محدود است و approvalها را منقضی نمی‌کند. گزارش شامل reproduction، شواهد زمان‌دار، فرضیه ارجاع‌دار، محدوده اصلاح و معیار بررسی است؛ فایل/خط/دستور پروژه از diagnosis حدس زده نمی‌شود. هویت حساب، تیم داخلی، محتوای پروژه و details خام صادر نمی‌شوند. فقط قطعه کوتاه log ارجاع‌شده صادر می‌شود؛ نمونه صریحاً simulated می‌ماند. credentialهای config/اتصال همان actor و الگوهای شناخته‌شده دوباره پاک‌سازی و query/hash نشانی‌ها حذف می‌شوند؛ محتوای نامطمئن در fence امن JSON قرار می‌گیرد. سقف خروجی 128KiB، حداکثر 24 شاهد در هر snapshot و 24 نام متغیر است؛ کوتاه‌شدن/حذف مشخص است. بررسی انسانی پیش از ارسال برای اطلاعات خصوصی و الگوهای ناشناخته لازم می‌ماند. این فایل مجوز تغییر، تأیید علت یا شاهد پایان restart نیست.
 
 ## Liara adapter و ارتباط اجزا
 

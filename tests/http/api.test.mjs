@@ -36,6 +36,7 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
         await expects(await request("/api/connections/liara"), 401, "AUTH_REQUIRED");
         await expects(await request("/api/project-flows"), 401, "AUTH_REQUIRED");
         await expects(await request("/api/incidents/runs"), 401, "AUTH_REQUIRED");
+        await expects(await request(`/api/incidents/handoff?id=${"a".repeat(36)}`), 401, "AUTH_REQUIRED");
         await expects(await request("/api/actions/restart", { incidentRunId: "a".repeat(36) }), 401, "AUTH_REQUIRED");
         await expects(
           await request(`/api/actions/${"a".repeat(36)}/observe`, {}),
@@ -322,6 +323,19 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
         );
         assert.equal(compared.run.evidence.collectedAt, sample.run.evidence.collectedAt);
         assert.equal(compared.run.after.entries[0].fact.status, 200);
+        const handoffResponse = await request(`/api/incidents/handoff?id=${sample.run.id}`);
+        assert.equal(handoffResponse.headers.get("cache-control"), "no-store");
+        assert.equal(handoffResponse.headers.get("x-content-type-options"), "nosniff");
+        const exported = await expects(handoffResponse, 200);
+        assert.equal(exported.handoff.mode, "sample");
+        assert.equal(exported.handoff.runId, sample.run.id);
+        assert.match(exported.handoff.markdown, /حالت آزمایشی/);
+        assert.match(exported.handoff.markdown, /همان صفحه در بررسی تازه پاسخ موفق داد/);
+        assert.equal(exported.handoff.markdown.includes(server.token), false);
+        await expects(await request(`/api/incidents/handoff?id=${sample.run.id}`, undefined, { origin: "https://evil.test" }), 403, "ORIGIN_DENIED");
+        await expects(await request(`/api/incidents/handoff?id=${sample.run.id}&id=${sample.run.id}`), 400, "INVALID_INPUT");
+        await expects(await request("/api/incidents/handoff?id=not-a-run"), 400, "INVALID_INPUT");
+        await expects(await request("/api/incidents/handoff?id=00000000-0000-0000-0000-000000000000"), 404, "NOT_FOUND");
         await expects(
           await request("/api/incidents/runs", {
             operation: "collect",
