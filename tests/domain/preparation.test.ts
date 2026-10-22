@@ -56,7 +56,7 @@ function model(f: Awaited<ReturnType<typeof fixture>>, mode = "correct") {
         const cfg = object(JSON.parse(content)); cfg.port = targetPort;
         if (mode === "config") cfg.custom = { keep: false };
         content = JSON.stringify(cfg);
-      } else if (path === "server.mjs") content = source(targetPort);
+      } else if (path === "server.mjs") content = mode === "constant" ? source(targetPort).replace(`.listen(${targetPort},`, ".listen(port,") : source(targetPort);
       if (content !== file.content) changed.push({ path, beforeHash: file.sha256, content });
     }
     return Response.json({ choices: [{ finish_reason: "tool_calls", message: { role: "assistant", tool_calls: [{ id: randomUUID(), type: "function",
@@ -143,5 +143,17 @@ test("a legacy code-fix consent never gains permission to change package scripts
     const result = await adapter.run(f.session.actorId, job.id, AbortSignal.timeout(10000));
     assert.equal(result.state, "failed"); assert.equal(result.errorCode, "REPAIR_COMMAND_CHANGED");
     assert.equal(result.afterTest, null); assert.equal(result.artifact, null);
+  } finally { f.close(); }
+});
+
+test("the real-model constant-port failure is preserved: unchanged tests and static readiness must both accept the valid entry", async () => {
+  const f = await fixture();
+  try {
+    const adapter = new CodeRepairAdapter(f.config, f.store, model(f, "constant")),
+      job = await adapter.start(f.session.actorId, f.input, AbortSignal.timeout(3000)),
+      result = await adapter.run(f.session.actorId, job.id, AbortSignal.timeout(10000));
+    assert.equal(result.state, "succeeded", JSON.stringify(result));
+    assert.equal(result.afterTest?.passed, true); assert.ok(result.artifact);
+    assert.match(result.diff ?? "", /listen\(port,/);
   } finally { f.close(); }
 });

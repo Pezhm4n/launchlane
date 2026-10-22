@@ -6,6 +6,7 @@ import type { ManifestEntry, ProjectProfile } from "../../contracts/domain.ts";
 import { hasControl, object } from "../../contracts/validation.ts";
 import { AppError, ensure } from "../errors.ts";
 import { resolveNodeRuntime } from "./node-runtime.ts";
+import { sourcePorts } from "./ports.ts";
 import { fingerprint } from "../policy/action.ts";
 import { containsSourceCredential } from "../policy/redaction.ts";
 import { SOURCE_MAX_FILES, SOURCE_MAX_ENTRIES, SOURCE_MAX_BYTES, sourceFileByteLimit, sourceFileLimitMessage } from "../../contracts/source-limits.ts";
@@ -132,6 +133,7 @@ async function scanProject(
   let liaraJson: Record<string, unknown> | null = null;
   let literalPort: number | null = null;
   const ports = new Set<number>();
+  let unresolvedPort = false;
   const visit = async (folder: string, depth: number): Promise<void> => {
     ensure(depth <= 10, "SOURCE_LIMIT", "عمق source بیشتر از سقف مجاز است.", 413);
     const entries: Dirent[] = [];
@@ -211,12 +213,9 @@ async function scanProject(
           const name = match[1] || match[2];
           if (name) envNames.add(name);
         }
-        for (const match of text.matchAll(
-          /\b(?:listen\(\s*|process\.env\.PORT\s*\|\|\s*)(\d{2,5})\b/g,
-        )) {
-          const value = Number(match[1]);
-          if (value > 0 && value <= 65535) ports.add(value);
-        }
+        const candidates = sourcePorts(text);
+        for (const value of candidates.ports) ports.add(value);
+        unresolvedPort ||= candidates.unresolved;
       }
     }
   };
@@ -233,7 +232,7 @@ async function scanProject(
     liara.port <= 65535
   )
     literalPort = liara.port;
-  const port = literalPort ?? (ports.size === 1 ? ([...ports][0] ?? null) : null);
+  const port = literalPort ?? (!unresolvedPort && ports.size === 1 ? ([...ports][0] ?? null) : null);
   // A workspace manifest describes multiple packages. Do not treat an orchestrator start
   // as the single Node workload supported by this deployment path; require an explicit leaf.
   const hasWorkspaces = pkg.workspaces !== undefined;

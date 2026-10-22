@@ -9,3 +9,9 @@
 در این مرحله چرخه جدید مدل واقعی، مرورگر و target runtime و build عمومی هنوز UNCONFIRMED هستند. Docker Desktop نصب بود ولی engine خاموش بود؛ engine راه افتاد و image رسمی `node:22.23.3-bookworm-slim` با digest ثابت `sha256:3ed98443660ff48413b5af19ecefce3b9d50845a901a43420d47cc63a9fddbe9` واقعاً `v22.23.3` برگرداند. این فقط spike runtime است؛ محصول هنوز از Docker برای job استفاده نمی‌کند. containerها/سرویس‌های موجود پروژه‌های دیگر تغییر یا پاک نمی‌شوند.
 
 این قابلیت عمومیِ ساخت پروژه یا اجرای هر script نیست. پروژه بدون تست، dependency/build، فایل جدید و frameworkهای دیگر هنوز به قرارداد اجرای جدا نیاز دارند. پس از موفقیت محلی، انتشار به همان artifact و approval مجزا متصل است. [تصمیم معماری](../decisions/0004-reviewed-node-preparation.md) چرایی حفظ مرز scripts را ثبت می‌کند.
+
+## نخستین ورودی واقعی و failure حفظ‌شده
+
+در export مربوط به bb06e41، مدل واقعی از وب، inspect و سه file read را انتخاب کرد و برنامه آماده‌سازی با تست موجود پیشنهاد داد. تصمیم در مرورگر ثبت و worker با مدل واقعی اجرا شد. شش درخواست مدل مصرف شد. baseline به‌علت start مفقود fail شد؛ بعد از patch همان تست و HTTP محلی pass شدند. با این حال worker عدد literal در listen را به const reference تبدیل کرد و regex قدیمی پورت را unknown کرد. host، PREPARATION_UNVERIFIED داد، artifact نساخت و source اصلی را تغییر نداد. این failure اجرای موفق قابلیت محسوب نمی‌شود.
+
+اصلاح root cause با AST و bindingهای lexical، بدون اجرای source و بدون dependency تازه انجام شد؛ ورودی واقعی در regression باقی ماند. shadowing، mutation، imports، TDZ، comments/strings و listener متعارض/نامعلوم نیز آزموده شدند. domain کامل224/224، lint/typecheck، build و HTTP21/21 گذشتند. Number روی fallback صریح نیز با حفظ unknown در shadow/mutation پشتیبانی شد تا نمونه تاریخی regress نشود. [ADR](../decisions/0005-static-port-bindings.md) محدودیت parser و وابستگی به Next pin‌شده را ثبت می‌کند. چرخه مدل واقعی بعد از این اصلاح هنوز باید دوباره سنجیده شود.

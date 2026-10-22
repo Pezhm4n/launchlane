@@ -8,6 +8,8 @@
 
 ## A07؛ برنامه محدود start/port برای Node
 
+نخستین چرخه مدل واقعی روی bb06e41 با شش درخواست، baseline fail→همان تست HTTP pass را تولید کرد، اما اسکنر `.listen(port)` با const معتبر را نفهمید؛ host، PREPARATION_UNVERIFIED داد و artifact نساخت. ورودی شکست‌خورده حفظ و با AST lexical اصلاح شد. domain224/224، lint/typecheck، build و HTTP21/21 روی export مستقل گذشتند؛ Number(PORT fallback) نمونه قدیمی نیز regression خود را حفظ کرد. تکرار زنده بعد از fix هنوز در ادامه لازم است؛ این failure به‌عنوان موفقیت گزارش نمی‌شود.
+
 [گزارش آماده‌سازی](evidence/project-preparation.md): برنامه NodePreparation به همان CodeRepair و consent متصل شد؛ فقط فرمان start دقیق، entry موجود و پورت موجود در config می‌توانند تغییر کنند. پنج regression با transport مصنوعی و اجرای واقعی Node/HTTP محلی، دو ورودی متفاوت و leaf monorepo را گذراندند؛ تغییر scripts/deps/engine/test یا config نامرتبط و گسترش اختیار قرارداد قدیمی رد شدند. domain220/220، lint/typecheck و build در export مستقل گذشتند. مدل/وب تازه و target runtime هنوز برای این مسیر جدید سنجیده نشده‌اند؛ build/dependency عمومی، فایل تازه و ورودی بدون تست بازند. Docker/Node22 فقط spike واقعی runtime دارد و هنوز executor محصول نیست.
 
 ## چرخه کامل ساخت مقصد و انتشار از وب؛ 3cbf206
