@@ -1,4 +1,5 @@
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcessByStdio } from "node:child_process";
+import type { Readable } from "node:stream";
 import { randomUUID } from "node:crypto";
 import { lstat, unlink } from "node:fs/promises";
 import { join } from "node:path";
@@ -49,7 +50,9 @@ type Run = {
 
 export function parseDeviceChallenge(output: string): Challenge | null {
   const plain = stripVTControlCharacters(output);
-  const code = /one-time code:\s*([A-Z0-9]{4}-[A-Z0-9]{4})\b/i.exec(plain)?.[1];
+  const code =
+    /one-time code:\s*([A-Z0-9]{4}-[A-Z0-9]{4})\b/i.exec(plain)?.[1] ??
+    /one-time code\s*\(([A-Z0-9]{4}-[A-Z0-9]{4})\)\s+copied to clipboard/i.exec(plain)?.[1];
   const url = /https:\/\/[^\s<>]+/.exec(plain)?.[0];
   if (!code || !url) return null;
   ensure(
@@ -61,12 +64,24 @@ export function parseDeviceChallenge(output: string): Challenge | null {
   return { userCode: code.toUpperCase(), verificationUrl: url };
 }
 
-export function deviceLogin(config: Config, actorId: string): LoginDriver {
+type LoginLauncher = (
+  args: readonly string[],
+  env: NodeJS.ProcessEnv,
+  signal: AbortSignal,
+) => ChildProcessByStdio<null, Readable, Readable>;
+
+export function deviceLogin(
+  config: Config,
+  actorId: string,
+  launch: LoginLauncher = (args, env, signal) =>
+    spawn(githubExecutable(config), [...args], {
+      env, windowsHide: true, stdio: ["ignore", "pipe", "pipe"], signal,
+    }),
+): LoginDriver {
   return async (signal, onChallenge) => {
     const env = await githubEnvironment(config, actorId, "cli_private");
     await new Promise<void>((resolve, reject) => {
-      const child = spawn(
-        githubExecutable(config),
+      const child = launch(
         [
           "auth",
           "login",
@@ -76,11 +91,14 @@ export function deviceLogin(config: Config, actorId: string): LoginDriver {
           "--git-protocol",
           "https",
           "--skip-ssh-key",
+          // CLI 2.103 may copy the code by default; keep the user's clipboard untouched and output predictable.
+          "--clipboard=false",
         ],
-        { env, windowsHide: true, stdio: ["ignore", "pipe", "pipe"], signal },
+        env,
+        signal,
       );
-      let output = "",
-        announced = false,
+      const output = { stdout: "", stderr: "" };
+      let announced = false,
         settled = false;
       const startTimer = setTimeout(() => {
         child.kill();
@@ -98,13 +116,14 @@ export function deviceLogin(config: Config, actorId: string): LoginDriver {
         if (settled) return;
         settled = true;
         clearTimeout(startTimer);
-        output = "";
+        output.stdout = output.stderr = "";
         error ? reject(error) : resolve();
       };
-      const read = (part: Buffer) => {
-        if (announced) return;
-        output += part.toString("utf8");
-        if (output.length > 16_384) {
+      const read = (stream: "stdout" | "stderr", part: Buffer) => {
+        if (announced || settled) return;
+        // A stdout chunk must not split a code arriving in multiple stderr chunks.
+        output[stream] += part.toString("utf8");
+        if (output.stdout.length + output.stderr.length > 16_384) {
           child.kill();
           finish(
             new AppError(
@@ -116,11 +135,15 @@ export function deviceLogin(config: Config, actorId: string): LoginDriver {
           return;
         }
         try {
-          const challenge = parseDeviceChallenge(output);
+          // The pinned CLI frames these messages with newlines; a partial URL is not a wrong host.
+          const completeLines = (value: string) => value.slice(0, value.lastIndexOf("\n") + 1);
+          const challenge = parseDeviceChallenge(
+            `${completeLines(output.stderr)}\n${completeLines(output.stdout)}`,
+          );
           if (challenge) {
             announced = true;
             clearTimeout(startTimer);
-            output = "";
+            output.stdout = output.stderr = "";
             onChallenge(challenge);
           }
         } catch (error) {
@@ -132,8 +155,8 @@ export function deviceLogin(config: Config, actorId: string): LoginDriver {
           );
         }
       };
-      child.stderr.on("data", read);
-      child.stdout.on("data", read);
+      child.stderr.on("data", (part: Buffer) => read("stderr", part));
+      child.stdout.on("data", (part: Buffer) => read("stdout", part));
       child.once("error", () =>
         finish(
           new AppError(

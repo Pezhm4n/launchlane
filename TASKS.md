@@ -4,6 +4,12 @@
 
 ## وضعیت فعال
 
+### رفع دریافت کد GitHub — bounded_live_verified
+
+گزینه `--clipboard=false` صریح شد؛ parser هر دو پیام رسمی را می‌شناسد، stdout/stderr جدا و فقط خط کامل parse می‌شود. regression واقعی child ابتدا روی ادغام جریان‌ها و سپس URL تکه‌شده شکست خورد و پس از رفع علت گذشت. domain162/162، lint/typecheck/build و HTTP18 تازه pass؛ مرورگر عمومی75 حالت نیز گذشت. adapter با CLI/شبکه واقعی در1034ms challenge گرفت و در مرورگر نصب اصلی کد+URL رسمی دیده شد؛ آزمون پیش از grant لغو و پروژه قبلی حفظ شد. ورود کامل حساب/فهرست مخزن زنده هنوز باز است. شواهد دقیق در verification؛ هیچ token یا کد واقعی در اسناد/تصویر ثبت نشده است.
+
+پایه `052aa8c`؛ AC02/13/14. اجرای محدود CLI رسمی 2.103.0 روی همین رایانه: با گزینه پیش‌فرض، copied-to-clipboard=true و قالب پرانتزی، URL حاضر ولی parse=false در 1106ms؛ با `--clipboard=false`، parse=true در1252ms. آزمون اولیه adapter بعد30s به timeout می‌رسید، نه به نبود ابزار یا قطعی عمومی GitHub. پذیرش: clipboard کاربر دست‌کاری نشود؛ هر دو پیام مستند CLI به challenge صحیح و URL دقیق GitHub برسند؛ خروجی chunked، لغو، oversized و مقصد نامعتبر در driver واقعی با child ساختگی آزموده شوند؛ کد واقعی در UI دیده و بدون grant حساب لغو شود. ورود کامل حساب و مخزن خصوصی تا تأیید انسانی، verified معرفی نشوند. هیچ credential یا کد واقعی در artifact tracked/گزارش ذخیره نشود.
+
 ### رفع ورود توسعه، hydration و کشف مسیر دستیار — verified_local
 
 اصلاح runtime/RTL در `ff8c11a` ثبت شد. ورود واقعی نصب اصلی، سه read پس از ورود و بازیابی نتیجه در مرورگر 200 شدند؛ schema به 7 رسید و checksumهای 1–6 و شش action تاریخی حفظ شدند. تست تازه domain159/159، HTTP18/18، typecheck/lint/build و مرورگر عمومی75 حالت با تزریق marker RTL و صفر خطای hydration/external pass شدند. دکمه توضیح هوشمند در حالت disabled با علت روشن باقی می‌ماند؛ فعال‌سازی مدل، چت عمومی یا write تازه انجام نشد. شواهد و حدود در verification هستند.

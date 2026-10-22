@@ -2,6 +2,16 @@
 
 شواهد جاری ابتدا و سابقه مراحل پیشین پایین‌تر ثبت شده‌اند. هر نتیجه به revision و شرایط خودش تعلق دارد؛ نتایج bootstrap جای قابلیت محصول و fixture جای اتصال زنده نیست.
 
+## دریافت کد GitHub؛ پایه 052aa8c
+
+خطای «در حال دریافت کد ورود» با CLI رسمی نصب‌شده 2.103.0 بازتولید شد: حالت پیش‌فرض در1106ms پیام `One-time code (...) copied to clipboard` و URL رسمی داشت، اما parser فقط قالب `one-time code:` را می‌شناخت و false می‌داد؛ driver پس30s به timeout می‌رفت. GET عمومی GitHub نیز پاسخ302 در908ms داشت، بنابراین قطع عمومی شبکه علت اثبات‌شده نبود. با `--clipboard=false` همان CLI در1252ms خروجی قابل parse داد. این گزینه اکنون صریح است تا clipboard کاربر دست‌کاری نشود؛ parser هر دو پیام رسمی را می‌شناسد. [source رسمی همان نسخه](https://github.com/cli/cli/blob/v2.103.0/internal/authflow/flow.go) دو قالب و خط جدید انتهای URL را نشان می‌دهد.
+
+برای پوشش مرز قبلاً تست‌نشده، launcher تایپ‌شده فقط در تست child کنترل‌شده Node می‌سازد؛ همان deviceLogin واقعی، محدودیت خروجی، parser و cancellation مصرف می‌شوند. تست کد تکه‌شده و stdout/stderr مستقل ابتدا با timeout شکست خورد؛ buffer مستقل هر stream علت را رفع کرد. counterexample URL تکه‌شده ابتدا به‌اشتباه protocol failure داد؛ فقط خطوط کاملِ قرارداد CLI parse می‌شوند و مقصد واقعاً نادرست همچنان رد می‌شود. شرط مقصد دقیق، سقف16384 و gateهای حساب/تأیید تضعیف نشده‌اند. fixture فقط کد ساختگی دارد و هیچ shell یا token واقعی دریافت نمی‌کند.
+
+با Node24.18.0، domain تازه162/162، typecheck/lint بدون warning، production build و HTTP18/18 pass شدند. مرورگر عمومی روی همان UI، 75حالت/12عرض با صفر overflow/axe/pageerror/external گذشت: `.artifacts/ux/2026-10-22T04-40-18-464Z/`؛ آن run کنترل‌شده و بدون حساب واقعی بود. تغییر framing بعدی با regressionهای driver و domain/build/HTTP تازه بررسی شد؛ UI تغییر نکرد.
+
+آزمون محدود adapter با CLI/شبکه واقعی، challenge را در1034ms دریافت و بلافاصله cancel کرد. مرور دستی نصب اصلی نیز «انتخاب از GitHub» → اتصال → codeVisible=true و نشانی دقیق `https://github.com/login/device` → لغو را طی کرد؛ starting پایان یافت، کد پاک و انتخاب پروژه قبلی حفظ شد. مقدار کد وارد خروجی ابزار، context مدل، گزارش یا screenshot نشد؛ فقط فرمت/نمایان‌بودن آن به‌صورت برنامه‌ای سنجیده شد. تصویر پس از لغو در `.artifacts/github-login-fix/cancelled-after-real-code.png` مشاهده شد. ورود نهایی، grant حساب، secure-storage واقعی پس از grant و مخازن خصوصی در این برش زنده تأیید نشده‌اند. هیچ مجوز حساب، درخواست Liara، write زیرساخت یا مصرف مدل انجام نشد. graph پوشش فایل‌های موجود stale و پوشش دو فایل تست جدید به‌علت transport بسته ناموجود بود؛ source دقیق مبنای آن‌ها بود.
+
 ## رفع ورود پس از HMR و یکسانی RTL؛ پایه 429db8c
 
 اصلاح runtime/RTL در `ff8c11a`، رابط و regressionهای همان برش روی آن ثبت می‌شوند. domain تازه159/159، HTTP18/18، typecheck، lint بدون warning و production build pass شدند. `node scripts/test-browser.mjs` روی سرور/DB ایزوله با providerهای خالی و gateهای خاموش، 75 حالت در12عرض قبلی را گذراند؛ marker RTL در document-start افزوده شد و errorهای hydration کنسول نیز علاوه بر pageerror بررسی شدند. صفر overflow/axe/error/external در حالت‌های سنجیده‌شده ثبت شد؛ artifact `.artifacts/ux/2026-10-22T04-18-16-306Z/`. دکمه تحلیل خاموش و علت آن نیز assertion دارند. این آزمون، افزونه واقعی مرورگر کاربر را شناسایی یا تمام رفتار آن را تأیید نمی‌کند.
