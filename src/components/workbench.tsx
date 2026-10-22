@@ -138,7 +138,10 @@ function Proposal({
       {isDeploymentSpec(action.spec) ? (
         <p className="hint">
           معیار نتیجه: پاسخ <bdi>{action.spec.workload.status}</bdi> از{" "}
-          <bdi>{action.spec.workload.path}</bdi> با نسخه <bdi>{action.spec.workload.revision}</bdi>.
+          <bdi>{action.spec.workload.path}</bdi>
+          {action.spec.version === 7
+            ? <> با {action.spec.workload.assertion.kind === "text" ? "متن" : "مقدار API"} مورد انتظار در پیشنهاد دستیار.</>
+            : <> با نسخه <bdi>{action.spec.workload.revision}</bdi>.</>}
           آماده‌شدن release به‌تنهایی نتیجه موفق نیست.
         </p>
       ) : null}
@@ -379,7 +382,7 @@ export function Workbench() {
     setPort(data.flow?.profile.port === null || !data.flow ? "" : String(data.flow.profile.port));
     if (data.action && isDeploymentSpec(data.action.spec)) {
       setWorkloadPath(data.action.spec.workload.path);
-      setExpectedRevision(data.action.spec.workload.revision);
+      setExpectedRevision(data.action.spec.version === 7 ? "" : data.action.spec.workload.revision);
     } else if (changed) {
       setWorkloadPath("/");
       setExpectedRevision("");

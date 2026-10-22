@@ -16,7 +16,7 @@ import {
   type Transport,
 } from "../providers/http.ts";
 
-export type DeploySpec = Extract<ActionSpec, { version: 5 }>;
+export type DeploySpec = Extract<ActionSpec, { version: 5 | 7 }>;
 export class LiaraDeployClient {
   readonly config: Config;
   readonly send: Transport;
@@ -33,7 +33,7 @@ export class LiaraDeployClient {
     budget: RunBudget,
     signal: AbortSignal,
   ): Promise<string> {
-    ensure(spec.version === 5, "DEPLOYMENT_PROPOSAL_REQUIRED", "پیشنهاد تازه با نسخه Node مشخص لازم است.", 409);
+    ensure(spec.version === 5 || spec.version === 7, "DEPLOYMENT_PROPOSAL_REQUIRED", "پیشنهاد تازه با نسخه Node مشخص لازم است.", 409);
     parseNodeVersion(spec.nodeVersion);
     authorizeScope(spec.scope, this.config);
     ensure(

@@ -268,7 +268,7 @@ export class Store {
     });
   }
   assertProjectAction(actorId: string, spec: ActionSpec, existingId?: string): void {
-    if (spec.version !== 3 && spec.version !== 4 && spec.version !== 5) return;
+    if (spec.version !== 3 && spec.version !== 4 && spec.version !== 5 && spec.version !== 7) return;
     const flow = this.getProjectFlow(actorId);
     ensure(
       flow &&
@@ -282,11 +282,12 @@ export class Store {
       "پروژه یا فایل‌های آن تغییر کرده‌اند. پروژه را دوباره بررسی و پیشنهاد تازه دریافت کنید.",
       409,
     );
-    ensure(spec.version !== 5 || flow.profile.nodeRuntime?.version === spec.nodeVersion, "NODE_VERSION_CHANGED", "نسخه Node پیشنهاد با بررسی پروژه برابر نیست؛ پیشنهاد تازه دریافت کنید.", 409);
+    ensure((spec.version !== 5 && spec.version !== 7) || flow.profile.nodeRuntime?.version === spec.nodeVersion, "NODE_VERSION_CHANGED", "نسخه Node پیشنهاد با بررسی پروژه برابر نیست؛ پیشنهاد تازه دریافت کنید.", 409);
     const connection = this.getConnection(actorId, "liara")?.view;
     ensure(
       connection?.status === "connected" &&
         connection.teamId === spec.scope.teamId &&
+        (spec.version !== 7 || connection.identityId === spec.accountId) &&
         connection.selectedApp === spec.scope.app &&
         connection.apps.some(
           (app) =>
@@ -557,7 +558,7 @@ export class Store {
       this.ensureNoConflict(spec);
       this.assertActionContext(actorId, spec);
       if (
-        (spec.version === 2 || spec.version === 3 || spec.version === 4 || spec.version === 5) &&
+        (spec.version === 2 || spec.version === 3 || spec.version === 4 || spec.version === 5 || spec.version === 7) &&
         spec.operation === "deploy"
       ) {
         const artifact = this.getArtifact(actorId, spec.artifactHash ?? "");
@@ -599,7 +600,7 @@ export class Store {
           action.expiresAt,
         );
       this.audit(action, "proposed", now);
-      if (spec.version === 3 || spec.version === 4 || spec.version === 5) {
+      if (spec.version === 3 || spec.version === 4 || spec.version === 5 || spec.version === 7) {
         const flow = this.getProjectFlow(actorId);
         if (flow) this.invalidateProjectAction(flow, actorId);
         this.db
@@ -910,6 +911,7 @@ export class Store {
       ensure(
         connection?.status === "connected" &&
           connection.teamId === action.spec.scope.teamId &&
+        (action.spec.version !== 7 || connection.identityId === action.spec.accountId) &&
           connection.selectedApp === action.spec.scope.app &&
           connection.apps.some(
             (app) =>

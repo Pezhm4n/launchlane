@@ -1,6 +1,8 @@
 import type { Action, Session } from "../../contracts/domain.ts";
 import {
   parseWorkloadExpectation,
+  parseWorkloadContract,
+  matchesWorkload,
   canReadDeploymentResult,
   isDeploymentSpec,
   type DeploymentSpec,
@@ -23,6 +25,7 @@ type Dependencies = {
   read?: LiaraReadClient;
   write?: LiaraDeployClient;
   probe?: WorkloadProbe;
+  budget?: RunBudget;
 };
 function scopedConfig(config: Config, store: Store, actorId: string, app: string): Config {
   const scoped = connectedLiaraConfig(config, store, actorId, app);
@@ -54,6 +57,8 @@ function authorize(
       "هویت برنامه بررسی‌شده تغییر کرده است.",
       403,
     );
+  ensure(spec.version !== 7 || store.getConnection(actorId, "liara")?.view.identityId === spec.accountId,
+    "SCOPE_DENIED", "حساب انتشار تغییر کرده است.", 403);
 }
 async function checkProject(
   client: LiaraReadClient,
@@ -72,7 +77,7 @@ async function checkProject(
   );
 }
 
-export async function proposeDeployment(
+async function prepareDeployment(
   config: Config,
   store: Store,
   actorId: string,
@@ -84,6 +89,7 @@ export async function proposeDeployment(
   },
   signal: AbortSignal,
   dependencies: Dependencies = {},
+  generic = false,
 ): Promise<Action> {
   ensure(
     config.enableMutations && config.enableLiveLiara,
@@ -92,7 +98,7 @@ export async function proposeDeployment(
     403,
   );
   const scoped = scopedConfig(config, store, actorId, identifier(input.app));
-  const workload = parseWorkloadExpectation(input.workload);
+  const workload = generic ? parseWorkloadContract(input.workload) : parseWorkloadExpectation(input.workload);
   ensure(
     workload.origin === scoped.probeOrigins[input.app],
     "PROBE_TARGET_DENIED",
@@ -120,7 +126,7 @@ export async function proposeDeployment(
     409,
   );
   const client = dependencies.read ?? new LiaraReadClient(scoped),
-    budget = new RunBudget(scoped);
+    budget = dependencies.budget ?? new RunBudget(scoped);
   const project = await client.project({ teamId: scoped.teamId, app: input.app }, budget, signal);
   ensure(
     project.platform === "node" && project.planId,
@@ -128,22 +134,35 @@ export async function proposeDeployment(
     "انتشار فقط روی برنامه Node موجود با پلن مشخص پشتیبانی می‌شود.",
     409,
   );
-  const spec: DeploySpec = {
-    version: 5,
+  const common = {
     nodeVersion: flow.profile.nodeRuntime.version,
-    operation: "deploy",
+    operation: "deploy" as const,
     scope: { teamId: scoped.teamId, app: input.app },
     sourceHash: flow.profile.sourceHash,
     artifactHash: flow.artifact.archiveHash,
     projectFlowId: flow.id,
     selectionHash: flow.selectionHash,
     targetAppId: project.id,
-    workload,
     args: { port: input.port ?? flow.profile.port, planId: project.planId },
   };
+  const connection = store.getConnection(actorId, "liara")?.view;
+  ensure(connection?.status === "connected", "LIARA_AUTH_REQUIRED", "ابتدا حساب را متصل کنید.", 409);
+  const spec: DeploySpec = generic
+    ? { ...common, version: 7, accountId: connection.identityId, workload: parseWorkloadContract(workload) }
+    : { ...common, version: 5, workload: parseWorkloadExpectation(workload) };
   authorize(scoped, store, actorId, spec);
   ensure(!signal.aborted, "CANCELLED", "پیشنهاد متوقف شد.", 409);
   return store.createAction(actorId, spec);
+}
+
+export function proposeDeployment(...args: Parameters<typeof prepareDeployment>): Promise<Action> {
+  return prepareDeployment(...args);
+}
+export function proposeWorkloadDeployment(
+  config: Config, store: Store, actorId: string,
+  input: Parameters<typeof prepareDeployment>[3], signal: AbortSignal, dependencies: Dependencies = {},
+): Promise<Action> {
+  return prepareDeployment(config, store, actorId, input, signal, dependencies, true);
 }
 
 export async function executeDeployment(
@@ -162,7 +181,7 @@ export async function executeDeployment(
   );
   const action = store.getAction(id, session.actorId);
   ensure(
-    action.spec.version === 5,
+    action.spec.version === 5 || action.spec.version === 7,
     "DEPLOYMENT_PROPOSAL_REQUIRED",
     "این پیشنهاد قدیمی قابل انتشار نیست؛ پیشنهاد تازه با نسخه Node و معیار بررسی سایت بسازید.",
     409,
@@ -176,7 +195,7 @@ export async function executeDeployment(
   const spec = action.spec,
     scoped = scopedConfig(config, store, session.actorId, spec.scope.app);
   authorize(scoped, store, session.actorId, spec, id);
-  const budget = new RunBudget(scoped),
+  const budget = dependencies.budget ?? new RunBudget(scoped),
     client = dependencies.read ?? new LiaraReadClient(scoped),
     writer = dependencies.write ?? new LiaraDeployClient(scoped);
   // Both writes and their preconditions must fit before consuming approval.
@@ -236,7 +255,7 @@ export async function observeDeployment(
     scoped = scopedConfig(config, store, session.actorId, spec.scope.app);
   authorize(scoped, store, session.actorId, spec, id, false);
   const started = Date.now(),
-    budget = new RunBudget(scoped),
+    budget = dependencies.budget ?? new RunBudget(scoped),
     client = dependencies.read ?? new LiaraReadClient(scoped);
   let result: DeploymentObservation = {
     outcome: "inconclusive",
@@ -277,6 +296,7 @@ export async function observeDeployment(
           spec.workload.path,
           budget,
           signal,
+          spec.version === 7 ? 65536 : 4096,
         );
         ensure(
           probe.scope.teamId === spec.scope.teamId &&
@@ -307,7 +327,9 @@ export async function observeDeployment(
           outcome:
             probe.outcome === "response" &&
             probe.status === spec.workload.status &&
-            revision === spec.workload.revision
+            (spec.version === 7
+              ? matchesWorkload(spec.workload, probe.status, probe.body)
+              : revision === spec.workload.revision)
               ? "verified"
               : "failed",
           code: "WORKLOAD_MISMATCH",

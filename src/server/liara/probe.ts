@@ -25,6 +25,7 @@ export type ProbeTransport = (
   url: URL,
   address: Address,
   signal: AbortSignal,
+  maxBytes?: number,
 ) => Promise<{ status: number; body: string; bytes: number; durationMs: number }>;
 const blocked = new BlockList();
 for (const [address, prefix] of [
@@ -81,7 +82,7 @@ function abortable<T>(task: Promise<T>, signal: AbortSignal): Promise<T> {
   });
 }
 
-export const pinnedHttps: ProbeTransport = (url, address, signal) =>
+export const pinnedHttps: ProbeTransport = (url, address, signal, maxBytes = 4096) =>
   new Promise((resolve, reject) => {
     const started = performance.now();
     // Keep the original hostname for TLS/certificate checks; never resolve it again at socket time.
@@ -94,7 +95,7 @@ export const pinnedHttps: ProbeTransport = (url, address, signal) =>
         maxHeaderSize: 8192,
         lookup: (_hostname, _options, callback) => callback(null, address.address, address.family),
         headers: {
-          Accept: "text/plain, application/json",
+          Accept: "text/html, text/plain, application/json",
           "Accept-Encoding": "identity",
           "User-Agent": "Launchlane-Health/1",
         },
@@ -104,7 +105,7 @@ export const pinnedHttps: ProbeTransport = (url, address, signal) =>
         const chunks: Buffer[] = [];
         res.on("data", (part: Buffer) => {
           bytes += part.length;
-          if (bytes > 4096) {
+          if (bytes > maxBytes) {
             res.destroy(new AppError("PROBE_LIMIT", "پاسخ مقصد از سقف بررسی بزرگ‌تر است.", 502));
             return;
           }
@@ -143,7 +144,9 @@ export class WorkloadProbe {
     path: string,
     budget: RunBudget,
     signal: AbortSignal,
+    maxBytes = 4096,
   ): Promise<ProbeResult> {
+    ensure(maxBytes === 4096 || maxBytes === 65536, "PROBE_LIMIT", "سقف پاسخ مجاز نیست.");
     authorizeScope(scope, this.config);
     ensure(
       this.config.enableLiveLiara,
@@ -181,13 +184,13 @@ export class WorkloadProbe {
       );
       const pinned = addresses[0];
       ensure(pinned && !boundedSignal.aborted, "CANCELLED", "بررسی متوقف شد.", 409);
-      const result = await abortable(this.send(url, pinned, boundedSignal), boundedSignal);
+      const result = await abortable(this.send(url, pinned, boundedSignal, maxBytes), boundedSignal);
       ensure(!boundedSignal.aborted, "CANCELLED", "پاسخ پس از پایان بررسی دریافت شد.", 409);
       ensure(
         result.status >= 100 &&
           result.status <= 599 &&
-          result.bytes <= 4096 &&
-          Buffer.byteLength(result.body) <= 4096 &&
+          result.bytes <= maxBytes &&
+          Buffer.byteLength(result.body) <= maxBytes &&
           Number.isFinite(result.durationMs) &&
           result.durationMs >= 0,
         "PROBE_INVALID",
@@ -203,7 +206,7 @@ export class WorkloadProbe {
         ...result,
         body: redirect
           ? ""
-          : evidenceText(result.body, 4096, [
+          : evidenceText(result.body, maxBytes, [
               this.config.liaraToken,
               this.config.modelKey,
               this.config.operatorToken,

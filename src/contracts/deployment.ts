@@ -2,9 +2,9 @@ import { AppError, ensure } from "../server/errors.ts";
 import { exactKeys, integer, object, string } from "./validation.ts";
 import type { Action, ActionSpec } from "./domain.ts";
 
-export type DeploymentSpec = Extract<ActionSpec, { version: 4 | 5 }>;
+export type DeploymentSpec = Extract<ActionSpec, { version: 4 | 5 | 7 }>;
 export function isDeploymentSpec(spec: ActionSpec): spec is DeploymentSpec {
-  return spec.version === 4 || spec.version === 5;
+  return spec.version === 4 || spec.version === 5 || spec.version === 7;
 }
 
 // This is a bounded GET oracle, never a model-supplied URL or executable expression.
@@ -16,6 +16,47 @@ export type WorkloadExpectation = WorkloadTarget & Readonly<{
   status: number;
   revision: string;
 }>;
+export type WorkloadContract = WorkloadTarget & Readonly<{
+  status: number;
+  assertion:
+    | Readonly<{ kind: "text"; contains: string }>
+    | Readonly<{ kind: "json"; field: string; equals: string | number | boolean | null }>;
+}>;
+
+export function parseWorkloadContract(value: unknown): WorkloadContract {
+  const row = object(value);
+  exactKeys(row, ["origin", "path", "status", "assertion"]);
+  const item = object(row.assertion);
+  let assertion: WorkloadContract["assertion"];
+  if (item.kind === "text") {
+    exactKeys(item, ["kind", "contains"]);
+    const contains = string(item.contains, 256);
+    ensure(contains.trim().length >= 3, "INVALID_INPUT", "متن مورد انتظار باید مشخص و قابل بررسی باشد.");
+    assertion = { kind: "text", contains };
+  } else {
+    exactKeys(item, ["kind", "field", "equals"]);
+    const field = string(item.field, 80), expected = item.equals;
+    ensure(item.kind === "json" && /^[A-Za-z][A-Za-z0-9_]{0,79}$/.test(field) &&
+      (expected === null || typeof expected === "boolean" ||
+        (typeof expected === "number" && Number.isFinite(expected)) ||
+        (typeof expected === "string" && expected.length <= 256)),
+      "INVALID_INPUT", "معیار مقدار پاسخ API معتبر نیست.");
+    assertion = { kind: "json", field, equals: expected };
+  }
+  return { ...parseWorkloadTarget({ origin: row.origin, path: row.path }),
+    status: integer(row.status, 200, 299), assertion };
+}
+
+export function matchesWorkload(contract: WorkloadContract, status: number, body: string): boolean {
+  if (status !== contract.status) return false;
+  if (contract.assertion.kind === "text") return body.includes(contract.assertion.contains);
+  try {
+    const value: unknown = JSON.parse(body);
+    return typeof value === "object" && value !== null && !Array.isArray(value) &&
+      Object.hasOwn(value, contract.assertion.field) &&
+      object(value)[contract.assertion.field] === contract.assertion.equals;
+  } catch { return false; }
+}
 export type DeploymentObservation = Readonly<{
   outcome: "verified" | "failed" | "not_started" | "pending" | "inconclusive";
   code: string;

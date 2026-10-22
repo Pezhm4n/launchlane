@@ -12,7 +12,7 @@ import { ensure } from "../server/errors.ts";
 import { hash, integer, object, string } from "./validation.ts";
 import { parseArtifact } from "./source.ts";
 import { parseConnection } from "./connections.ts";
-import { parseWorkloadExpectation, parseWorkloadTarget, parseDeploymentProgress } from "./deployment.ts";
+import { parseWorkloadContract, parseWorkloadExpectation, parseWorkloadTarget, parseDeploymentProgress } from "./deployment.ts";
 import { parseRestartProgress } from "./restart.ts";
 import { parseNodeRuntime, parseNodeVersion } from "./node-runtime.ts";
 import { sourceFileByteLimit, SOURCE_MAX_BYTES, SOURCE_MAX_FILES } from "./source-limits.ts";
@@ -60,7 +60,7 @@ export function decodeAction(value: unknown): Action {
   const state = states.find((state) => state === raw.state);
   ensure(
     state &&
-      (spec.version === 1 || spec.version === 2 || spec.version === 3 || spec.version === 4 || spec.version === 5 || spec.version === 6) &&
+      (spec.version === 1 || spec.version === 2 || spec.version === 3 || spec.version === 4 || spec.version === 5 || spec.version === 6 || spec.version === 7) &&
       (spec.operation === "deploy" || spec.operation === "restart"),
     "INVALID_RESPONSE",
     "ساختار اقدام معتبر نیست.",
@@ -87,18 +87,20 @@ export function decodeAction(value: unknown): Action {
     };
   }
   else if (spec.version === 1) parsedSpec = { ...common, version: 1 };
-  else if (spec.version === 4 || spec.version === 5) {
+  else if (spec.version === 4 || spec.version === 5 || spec.version === 7) {
     const deployment = {
       ...common,
       artifactHash: hash(spec.artifactHash),
       projectFlowId: string(spec.projectFlowId, 36),
       selectionHash: hash(spec.selectionHash),
       targetAppId: string(spec.targetAppId, 128),
-      workload: parseWorkloadExpectation(spec.workload),
+
     };
-    parsedSpec = spec.version === 5
-      ? { ...deployment, version: 5, nodeVersion: parseNodeVersion(spec.nodeVersion) }
-      : { ...deployment, version: 4 };
+    parsedSpec = spec.version === 7
+      ? { ...deployment, version: 7, accountId: string(spec.accountId, 128), nodeVersion: parseNodeVersion(spec.nodeVersion), workload: parseWorkloadContract(spec.workload) }
+      : spec.version === 5
+      ? { ...deployment, workload: parseWorkloadExpectation(spec.workload), version: 5, nodeVersion: parseNodeVersion(spec.nodeVersion) }
+      : { ...deployment, workload: parseWorkloadExpectation(spec.workload), version: 4 };
   } else if (spec.version === 3) parsedSpec = {
     ...common, version: 3, artifactHash: hash(spec.artifactHash),
     projectFlowId: string(spec.projectFlowId, 36), selectionHash: hash(spec.selectionHash),

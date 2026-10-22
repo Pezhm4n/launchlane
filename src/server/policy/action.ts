@@ -9,7 +9,7 @@ import {
   string,
 } from "../../contracts/validation.ts";
 import { ensure } from "../errors.ts";
-import { parseWorkloadExpectation, parseWorkloadTarget } from "../../contracts/deployment.ts";
+import { parseWorkloadContract, parseWorkloadExpectation, parseWorkloadTarget } from "../../contracts/deployment.ts";
 import { parseNodeVersion } from "../../contracts/node-runtime.ts";
 
 export function canonical(value: unknown): string {
@@ -40,14 +40,15 @@ export function parseActionSpec(value: unknown): ActionSpec {
     "operation",
     "sourceHash",
     "args",
-    ...(input.version === 2 || input.version === 3 || input.version === 4 || input.version === 5 ? ["artifactHash"] : []),
-    ...(input.version === 3 || input.version === 4 || input.version === 5 ? ["projectFlowId", "selectionHash"] : []),
-    ...(input.version === 4 || input.version === 5 ? ["targetAppId", "workload"] : []),
-    ...(input.version === 5 ? ["nodeVersion"] : []),
+    ...(input.version === 2 || input.version === 3 || input.version === 4 || input.version === 5 || input.version === 7 ? ["artifactHash"] : []),
+    ...(input.version === 3 || input.version === 4 || input.version === 5 || input.version === 7 ? ["projectFlowId", "selectionHash"] : []),
+    ...(input.version === 4 || input.version === 5 || input.version === 7 ? ["targetAppId", "workload"] : []),
+    ...(input.version === 5 || input.version === 7 ? ["nodeVersion"] : []),
+    ...(input.version === 7 ? ["accountId"] : []),
     ...(input.version === 6 ? ["accountId", "targetAppId", "targetPlanId", "targetReleaseId", "incidentRunId", "evidenceHash", "target"] : []),
   ]);
   ensure(
-    (input.version === 1 || input.version === 2 || input.version === 3 || input.version === 4 || input.version === 5 || input.version === 6) &&
+    (input.version === 1 || input.version === 2 || input.version === 3 || input.version === 4 || input.version === 5 || input.version === 6 || input.version === 7) &&
       (input.operation === "deploy" || input.operation === "restart"),
     "INVALID_OPERATION",
     "عملیات پشتیبانی نمی‌شود.",
@@ -94,7 +95,7 @@ export function parseActionSpec(value: unknown): ActionSpec {
   }
   if (input.version === 1) return { ...common, version: 1 };
   const artifactHash = input.artifactHash === null ? null : hash(input.artifactHash);
-  if (input.version === 3 || input.version === 4 || input.version === 5) {
+  if (input.version === 3 || input.version === 4 || input.version === 5 || input.version === 7) {
     ensure(
       input.operation === "deploy" && artifactHash,
       "INVALID_OPERATION",
@@ -102,7 +103,7 @@ export function parseActionSpec(value: unknown): ActionSpec {
     );
     const projectFlowId = string(input.projectFlowId, 36);
     ensure(/^[a-f0-9-]{36}$/.test(projectFlowId), "INVALID_INPUT", "شناسه پروژه معتبر نیست.");
-    if (input.version === 4 || input.version === 5) {
+    if (input.version === 4 || input.version === 5 || input.version === 7) {
       ensure(planId, "PLAN_REQUIRED", "شناسه پلن فعلی باید از لیارا خوانده شود.", 409);
       const deployment = {
         ...common,
@@ -110,11 +111,12 @@ export function parseActionSpec(value: unknown): ActionSpec {
         projectFlowId,
         selectionHash: hash(input.selectionHash),
         targetAppId: string(input.targetAppId, 128),
-        workload: parseWorkloadExpectation(input.workload),
       };
+      if (input.version === 7) return { ...deployment, version: 7, accountId: string(input.accountId, 128), nodeVersion: parseNodeVersion(input.nodeVersion), workload: parseWorkloadContract(input.workload) };
+      const workload = parseWorkloadExpectation(input.workload);
       return input.version === 5
-        ? { ...deployment, version: 5, nodeVersion: parseNodeVersion(input.nodeVersion) }
-        : { ...deployment, version: 4 };
+        ? { ...deployment, workload, version: 5, nodeVersion: parseNodeVersion(input.nodeVersion) }
+        : { ...deployment, workload, version: 4 };
     }
     return {
       ...common,

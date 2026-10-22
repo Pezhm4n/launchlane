@@ -11,6 +11,7 @@ import {
   executeDeployment,
   observeDeployment,
   proposeDeployment,
+  proposeWorkloadDeployment,
 } from "../../src/server/application/deployment.ts";
 import { prepareProjectFlow } from "../../src/server/application/project-flows.ts";
 import { sealCredential } from "../../src/server/connections/credentials.ts";
@@ -35,7 +36,7 @@ const signal = () => AbortSignal.timeout(5000);
 const code = (expected: string) => (error: unknown) =>
   error instanceof AppError && error.code === expected;
 async function fixture(
-  options: { sourceId?: string; nodeRange?: string; write?: (url: string, init: RequestInit, store: Store) => Promise<Response> } = {},
+  options: { sourceId?: string; nodeRange?: string; workload?: unknown; write?: (url: string, init: RequestInit, store: Store) => Promise<Response> } = {},
 ) {
   const sourceId = options.sourceId ?? "source-exact";
   const root = await mkdtemp(join(tmpdir(), "launchlane-deploy-")),
@@ -131,7 +132,7 @@ async function fixture(
       const digest = createHash("sha256")
         .update(Buffer.from(await file.arrayBuffer()))
         .digest("hex");
-      assert.equal(claimed.spec.version === 5 && claimed.spec.artifactHash, digest);
+      assert.equal((claimed.spec.version === 5 || claimed.spec.version === 7) && claimed.spec.artifactHash, digest);
     } else {
       assert.equal(claimed.deployment?.stage, "release_started");
       assert.equal(claimed.deployment?.sourceId, sourceId);
@@ -171,9 +172,9 @@ async function fixture(
     flowId: flow.id,
     app: scope.app,
     port: null,
-    workload: { origin, path: "/checkout", status: 200, revision: "sample-v2" },
+    workload: options.workload ?? { origin, path: "/checkout", status: 200, revision: "sample-v2" },
   };
-  const action = await proposeDeployment(config, store, session.actorId, input, signal(), { read });
+  const action = await (options.workload ? proposeWorkloadDeployment : proposeDeployment)(config, store, session.actorId, input, signal(), { read });
   const deps = { read, write: new LiaraDeployClient(config, send), probe };
   return {
     root,
@@ -812,5 +813,57 @@ test("a plan change after accepted upload stops before release and retains the s
     assert.equal(action.state, "uncertain");
     assert.equal(action.deployment?.sourceId, "source-exact");
     assert.equal(action.deployment?.stage, "uploaded");
+  } finally { await f.cleanup(); }
+});
+
+
+test("v7 verifies ordinary HTML up to 64KiB against the approved text and current release", async () => {
+  const workload = { origin, path: "/checkout", status: 200, assertion: { kind: "text", contains: "Order accepted" } };
+  const f = await fixture({ workload });
+  try {
+    assert.equal(f.action.spec.version, 7);
+    assert.deepEqual(decodeAction(f.action).spec, f.action.spec);
+    f.approve();
+    await executeDeployment(f.config, f.store, session, f.action.id, signal(), f.deps);
+    f.set({ body: `<!doctype html><main>${" ".repeat(8000)}Order accepted</main>` });
+    const observed = await observeDeployment(f.config, f.store, session, f.action.id, signal(), f.deps);
+    assert.equal(observed.state, "succeeded");
+    assert.equal(observed.deployment?.observation?.code, "WORKLOAD_VERIFIED");
+    assert.equal(f.writes, 2);
+  } finally { await f.cleanup(); }
+});
+
+for (const mismatch of ["wrong-value", "error-status", "different-release"]) {
+  test(`v7 does not report successful publication for ${mismatch}`, async () => {
+    const f = await fixture({ workload: { origin, path: "/checkout", status: 200,
+      assertion: { kind: "json", field: "total", equals: 81 } } });
+    try {
+      f.approve();
+      await executeDeployment(f.config, f.store, session, f.action.id, signal(), f.deps);
+      f.set({ body: JSON.stringify({ total: mismatch === "wrong-value" ? 26 : 81 }),
+        status: mismatch === "error-status" ? 500 : 200,
+        changeAfterProbe: mismatch === "different-release" });
+      const result = await observeDeployment(f.config, f.store, session, f.action.id, signal(), f.deps);
+      assert.notEqual(result.state, "succeeded");
+      assert.equal(result.deployment?.observation?.outcome, mismatch === "different-release" ? "inconclusive" : "failed");
+      assert.equal(f.writes, 2);
+    } finally { await f.cleanup(); }
+  });
+}
+
+test("v7 binds account and workload changes without changing historical v5 canonicalization", async () => {
+  const f = await fixture({ workload: { origin, path: "/checkout", status: 200,
+    assertion: { kind: "json", field: "total", equals: 81 } } });
+  try {
+    const spec = parseActionSpec(f.action.spec);
+    assert.equal(spec.version, 7);
+    assert.notEqual(fingerprint(spec), fingerprint({ ...spec, workload: { origin, path: "/checkout", status: 200,
+      assertion: { kind: "json", field: "total", equals: 26 } } }));
+    f.approve();
+    const connection = f.store.getConnection(session.actorId, "liara");
+    assert.ok(connection);
+    f.store.saveConnection(session.actorId, { ...connection, view: { ...connection.view, identityId: "another-account" } });
+    await assert.rejects(executeDeployment(f.config, f.store, session, f.action.id, signal(), f.deps), code("PROJECT_ACCESS_CHANGED"));
+    assert.equal(f.writes, 0);
   } finally { await f.cleanup(); }
 });

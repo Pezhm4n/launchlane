@@ -68,6 +68,16 @@ export type ActionSpec = ActionInputs &
         nodeVersion: import("./node-runtime.ts").NodeVersion;
       }>
     | Readonly<{
+        version: 7;
+        artifactHash: string;
+        projectFlowId: string;
+        selectionHash: string;
+        accountId: string;
+        targetAppId: string;
+        workload: import("./deployment.ts").WorkloadContract;
+        nodeVersion: import("./node-runtime.ts").NodeVersion;
+      }>
+    | Readonly<{
         version: 6;
         operation: "restart";
         sourceHash: null;

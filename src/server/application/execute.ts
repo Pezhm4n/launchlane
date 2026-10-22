@@ -42,7 +42,7 @@ export async function executeApproved(input: {
   let source: Buffer | null = null;
   if (currentSpec.operation === "deploy") {
     ensure(
-      (currentSpec.version === 2 || currentSpec.version === 3 || currentSpec.version === 4 || currentSpec.version === 5) &&
+      (currentSpec.version === 2 || currentSpec.version === 3 || currentSpec.version === 4 || currentSpec.version === 5 || currentSpec.version === 7) &&
         currentSpec.artifactHash,
       "ARTIFACT_REQUIRED",
       "این پیشنهاد به بسته source متصل نیست؛ پیشنهاد تازه بسازید.",
