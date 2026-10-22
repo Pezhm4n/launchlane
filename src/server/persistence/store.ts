@@ -873,6 +873,16 @@ export class Store {
       this.audit(action, "environment_approval_invalidated", Date.now()); return this.getAction(id, actorId);
     });
   }
+  revokeEnvironmentApproval(id: string, actorId: string, expectedHash: string): Action {
+    return this.transaction(() => {
+      const action = this.getAction(id, actorId);
+      // A new authenticated session may remove unused authority; it cannot inherit or replay that grant.
+      ensure(action.spec.version === 9 && action.hash === expectedHash && action.state === "approved" && !action.attemptId,
+        "ACTION_CONFLICT", "این تصمیم وارد اجرا شده یا تغییر کرده است؛ نتیجه همان تغییر را بخوانید.", 409);
+      this.db.prepare("UPDATE actions SET state='cancelled' WHERE id=?").run(id);
+      this.audit(action, "environment_approval_revoked", Date.now()); return this.getAction(id, actorId);
+    });
+  }
   environmentStep(id: string, actorId: string, stage: "request_started" | "accepted"): Action {
     return this.transaction(() => {
       const action = this.getAction(id, actorId);

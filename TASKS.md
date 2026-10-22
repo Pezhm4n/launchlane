@@ -1,5 +1,9 @@
 # برنامه اجرایی Launchlane
 
+## اصلاح recovery اطلاعات امن؛ پس از042cbb8
+
+تصمیم approved در نشست قدیمی با مجوز نشست جدید اجرا نمی‌شود؛ actor می‌تواند فقط grant بدون attempt را لغو و فرم خالی/nonce تازه را مرور کند. پس از claim لغو رد می‌شود. executing، پیام درست و دکمه دریافت همان وضعیت دارد؛ recovery claimed پیش از write با readback به not_started می‌رسد. AUTH_REQUIRED از فرم به ورود برنامه برمی‌گردد. regression domain و مرورگر شامل نشست قبلی، لغو، in-flight فقط‌خواندنی و recovery بدون POST دوم است؛ نتیجه نهایی در verification ثبت می‌شود.
+
 ## اتصال env به build و انتشار؛ پس از37beb7a
 
 A05/A07/A08/AC22 به همان reference متصل‌اند: تصمیم build نام کلیدهای تزریق‌شده را نشان می‌دهد، worker از stdin و log driver none استفاده می‌کند و archive source بدون مقدار می‌ماند. v10، reference و configuration را به مجوز انتشار می‌بندد؛ parser/canonicalization تاریخی محفوظ و migration تغییر نکرده است. build با env قبلی، تغییر قبل از upload یا تغییر بعد از HTTP200 تأیید نمی‌شوند. مجوز مصرف‌نشدهٔ env نامعتبر fail می‌شود و اثر configuration با انتشار سالم یکی نیست. [ADR0014](docs/decisions/0014-build-environment-binding.md).

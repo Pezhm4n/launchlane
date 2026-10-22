@@ -37,7 +37,9 @@ export async function POST(request: Request) {
         await validateProjectAction(config, store, session.actorId, action.spec, request.signal);
         openEnvironmentInput(store, config.sessionSecret, session.actorId, action.spec);
       }
-      return reply({ action: store.decide(id, session.actorId, session.id, hash(input.hash), input.decision) });
+      return reply({ action: input.decision === "reject" && action.state === "approved"
+        ? store.revokeEnvironmentApproval(id, session.actorId, hash(input.hash))
+        : store.decide(id, session.actorId, session.id, hash(input.hash), input.decision) });
     }
     ensure(input.operation === "execute" || input.operation === "observe", "INVALID_OPERATION", "عملیات معتبر نیست.");
     return reply({ action: await (input.operation === "execute" ? executeEnvironment : observeEnvironment)(config, store, session, id, request.signal) });

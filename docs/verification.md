@@ -1,5 +1,14 @@
 # شواهد اعتبارسنجی Launchlane
 
+## recovery نشست و env؛ candidate مستقل بر پایه042cbb8
+
+actor در نشست تازه می‌تواند approval محیطیِ مصرف‌نشده را با hash همان پیشنهاد لغو کند؛ grant قبلی را اجرا نمی‌کند. پس از claim، revocation رد می‌شود و اثر احتمالی پس گرفته‌شده نمایش داده نمی‌شود. executing، پیام درحال اجرا و دکمهٔ GET وضعیت دارد؛ recovery مرحله claimed بدون request_started با همان observe به not_started می‌رسد. AUTH_REQUIRED فرم به ورود برنامه وصل و nonce پس از رد/شکست تازه می‌شود؛ مقدار قبلی در فرم بازنمایی نمی‌شود.
+
+روی code tree `90b7a7453154fcb0506b0bea87082fdfb9681ada`، build، typecheck، domain282/282 و HTTP28/28 بدون fail/skip گذشتند. lint صفر error با30warning/9info بود. هر شش suite مرورگر روی همین کد به‌ترتیب75/27/27/22/37/5 گذشتند؛ 37 حالت guided شامل نشست قبلی، لغو بدون write، executing فقط‌خواندنی و recovery بدون POST تکراری است. fake provider فقط یک env update ثبت کرد؛ هیچ مقدار در model log/storage ظاهر نشد. این case بازیابی journal با fixture است، نه اثبات restart واقعی سیستم‌عامل یا PaaS.
+
+گیت‌های Docker روی042cbb8 و شواهد جداگانهٔ آن در بخش بعد ثبت‌اند؛ این fix runner، source artifact یا transport build را تغییر نمی‌دهد. مدل/ابر این فاز مصنوعی و همه سرورها disposable با port مستقل بودند. primary server/config، VPN، دفتر مصرف زنده و فایل/hunkهای UI همکار تغییر یا commit نشدند. env زنده، Next/GitHub دارای build، چرخه تازه fail-deploy→repair→redeploy و ادغام با UI موازی همچنان پذیرش تازه ندارند. فرض آماده‌بودن کل مأموریت از این gateها مجاز نیست.
+
+
 ## env متصل به build و انتشار؛ candidate مستقل بر پایه37beb7a
 
 مرجع configuration اکنون جزئی از برنامه و تصمیم build و ActionSpec v10 است. actor/project/account/app، lineage آزموده‌شده، کلیدها و HMAC بسته‌اند؛ source/image/فرمان/معیار قبلی به env عوض‌شده منتقل نمی‌شوند. secret با stdin و log driver none وارد container می‌شود، نه command line، Docker Env، mount یا فایل میزبان. configuration_changed با workload verified یکی نیست. [ADR0014](decisions/0014-build-environment-binding.md) مرز مصدر source artifact، CAS بیرونی و حفظ v1–v9 تاریخی را توضیح می‌دهد.

@@ -232,3 +232,20 @@ test("environment-bound releases need the same current configuration on both sid
     } finally { f.close(); }
   }
 });
+
+test("a fresh session can revoke unused environment consent but cannot revoke a claimed write", async () => {
+  const f = await fixture();
+  try {
+    const old = await f.propose(); f.store.decide(old.id, f.actor, "old-session", old.hash, "approve");
+    await assert.rejects(executeEnvironment(f.config, f.store, f.session, old.id, f.signal(), { client: f.client }), code("APPROVAL_SESSION"));
+    assert.throws(() => f.store.revokeEnvironmentApproval(old.id, f.actor, "0".repeat(64)), code("ACTION_CONFLICT"));
+    assert.equal(f.store.revokeEnvironmentApproval(old.id, f.actor, old.hash).state, "cancelled");
+    await assert.rejects(executeEnvironment(f.config, f.store, f.session, old.id, f.signal(), { client: f.client }), code("ACTION_CONFLICT"));
+    const next = await f.propose(); f.store.decide(next.id, f.actor, f.session.id, next.hash, "approve");
+    const client = new LiaraEnvironmentClient(connectedLiaraConfig(f.config, f.store, f.actor), async (url, options) => {
+      if (options.method === "POST") assert.throws(() => f.store.revokeEnvironmentApproval(next.id, f.actor, next.hash), code("ACTION_CONFLICT"));
+      return f.client.send(url, options);
+    });
+    assert.equal((await executeEnvironment(f.config, f.store, f.session, next.id, f.signal(), { client })).state, "observing"); assert.equal(f.writes, 1);
+  } finally { f.close(); }
+});

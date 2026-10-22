@@ -763,7 +763,7 @@ export function AgentPanel({
           </p>
           {run.question && sameProject ? <p className="note">{run.question}</p> : null}
           {guided && run.mission && run.nextAction === "configure_env" && !active && sameProject ? <ProjectEnvironment key={run.id} runId={run.id} csrf={csrf} disabled={disabled || busy}
-            onLockChanged={setEnvironmentLocked} onContinue={() => void resumePublication()} /> : null}
+            onLockChanged={setEnvironmentLocked} onExpired={onExpired} onContinue={() => void resumePublication()} /> : null}
           {run.repair ? (
             <section className="agent-repair" aria-labelledby="repair-title">
               <h3 id="repair-title">{run.repair.validationOnly ? "بررسی ساخت و اجرای پروژه" : "اصلاح نسخه جدا از پروژه"}</h3>
