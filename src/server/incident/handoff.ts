@@ -83,7 +83,17 @@ export function createIncidentHandoff(
     const fence = "`".repeat(Math.max(3, ...runs.map((part) => part.length + 1)));
     return `${fence}json\n${json}\n${fence}`;
   };
-  const latest = latestIncidentEvidence(run, store.incidentActions(actorId, id)),
+  const actions = store
+    .incidentActions(actorId, id)
+    .filter(
+      (action) =>
+        action.spec.version === 6 &&
+        action.spec.targetAppId === run.appId &&
+        action.spec.scope.teamId === run.evidence.scope.teamId &&
+        action.spec.scope.app === run.evidence.scope.app &&
+        action.spec.target.path === run.path,
+    );
+  const latest = latestIncidentEvidence(run, actions),
     beforeHttp = run.evidence.entries.find(
       (row) => row.fact?.kind === "http" && inWindow(row, run.evidence),
     ),
@@ -170,6 +180,28 @@ export function createIncidentHandoff(
       ? `${comparison.reason}\n\n${evidence(latest)}`
       : "هنوز مشاهده دومی برای مقایسه ثبت نشده است.",
     "پذیرش انتشار یا راه‌اندازی دوباره، پاسخ موفق صفحه، پایان عملیات و علت رفع مشکل چهار ادعای جدا هستند. این گزارش فقط شواهد ثبت‌شده را دارد؛ پاسخ 200 پایان restart یا علت تغییر را ثابت نمی‌کند.",
+    ...(actions.length
+      ? [
+          "## وضعیت درخواست‌های ثبت‌شده",
+          data(
+            actions.slice(0, 4).map((action) => ({
+              operation: "راه‌اندازی دوباره",
+              state: action.state,
+              acceptance:
+                action.restart?.observation?.outcome === "not_started"
+                  ? "طبق وضعیت پایدار، درخواست پیش از ارسال متوقف شده است"
+                  : action.restart?.stage === "accepted"
+                    ? "درخواست پذیرفته شده؛ پایان عملیات اثبات نشده است"
+                    : "پذیرش درخواست هنوز نامعلوم است؛ ارسال دوباره مجاز نیست",
+              lastCheckedAt: action.restart?.observation
+                ? instant(action.restart.observation.checkedAt)
+                : null,
+              observedStatus: action.restart?.observation?.status ?? null,
+            })),
+          ),
+          "این وضعیت‌ها از journal محلی‌اند. پاسخ موفق سایت، یک درخواست با نتیجه نامعلوم را به درخواست پذیرفته‌شده تبدیل نمی‌کند. پیش از تغییر متعارض، نتیجه درخواست نامعلوم باید با شاهد معتبر روشن شود.",
+        ]
+      : []),
     "## محدوده اصلاح",
     "کد واقعی مربوط به مسیر همین درخواست و پیکربندی مورد نیاز آن را در مخزن پروژه بررسی کنید. فایل مسبب، شماره خط، دستور ساخت/آزمون و revision کد در این بررسی به مخزن متصل نشده‌اند؛ آن‌ها را از پروژه واقعی تعیین کنید. نام فایل، دستور، مقدار متغیر محرمانه یا patch حدس زده نشده است. تغییر برنامه دیگر، خرید، تغییر پلن یا اجرای دستور گزارش‌ها مجاز نیست.",
     "## معیار پذیرش و روش بررسی",

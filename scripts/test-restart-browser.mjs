@@ -153,6 +153,22 @@ try {
   await page.reload(); await panel.getByText("درخواست پذیرفته شد؛ صفحه پاسخ می‌دهد", { exact: true }).waitFor();
   await report.getByText(/صفحه بررسی‌شده پاسخ موفق داد/).waitFor();
   for (const width of [360, 768, 1280]) await state("responding-readback-restored", width);
+  const restoredRun = await (await page.request.get(`${server.origin}/api/incidents/runs?id=${run.id}`, { headers: { origin: server.origin } })).json();
+  assert.equal(restoredRun.run.evidence.entries[0].fact.status, 500);
+  assert.equal(restoredRun.run.after.entries[0].fact.status, 200);
+  const handoff = report.locator(".incident-handoff");
+  await handoff.locator(":scope > summary").press("Enter");
+  await handoff.getByRole("button", { name: "آماده‌سازی گزارش", exact: true }).press("Enter");
+  await handoff.getByRole("heading", { name: "گزارش این بررسی آماده است", exact: true }).waitFor();
+  await handoff.getByText("پیش‌نمایش محتوای فایل", { exact: true }).press("Enter");
+  const markdown = await handoff.getByRole("textbox", { name: "محتوای گزارش برای اصلاح کد", exact: true }).inputValue();
+  assert.match(markdown, /"observedStatus": 500/);
+  assert.match(markdown, /"status": 200/);
+  assert.match(markdown, /همان صفحه در بررسی تازه پاسخ موفق داد/);
+  assert.match(markdown, /پاسخ 200 پایان restart یا علت تغییر را ثابت نمی‌کند/);
+  assert.equal(markdown.includes(server.token), false);
+  await state("handoff-matches-restored-same-page-observation", 360);
+  await handoff.locator(":scope > summary").press("Enter");
   assert.equal(sends, 1);
   // Fresh controlled evidence, not an inferred new failure from the earlier operation.
   const fresh = structuredClone(run); const now = Date.now();

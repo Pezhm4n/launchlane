@@ -6,8 +6,7 @@ import { object } from "../contracts/validation.ts";
 import { api, ClientError } from "./api.ts";
 import { IncidentReport } from "./IncidentReport.tsx";
 import { RestartPanel } from "./RestartPanel.tsx";
-import { restartReadbackEvidence } from "../contracts/restart.ts";
-import type { EvidenceBundle } from "../contracts/incident.ts";
+import { latestIncidentEvidence } from "../contracts/incident-evidence.ts";
 const choices: { id: Symptom; title: string }[] = [
   { id: "unavailable", title: "سایت باز نمی‌شود" },
   { id: "errors", title: "خطا نشان می‌دهد" },
@@ -75,12 +74,7 @@ export function IncidentWorkbench({
   const current = kind === "live" ? live : sample,
     connection = workspace.connections.liara,
     scopeReady = connection?.status === "connected" && Boolean(connection.selectedApp);
-  let operationEvidence: EvidenceBundle | null = null;
-  if (current?.kind === "live") for (const action of workspace.actions) {
-    if (action.spec.version !== 6 || action.spec.incidentRunId !== current.id || action.spec.targetAppId !== current.appId) continue;
-    const evidence = restartReadbackEvidence(action);
-    if (evidence && (!operationEvidence || evidence.collectedAt > operationEvidence.collectedAt)) operationEvidence = evidence;
-  }
+  const operationEvidence = current ? latestIncidentEvidence(current, workspace.actions) : null;
   const sameApp =
     current?.kind === "sample" ||
     (scopeReady &&
@@ -563,6 +557,7 @@ export function IncidentWorkbench({
             onCompare={(choice) => void job("compare", { id: current.id, choice })}
             onRestore={() => void retrieve()}
             operationEvidence={operationEvidence}
+            onSessionExpired={onSessionExpired}
           />
           {current.kind === "live" ? <RestartPanel key={`restart-${current.id}`} run={current} workspace={workspace}
             active={active} disabled={disabled || busy !== null || loading} onAction={onAction}

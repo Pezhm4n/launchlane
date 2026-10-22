@@ -56,12 +56,13 @@ test("handoff is historical, actor-bound, read-only and usable without provider 
 test("export quotes prompt injection, removes credentials and URL query values, and includes only cited short log excerpts", () => {
   const f = restartFixture();
   try {
+    const config = { ...f.config, modelKey: "synthetic-private-model-key", operatorToken: "synthetic-private-operator-key" };
     const token = "synthetic-connected-token-not-env";
     f.store.saveConnection(actor, {
       ...f.connection,
       ciphertext: sealCredential(token, f.config.sessionSecret, actor, "liara"),
     });
-    const leak = `${f.config.liaraToken} ${f.config.sessionSecret} ${f.config.modelKey} ${f.config.operatorToken} ${token}`;
+    const leak = `${config.liaraToken} ${config.sessionSecret} ${config.modelKey} ${config.operatorToken} ${token}`;
     const run = structuredClone(f.run);
     run.problem = `GET https://test-node.example.com/orders?customer=private-value#private-fragment ${leak}`;
     run.evidence.entries.push({
@@ -102,10 +103,12 @@ test("export quotes prompt injection, removes credentials and URL query values, 
       run.evidence,
     );
     f.store.saveIncidentRun(actor, run);
-    const report = createIncidentHandoff(f.config, f.store, actor, run.id);
+    const report = createIncidentHandoff(config, f.store, actor, run.id);
     for (const secret of [
       f.config.liaraToken,
       f.config.sessionSecret,
+      config.modelKey,
+      config.operatorToken,
       token,
       "hidden-password",
       "hidden-bearer",
@@ -193,6 +196,12 @@ test("latest stored restart readback is exported without claiming restart comple
     assert.equal(latestIncidentEvidence(wrongTeam, [observed]), wrongTeam.evidence);
     assert.equal(observed.spec.version, 6);
     if (observed.spec.version !== 6) throw new Error("expected restart");
+    for (let index = 0; index < 21; index++) f.store.createAction(actor, observed.spec);
+    assert.equal(
+      f.store.listActions(actor).some((row) => row.id === observed.id),
+      false,
+    );
+    assert.equal(f.store.incidentActions(actor, f.run.id)[0]?.id, observed.id);
     assert.equal(
       latestIncidentEvidence(f.run, [
         {
@@ -241,6 +250,46 @@ test("missing HTTP, unavailable metrics and slow symptoms retain unknown outcome
     assert.match(report.markdown, /مدت یک درخواست محدود/);
     assert.match(report.markdown, /داده مصرف با واحد و زمان معتبر ندارید، آن را نامعلوم/);
     assert.doesNotMatch(report.markdown, /"observedStatus"|"durationMs": 0/);
+  } finally {
+    f.cleanup();
+  }
+});
+
+test("a lost restart acknowledgement stays explicitly uncertain in the export, even after the page returns 200", async () => {
+  const f = restartFixture(async () => {
+    throw new Error("lost acknowledgement");
+  });
+  try {
+    const action = await proposeRestart(
+      f.config,
+      f.store,
+      actor,
+      f.run.id,
+      AbortSignal.timeout(1000),
+      f.deps,
+    );
+    f.store.decide(action.id, actor, session.id, action.hash, "approve");
+    await assert.rejects(() =>
+      executeRestart(f.config, f.store, session, action.id, AbortSignal.timeout(1000), f.deps),
+    );
+    const beforeRead = createIncidentHandoff(f.config, f.store, actor, f.run.id);
+    assert.match(beforeRead.markdown, /پذیرش درخواست هنوز نامعلوم است؛ ارسال دوباره مجاز نیست/);
+    const observed = await observeRestart(
+      f.config,
+      f.store,
+      session,
+      action.id,
+      AbortSignal.timeout(1000),
+      f.deps,
+    );
+    assert.equal(observed.state, "uncertain");
+    const counts = { ...f.counts };
+    const report = createIncidentHandoff(f.config, f.store, actor, f.run.id);
+    assert.match(report.markdown, /"state": "uncertain"/);
+    assert.match(report.markdown, /"observedStatus": 200/);
+    assert.match(report.markdown, /پذیرش درخواست هنوز نامعلوم است؛ ارسال دوباره مجاز نیست/);
+    assert.deepEqual(f.counts, counts);
+    assert.equal(f.counts.writes, 1);
   } finally {
     f.cleanup();
   }

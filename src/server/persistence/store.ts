@@ -642,7 +642,7 @@ export class Store {
   incidentActions(actorId: string, runId: string): Action[] {
     // A historical export must not expire approvals or depend on the workspace's last twenty actions.
     return this.db.prepare(
-      "SELECT a.id FROM actions a JOIN restart_progress p ON p.action_id=a.id WHERE a.actor_id=? AND json_extract(a.spec,'$.version')=6 AND json_extract(a.spec,'$.incidentRunId')=? AND json_extract(p.data_json,'$.observation.checkedAt') IS NOT NULL ORDER BY json_extract(p.data_json,'$.observation.checkedAt') DESC,a.rowid DESC LIMIT 20",
+      "SELECT a.id FROM actions a JOIN restart_progress p ON p.action_id=a.id WHERE a.actor_id=? AND json_extract(a.spec,'$.version')=6 AND json_extract(a.spec,'$.incidentRunId')=? AND (a.state IN ('executing','observing','uncertain') OR json_extract(p.data_json,'$.observation.checkedAt') IS NOT NULL) ORDER BY a.state IN ('executing','observing','uncertain') DESC,json_extract(p.data_json,'$.observation.checkedAt') DESC,a.rowid DESC LIMIT 20",
     ).all(actorId, runId).map((row) => this.getAction(string(row.id), actorId));
   }
 

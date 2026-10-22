@@ -4,11 +4,11 @@
 
 ## وضعیت فعال
 
-### T34 — گزارش قابل تحویل برای اصلاح کد؛ in_progress
+### T34 — گزارش قابل تحویل برای اصلاح کد؛ implemented_local / reader_unverified
 
 پایه `4a01dfb`؛ AC12/13/14. بازتولید در کد: incident و نتیجه بازخوانی پایدارند، اما route یا کنترل دریافت گزارش برای برنامه‌نویس وجود ندارد. شدت P1: کاربر برای انتقال مسئله باید شواهد و محدودیت‌ها را دستی کنار هم بگذارد. پذیرش این برش: خروجی actor-bound از همان گزارش ذخیره‌شده، تفکیک نمونه/حساب متصل و مشاهده/فرضیه، روش تکرار همان صفحه، شواهد دارای زمان و ارجاع، محدوده اصلاح و معیار بررسی؛ بدون فایل/دستور حدسی، secret یا ارسال خودکار به بیرون. آخرین مشاهده معتبر restart نیز باید با گزارش رابط یکسان باشد؛ پذیرش درخواست و پایان restart یکی نشوند. پیش‌نمایش و دانلود اختیاری با keyboard، حالت خطا/لغو و عرض‌های 360/768/1280 بررسی می‌شوند. credential و داده خام اضافی صادر نمی‌شوند؛ هیچ فراخوانی provider، تغییر زیرساخت یا مصرف مدل لازم نیست. اسکیل‌های مؤثر: competition-agent-engineer، ux-ui-agent-skills، vercel-react-best-practices و web-design-guidelines. آزمون حساب واقعی و فهم گزارش توسط reader تازه، ادعای این برش نیستند.
 
-قرارداد server و دریافت گزارش از داده ذخیره‌شده پیاده شد؛ lint/typecheck/build و domain138/HTTP16 تازه pass هستند. گزارش اولیه/آخرین پاسخ، نمونه و فقدان شواهد را تفکیک می‌کند؛ policy و approval تغییر نمی‌کنند. UI پیش‌نمایش/دریافت و آزمون مرورگر کار بعد همین برش‌اند؛ reader تازه هنوز بررسی نکرده است.
+server، پیش‌نمایش فقط‌خواندنی و دانلود واقعی فایل پیاده شدند. آخرین پاسخ و وضعیت درخواست نامعلوم جدا صادر می‌شوند؛ restore حتی بیرون 20 اقدام اخیر آن مشاهده را حفظ می‌کند و row/approval قدیمی تغییر نمی‌کند. lint131/typecheck/build pass؛ domain140 و HTTP16 تازه pass؛ browser تازه 68 حالت/11 عرض عمومی، 27 حالت/6 عرض انتشار و 27 حالت/8 عرض restart pass. هفت case گزارش، actor/credential/injection، query، نمونه، داده ناکافی/کندی، حجم، پاسخ گم‌شده و counterexample همان app/page/origin را سنجیدند. keyboard، cancel/error با حفظ فایل، انقضای ورود و بازگشت همان incident، download برابر پیش‌نمایش و متن 200٪ در مرورگر ایزوله گذشتند. مرور دستی 360/768/1280 و دریافت فایل نمونه انجام شد؛ providerها مصنوعی و هیچ اعتبار/عملیات واقعی تازه مصرف نشد. race اندازه‌گیری ردیف جایگزین‌شده GitHub در test با انتظار انتخاب کامل پوشه اصلاح شد؛ معیار هندسه ضعیف نشد و شاهد شکست محفوظ است. شکست مستقل bad-port در oracle workload نیز با allocator محدود مشترک، حفظ معیار و regression همسایه مجاز در e5f5fd5 اصلاح شد. reader تازه و استفاده روی incident زنده این candidate هنوز تأیید نشده‌اند.
 
 ### T23 — راه‌اندازی دوباره با تأیید و بازخوانی؛ implemented_contract / blocked_live
 
@@ -147,7 +147,7 @@ T20 و T24 مستقل‌اند؛ نبود مدل نباید مشاهده/آزم�
 | T31 | diagnosis مبتنی بر evidence و فرضیه رتبه‌دار | T14,T30,T24 | AC09؛ oracle 500، paraphrase، contradictory log، injection و redaction؛ کیفیت با مدل واقعی | live_verified_one_case؛ دو درخواست واقعی، 1653 توکن، فرضیه پیکربندی با سه شاهد مرتبط؛ سنجش واقعی داده ناکافی/تناقض/injection و تعمیم کیفیت باز است |
 | T32 | اصلاح دارای approval و verification همان symptom؛ بسته قبل/بعد | T13,T22,T31 | AC11؛ اصلاح واقعی/ناموفق، timeout و replay؛ success فقط با readback | partial_live؛ تغییر نامرتبط 500 را حفظ کرد؛ اصلاح source با approval تازه همان / را 200/live-v3 کرد؛ env write و تولید/اعمال خودکار patch از diagnosis هنوز ساخته نشده‌اند |
 | T33 | سناریوی مستقل کندی/منابع و پیشنهاد بهینه‌سازی | T30,T31 | AC10؛ latency و مصرف هم‌شرایط؛ بدون ادعای علت قطعی از یک نمودار | not_started |
-| T34 | handoff پاک‌سازی‌شده برای Coding Agent | T31 | AC12؛ reproduction، evidence، محدوده اصلاح و acceptance قابل فهم برای reader تازه؛ بدون فایل/command ساختگی | not_started |
+| T34 | handoff پاک‌سازی‌شده برای Coding Agent | T31 | AC12؛ reproduction، evidence، محدوده اصلاح و acceptance قابل فهم برای reader تازه؛ بدون فایل/command ساختگی | implemented_local؛ API actor-bound، preview/download و آخرین شواهد پایدار با هفت regression و browser آزموده‌اند؛ reader تازه و دریافت از incident واقعی هنوز unverified است |
 
 T32 هسته است. T25، T33 و T34 توسعه‌های P1 هستند؛ فقط در صورت اجرا و سنجش، AC07/10/12 را پذیرفته گزارش کنیم. اتصال خودکار editor، auto-PR، rollback عمومی و DNS automation فقط پس از پذیرش هسته و زمان کافی بررسی شوند. handoff قابل کپی کافی است و به اتصال editor نیاز ندارد؛ قابلیت پیاده‌نشده در limitations بماند.
 

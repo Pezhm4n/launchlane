@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { inWindow, verifySameSymptom, type EvidenceBundle } from "../contracts/incident.ts";
 import type { IncidentRun } from "../contracts/incident-run.ts";
+import { IncidentHandoffPanel } from "./IncidentHandoffPanel.tsx";
 const names = {
   workload: "پاسخ سایت",
   project: "تنظیمات برنامه",
@@ -21,6 +22,7 @@ export function IncidentReport({
   onCompare,
   onRestore,
   operationEvidence,
+  onSessionExpired,
 }: {
   run: IncidentRun;
   busy: boolean;
@@ -31,6 +33,7 @@ export function IncidentReport({
   onCompare: (choice: "related" | "unrelated") => void;
   onRestore: () => void;
   operationEvidence?: EvidenceBundle | null;
+  onSessionExpired: () => void;
 }) {
   const [evidenceOpen, setEvidenceOpen] = useState(false),
     [showAfter, setShowAfter] = useState(false),
@@ -343,6 +346,8 @@ export function IncidentReport({
           ))}
         </ul>
       </details>
+      <IncidentHandoffPanel key={`${run.id}:${run.updatedAt}:${latest.collectedAt}`}
+        runId={run.id} mode={run.kind} disabled={busy} onSessionExpired={onSessionExpired} />
       <details>
         <summary>محدودیت‌های این بررسی</summary>
         <p>

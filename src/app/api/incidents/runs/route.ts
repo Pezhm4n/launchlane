@@ -1,4 +1,5 @@
 import { symptoms } from "../../../../contracts/incident-run.ts";
+import { latestIncidentEvidence } from "../../../../contracts/incident-evidence.ts";
 import { exactKeys, object, string, text } from "../../../../contracts/validation.ts";
 import { endpoint, jsonBody, reply } from "../../../../server/http.ts";
 import { ensure } from "../../../../server/errors.ts";
@@ -26,7 +27,9 @@ export async function GET(request: Request) {
     if (id) string(id, 36);
     const run = store.getIncidentRun(session.actorId, id || undefined, kind || "live");
     ensure(!id || run, "NOT_FOUND", "این نتیجه پیدا نشد. می‌توانید بررسی تازه‌ای شروع کنید.", 404);
-    return reply({ run });
+    // Readback can outlive the workspace's recent-action window; preserve it in the restored view.
+    const latest = run ? latestIncidentEvidence(run, store.incidentActions(session.actorId, run.id)) : null;
+    return reply({ run: run && latest && latest !== run.evidence ? { ...run, after: latest } : run });
   });
 }
 export async function POST(request: Request) {

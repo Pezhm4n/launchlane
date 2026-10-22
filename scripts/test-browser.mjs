@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
-import { appendFile, mkdir, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { chromium } from "playwright";
 import AxeBuilder from "@axe-core/playwright";
@@ -358,6 +358,72 @@ try {
       await page.screenshot({ path: resolve(output, `incident-${width}.png`), fullPage: true });
   }
   await page.setViewportSize({ width: 360, height: 844 });
+  const handoffPanel = page.locator(".incident-handoff");
+  await handoffPanel.locator(":scope > summary").press("Enter");
+  await handoffPanel.getByRole("button", { name: "آماده‌سازی گزارش", exact: true }).press("Enter");
+  const handoffTitle = handoffPanel.getByRole("heading", { name: "گزارش نمونه آماده است", exact: true });
+  await handoffTitle.waitFor();
+  assert.equal(await handoffTitle.evaluate((element) => element === document.activeElement), true);
+  await handoffPanel.getByText("پیش‌نمایش محتوای فایل", { exact: true }).press("Enter");
+  const exportedMarkdown = await handoffPanel.getByRole("textbox", { name: "محتوای گزارش برای اصلاح کد", exact: true }).inputValue();
+  assert.match(exportedMarkdown, /حالت آزمایشی/);
+  assert.match(exportedMarkdown, /همان صفحه در بررسی تازه پاسخ موفق داد/);
+  assert.equal(exportedMarkdown.includes(server.token), false);
+  const downloadStarted = page.waitForEvent("download");
+  await handoffPanel.getByRole("link", { name: "دریافت فایل گزارش", exact: true }).press("Enter");
+  const handoffDownload = await downloadStarted;
+  assert.equal(handoffDownload.suggestedFilename(), `launchlane-incident-${incidentId}.md`);
+  assert.equal(await readFile(await handoffDownload.path(), "utf8"), exportedMarkdown);
+  for (const width of [280, 360, 559, 560, 768, 959, 960, 1280]) {
+    await page.setViewportSize({ width, height: width >= 768 ? 1000 : 844 });
+    await page.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
+    await layout(width, "handoff-preview-and-download-text-200-percent");
+  }
+  await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
+  await page.setViewportSize({ width: 360, height: 844 });
+  const oldDownload = await handoffPanel.getByRole("link", { name: "دریافت فایل گزارش", exact: true }).getAttribute("href");
+  let handoffFault = "failure", handoffRelease, handoffStarted;
+  await page.route(/\/api\/incidents\/handoff\?/, async (route) => {
+    if (handoffFault === "auth") return route.fulfill({ status: 401, contentType: "application/json", body: JSON.stringify({ error: { code: "AUTH_REQUIRED", message: "برای ادامه وارد شوید.", requestId: "synthetic-session-expired", retryable: false } }) });
+    if (handoffFault === "failure") return route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: { code: "HANDOFF_UNAVAILABLE", message: "گزارش دریافت نشد؛ دوباره تلاش کنید.", requestId: "synthetic-export-request", retryable: true } }) });
+    if (handoffFault === "hold") {
+      handoffStarted();
+      await new Promise((done) => { handoffRelease = done; });
+      return route.abort().catch(() => undefined);
+    }
+    return route.continue();
+  });
+  await handoffPanel.getByRole("button", { name: "آماده‌سازی دوباره گزارش", exact: true }).press("Enter");
+  await handoffPanel.getByRole("alert").waitFor();
+  assert.equal(await handoffPanel.getByRole("link", { name: "دریافت فایل گزارش", exact: true }).getAttribute("href"), oldDownload);
+  await layout(360, "handoff-error-preserves-existing-file-and-report");
+  handoffFault = "hold";
+  const handoffPending = new Promise((done) => { handoffStarted = done; });
+  await handoffPanel.getByRole("button", { name: "آماده‌سازی دوباره گزارش", exact: true }).press("Enter");
+  await handoffPending;
+  assert.equal(await handoffPanel.getByRole("button", { name: "در حال آماده‌کردن گزارش…", exact: true }).isEnabled(), false);
+  await layout(360, "handoff-one-request-loading-and-cancel");
+  await handoffPanel.getByRole("button", { name: "توقف آماده‌سازی گزارش", exact: true }).press("Enter");
+  handoffRelease(); handoffFault = "none";
+  await handoffPanel.getByRole("status").getByText(/آماده‌سازی گزارش متوقف شد/).waitFor();
+  assert.equal(await handoffPanel.getByRole("link", { name: "دریافت فایل گزارش", exact: true }).getAttribute("href"), oldDownload);
+  assert.equal(await handoffPanel.getByRole("button", { name: "آماده‌سازی دوباره گزارش", exact: true }).evaluate((element) => element === document.activeElement), true);
+  await layout(360, "handoff-cancel-preserves-file-and-returns-focus");
+  await page.reload(); await incidentReport.waitFor();
+  assert.equal(await handoffPanel.getByRole("link", { name: "دریافت فایل گزارش", exact: true }).count(), 0);
+  await handoffPanel.locator(":scope > summary").press("Enter");
+  await handoffPanel.getByRole("button", { name: "آماده‌سازی گزارش", exact: true }).press("Enter");
+  await handoffTitle.waitFor();
+  await layout(360, "handoff-recreated-from-durable-report-after-reload");
+  handoffFault = "auth";
+  await handoffPanel.getByRole("button", { name: "آماده‌سازی دوباره گزارش", exact: true }).press("Enter");
+  await page.getByLabel("کلید ورود محلی", { exact: true }).waitFor();
+  await page.getByLabel("کلید ورود محلی", { exact: true }).fill(server.token);
+  await page.getByRole("button", { name: "ورود به میز کار", exact: true }).press("Enter");
+  await incidentReport.waitFor(); handoffFault = "none";
+  assert.equal(new URL(page.url()).searchParams.get("incident"), incidentId);
+  assert.equal(await handoffPanel.getByRole("link", { name: "دریافت فایل گزارش", exact: true }).count(), 0);
+  await layout(360, "handoff-session-expiry-preserves-incident-and-clears-preview");
   await page.getByRole("button", { name: "انتشار پروژه", exact: true }).click();
   await heading().waitFor();
   await page.getByRole("button", { name: "بررسی مشکل سایت", exact: true }).click();
@@ -642,6 +708,10 @@ try {
   await github.getByRole("button", { name: "main · پیش‌فرض مخزن", exact: true }).click();
   await github.getByRole("button", { name: "apps", exact: true }).click();
   await github.getByRole("button", { name: "web", exact: true }).click();
+  // The folder response replaces the clicked row; measure the completed selection, not that detached row.
+  await github.getByText("apps/web", { exact: true }).waitFor();
+  await github.getByRole("button", { name: "انتخاب این پوشه و بررسی پروژه", exact: true }).and(page.locator("button:enabled")).waitFor();
+  assert.equal(await github.getByRole("button", { name: "web", exact: true }).count(), 0);
   await layout(360, "github-branch-and-subfolder-fixture");
   let importMode = "error",
     releaseImport,
