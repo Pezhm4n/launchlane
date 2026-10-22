@@ -340,7 +340,8 @@ export function AgentPanel({
         const expired = cause instanceof ClientError && cause.code === "AUTH_REQUIRED";
         // Only the initial idempotent registration may be replayed automatically. Continuing a run
         // or deciding a publication requires a status read or a new explicit decision.
-        if (!continueRun && !expired) setRetryable({ message, projectId });
+        const replaySafe = !(cause instanceof ClientError) || cause.retryable;
+        if (!continueRun && !expired && replaySafe) setRetryable({ message, projectId });
         failed(cause);
       }
     } finally {
@@ -455,7 +456,7 @@ export function AgentPanel({
         {run ? <span className="badge badge-quiet">{stateLabels[run.state]}</span> : null}
       </div>
       {run && !active && run.state !== "needs_approval" ? (
-        <>
+        <div className="agent-new-conversation">
           <button
             type="button"
             className="button-quiet"
@@ -473,10 +474,10 @@ export function AgentPanel({
           >
             گفت‌وگوی تازه
           </button>
-          <span id="agent-new-conversation-help" className="sr-only">
-            نمای گفت‌وگوی فعلی بسته می‌شود؛ سابقه قبلی حذف نمی‌شود.
+          <span id="agent-new-conversation-help" className="hint">
+            نمای فعلی بسته می‌شود؛ سابقه قبلی حذف نمی‌شود.
           </span>
-        </>
+        </div>
       ) : null}
       <p className="hint agent-project-name">
         {projectName ? (
@@ -505,6 +506,13 @@ export function AgentPanel({
           انتخاب از GitHub
         </button>
       </div>
+      {!run && !restoring && enabled ? (
+        <p className="hint agent-empty">
+          {projectName
+            ? "هدف را در کادر پایین بنویسید؛ مثلاً «این پروژه را بررسی کن و برای انتشار آماده کن»."
+            : "برای شروع، ابتدا پروژه را انتخاب کنید؛ سپس هدف را در کادر پایین بنویسید."}
+        </p>
+      ) : null}
       {restoring ? <p role="status">در حال بازیابی گفت‌وگو…</p> : null}
       {!enabled ? (
         <section className="note agent-unavailable" aria-labelledby="agent-unavailable-title">
@@ -529,6 +537,12 @@ export function AgentPanel({
           <p className="agent-effect">{run.effect === "remote_changes_verified" ? "نسخه منتشرشده و پاسخ مورد انتظار بررسی شدند."
             : run.effect === "remote_changes_unverified" ? "ارسال به سرویس آغاز شده است؛ نتیجه نهایی هنوز تأیید نشده است."
             : "تغییری در سایت منتشر نشده است."}</p>
+          {run.state === "failed" ? (
+            <p className="note">
+              این بررسی کامل نشد و نتیجه‌ای تأیید نشد. نتیجه‌های ثبت‌شده حفظ شده‌اند؛ برای ادامه،
+              هدف را در کادر پایین دوباره بنویسید. درخواست تازه جدا ثبت می‌شود.
+            </p>
+          ) : null}
           {!sameProject ? (
             <p className="note">
               این گفت‌وگو برای پروژه قبلی است. پیام بعدی، بررسی تازه‌ای برای پروژه انتخاب‌شده آغاز
@@ -728,12 +742,13 @@ export function AgentPanel({
               <button
                 type="button"
                 disabled={busy || disabled}
+                aria-describedby="agent-retry-help"
                 onClick={() => {
                   setDraft(retryable.message);
                   void send(retryable.message);
                 }}
               >
-                تلاش دوباره برای همین درخواست
+                ثبت دوباره همین درخواست
               </button>
             ) : null}
             {error.code !== "EMPTY_GOAL" ? (
@@ -747,6 +762,12 @@ export function AgentPanel({
               </button>
             ) : null}
           </div>
+          {retryable && retryable.projectId === projectId && !active ? (
+            <p id="agent-retry-help" className="hint">
+              همان شناسه درخواست قبلی دوباره فرستاده می‌شود؛ اگر درخواست ثبت شده باشد، اجرای تکراری
+              ساخته نمی‌شود.
+            </p>
+          ) : null}
         </div>
       ) : null}
       {enabled ? (

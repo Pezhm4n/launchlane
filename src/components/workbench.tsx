@@ -138,6 +138,12 @@ function Proposal({
           <dt>اثر انتشار</dt>
           <dd>جایگزینی نسخه فعلی برنامه</dd>
         </div>
+        {isDeploymentSpec(action.spec) ? (
+          <div>
+            <dt>تغییر نمی‌کند</dt>
+            <dd>پلن، متغیرهای محیطی و تنظیمات فعلی برنامه</dd>
+          </div>
+        ) : null}
         {action.spec.version === 5 ? <div>
           <dt>نسخه اجرای برنامه</dt>
           <dd><bdi>Node.js {action.spec.nodeVersion}</bdi></dd>
@@ -458,6 +464,15 @@ export function Workbench() {
     setClock(Date.now());
     return () => clearInterval(timer);
   }, []);
+  useEffect(() => {
+    document.title = loading
+      ? "Launchlane"
+      : !workspace
+        ? "ورود به میز کار — Launchlane"
+        : flow
+          ? `${modeNames[mode]} · ${projectName(flow)} — Launchlane`
+          : `${modeNames[mode]} — Launchlane`;
+  }, [loading, workspace, flow, mode]);
   useEffect(() => {
     function pop() {
       const state = locationState();
@@ -923,7 +938,10 @@ export function Workbench() {
             )}
           </h1>
           {!workspace ? (
-            <p>پروژه را معرفی کنید، پیشنهاد را بفهمید و پیش از هر تغییر تصمیم بگیرید.</p>
+            <p>
+              Launchlane فایل‌های پروژه را روی همین رایانه بررسی می‌کند، پیشنهاد انتشار و معیار
+              موفقیت را نشان می‌دهد و فقط با تأیید شما روی حساب میزبانی منتشر می‌کند.
+            </p>
           ) : null}
         </div>
         <div
@@ -974,7 +992,9 @@ export function Workbench() {
                   id="operator-token"
                   dir="ltr"
                   type="password"
-                  autoComplete="current-password"
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
                   value={token}
                   onChange={(event) => setToken(event.target.value)}
                   required
@@ -984,7 +1004,9 @@ export function Workbench() {
                   aria-invalid={error?.code === "AUTH_REQUIRED" || undefined}
                 />
                 <p id="login-help" className="hint">
-                  کلید فقط برای ورود استفاده می‌شود و در مرورگر ذخیره نمی‌شود.
+                  این کلید در فایل خصوصی <code>.local/operator-access.txt</code> روی همین رایانه است
+                  و با رمز لیارا یا GitHub فرق دارد. آن را در گفتگو یا پیام نگذارید؛ در مرورگر ذخیره
+                  نمی‌شود.
                 </p>
                 <button type="submit" disabled={busy !== null}>
                   {busy === "login" ? "در حال ورود…" : "ورود به میز کار"}

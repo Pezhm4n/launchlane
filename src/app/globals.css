@@ -436,6 +436,12 @@ dd {
 .login-panel form {
   margin-block-start: var(--space-6);
 }
+.login-panel code {
+  padding: 0 var(--space-1);
+  background: var(--color-paper);
+  border-radius: var(--radius-sm);
+  overflow-wrap: anywhere;
+}
 .setup-aside,
 .help-panel {
   padding: var(--space-5);
@@ -1178,6 +1184,9 @@ dialog {
   .journey-panel {
     display: none;
   }
+  .app-main :where(a, button, input, textarea, select, summary, [tabindex]):focus-visible {
+    scroll-margin-block-start: 11rem;
+  }
 }
 @media (max-width: 559px) {
   .brand {
@@ -1414,6 +1423,14 @@ dialog {
   margin-inline: auto;
 }
 .agent-project-actions { margin-block-end: var(--space-5); }
+.agent-new-conversation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block-end: var(--space-3);
+}
+.agent-new-conversation .hint { margin-block: var(--space-0); }
 .agent-unavailable h3 {
   margin-block-end: var(--space-2);
   color: var(--color-ink);
@@ -1571,11 +1588,20 @@ dialog {
   font-family: var(--font-code);
   font-size: var(--text-xs);
 }
+.code-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--space-1);
+}
 .code-copy {
   min-block-size: var(--control-height);
   min-inline-size: var(--control-height);
   padding: var(--space-1) var(--space-2);
   font-size: var(--text-xs);
+}
+.code-copy[aria-pressed="true"] {
+  background: var(--color-primary-soft);
+  border-color: var(--color-primary);
 }
 .code-block pre {
   max-block-size: 22rem;
@@ -1585,6 +1611,10 @@ dialog {
   background: transparent;
   color: var(--color-ink);
   border-radius: var(--space-0);
+}
+.code-block pre.code-wrapped {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .code-block pre code { padding: var(--space-0); background: transparent; font-size: var(--text-sm); }
 .agent-progress {

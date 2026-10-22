@@ -3,10 +3,17 @@ import { object } from "../contracts/validation.ts";
 export class ClientError extends Error {
   readonly code: string;
   readonly requestId: string | null;
-  constructor(code: string, message: string, requestId: string | null = null) {
+  readonly retryable: boolean;
+  constructor(
+    code: string,
+    message: string,
+    requestId: string | null = null,
+    retryable = false,
+  ) {
     super(message);
     this.code = code;
     this.requestId = requestId;
+    this.retryable = retryable;
   }
 }
 
@@ -33,6 +40,7 @@ export async function api<T>(
       typeof error.code === "string" ? error.code : "UNKNOWN",
       typeof error.message === "string" ? error.message : "درخواست کامل نشد.",
       typeof error.requestId === "string" ? error.requestId : null,
+      error.retryable === true,
     );
   }
   return decode(value);

@@ -40,7 +40,8 @@ function inline(text: string): ReactNode[] {
 }
 
 function CodeBlock({ code, language }: { code: string; language: string }) {
-  const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
+  const [state, setState] = useState<"idle" | "copied" | "failed">("idle"),
+    [wrapped, setWrapped] = useState(false);
   const timer = useRef<number | null>(null);
   useEffect(
     () => () => {
@@ -64,12 +65,23 @@ function CodeBlock({ code, language }: { code: string; language: string }) {
         <span className="code-language" dir="ltr">
           {language || "code"}
         </span>
-        <button type="button" className="button-quiet code-copy" onClick={() => void copy()}>
-          {state === "copied" ? "کپی شد" : state === "failed" ? "کپی نشد" : "کپی کد"}
-        </button>
+        <div className="code-actions">
+          <button
+            type="button"
+            className="button-quiet code-copy"
+            aria-pressed={wrapped}
+            onClick={() => setWrapped((current) => !current)}
+          >
+            شکستن خطوط
+          </button>
+          <button type="button" className="button-quiet code-copy" onClick={() => void copy()}>
+            {state === "copied" ? "کپی شد" : state === "failed" ? "کپی نشد" : "کپی کد"}
+          </button>
+        </div>
       </div>
       <pre
         dir="ltr"
+        className={wrapped ? "code-wrapped" : undefined}
         // biome-ignore lint/a11y/noNoninteractiveTabindex: Long code blocks scroll independently and need keyboard access.
         tabIndex={0}
       >

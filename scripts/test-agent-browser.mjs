@@ -149,6 +149,7 @@ try {
   assert.equal(await goal.inputValue(), "متن ناتمام من برای پروژه");
   await submit("این پروژه را برای انتشار بررسی کن");
   await badge("منتظر پاسخ شما");
+  assert.match(await panel.locator("#agent-new-conversation-help").textContent(), /حذف نمی‌شود/);
   await panel.getByRole("button", { name: "اتصال حساب", exact: true }).waitFor();
   const beforeReload = await modelRequests();
   assert.equal(beforeReload, 3);
@@ -211,6 +212,9 @@ try {
   await folder.getByRole("button", { name: /node-service/ }).click();
   await folder.getByRole("button", { name: "انتخاب همین پوشه", exact: true }).click();
   await panel.locator(".agent-project-name").filter({ hasText: "node-service" }).waitFor();
+  await page.waitForFunction(
+    () => document.title.includes("دستیار پروژه") && document.title.includes("node-service"),
+  );
   const explicitlySelected = new URL(page.url()).searchParams.get("project"),
     callsBeforeProjectReload = await modelRequests();
   await page.reload();
@@ -223,8 +227,40 @@ try {
   await submit("آزمون خطای ارتباط");
   await badge("بررسی کامل نشد");
   assert.equal(new AgentRepository(store).get(actor).errorCode, "PROVIDER_RATE_LIMIT");
+  await panel.getByText(/برای ادامه، هدف را در کادر پایین/).waitFor();
   await layout(360, "provider-error-preserves-events");
   await fresh();
+  let registrationFailure = null;
+  await page.route("**/api/agent/runs", (route) => {
+    if (route.request().method() !== "POST" || !registrationFailure) return route.continue();
+    const retryable = registrationFailure === "retry";
+    return route.fulfill({
+      status: retryable ? 503 : 400,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: {
+          code: retryable ? "PROVIDER_UNAVAILABLE" : "INVALID_INPUT",
+          message: "پاسخ آزمایشی ثبت درخواست",
+          retryable,
+          requestId: "synthetic-registration",
+        },
+      }),
+    });
+  });
+  registrationFailure = "invalid";
+  await submit("آزمون ثبت نامعتبر");
+  await panel.getByRole("alert").waitFor();
+  assert.equal(
+    await panel.getByRole("button", { name: "ثبت دوباره همین درخواست", exact: true }).count(),
+    0,
+    "a non-retryable registration error must not offer replay",
+  );
+  registrationFailure = "retry";
+  await submit("آزمون ثبت دوباره");
+  await panel.getByRole("button", { name: "ثبت دوباره همین درخواست", exact: true }).waitFor();
+  assert.match(await panel.locator("#agent-retry-help").textContent(), /اجرای تکراری/);
+  await layout(360, "retryable-registration-offers-idempotent-replay");
+  registrationFailure = null;
   const countBeforeCancel = await modelRequests();
   await submit("آزمون توقف");
   const deadline = Date.now() + 5000;
@@ -316,8 +352,17 @@ try {
   const code = panel.locator(".agent-answer .code-block pre");
   assert.equal(await code.getAttribute("dir"), "ltr");
   assert.ok((await code.textContent()).includes("line.quantity"));
-  await panel.locator(".agent-answer .code-copy").click();
+  await panel
+    .locator(".agent-answer")
+    .getByRole("button", { name: "کپی کد", exact: true })
+    .click();
   await panel.getByRole("button", { name: "کپی شد", exact: true }).waitFor();
+  const wrap = panel.locator(".agent-answer .code-actions button[aria-pressed]");
+  assert.equal(await wrap.getAttribute("aria-pressed"), "false");
+  assert.equal(await code.evaluate((node) => getComputedStyle(node).whiteSpace), "pre");
+  await wrap.click();
+  assert.equal(await wrap.getAttribute("aria-pressed"), "true");
+  assert.equal(await code.evaluate((node) => getComputedStyle(node).whiteSpace), "pre-wrap");
   for (const width of [360, 1280]) await layout(width, "safe-markdown-answer");
   assert.deepEqual(errors, []);
   assert.deepEqual(external, []);

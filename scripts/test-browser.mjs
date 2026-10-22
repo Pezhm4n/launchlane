@@ -119,6 +119,8 @@ try {
   await page.setViewportSize({ width: 360, height: 844 });
   await page.goto(`${server.origin}/?view=publish`);
   await page.getByRole("heading", { name: "وارد میز کار محلی شوید", exact: true }).waitFor();
+  await page.waitForFunction(() => document.title.includes("ورود به میز کار"));
+  assert.match(await page.locator("#login-help").textContent(), /operator-access\.txt/);
   await page.keyboard.press("Tab");
   assert.equal(await page.locator(":focus").textContent(), "رفتن به محتوای اصلی");
   await layout(360, "signed-out");
@@ -154,6 +156,9 @@ try {
   await folders.getByRole("button", { name: "انتخاب همین پوشه", exact: true }).click();
   await heading().waitFor();
   assert.ok((await page.locator(".selected-project").textContent()).includes("node-service"));
+  await page.waitForFunction(
+    () => document.title.includes("انتشار پروژه") && document.title.includes("node-service"),
+  );
   const navLinks = page.locator(".app-nav .app-nav-link");
   assert.equal(await navLinks.count(), 3);
   assert.equal(
@@ -190,7 +195,20 @@ try {
     "mobile shell must stay visible while scrolling",
   );
   assert.equal(await page.locator(".app-context").isVisible(), true);
+  await page.locator(".project-review details summary").last().evaluate((element) => {
+    element.scrollIntoView({ block: "start" });
+    element.focus();
+  });
+  const focusClearance = await page.evaluate(() => ({
+    header: Math.round(document.querySelector(".app-top")?.getBoundingClientRect().bottom ?? 0),
+    target: Math.round(document.activeElement?.getBoundingClientRect().top ?? -1),
+  }));
+  assert.ok(
+    focusClearance.target >= focusClearance.header,
+    `focused content must clear the sticky shell: ${JSON.stringify(focusClearance)}`,
+  );
   await page.evaluate(() => window.scrollTo(0, 0));
+  await heading().focus();
   assert.equal(await page.getByRole("button", { name: /ساخت بسته/ }).count(), 0);
   assert.equal(await page.getByLabel("پورت برنامه", { exact: true }).count(), 0);
   assert.equal(await heading().evaluate((element) => element === document.activeElement), true);
@@ -213,8 +231,10 @@ try {
   await page
     .getByRole("heading", { name: "مشکل سایت را از کجا بررسی کنیم؟", exact: true })
     .waitFor();
+  await page.waitForFunction(() => document.title.includes("بررسی مشکل سایت"));
   await page.getByRole("link", { name: "انتشار پروژه", exact: true }).click();
   await heading().waitFor();
+  await page.waitForFunction(() => document.title.includes("انتشار پروژه"));
   assert.equal(
     new URL(page.url()).searchParams.get("project"),
     new URL(firstUrl).searchParams.get("project"),

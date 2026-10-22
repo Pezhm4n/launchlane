@@ -40,6 +40,7 @@ function guard(handler) {
 async function state(label, width = 360) {
   assert.equal(await page.getByRole("region", { name: `نتیجه بررسی ${server.app}`, exact: true }).count(), 1, `${label}: report remains unique`);
   await page.setViewportSize({ width, height: width >= 768 ? 1000 : 844 });
+  await page.evaluate(() => window.scrollTo(0, 0));
   await page.evaluate(() => document.fonts.ready);
   const geometry = await page.evaluate(() => ({ viewport: document.documentElement.clientWidth, content: document.documentElement.scrollWidth }));
   if (geometry.content > geometry.viewport + 1) {
@@ -48,7 +49,11 @@ async function state(label, width = 360) {
   }
   assert.ok(geometry.content <= geometry.viewport + 1, `${label}: overflow ${JSON.stringify(geometry)}`);
   const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
-  assert.deepEqual(axe.violations.map((row) => row.id), [], label);
+  assert.deepEqual(
+    axe.violations.map((row) => ({ id: row.id, nodes: row.nodes.map((node) => node.target) })),
+    [],
+    label,
+  );
   results.push({ label, width, ...geometry });
   if ([360, 768, 1280].includes(width)) await page.screenshot({ path: resolve(output, `${label}-${width}.png`), fullPage: true });
 }
