@@ -69,6 +69,8 @@ export type DeploymentProgress = Readonly<{
   stage: "claimed" | "upload_started" | "uploaded" | "release_started" | "release_accepted";
   sourceId: string | null;
   observation: DeploymentObservation | null;
+  // Older journals have no accepted timestamp and keep their historical observation behavior.
+  releaseAcceptedAt?: number;
 }>;
 
 export function canReadDeploymentResult(action: Action): boolean {
@@ -139,7 +141,7 @@ export function parseWorkloadExpectation(value: unknown): WorkloadExpectation {
 
 export function parseDeploymentProgress(value: unknown): DeploymentProgress {
   const row = object(value);
-  exactKeys(row, ["stage", "sourceId", "observation"]);
+  exactKeys(row, ["stage", "sourceId", "observation", "releaseAcceptedAt"]);
   ensure(
     row.stage === "claimed" ||
       row.stage === "upload_started" ||
@@ -175,5 +177,6 @@ export function parseDeploymentProgress(value: unknown): DeploymentProgress {
     stage: row.stage,
     sourceId: row.sourceId === null ? null : sourceReceiptId(row.sourceId),
     observation,
+    ...(row.releaseAcceptedAt === undefined ? {} : { releaseAcceptedAt: integer(row.releaseAcceptedAt, 0, Number.MAX_SAFE_INTEGER) }),
   };
 }

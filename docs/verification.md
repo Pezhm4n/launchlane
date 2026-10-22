@@ -2,6 +2,12 @@
 
 شواهد جاری ابتدا و سابقه مراحل پیشین پایین‌تر ثبت شده‌اند. هر نتیجه به revision و شرایط خودش تعلق دارد؛ نتایج bootstrap جای قابلیت محصول و fixture جای اتصال زنده نیست.
 
+## انتشار و اصلاح زنده از خود Agent؛ f94d44b
+
+[گزارش چرخه واقعی](evidence/agent-publication-live.md) دو درخواست فارسی از مرورگر به مدل، approval، artifact، Liara و پاسخ سایت را ثبت می‌کند. HTML اصلی تأیید شد؛ در goal اصلاح، همان آزمون موجود fail→pass شد، فقط `cart.mjs` تغییر کرد و همان artifact منتشر شد. `/checkout` از 18.25 به 74 رسید. دو failure موقت (503 و 200 نسخه قبلی با وجود READY/current) حفظ شدند؛ readback صریح در همان رابط بدون model/write تازه، نتیجه هر دو action را تأیید کرد. سقف تجمعی guard یک درخواست مدل اضافه را قبل از شبکه متوقف کرد. این خطا از guard آزمون بود، نه شاهد خرابی provider.
+
+App آزمایشی با harness ساخته و پس از تطبیق ID حذف شد؛ absence خوانده شد، سرور موقت متوقف و gateهای نصب اصلی خاموش ماندند. ساخت مقصد/env هنوز قابلیت Agent نیست. warmup محدود و backoff پس از این failure اضافه شد؛ regression کامل domain تازه 195/195 بدون skip گذشت. شاهد زمان‌بندی تازه محلی است؛ اجرای واقعی بالا متعلق به f94d44b و readback صریح است. [ADR](decisions/0002-workload-propagation.md) محدودیت نسبت‌دادن HTTP به نسخه را توضیح می‌دهد.
+
 ## اتصال انتشار به گفت‌وگو؛ پس از 5b0b0b8
 
 ابزار `propose_publication` برنامه، مبدأ مجاز، port و پلن موجود را از host می‌گیرد. کارت تصمیم در همان تب، معیار HTML/API و مقصد را نشان می‌دهد. تصمیم و queued شدن Agent اتمیک‌اند؛ پس از تأیید، همان application انتشار و journal upload/release مصرف می‌شوند. موفقیت Agent فقط از receipt و oracle سرور به `completed` می‌رسد. GET/reload اجرا نمی‌سازد، نتیجه pending فقط readback می‌شود، و startup تأیید queued ولی claim‌نشده را لغو می‌کند. بودجه مستقل Agent، مجموع مدل/worker/tools/writes/polling را پایدار نگه می‌دارد؛ سقف feature تشخیص تاریخی تغییر نکرده است.

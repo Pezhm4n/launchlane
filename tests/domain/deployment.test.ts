@@ -839,7 +839,9 @@ for (const mismatch of ["wrong-value", "error-status", "different-release"]) {
       assertion: { kind: "json", field: "total", equals: 81 } } });
     try {
       f.approve();
-      await executeDeployment(f.config, f.store, session, f.action.id, signal(), f.deps);
+      const sent = await executeDeployment(f.config, f.store, session, f.action.id, signal(), f.deps);
+      f.store.db.prepare("UPDATE deployment_progress SET data_json=? WHERE action_id=?")
+        .run(JSON.stringify({ ...sent.deployment, releaseAcceptedAt: Date.now() - 300001 }), f.action.id);
       f.set({ body: JSON.stringify({ total: mismatch === "wrong-value" ? 26 : 81 }),
         status: mismatch === "error-status" ? 500 : 200,
         changeAfterProbe: mismatch === "different-release" });
@@ -865,5 +867,41 @@ test("v7 binds account and workload changes without changing historical v5 canon
     f.store.saveConnection(session.actorId, { ...connection, view: { ...connection.view, identityId: "another-account" } });
     await assert.rejects(executeDeployment(f.config, f.store, session, f.action.id, signal(), f.deps), code("PROJECT_ACCESS_CHANGED"));
     assert.equal(f.writes, 0);
+  } finally { await f.cleanup(); }
+});
+
+test("a v7 READY release with transient 503 or old 200 content stays pending without weakening the original assertion", async () => {
+  const f = await fixture({ workload: { origin, path: "/checkout", status: 200,
+    assertion: { kind: "text", contains: "Order accepted" } } });
+  try {
+    f.approve();
+    const sent = await executeDeployment(f.config, f.store, session, f.action.id, signal(), f.deps);
+    assert.ok(sent.deployment?.releaseAcceptedAt);
+    f.set({ status: 503, body: "Application Error" });
+    const starting = await observeDeployment(f.config, f.store, session, f.action.id, signal(), f.deps);
+    assert.equal(starting.state, "observing");
+    assert.equal(starting.deployment?.observation?.code, "WORKLOAD_STARTING");
+    f.set({ status: 200, body: "Old page still routed" });
+    assert.equal((await observeDeployment(f.config, f.store, session, f.action.id, signal(), f.deps)).deployment?.observation?.code, "WORKLOAD_STARTING");
+    f.set({ status: 200, body: "Order accepted" });
+    assert.equal((await observeDeployment(f.config, f.store, session, f.action.id, signal(), f.deps)).state, "succeeded");
+    assert.equal(f.writes, 2);
+  } finally { await f.cleanup(); }
+});
+
+test("a persistent 503 after the startup grace is a failed outcome with no retry of either write", async () => {
+  const f = await fixture({ workload: { origin, path: "/checkout", status: 200,
+    assertion: { kind: "json", field: "total", equals: 81 } } });
+  try {
+    f.approve();
+    const sent = await executeDeployment(f.config, f.store, session, f.action.id, signal(), f.deps);
+    // Move only the fixture clock origin; no network sleep or oracle replacement is involved.
+    f.store.db.prepare("UPDATE deployment_progress SET data_json=? WHERE action_id=?")
+      .run(JSON.stringify({ ...sent.deployment, releaseAcceptedAt: Date.now() - 300001 }), f.action.id);
+    f.set({ status: 503, body: "Application Error" });
+    const result = await observeDeployment(f.config, f.store, session, f.action.id, signal(), f.deps);
+    assert.equal(result.state, "failed");
+    assert.equal(result.deployment?.observation?.code, "WORKLOAD_MISMATCH");
+    assert.equal(f.writes, 2);
   } finally { await f.cleanup(); }
 });

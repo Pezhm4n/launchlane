@@ -783,6 +783,7 @@ export class Store {
         this.writeDeploymentProgress(id, {
           ...action.deployment,
           stage: "release_accepted",
+          ...(action.spec.version === 7 ? { releaseAcceptedAt: now } : {}),
         });
       }
       this.db

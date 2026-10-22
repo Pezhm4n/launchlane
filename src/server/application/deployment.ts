@@ -334,6 +334,13 @@ export async function observeDeployment(
               : "failed",
           code: "WORKLOAD_MISMATCH",
         };
+        // Provider current/READY can precede the public route switching from the old response.
+        // Waiting never changes the approved assertion; a persistent mismatch still fails at the deadline.
+        if (result.outcome === "failed" && spec.version === 7 && probe.outcome === "response" &&
+          action.deployment.releaseAcceptedAt !== undefined &&
+          probe.observedAt >= action.deployment.releaseAcceptedAt &&
+          probe.observedAt - action.deployment.releaseAcceptedAt < 300_000)
+          result = { ...result, outcome: "pending", code: "WORKLOAD_STARTING" };
         if (result.outcome === "verified") {
           // Fence the probe with fresh project/release reads. READY from an older release is insufficient.
           await checkProject(client, spec, budget, signal);

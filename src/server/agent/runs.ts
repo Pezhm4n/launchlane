@@ -346,7 +346,7 @@ export async function driveAgentRun(
       }
       run.effect = run.publication.attemptId ? "remote_changes_unverified" : "no_remote_changes";
       persist();
-      for (let poll = 0; poll < 12 && canReadDeploymentResult(run.publication); poll++) {
+      for (let poll = 0; poll < 20 && canReadDeploymentResult(run.publication); poll++) {
         check();
         // Observation and waits spend the same durable allowance as the model, upload and repair worker.
         if (budget.maxToolCalls - budget.toolCalls < 5) break;
@@ -356,7 +356,7 @@ export async function driveAgentRun(
           { ...dependencies.deployment, budget });
         persist();
         if (run.publication.state === "succeeded" || run.publication.state === "failed") break;
-        await delay(dependencies.pollDelayMs ?? 5000, undefined, { signal });
+        await delay(dependencies.pollDelayMs ?? Math.min((poll + 1) * 5000, 20_000), undefined, { signal });
       }
       if (run.publication.state === "succeeded") {
         run.state = "completed";
