@@ -15,6 +15,7 @@ import { FolderIcon, FolderPicker } from "./FolderPicker.tsx";
 import { ConnectionDialog } from "./ConnectionDialog.tsx";
 import { GitHubProjectPicker } from "./GitHubProjectPicker.tsx";
 import { IncidentWorkbench } from "./IncidentWorkbench.tsx";
+import { DomainGuidePanel } from "./DomainGuidePanel.tsx";
 
 type FlowResult = { flow: ProjectFlow | null; action: Action | null };
 function decodeFlow(value: unknown): FlowResult {
@@ -316,6 +317,7 @@ export function Workbench() {
     accountsTrigger = useRef<HTMLButtonElement>(null),
     sampleTrigger = useRef<HTMLButtonElement>(null),
     manualTrigger = useRef<HTMLButtonElement>(null);
+  const accountReturnTarget = useRef<HTMLButtonElement | null>(null);
   const resultHeading = useRef<HTMLHeadingElement>(null),
     errorBox = useRef<HTMLDivElement>(null),
     projectErrorBox = useRef<HTMLDivElement>(null),
@@ -480,8 +482,11 @@ export function Workbench() {
         sample: sampleTrigger,
         manual: manualTrigger,
       }[restoreFocus.current];
+      const accountTarget = restoreFocus.current === "accounts" ? accountReturnTarget.current : null;
       restoreFocus.current = null;
-      target.current?.focus();
+      if (accountTarget?.isConnected) accountTarget.focus();
+      else target.current?.focus();
+      accountReturnTarget.current = null;
     }
   }, [folderOpen, githubOpen, accountsOpen, busy]);
   useEffect(() => {
@@ -746,6 +751,7 @@ export function Workbench() {
     writeLocation(next, flow?.id ?? null);
   }
   function openAccounts() {
+    accountReturnTarget.current = null;
     setAccountsOpen(true);
     restoreFocus.current = "accounts";
   }
@@ -1397,6 +1403,17 @@ export function Workbench() {
                       </p>
                     </section>
                   </aside>
+                  <DomainGuidePanel
+                    workspace={workspace}
+                    disabled={disabled}
+                    onConnect={(trigger) => {
+                      accountReturnTarget.current = trigger;
+                      setAccountsOpen(true);
+                      restoreFocus.current = "accounts";
+                    }}
+                    onRefresh={refresh}
+                    onSessionExpired={onSessionExpired}
+                  />
                 </div>
               ) : null}
             </div>
