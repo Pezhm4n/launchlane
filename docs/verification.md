@@ -2,6 +2,16 @@
 
 شواهد جاری ابتدا و سابقه مراحل پیشین پایین‌تر ثبت شده‌اند. هر نتیجه به revision و شرایط خودش تعلق دارد؛ نتایج bootstrap جای قابلیت محصول و fixture جای اتصال زنده نیست.
 
+## بررسی واقعی پروژه GitHub؛ d981734 و 97cad97
+
+[گزارش تفصیلی](evidence/github-project-review.md) علت دو خطای واقعی حساب را ثبت می‌کند: فایل داده3,949,893 بایتی در سقف قبلی512KiB و false positive واژگان js-tokens/Motion tokens. همان مخزن در مرورگر به128فایل/5,364,734بایت و archive پایدار رسید؛ readback مستقل تمام entryها را با manifest تطبیق داد. reload، تغییر بخش/Back و ورود مجدد پس از انقضای واقعی نشست، نتیجه را حفظ کردند. دریافت زیرپوشه src به‌درستی incomplete بود و انتشار را آماده معرفی نکرد. هیچ script پروژه، write Liara یا درخواست مدل اجرا نشد. public live ناشناس و private/account contracts در گزارش جدا هستند.
+
+Export تمیز tracked از `d9817349febf9c38f9143be020b621a9ee8e6a34` با Node24.18.0 و بدون کپی env/DB/context خصوصی: npm ci، setup، lint، typecheck، build، domain169/169، HTTP18/18 و bootstrap2/2 موفق. چهار suite مرورگر نیز به‌ترتیب75/27/27/22حالت، با عرض‌های360/768/1280 و مرزهای280/320/390/414/559/560/767/959/960 طبق هر suite، موفق شدند. در حالت‌های ثبت‌شده overflow/axe/pageerror/external صفر بود؛ این بررسی، WCAG کامل یا سادگی تجربه همه کاربران را ثابت نمی‌کند. تصاویر review در360/1280 مشاهده شدند. artifactها با خروجی سرور/DB ایزوله در `.artifacts/candidate/d981734-2026-10-22T05-12-26.868Z/` نگه داشته شدند؛ پوشه checkout و سرور موقت حذف شدند. یازده فایل client بررسی و صفر match با secretهای setup ثبت شد. این export شاهد clone مستقیم GitHub یا revision نهایی تحویل نیست.
+
+رابط نهایی در `97cad97`، با tree دقیق `c76a937b34bc66d875578539a799774ba708d397` از index تمیز export و جداگانه install/setup/lint/typecheck/build/bootstrap2 و چهار suite مرورگر75/27/27/22 را گذراند؛ artifact `.artifacts/candidate/c76a937-2026-10-22T05-19-41.727Z/`. domain/HTTP شاهد تازه مرحله قبل‌اند؛ تغییر بعدی فقط نام کنترل و regression باز/بستن picker است. نمونه واقعی با Enter و انصراف از پوشه محلی نیز انتخاب GitHub و focus را حفظ کرد.
+
+graph نسل2026-10-21T19:24:24Z برای مسیرهای تغییرکرده stale و برای tests/scripts excluded بود؛ source دقیق، caller/provider و regressionها مبنای بررسی بودند. اسکیل‌های competition-agent-engineer، ux-ui-agent-skills و قواعد React/تعامل برای مرزهای مربوط استفاده شدند.
+
 ## دریافت کد GitHub؛ پایه 052aa8c
 
 خطای «در حال دریافت کد ورود» با CLI رسمی نصب‌شده 2.103.0 بازتولید شد: حالت پیش‌فرض در1106ms پیام `One-time code (...) copied to clipboard` و URL رسمی داشت، اما parser فقط قالب `one-time code:` را می‌شناخت و false می‌داد؛ driver پس30s به timeout می‌رفت. GET عمومی GitHub نیز پاسخ302 در908ms داشت، بنابراین قطع عمومی شبکه علت اثبات‌شده نبود. با `--clipboard=false` همان CLI در1252ms خروجی قابل parse داد. این گزینه اکنون صریح است تا clipboard کاربر دست‌کاری نشود؛ parser هر دو پیام رسمی را می‌شناسد. [source رسمی همان نسخه](https://github.com/cli/cli/blob/v2.103.0/internal/authflow/flow.go) دو قالب و خط جدید انتهای URL را نشان می‌دهد.

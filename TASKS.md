@@ -4,6 +4,13 @@
 
 ## وضعیت فعال
 
+### بررسی کامل انتخاب GitHub و آماده‌سازی پیش از مرحله Agent — bounded_live_verified
+
+AC02/03/13/14/16؛ اصلاح server در `d981734`. اتصال رسمی حساب با اقدام انسانی کامل شد و مسیر واقعی فهرست/جست‌وجو→مخزن→شاخه/SHA→زیرپوشه→tarball→snapshot→inspection/archive→SQLite و reload طی شد. مخزن اولیه با ۱۲۸ فایل و مجموع 5,364,734 بایت به‌دلیل یک فایل داده 3,949,893 بایتی رد می‌شد؛ سقف مشترک هر فایل 4 MiB و تنظیمات ریشه 512 KiB شد، بدون تغییر مجموع20 MiB/1000فایل/5000entry. واژگان js-tokens و Motion tokens دیگر credential نیستند؛ credential واقعی/کلیدهای نصب و redaction گزارش حفظ شدند. snapshot شکست‌خورده بدون مرجع پاک می‌شود؛ snapshot ثبت‌شده و انتخاب قبلی حفظ و junction رد می‌شوند. مسیر [slug].ts نیز پشتیبانی می‌شود. domain169، lint/typecheck و export مستقل tracked روی همین revision با install/setup/build/HTTP18/bootstrap2 و چهار suite مرورگر75/27/27/22 موفق شدند؛ artifact candidate با سرور/DB ایزوله و gateهای خاموش است. مقایسه bytes/hash آرشیو واقعی با manifest و restore نیز گذشت؛ هیچ write زیرساخت یا درخواست مدل انجام نشد. جزئیات و مرز مخزن خصوصی/صفحه‌بندی/peer review در [شواهد GitHub](docs/evidence/github-project-review.md) هستند.
+
+بخش مستقل T41 شامل شکست‌های بالا اصلاح شد؛ T40 reader مستقل با self-review جایگزین نشده است. T50 روی candidate جدید سنجیده شد ولی revision نهایی مأموریت Agent و clone مستقیم GitHub همچنان بازند. باقی‌مانده‌های نیازمند app زنده، بودجه مدل یا reader مستقل done معرفی نمی‌شوند. وظایف فاز Agent برنامه توسعه بعدی‌اند و این بررسی آن‌ها را پیاده نمی‌کند.
+
+
 ### رفع دریافت کد GitHub — bounded_live_verified
 
 گزینه `--clipboard=false` صریح شد؛ parser هر دو پیام رسمی را می‌شناسد، stdout/stderr جدا و فقط خط کامل parse می‌شود. regression واقعی child ابتدا روی ادغام جریان‌ها و سپس URL تکه‌شده شکست خورد و پس از رفع علت گذشت. domain162/162، lint/typecheck/build و HTTP18 تازه pass؛ مرورگر عمومی75 حالت نیز گذشت. adapter با CLI/شبکه واقعی در1034ms challenge گرفت و در مرورگر نصب اصلی کد+URL رسمی دیده شد؛ آزمون پیش از grant لغو و پروژه قبلی حفظ شد. ورود کامل حساب/فهرست مخزن زنده هنوز باز است. شواهد دقیق در verification؛ هیچ token یا کد واقعی در اسناد/تصویر ثبت نشده است.
@@ -192,7 +199,7 @@ T32 هسته است. T25، T33 و T34 توسعه‌های P1 هستند؛ فقط
 | Task | هدف/محدوده | وابستگی | پذیرش/تست | وضعیت |
 | --- | --- | --- | --- | --- |
 | T40 | peer review روی revision قابل اجرا با سه ورودی تازه | T10,T23,T32 | هسته AC01-06/08/09/11/13/14 و هر توسعه اجراشده؛ reader از demo نویسنده تقلید نکند؛ reproduction/شدت/مرز خراب/اصلاح/regression | not_started |
-| T41 | رفع شکست‌های اثرگذار، UX و مصرف؛ self-review diff | T40 | lint/type/build/domain/browser/live gate مربوط؛ baseline هم‌شرایط؛ بدون feature بی‌آزمون | not_started |
+| T41 | رفع شکست‌های اثرگذار، UX و مصرف؛ self-review diff | T40 | lint/type/build/domain/browser/live gate مربوط؛ baseline هم‌شرایط؛ بدون feature بی‌آزمون | partial؛ شکست‌های GitHub/منبع و کنترل انتخاب در d981734/97cad97 با regression و self-review رفع شدند؛ مرور مستقل T40 و شکست‌های احتمالی بعدی بازند |
 
 بازبینی روی revision قابل اجرا با شواهد و روش reproduction انجام شود. ابتدا شکست‌های core، ایمنی و مسیر کاربر رفع شوند؛ معماری تازه فقط با ضرورت اثبات‌شده وارد شود.
 
@@ -200,7 +207,7 @@ T32 هسته است. T25، T33 و T34 توسعه‌های P1 هستند؛ فقط
 
 | Task | هدف/محدوده | وابستگی | پذیرش/تست | وضعیت |
 | --- | --- | --- | --- | --- |
-| T50 | README نهایی معماری/API/تعامل/limits و setup از checkout تمیز | T41 | AC15,16؛ دستورات واقعی، نسخه و real/simulated واضح؛ هیچ وابستگی به فایل محلی خارج Git | partial؛ export مستقل tracked روی 90e392a، npm ci/setup/type/build/domain147/HTTP17/bootstrap2 تازه pass؛ بدون کپی env/DB/context خصوصی، با سه gate خاموش. lint و browser با محدوده ثبت‌شده در verification، و 42 لینک محلی اسناد pass؛ review تازه، clone مستقیم GitHub و revision تحویل نهایی باقی‌اند |
+| T50 | README نهایی معماری/API/تعامل/limits و setup از checkout تمیز | T41 | AC15,16؛ دستورات واقعی، نسخه و real/simulated واضح؛ هیچ وابستگی به فایل محلی خارج Git | partial؛ export tracked تمیز d981734 با install/setup/lint/type/build/domain169/HTTP18/bootstrap2 و مرورگر75/27/27/22 گذشت؛ tree رابط97cad97 نیز install/setup/lint/type/build/browser/bootstrap تازه دارد. env/DB/context خصوصی کپی نشد؛ gateها خاموش‌اند. clone مستقیم GitHub، reader مستقل و revision تحویل نهایی مأموریت Agent بازند |
 | T51 | اجرای سناریوی واقعی end-to-end و ثبت evidence پاک‌سازی‌شده | T50 + دسترسی مجاز | AC05,09,11,15؛ trace درخواست→approval→اثر→readback؛ reproduction روی candidate مشخص؛ failureها محفوظ | not_started |
 | T52 | بازبینی candidate و محدوده انتشار فنی | T51 | AC15,16؛ diff/secret scan، config و revision ثبت؛ visibility و تغییرات خارجی فقط طبق اختیار مالک | not_started |
 
