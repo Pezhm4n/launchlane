@@ -28,6 +28,18 @@ host فقط از receipt موفق و ID دقیق، تغییر context ناشی �
 
 هفت regression Agent، زنجیره ساخت→proposal انتشار→تصمیم جدا→بررسی workload را با transport مصنوعی، atomic decision، انقضا/تغییر context، پاسخ گم‌شده، قطع میان receipt و adoption، انتخاب همزمان کاربر و gateهای خاموش می‌سنجند. مجموعه کامل تازه domain215/215 روی main و lint/typecheck گذشتند. build و HTTP21/21 روی snapshot مستقل working tree سنجیده شدند. تست جدید مرورگر پنج حالت در 360/768/1280 را بدون overflow یا violation ثبت‌شده axe گذراند و تصویرها بازبینی شدند؛ proposal مصنوعی و تمام writeهای provider خاموش بودند. artifact: `.artifacts/destination-ui/2026-10-22T10-00-24.404Z` داخل export محلی. این شواهد هنوز چرخه جدید create→publication از وب با مدل/provider واقعی نیستند.
 
+## چرخه واقعی وب؛ 3cbf206
+
+یک export ثابت از commit `3cbf206` build و در سرور loopback با state، workspace، نشست و allowlist مستقل اجرا شد. نصب اصلی و بازآرایی UI در main ادامه داشتند. fixture تازه `inventory-site`، Node 22 انتخاب‌شده، یک HTML معمولی و API summary داشت؛ endpoint مصنوعی revision اضافه نشد. نبود app آزمایشی پیش از شروع با 404 بررسی شد. اتصال حساب از API محلی احرازشده انجام شد؛ انتخاب پوشه، هدف فارسی و هر دو تصمیم در خود مرورگر بودند.
+
+مدل واقعی هفت درخواست داد و بر اساس نتایج، inspect، catalog، destination، networks، quote و proposal ساخت را انتخاب کرد. کارت نرخ پایه واقعی 1041.66 تومان در ساعت را نشان داد. پس از تصمیم در وب، خود application یک create انجام داد و همان ID/config را تأیید و انتخاب کرد. مدل از receipt ساخت به `propose_publication` رسید. proposal v7 به همان archive مصوب v8 و ID برگشتی برابر بود؛ هیچ upload یا release پیش از تصمیم دوم انجام نشد.
+
+پس از تصمیم انتشار، فقط یک upload و یک release انجام شدند. READY به‌تنهایی پذیرفته نشد: پاسخ عمومی ابتدا 503 بود و journal چند PROBE_TIMEOUT داشت. readback محدود همان action ادامه یافت و بدون تغییر oracle یا ارسال تازه، صفحه اصلی با status200 و متن `Inventory overview is ready` تأیید شد. یک خواندن مستقل عمومی هم همین پاسخ را گرفت. run به completed/remote_changes_verified رسید؛ هفت model call، 22,343 reported token، 39 tool call و حدود 279 ثانیه زمان فعال ثبت شد. readback دستی صفر بود. این شاهد واقعی، رفتار warmup را که پیش‌تر فقط regression داشت نیز برای همین مورد محدود تأیید می‌کند؛ علت تمام timeoutها یا سلامت سایر صفحات از آن نتیجه نمی‌شود.
+
+reload همان نتیجه را بازیابی کرد و model/write تازه‌ای نساخت. journal مشترک PaaS در پایان یک create، یک upload، یک release، یک DELETE پاک‌سازی و 40 GET داشت؛ GETهای setup/diagnostic هم در آن هستند و این عدد تمام HTTPهای probe/model نیست. app با همان ID ثبت‌شده حذف و نبودش با 404 تأیید شد. سرور موقت متوقف و gateهای نصب اصلی خاموش ماندند. شبکه تازه، env write و اجرای source script محلی صفر بودند. در خواندن تشخیصی همزمان، applets داده معتبر نداد؛ از آن ظرفیت یا علت قطعی استنتاج نشد. خطای اولیه harness قبل از انتظار برای پایان login، با صفر مدل و صفر write، جدا حفظ و اصلاح شد.
+
+تصویرهای proposal و نتیجه در 360 و1280 ذخیره و بازبینی شدند: `.artifacts/provision-web-live/`. source، state، credentials و ledger هزینه فقط در `.local/agent-mission/provision-web-cycle` ignored هستند. مصرف ارز یا invoice از تعداد token فرض نشده است؛ guard تجمعی قبلی و ذخیره هزینه نامعلوم اولیه حفظ شدند.
+
 ## API و کار باز
 
 - `POST /api/destinations` با `operation: options`، catalog و شبکه‌های موجود را با session/CSRF می‌خواند.
@@ -35,4 +47,4 @@ host فقط از receipt موفق و ID دقیق، تغییر context ناشی �
 - `GET /api/destinations/[id]` فقط state پایدار را می‌خواند.
 - POST همان ID با decision/hash، execute یا observe، به‌ترتیب تصمیم، یک اجرای claim‌شده یا readback همان receipt را انجام می‌دهد. هیچ spec دلخواه یا نقش model از client پذیرفته نمی‌شود.
 
-چرخه زنده جدید create→publication از گفت‌وگو، env و ساخت شبکه همچنان بازند. بودجه برآورد پایه، invoice یا پوشش هزینه‌های جانبی نیست. ظرفیت پروژه benchmark نشده است. انتقال migration به نصب در حال اجرا restart واقعی خواست؛ guard HMR ابتدا RUNTIME_RESTART_REQUIRED داد و سرور main با حفظ state بازراه‌اندازی شد. HMR قرارداد Store را خودکار باز نمی‌کند.
+چرخه ساخت→انتشار از گفت‌وگو برای همین Node/پلن ایران/شبکه موجود تأیید شد؛ env، شبکه تازه، چند runtime و پروژه نامرتبط هنوز بازند. بودجه برآورد پایه، invoice یا پوشش هزینه‌های جانبی نیست. ظرفیت پروژه benchmark نشده است. انتقال migration به نصب در حال اجرا restart واقعی خواست؛ guard HMR ابتدا RUNTIME_RESTART_REQUIRED داد و سرور main با حفظ state بازراه‌اندازی شد. HMR قرارداد Store را خودکار باز نمی‌کند.

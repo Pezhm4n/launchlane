@@ -2,6 +2,12 @@
 
 شواهد جاری ابتدا و سابقه مراحل پیشین پایین‌تر ثبت شده‌اند. هر نتیجه به revision و شرایط خودش تعلق دارد؛ نتایج bootstrap جای قابلیت محصول و fixture جای اتصال زنده نیست.
 
+## چرخه کامل ساخت مقصد و انتشار از وب؛ 3cbf206
+
+[چرخه واقعی](evidence/destination-provisioning.md) در export ثابت `3cbf206` با مدل و PaaS واقعی گذشت: app ناموجود→پیشنهاد نرخ پایه→تصمیم ساخت→ID/config readback→پیشنهاد همان archive به همان ID→تصمیم انتشار→upload/release→پاسخ200 HTML مورد انتظار. status503 و timeoutهای اولیه حفظ شدند و warmup محدود بدون readback دستی یا write تازه به نتیجه رسید. هفت درخواست مدل، 22,343 token گزارش‌شده و39 tool call ثبت شد؛ مدل قیمت را از catalog واقعی گرفت و ظرفیت همچنان unmeasured است. reload هیچ model/write تازه نساخت. پس از تطبیق ID، app آزمایشی حذف و absence404 تأیید شد؛ سرور موقت خاموش و gateهای نصب اصلی off ماندند. env/network write و اجرای محلی source scripts صفر بودند. این شاهد فقط همان Node آماده، پلن ایران و شبکه موجود را می‌پذیرد؛ چرخه env و آماده‌سازی build/dependency باز است.
+
+`npm run check` روی main با lint/typecheck، domain215/215 و bootstrap2/2 تازه گذشت. export ثابت `3cbf206`، build، HTTP21/21 و هر شش suite مرورگر را در یک اجرای کامل تازه گذراند: به‌ترتیب 75/27/27/22/20/5 حالت. suiteهای مرورگر synthetic‌اند و تماس خارجی مسدود است؛ Node tests بخش اصلاح واقعاً در نسخه جدا اجرا می‌شوند. شاهد مدل/PaaS واقعی همان چرخه مستقل بالاست. بازآرایی UI پس از این commit در checkout اصلی ادامه دارد و نتیجه این export، تأیید تغییرات بعدی آن یا fresh-reader/screen-reader نیست.
+
 ## ساخت مقصد از گفت‌وگو؛ ادامه پس از 2c335e6
 
 registry، کارت تصمیم ساخت، ادامه فقط با ID/config تأییدشده و approval جدا برای انتشار پیاده شدند. domain تازه main215/215، lint/typecheck گذشتند. snapshot مستقل working tree شامل رابط جاری build و HTTP21/21 را گذراند؛ تست جدید مرورگر پنج حالت در 360/768/1280 را با proposal مصنوعی و writeهای خاموش گذراند. این گزارش، هیچ تغییر UI ایجنت موازی را به این بخش نسبت نمی‌دهد. چرخه جدید واقعی ساخت→انتشار از وب هنوز لازم است؛ [گزارش مرزها](evidence/destination-provisioning.md).
