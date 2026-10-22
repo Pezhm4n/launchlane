@@ -2,6 +2,12 @@
 
 شواهد جاری ابتدا و سابقه مراحل پیشین پایین‌تر ثبت شده‌اند. هر نتیجه به revision و شرایط خودش تعلق دارد؛ نتایج bootstrap جای قابلیت محصول و fixture جای اتصال زنده نیست.
 
+## بازتولید مستقل candidate روی 0738e91
+
+فایل‌های tracked این revision با `git archive` در پوشه موقت مستقل استخراج شدند؛ `.env.local`، DB، ابزارهای خصوصی و context محلی کپی نشدند. Node 24.18.0 و lockfile همان candidate: `npm ci --no-audit --no-fund`، `npm run setup:local`، typecheck و build pass؛ domain تازه 132/132، HTTP تازه 16/16 و bootstrap تازه 2/2 روی server production ایزوله pass، بدون fail/skip/cancel. این شاهد clean tracked export است؛ clone مستقیم GitHub یا بازبینی انسان تازه نیست. مجموعه browser روی همان source revision در بخش بعد ثبت شده و در export دوباره اجرا نشد.
+
+setup کلید محلی تازه ساخت و هر سه gate خاموش ماندند؛ هیچ کلید provider از محیط کاری وارد آزمون نشد. 11 فایل client در build مستقل با کلیدهای همان setup تطبیق داده شدند و match صفر بود. logهای پاک‌سازی‌شده و نتایج در `.artifacts/candidate/0738e91-2026-10-22T01-06-30.536Z/` خصوصی‌اند. server و پوشه موقت پس از اجرا حذف شدند. audit جداگانه readOnly روی DB کاری نیز شش attempt پیشین، 5 failed/1 succeeded، صفر unresolved/approved و migrationهای 1–6 با checksum اولیه محفوظ را دید؛ migration 7 فقط در DBهای ایزوله این آزمون‌ها اعمال شد. هیچ درخواست تازه provider یا تغییر gate نصب انجام نشد.
+
 ## T23 — مسیر رابط و بازخوانی هماهنگ؛ پایه 69ba98c و تغییرات این برش
 
 AC04/06/13/14/16؛ Node 24.18.0، Next 16.4.2. پنل اختیاری restart به routeها، تصمیم اتمیک و journal وصل است. ثبت تأیید با خاموش‌بودن خواندن، درخواست provider ندارد؛ مرز observe مستقل و پیش از dependency تزریق‌شده fail-closed است. زمان دریافت HTTP مستقل از checkedAt ثبت می‌شود؛ تنها شاهد دارای زمان و app/release/path معتبر در گزارش اصلی همان incident مصرف می‌شود. تاریخچه بدون observedAt به شاهد تازه تبدیل نمی‌شود. UI approval، اجرا، پذیرش و پاسخ صفحه را تفکیک و قطع انتظار را از replay جدا می‌کند.

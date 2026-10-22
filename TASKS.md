@@ -10,6 +10,8 @@
 
 قرارداد server، route، transport بدون retry، journal مستقل و UI کامل پیشنهاد/تأیید/اجرا/بازخوانی پیاده شدند؛ hash/canonicalization v1–5 محفوظ‌اند. زمان دریافت HTTP و پایان بازخوانی جدا ثبت می‌شوند؛ شاهد تازه همان صفحه به گزارش اصلی می‌رسد و توضیح علت اولیه حفظ می‌شود. lint/typecheck/build pass؛ domain تازه 132/132 و HTTP تازه 16/16. browser تازه 55 حالت/9 عرض عمومی، 27 حالت/6 عرض انتشار و 26 حالت/8 عرض restart، شامل انقضا، رد، شکست پیشنهاد، پاسخ 500/200، قطع انتظار، reload، ناوبری و متن 200٪ گذشت. key تکراری React و overflow واقعی 280/200٪ از failure اولیه اصلاح و caseها حفظ شدند. مرور دستی 360/768/1280، رد با keyboard، focus و Back/reload انجام شد. providerها مصنوعی، SQLite/HTTP واقعی محلی‌اند؛ هیچ اعتبار تازه مصرف نشد. محدودیت پذیرش/پایان در ADR 0003 و شواهد دقیق در verification هستند. live restart به مقصد و مجوز تازه و معیار correlation نیاز دارد؛ پایان این برش، پذیرش زنده کل T23 نیست.
 
+candidate کد در `0738e91` از export مستقل tracked، بدون env/DB/context خصوصی، با npm ci/setup/typecheck/build و domain132/HTTP16/bootstrap2 تازه گذشت. clean GitHub clone، reader تازه و revision نهایی تحویل هنوز سنجیده نشده‌اند؛ جزئیات در verification. DB و gateهای محیط کاری با audit readOnly حفظ شدند.
+
 ### UX67 — خوانایی پیشنهاد در تبلت؛ implemented_local
 
 پایه `69f1705`؛ AC14. در مرور واقعی با نمونه ثابت، عرض 768/client=753، ستون اصلی فقط 409.22px و کارت پیشنهاد تأییدشده 1158.61px ارتفاع داشت؛ پایین ستون کمکی فضای خالی می‌ماند. پذیرش: ستون اصلی در تبلت عرض در دسترس را بگیرد، چیدمان دسکتاپ حفظ شود، keyboard/focus و داده/اقدام تغییر نکنند؛ 360/768/1280 و مرز 959/960، متن 200٪ و سناریوهای قبلی بررسی شوند. تغییر محدود به breakpoint میز انتشار است؛ ورود و گزارش اختلال بازطراحی نمی‌شوند. اسکیل‌های مؤثر: frontend-design، ux-ui-agent-skills و web-design-guidelines؛ پالت و توکن‌های موجود حفظ می‌شوند.
@@ -156,7 +158,7 @@ T32 هسته است. T25، T33 و T34 توسعه‌های P1 هستند؛ فقط
 
 | Task | هدف/محدوده | وابستگی | پذیرش/تست | وضعیت |
 | --- | --- | --- | --- | --- |
-| T50 | README نهایی معماری/API/تعامل/limits و setup از checkout تمیز | T41 | AC15,16؛ دستورات واقعی، نسخه و real/simulated واضح؛ هیچ وابستگی به فایل محلی خارج Git | partial؛ کلون محلی تمیز 869035a، npm ci/setup/lint/type/build/domain81/HTTP15/bootstrap2 و ورود با کلید تازه pass؛ کپی context خصوصی لازم نبود؛ review تازه، clone مستقیم GitHub و revision تحویل نهایی باقی‌اند |
+| T50 | README نهایی معماری/API/تعامل/limits و setup از checkout تمیز | T41 | AC15,16؛ دستورات واقعی، نسخه و real/simulated واضح؛ هیچ وابستگی به فایل محلی خارج Git | partial؛ export مستقل tracked روی 0738e91، npm ci/setup/type/build/domain132/HTTP16/bootstrap2 تازه pass؛ بدون کپی env/DB/context خصوصی. lint و سه مجموعه browser همان source در محیط کاری pass؛ review تازه، clone مستقیم GitHub و revision تحویل نهایی باقی‌اند |
 | T51 | اجرای سناریوی واقعی end-to-end و ثبت evidence پاک‌سازی‌شده | T50 + دسترسی مجاز | AC05,09,11,15؛ trace درخواست→approval→اثر→readback؛ reproduction روی candidate مشخص؛ failureها محفوظ | not_started |
 | T52 | بازبینی candidate و محدوده انتشار فنی | T51 | AC15,16؛ diff/secret scan، config و revision ثبت؛ visibility و تغییرات خارجی فقط طبق اختیار مالک | not_started |
 
