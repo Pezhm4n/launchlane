@@ -40,7 +40,7 @@ type ActionInputs = Readonly<{
 }>;
 
 // Keep v1 byte-for-byte canonicalizable: existing approvals must not acquire new inputs.
-export type ActionSpec = ActionInputs &
+export type ActionSpec = (ActionInputs &
   (
     | Readonly<{ version: 1 }>
     | Readonly<{ version: 2; artifactHash: string | null }>
@@ -90,7 +90,7 @@ export type ActionSpec = ActionInputs &
         evidenceHash: string;
         target: import("./deployment.ts").WorkloadTarget;
       }>
-  );
+  )) | import("./provision.ts").ProvisionSpec;
 
 export type ActionState =
   | "awaiting_approval"
@@ -116,6 +116,7 @@ export type Action = Readonly<{
   errorCode: string | null;
   deployment?: import("./deployment.ts").DeploymentProgress;
   restart?: import("./restart.ts").RestartProgress;
+  provision?: import("./provision.ts").ProvisionProgress;
 }>;
 
 export type Session = Readonly<{

@@ -106,4 +106,12 @@ CREATE TABLE code_repair_jobs (
 ) STRICT;
 `,
   },
+  {
+    version: 9,
+    sql: `
+CREATE TABLE provision_progress (
+  action_id TEXT PRIMARY KEY REFERENCES actions(id), data_json TEXT NOT NULL
+) STRICT;
+`,
+  },
 ] as const;

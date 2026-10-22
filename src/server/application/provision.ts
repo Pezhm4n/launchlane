@@ -1,0 +1,128 @@
+import type { Action, Session } from "../../contracts/domain.ts";
+import type { ProvisionSpec, ProvisionObservation, ProvisionReadback } from "../../contracts/provision.ts";
+import { identifier } from "../../contracts/validation.ts";
+import { providerObjectId } from "../../contracts/provision.ts";
+import type { Config } from "../config.ts";
+import { connectedLiaraAccountConfig } from "../connections/liara.ts";
+import { ensure, AppError } from "../errors.ts";
+import { LiaraAccountClient, quotePaaSOffer } from "../liara/catalog.ts";
+import { LiaraProvisionClient } from "../liara/provision.ts";
+import type { Store } from "../persistence/store.ts";
+import { authorizeScope } from "../policy/action.ts";
+import { RunBudget } from "../policy/budget.ts";
+import { executeApproved } from "./execute.ts";
+import { restoreProjectFlow } from "./project-flows.ts";
+
+type Dependencies = { read?: LiaraAccountClient; write?: LiaraProvisionClient; budget?: RunBudget };
+function scopedConfig(config: Config, store: Store, actor: string, app: string): Config {
+  ensure(/^[a-z0-9][a-z0-9-]{0,62}$/.test(app) && (!config.apps.length || config.apps.includes(app)),
+    "SCOPE_DENIED", "نام برنامه در محدوده مجاز این نصب نیست.", 403);
+  return { ...connectedLiaraAccountConfig(config, store, actor), apps: [app] };
+}
+function assertAccount(config: Config, store: Store, actor: string, spec: ProvisionSpec): Config {
+  const scoped = scopedConfig(config, store, actor, spec.scope.app), account = store.getConnection(actor, "liara")?.view;
+  ensure(account?.identityId === spec.accountId && account.teamId === spec.scope.teamId && scoped.enableLiveLiara,
+    "SCOPE_DENIED", "حساب ساخت مقصد تغییر کرده یا خواندن سرویس خاموش است.", 403);
+  authorizeScope(spec.scope, scoped);
+  return scoped;
+}
+async function checkInputs(client: LiaraAccountClient, spec: ProvisionSpec, budget: RunBudget, signal: AbortSignal): Promise<void> {
+  ensure(spec.cost.expiresAt > Date.now(), "CATALOG_STALE", "اعتبار برآورد تمام شده است؛ پیشنهاد تازه لازم است.", 409);
+  const catalog = await client.catalog(budget, signal), quote = quotePaaSOffer(catalog, spec.args.planId, spec.bundleId);
+  ensure(quote.catalogFingerprint === spec.cost.catalogFingerprint && quote.selected.hourlyHundredthsToman === spec.cost.hourlyHundredthsToman &&
+    quote.selected.region === spec.cost.region,
+    "PLAN_CHANGED", "قیمت یا موجودبودن پلن تغییر کرده است؛ تأیید تازه لازم است.", 409);
+  ensure(quote.creditCoversOneBaseHour, "INSUFFICIENT_CREDIT", "اعتبار فعلی هزینه پایه یک ساعت را پوشش نمی‌دهد؛ پرداخت از حساب کاربر انجام می‌شود.", 409);
+  ensure((await client.networks(budget, signal)).some((network) => network.id === spec.networkId),
+    "NETWORK_CHANGED", "شبکه انتخاب‌شده در همین تیم موجود نیست؛ پیشنهاد تازه لازم است.", 409);
+  ensure(await client.projectMetadata(spec.scope.app, budget, signal) === null,
+    "APP_ALREADY_EXISTS", "برنامه‌ای با این نام موجود است؛ ساخته یا جایگزین نمی‌شود. مقصد موجود یا نام دیگری انتخاب کنید.", 409);
+}
+
+export async function destinationOptions(config: Config, store: Store, actor: string, signal: AbortSignal, dependencies: Dependencies = {}) {
+  const scoped = connectedLiaraAccountConfig(config, store, actor), connection = store.getConnection(actor, "liara")?.view;
+  ensure(connection?.status === "connected", "LIARA_AUTH_REQUIRED", "ابتدا حساب را متصل کنید.", 403);
+  const budget = dependencies.budget ?? new RunBudget(scoped), client = dependencies.read ?? new LiaraAccountClient(scoped, connection.identityId),
+    catalog = await client.catalog(budget, signal), networks = await client.networks(budget, signal), current = store.getConnection(actor, "liara")?.view;
+  ensure(current?.status === "connected" && current.identityId === connection.identityId && current.teamId === connection.teamId,
+    "SCOPE_DENIED", "حساب هنگام خواندن گزینه‌ها تغییر کرد.", 403);
+  return { catalog, networks, networkCreationAvailable: false };
+}
+
+export async function proposeDestination(config: Config, store: Store, actor: string,
+  input: { flowId: string; app: string; planId: string; bundleId: string; networkId: string },
+  signal: AbortSignal, dependencies: Dependencies = {}): Promise<Action> {
+  ensure(config.enableMutations && config.enableLiveLiara, "MUTATIONS_DISABLED", "پیشنهاد ساخت واقعی مقصد در این نصب خاموش است.", 403);
+  const app = identifier(input.app), scoped = scopedConfig(config, store, actor, app), connection = store.getConnection(actor, "liara")?.view;
+  ensure(connection?.status === "connected", "LIARA_AUTH_REQUIRED", "ابتدا حساب را متصل کنید.", 403);
+  const flow = await restoreProjectFlow(scoped, store, actor, signal, input.flowId);
+  ensure(flow?.status === "ready" && flow.artifact && flow.profile.runtime === "node" && flow.profile.nodeRuntime?.version && flow.profile.start,
+    "PROJECT_INCOMPLETE", "یک پروژه Node آماده با دستور اجرا و نسخه مشخص لازم است.", 409);
+  const budget = dependencies.budget ?? new RunBudget(scoped), client = dependencies.read ?? new LiaraAccountClient(scoped, connection.identityId),
+    catalog = await client.catalog(budget, signal), quote = quotePaaSOffer(catalog, identifier(input.planId), identifier(input.bundleId)),
+    networkId = providerObjectId(input.networkId);
+  ensure(quote.selected.region === "iran", "PROVISION_REGION_UNVERIFIED", "ساخت مقصد در این مرحله فقط برای پلن ایران و شبکه موجود پشتیبانی می‌شود.", 409);
+  ensure(quote.creditCoversOneBaseHour, "INSUFFICIENT_CREDIT", "اعتبار حساب هزینه پایه یک ساعت این پیشنهاد را پوشش نمی‌دهد.", 409);
+  ensure((await client.networks(budget, signal)).some((network) => network.id === networkId), "NETWORK_CHANGED", "شبکه متعلق به همین فهرست تیم نیست.", 409);
+  ensure(await client.projectMetadata(app, budget, signal) === null, "APP_ALREADY_EXISTS", "این نام قبلاً استفاده شده است؛ برنامه موجود جایگزین نمی‌شود.", 409);
+  const spec: ProvisionSpec = { version: 8, operation: "create_app", scope: { teamId: scoped.teamId, app },
+    sourceHash: flow.profile.sourceHash, artifactHash: flow.artifact.archiveHash, projectFlowId: flow.id, selectionHash: flow.selectionHash,
+    accountId: connection.identityId, previousAppId: connection.apps.find((app) => app.name === connection.selectedApp)?.id ?? null,
+    nodeVersion: flow.profile.nodeRuntime.version, networkId, bundleId: quote.selected.bundleId, readOnlyRootFilesystem: true,
+    args: { port: null, planId: quote.selected.planId }, cost: { catalogFingerprint: quote.catalogFingerprint,
+      observedAt: quote.observedAt, expiresAt: quote.expiresAt, hourlyHundredthsToman: quote.selected.hourlyHundredthsToman,
+      region: quote.selected.region, currency: "toman", period: "hour", extras: "tax_traffic_storage_not_included" } };
+  ensure(!signal.aborted, "CANCELLED", "پیشنهاد ساخت متوقف شد.", 409);
+  return store.createAction(actor, spec, Date.now(), Math.min(600000, spec.cost.expiresAt - Date.now()));
+}
+
+export async function executeDestination(config: Config, store: Store, session: Session, id: string,
+  signal: AbortSignal, dependencies: Dependencies = {}): Promise<Action> {
+  ensure(config.enableMutations && config.enableLiveLiara, "MUTATIONS_DISABLED", "ساخت مقصد در این نصب خاموش است.", 403);
+  const action = store.getAction(id, session.actorId);
+  ensure(action.spec.version === 8 && action.state === "approved" && !action.attemptId && action.expiresAt > Date.now(),
+    "ACTION_CONFLICT", "پیشنهاد ساخت معتبر و تأییدشده‌ای برای اجرا وجود ندارد.", 409);
+  const spec = action.spec, scoped = assertAccount(config, store, session.actorId, spec), budget = dependencies.budget ?? new RunBudget(scoped),
+    client = dependencies.read ?? new LiaraAccountClient(scoped, spec.accountId), writer = dependencies.write ?? new LiaraProvisionClient(scoped);
+  ensure(budget.maxToolCalls - budget.toolCalls >= 4, "BUDGET_EXHAUSTED", "بودجه برای پیش‌نیازها و ساخت مقصد کافی نیست.", 409);
+  return executeApproved({ config: scoped, store, session, id, currentSpec: spec, signal: budget.signal(signal), adapter: {
+    async preflight(bounded) { await checkInputs(client, spec, budget, bounded); assertAccount(config, store, session.actorId, spec); },
+    async execute(claimed, bounded) {
+      assertAccount(config, store, session.actorId, spec);
+      store.provisionStep(claimed.id, session.actorId, "request_started");
+      const appId = await writer.create(spec, budget, bounded);
+      // Bind the returned internal ID before any readback or account selection can happen.
+      store.provisionStep(claimed.id, session.actorId, "created", appId);
+      return { remoteId: appId };
+    },
+  } });
+}
+
+export async function observeDestination(config: Config, store: Store, session: Session, id: string,
+  signal: AbortSignal, dependencies: Dependencies = {}): Promise<Action> {
+  const action = store.getAction(id, session.actorId);
+  ensure(action.spec.version === 8 && action.provision && (action.state === "observing" || action.state === "uncertain"),
+    "ACTION_CONFLICT", "ساخت مقصد منتظر نتیجه نیست.", 409);
+  const spec = action.spec, scoped = assertAccount(config, store, session.actorId, spec), budget = dependencies.budget ?? new RunBudget(scoped),
+    client = dependencies.read ?? new LiaraAccountClient(scoped, spec.accountId);
+  let proof: ProvisionReadback | null = null, result: ProvisionObservation = { outcome: "inconclusive", code: "CREATE_RECEIPT_UNKNOWN", checkedAt: 0 };
+  if (action.provision.stage === "claimed" && action.state === "uncertain") result = { ...result, outcome: "not_started", code: "CREATE_NOT_STARTED" };
+  else if (action.provision.stage === "created" && action.provision.appId) {
+    try {
+      await client.identity(budget, signal);
+      proof = await client.projectMetadata(spec.scope.app, budget, signal);
+      if (proof) {
+        const matches = proof.id === action.provision.appId && proof.platform === "node" && proof.planId === spec.args.planId &&
+          proof.bundleId === spec.bundleId && proof.networkId === spec.networkId && proof.readOnlyRootFilesystem === true;
+        result = { ...result, outcome: matches ? "verified" : "changed", code: matches ? "DESTINATION_VERIFIED" : "DESTINATION_CHANGED" };
+      } else result = { ...result, code: "DESTINATION_NOT_VISIBLE" };
+    } catch (error) {
+      if (signal.aborted) throw new AppError("CANCELLED", "بررسی ساخت متوقف شد؛ ساخت دوباره انجام نمی‌شود.", 409);
+      result = { ...result, code: error instanceof AppError ? error.code : "OBSERVATION_UNAVAILABLE" };
+    }
+  }
+  assertAccount(config, store, session.actorId, spec);
+  ensure(!signal.aborted, "CANCELLED", "بررسی متوقف شد.", 409);
+  return store.recordProvisionObservation(id, session.actorId, { ...result,
+    checkedAt: Math.max(Date.now(), (action.provision.observation?.checkedAt ?? 0) + 1) }, proof);
+}

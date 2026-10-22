@@ -202,7 +202,7 @@ export async function validateProjectAction(
   spec: ActionSpec,
   signal: AbortSignal,
 ): Promise<void> {
-  if (spec.version !== 3 && spec.version !== 4 && spec.version !== 5 && spec.version !== 7) return;
+  if (spec.version !== 3 && spec.version !== 4 && spec.version !== 5 && spec.version !== 7 && spec.version !== 8) return;
   const flow = await restoreProjectFlow(config, store, actorId, signal, spec.projectFlowId);
   ensure(
     flow?.status === "ready",
@@ -211,7 +211,7 @@ export async function validateProjectAction(
     409,
   );
   store.assertProjectAction(actorId, spec);
-  ensure((spec.version !== 5 && spec.version !== 7) || flow.profile.nodeRuntime?.version === spec.nodeVersion, "NODE_VERSION_CHANGED", "نسخه Node پیشنهاد با پروژه برابر نیست؛ پیشنهاد تازه دریافت کنید.", 409);
+  ensure((spec.version !== 5 && spec.version !== 7 && spec.version !== 8) || flow.profile.nodeRuntime?.version === spec.nodeVersion, "NODE_VERSION_CHANGED", "نسخه Node پیشنهاد با پروژه برابر نیست؛ پیشنهاد تازه دریافت کنید.", 409);
 }
 
 export async function proposeProjectFlow(

@@ -2,6 +2,10 @@
 
 شواهد جاری ابتدا و سابقه مراحل پیشین پایین‌تر ثبت شده‌اند. هر نتیجه به revision و شرایط خودش تعلق دارد؛ نتایج bootstrap جای قابلیت محصول و fixture جای اتصال زنده نیست.
 
+## ساخت مقصد؛ application v8 در checkout جدا
+
+[شاهد ساخت مقصد](evidence/destination-provisioning.md) پاسخ واقعی projectID و چرخه خود application با approval، یک create، receipt پایدار، تطبیق ID/config و انتخاب app را ثبت می‌کند. replay صفر write تازه داشت. منبع source اجرا یا upload نشد؛ مدل، env write و deployment صفر بودند. app آزمایشی فقط پس از تطبیق ID حذف و نبود آن با 404 تأیید شد. migration9 با حفظ checksumهای1–8 و session/AgentRun تاریخی آزموده شد. domain208 و HTTP20، lint/typecheck/build گذشتند؛ regression ثبات fingerprint سپس اضافه شد. این برش هنوز اتصال جدید Agent/UI را پیاده نکرده و با mainِ در حال تغییر UI ادغام نشده است.
+
 ## Catalog واقعی پیش از app؛ ادامه A04
 
 [شاهد catalog](evidence/agent-catalog.md): هویت حساب/تیم و 24 ترکیب موجود واقعاً خوانده شدند. مدل واقعی پنج درخواست با registry جدید، پیشنهاد و جایگزین قیمت‌دار از دو quote معتبر داد؛ app انتخاب‌شده لازم نبود، ظرفیت unknown ماند و write صفر بود. چهار regression تازه و domain کامل 199/199، lint و typecheck گذشتند. build و HTTP19 روی export مستقل با UI پایه f94d44b و فایل‌های backend جدید سنجیده شدند؛ بازآرایی UI هم‌زمان، شاهد جدا می‌خواهد. quote، approval یا provisioning نیست و A04 partial مانده است.

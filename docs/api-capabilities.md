@@ -91,3 +91,8 @@ transport تشخیص تاریخی، ابزار تک‌منظوره evidence را
 ## Catalog حساب پیش از انتخاب app
 
 ابزارهای Agent `read_catalog` و `quote_resource_plan` از `LiaraAccountClient` و همان RunBudget پایدار استفاده می‌کنند. GET ثابت `/v1/me?teamID`، هویت حساب/تیم را validate می‌کند؛ مقادیر حساس profile/credential حذف می‌شوند. app انتخاب‌شده برای quote لازم نیست و تعویض حساب در حین read، context را باطل می‌کند. مجموع resource/bundle، صحیحِ صدم تومان و نرخ پایه تومان/ساعت است؛ هزینه جانبی و ظرفیت اندازه‌گیری‌شده از آن ساخته نمی‌شود. quote از زمان مشاهده ده دقیقه معتبر است. فقدان قیمت یا availability، پیشنهاد هزینه اجرایی نمی‌سازد. [شاهد catalog](evidence/agent-catalog.md) وضعیت واقعی و مصنوعی و gapهای AC20 را ثبت می‌کند. این ابزارها create، resize یا env write ندارند.
+
+
+## ساخت مقصد محدود؛ ActionSpec v8
+
+`POST /v1/projects?teamID` با name/planID/bundlePlanID/platform=node/network/readOnlyRootFilesystem به ID داخلی `projectID` پاسخ می‌دهد؛ این field با حساب واقعی تطبیق داده شد. application ساخت، actor/account/source/cost/network را پیش از claim بازبینی و ID را قبل از readback ذخیره می‌کند. GET همان نام باید همان ID و تنظیمات را برگرداند. نام موجود adopt نمی‌شود و پاسخ write نامعلوم، retry یا انتخاب بر اساس نام ایجاد نمی‌کند. حدود فعلی Node/پلن ایران/شبکه موجود، APIهای محلی و مرز real/synthetic در [شاهد مقصد](evidence/destination-provisioning.md) آمده‌اند. این شاهدِ env یا مسیر تازه Agent/UI نیست.

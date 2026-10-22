@@ -232,3 +232,8 @@ UI تمرینی از scripted model مستقل استفاده می‌کند و �
 ### Publication inside an agent run
 
 The goal registry proposes an existing-app publication using ActionSpec v7. Its scope, approved origin, port, current plan, Node major and immutable artifact come from host state; the model proposes only the bounded page assertion. The ordinary deployment application owns upload, release and fenced workload readback. Agent state stores the action reference and loads the authoritative journal on replay. Approval and the run transition commit together; an unclaimed queued approval is cancelled on process recovery. Only a verified host observation can set `completed`. Unknown effects remain visible and can be read without replaying writes. One persisted agent allowance spans model requests, the repair worker, provider calls and polling; historical feature budgets remain unchanged.
+
+
+### New destination identity
+
+ActionSpec v8 describes a Node destination create using the same action store, approval, execution claim, audit and budget. Migration 9 adds its stage journal. Source/artifact, account, network and quoted plan/bundle costs are immutable inputs. The application revalidates them before claim. The provider returns an internal `projectID`; it is committed before readback. Only a matching internal identity and configuration can select the app. Unknown responses stay uncertain and cannot adopt a same-name app or replay create. Creation does not upload source or establish workload health. See ADR 0003 and the destination evidence for the current region/network limits.

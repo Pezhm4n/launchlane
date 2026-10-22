@@ -4,6 +4,8 @@ import { identifier, object, string } from "../../contracts/validation.ts";
 import type { RunBudget } from "../policy/budget.ts";
 import { fingerprint } from "../policy/action.ts";
 import { abortable, boundedJson, httpFailure, transport, type Transport } from "../providers/http.ts";
+import { providerObjectId, type ProvisionReadback } from "../../contracts/provision.ts";
+import { containsCredential } from "../policy/redaction.ts";
 
 export type PaaSOffer = {
   planId: string;
@@ -70,6 +72,7 @@ export function parsePaaSCatalog(value: unknown, expected: { accountId: string; 
     }
   }
   ensure(offers.length <= 500, "CATALOG_INVALID", "ترکیب‌های catalog از سقف بررسی بزرگ‌ترند.", 502);
+  unavailablePlanIds.sort();
   offers.sort((a, b) => (a.hourlyHundredthsToman ?? Number.MAX_SAFE_INTEGER) - (b.hourlyHundredthsToman ?? Number.MAX_SAFE_INTEGER) || a.planId.localeCompare(b.planId) || a.bundleId.localeCompare(b.bundleId));
   const snapshot = { offers, unavailablePlanIds };
   return { contract: "liara-paas-catalog-v1", ...expected, observedAt, fingerprint: fingerprint({ ...expected, ...snapshot }),
@@ -84,7 +87,7 @@ export function quotePaaSOffer(catalog: PaaSCatalog, planId: string, bundleId: s
   const format = (value: number) => `${Math.floor(value / 100)}.${String(value % 100).padStart(2, "0")}`;
   return { contract: catalog.contract, catalogFingerprint: catalog.fingerprint,
     accountId: catalog.accountId, teamId: catalog.teamId, observedAt: catalog.observedAt, expiresAt: catalog.observedAt + 600000,
-    selected, hourlyToman: format(selected.hourlyHundredthsToman), pricing: catalog.pricing,
+    selected: { ...selected, hourlyHundredthsToman: selected.hourlyHundredthsToman }, hourlyToman: format(selected.hourlyHundredthsToman), pricing: catalog.pricing,
     creditCoversOneBaseHour: catalog.balanceToman >= selected.hourlyHundredthsToman / 100,
     capacity: "unmeasured" as const,
     alternatives: catalog.offers.filter((offer) => offer !== selected && offer.hourlyHundredthsToman !== null && offer.region === selected.region).slice(0, 3),
@@ -98,19 +101,22 @@ export class LiaraAccountClient {
   constructor(config: Config, accountId: string, send: Transport = transport) {
     this.config = config; this.accountId = accountId; this.send = send;
   }
-  async catalog(budget: RunBudget, signal: AbortSignal): Promise<PaaSCatalog> {
+  private async read<T>(path: string, budget: RunBudget, signal: AbortSignal, parse: (value: unknown) => T, missing = false): Promise<T> {
     ensure(this.config.enableLiveLiara, "LIVE_LIARA_DISABLED", "خواندن واقعی لیارا در این نصب خاموش است.", 403);
     ensure(this.config.liaraToken && this.config.teamId && this.config.liaraBaseUrl === "https://api.liara.ir",
       "LIARA_UNCONFIGURED", "حساب و تیم مجاز مشخص نیستند.", 403);
     budget.take("tool", signal);
-    const bounded = budget.signal(signal), url = new URL("/v1/me", this.config.liaraBaseUrl);
+    const bounded = budget.signal(signal), url = new URL(path, this.config.liaraBaseUrl);
     url.searchParams.set("teamID", this.config.teamId);
     try {
       return await abortable(async () => {
         const response = await this.send(url.href, { method: "GET", redirect: "error", cache: "no-store", signal: bounded,
           headers: { Authorization: `Bearer ${this.config.liaraToken}`, Accept: "application/json" } });
+        if (response.status === 404 && missing) { await response.body?.cancel(); return parse(null); }
         if (!response.ok) { await response.body?.cancel(); throw httpFailure(response.status); }
-        const result = parsePaaSCatalog(await boundedJson(response, 1024 * 1024), { accountId: this.accountId, teamId: this.config.teamId });
+        const result = parse(await boundedJson(response, 1024 * 1024));
+        ensure(!containsCredential(JSON.stringify(result) ?? "", [this.config.liaraToken, this.config.modelKey, this.config.operatorToken, this.config.sessionSecret].filter(Boolean)),
+          "SENSITIVE_RESPONSE", "پاسخ حساب شامل مقدار محرمانه است و نمایش داده نشد.", 502);
         ensure(!bounded.aborted, "CANCELLED", "پاسخ پس از مهلت دریافت شد.", 409);
         return result;
       }, bounded);
@@ -119,5 +125,42 @@ export class LiaraAccountClient {
       if (error instanceof AppError && error.code !== "INVALID_INPUT") throw error;
       throw new AppError(error instanceof AppError ? "CATALOG_INVALID" : "PROVIDER_TRANSPORT", "catalog حساب قابل دریافت یا تأیید نیست.", 502);
     }
+  }
+  async catalog(budget: RunBudget, signal: AbortSignal): Promise<PaaSCatalog> {
+    return this.read("/v1/me", budget, signal, (value) => parsePaaSCatalog(value, { accountId: this.accountId, teamId: this.config.teamId }));
+  }
+  async identity(budget: RunBudget, signal: AbortSignal): Promise<void> {
+    return this.read("/v1/me", budget, signal, (value) => {
+    const row = object(value);
+    ensure(object(row.user)._id === this.accountId && object(row.team)._id === this.config.teamId,
+      "SCOPE_DENIED", "حساب یا تیم پاسخ با مقصد برابر نیست.", 403);
+    });
+  }
+  async networks(budget: RunBudget, signal: AbortSignal): Promise<{id: string; name: string}[]> {
+    return this.read("/v1/networks", budget, signal, (value) => {
+    const rows = object(value).networks;
+    ensure(Array.isArray(rows) && rows.length <= 100, "UPSTREAM_INVALID", "فهرست شبکه‌های حساب کامل یا قابل تأیید نیست.", 502);
+    const networks = rows.map((value: unknown) => {
+      const row = object(value);
+      return { id: providerObjectId(row._id), name: string(row.name, 160) };
+    });
+    ensure(new Set(networks.map((network) => network.id)).size === networks.length,
+      "UPSTREAM_INVALID", "فهرست شبکه‌ها هویت تکراری دارد.", 502);
+    return networks;
+    });
+  }
+  async projectMetadata(app: string, budget: RunBudget, signal: AbortSignal): Promise<ProvisionReadback | null> {
+    identifier(app);
+    ensure(/^[a-z0-9][a-z0-9-]{0,62}$/.test(app) && (!this.config.apps.length || this.config.apps.includes(app)),
+      "SCOPE_DENIED", "برنامه در محدوده مجاز نیست.", 403);
+    return this.read(`/v1/projects/${encodeURIComponent(app)}`, budget, signal, (raw) => {
+    if (raw === null) return null;
+    const row = object(object(raw).project);
+    ensure(row.project_id === app && typeof row.readOnlyRootFilesystem === "boolean",
+      "UPSTREAM_INVALID", "هویت یا تنظیمات مقصد قابل تأیید نیست.", 502);
+    return { scope: { teamId: this.config.teamId, app }, id: providerObjectId(row._id), platform: string(row.type, 64),
+      planId: identifier(row.planID), bundleId: identifier(row.bundlePlanID), networkId: providerObjectId(object(row.network)._id),
+      readOnlyRootFilesystem: row.readOnlyRootFilesystem, observedAt: Date.now() };
+    }, true);
   }
 }

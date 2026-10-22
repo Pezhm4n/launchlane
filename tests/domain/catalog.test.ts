@@ -64,6 +64,15 @@ test("missing prices, insufficient balance and changed prices remain explicit; n
   assert.throws(() => parsePaaSCatalog(raw, { accountId, teamId: "d".repeat(24) }), code("SCOPE_DENIED"));
 });
 
+test("provider object ordering cannot invalidate an otherwise identical approved catalog fingerprint", () => {
+  const raw = payload(), projects: Record<string, unknown> = raw.plans.projects;
+  projects.anotherOldPlan = { available: false, price: 0 };
+  const first = parsePaaSCatalog(raw, { accountId, teamId });
+  const reordered = { ...raw, plans: { ...raw.plans, projects: Object.fromEntries(Object.entries(projects).reverse()),
+    projectBundlePlans: Object.fromEntries(Object.entries(raw.plans.projectBundlePlans).reverse()) } };
+  assert.equal(parsePaaSCatalog(reordered, { accountId, teamId }).fingerprint, first.fingerprint);
+});
+
 test("account catalog transport is scoped, shares the budget and performs no hidden retry on upstream errors", async () => {
   let calls = 0;
   const budget = new RunBudget(config), client = new LiaraAccountClient(config, accountId, async (url, init) => {

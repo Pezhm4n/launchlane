@@ -14,6 +14,7 @@ import { parseArtifact } from "./source.ts";
 import { parseConnection } from "./connections.ts";
 import { parseWorkloadContract, parseWorkloadExpectation, parseWorkloadTarget, parseDeploymentProgress } from "./deployment.ts";
 import { parseRestartProgress } from "./restart.ts";
+import { parseProvisionSpec, parseProvisionProgress } from "./provision.ts";
 import { parseNodeRuntime, parseNodeVersion } from "./node-runtime.ts";
 import { sourceFileByteLimit, SOURCE_MAX_BYTES, SOURCE_MAX_FILES } from "./source-limits.ts";
 
@@ -60,52 +61,56 @@ export function decodeAction(value: unknown): Action {
   const state = states.find((state) => state === raw.state);
   ensure(
     state &&
-      (spec.version === 1 || spec.version === 2 || spec.version === 3 || spec.version === 4 || spec.version === 5 || spec.version === 6 || spec.version === 7) &&
-      (spec.operation === "deploy" || spec.operation === "restart"),
+      (spec.version === 1 || spec.version === 2 || spec.version === 3 || spec.version === 4 || spec.version === 5 || spec.version === 6 || spec.version === 7 || spec.version === 8) &&
+      (spec.operation === "deploy" || spec.operation === "restart" || (spec.version === 8 && spec.operation === "create_app")),
     "INVALID_RESPONSE",
     "ساختار اقدام معتبر نیست.",
   );
-  const common: Pick<ActionSpec, "scope" | "operation" | "sourceHash" | "args"> = {
-    operation: spec.operation,
-    scope: { teamId: string(scope.teamId), app: string(scope.app) },
-    sourceHash: nullableString(spec.sourceHash),
-    args: {
-      port: args.port === null ? null : integer(args.port, 1, 65535),
-      planId: nullableString(args.planId),
-    },
-  };
   let parsedSpec: ActionSpec;
-  if (spec.version === 6) {
-    ensure(spec.operation === "restart" && common.sourceHash === null && common.args.port === null && common.args.planId === null,
-      "INVALID_RESPONSE", "ساختار پیشنهاد راه‌اندازی دوباره معتبر نیست.");
-    parsedSpec = {
-      ...common, version: 6, operation: "restart", sourceHash: null, args: { port: null, planId: null },
-      accountId: string(spec.accountId, 128), targetAppId: string(spec.targetAppId, 128),
-      targetPlanId: string(spec.targetPlanId, 128), targetReleaseId: string(spec.targetReleaseId, 128),
-      incidentRunId: string(spec.incidentRunId, 36), evidenceHash: hash(spec.evidenceHash),
-      target: parseWorkloadTarget(spec.target),
+  if (spec.version === 8) parsedSpec = parseProvisionSpec(spec);
+  else {
+    ensure(spec.operation === "deploy" || spec.operation === "restart", "INVALID_RESPONSE", "نوع اقدام معتبر نیست.");
+    const common: Pick<Exclude<ActionSpec, {version: 8}>, "scope" | "operation" | "sourceHash" | "args"> = {
+      operation: spec.operation,
+      scope: { teamId: string(scope.teamId), app: string(scope.app) },
+      sourceHash: nullableString(spec.sourceHash),
+      args: {
+        port: args.port === null ? null : integer(args.port, 1, 65535),
+        planId: nullableString(args.planId),
+      },
     };
-  }
-  else if (spec.version === 1) parsedSpec = { ...common, version: 1 };
-  else if (spec.version === 4 || spec.version === 5 || spec.version === 7) {
-    const deployment = {
-      ...common,
-      artifactHash: hash(spec.artifactHash),
-      projectFlowId: string(spec.projectFlowId, 36),
-      selectionHash: hash(spec.selectionHash),
-      targetAppId: string(spec.targetAppId, 128),
+    if (spec.version === 6) {
+      ensure(spec.operation === "restart" && common.sourceHash === null && common.args.port === null && common.args.planId === null,
+        "INVALID_RESPONSE", "ساختار پیشنهاد راه‌اندازی دوباره معتبر نیست.");
+      parsedSpec = {
+        ...common, version: 6, operation: "restart", sourceHash: null, args: { port: null, planId: null },
+        accountId: string(spec.accountId, 128), targetAppId: string(spec.targetAppId, 128),
+        targetPlanId: string(spec.targetPlanId, 128), targetReleaseId: string(spec.targetReleaseId, 128),
+        incidentRunId: string(spec.incidentRunId, 36), evidenceHash: hash(spec.evidenceHash),
+        target: parseWorkloadTarget(spec.target),
+      };
+    }
+    else if (spec.version === 1) parsedSpec = { ...common, version: 1 };
+    else if (spec.version === 4 || spec.version === 5 || spec.version === 7) {
+      const deployment = {
+        ...common,
+        artifactHash: hash(spec.artifactHash),
+        projectFlowId: string(spec.projectFlowId, 36),
+        selectionHash: hash(spec.selectionHash),
+        targetAppId: string(spec.targetAppId, 128),
 
+      };
+      parsedSpec = spec.version === 7
+        ? { ...deployment, version: 7, accountId: string(spec.accountId, 128), nodeVersion: parseNodeVersion(spec.nodeVersion), workload: parseWorkloadContract(spec.workload) }
+        : spec.version === 5
+        ? { ...deployment, workload: parseWorkloadExpectation(spec.workload), version: 5, nodeVersion: parseNodeVersion(spec.nodeVersion) }
+        : { ...deployment, workload: parseWorkloadExpectation(spec.workload), version: 4 };
+    } else if (spec.version === 3) parsedSpec = {
+      ...common, version: 3, artifactHash: hash(spec.artifactHash),
+      projectFlowId: string(spec.projectFlowId, 36), selectionHash: hash(spec.selectionHash),
     };
-    parsedSpec = spec.version === 7
-      ? { ...deployment, version: 7, accountId: string(spec.accountId, 128), nodeVersion: parseNodeVersion(spec.nodeVersion), workload: parseWorkloadContract(spec.workload) }
-      : spec.version === 5
-      ? { ...deployment, workload: parseWorkloadExpectation(spec.workload), version: 5, nodeVersion: parseNodeVersion(spec.nodeVersion) }
-      : { ...deployment, workload: parseWorkloadExpectation(spec.workload), version: 4 };
-  } else if (spec.version === 3) parsedSpec = {
-    ...common, version: 3, artifactHash: hash(spec.artifactHash),
-    projectFlowId: string(spec.projectFlowId, 36), selectionHash: hash(spec.selectionHash),
-  };
-  else parsedSpec = { ...common, version: 2, artifactHash: spec.artifactHash === null ? null : hash(spec.artifactHash) };
+    else parsedSpec = { ...common, version: 2, artifactHash: spec.artifactHash === null ? null : hash(spec.artifactHash) };
+  }
   return {
     id: string(raw.id),
     actorId: string(raw.actorId),
@@ -121,6 +126,7 @@ export function decodeAction(value: unknown): Action {
       ? {}
       : { deployment: parseDeploymentProgress(raw.deployment) }),
     ...(raw.restart === undefined ? {} : { restart: parseRestartProgress(raw.restart) }),
+    ...(raw.provision === undefined ? {} : { provision: parseProvisionProgress(raw.provision) }),
   };
 }
 export function decodeArtifact(value: unknown): SourceArtifact {
