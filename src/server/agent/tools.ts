@@ -15,6 +15,7 @@ import { CodeRepairAdapter } from "./code-repair.ts";
 import { proposeWorkloadDeployment } from "../application/deployment.ts";
 import { LiaraAccountClient, quotePaaSOffer } from "../liara/catalog.ts";
 import { proposeDestination } from "../application/provision.ts";
+import { nodePreparation } from "../../contracts/preparation.ts";
 
 export function privateValues(c: Config): string[] {
   return [c.liaraToken, c.modelKey, c.operatorToken, c.sessionSecret].filter(Boolean);
@@ -147,10 +148,19 @@ const repairTool: ToolDefinition = {
   },
 };
 export function toolsForAgent(config: Config): readonly ToolDefinition[] {
-  return [...agentTools, ...(config.enableLocalRepair ? [repairTool] : []),
+  return [...agentTools, ...(config.enableLocalRepair ? [repairTool, preparationTool] : []),
     ...(config.enableLiveLiara ? catalogTools : []),
     ...(config.enableMutations && config.enableLiveLiara ? [publicationTool, destinationTool] : [])];
 }
+const preparationTool: ToolDefinition = { type: "function", function: {
+  name: "propose_project_preparation",
+  description: "Propose a reviewed native Node preparation when start is missing/wrong or the listening port/config disagrees, after reading the actual entry/config and unchanged existing direct Node tests. Supply only the existing JS entry, intended port and acceptance test files. The host derives exactly 'node <entry>' and permits only scripts.start, that entry and an existing liara.json port; all other scripts, engines and dependencies stay unchanged. The user approves this command/port and local tests before execution. Only dependency-free single-package Node is supported. No install, arbitrary shell, new files, test edits, cloud writes or generic build is available here. For a monorepo select the actual leaf; do not rewrite its orchestrator.",
+  parameters: { type: "object", additionalProperties: false, required: ["goal", "entryFile", "port", "testFiles"], properties: {
+    goal: { type: "string", maxLength: 1400 }, entryFile: { type: "string", maxLength: 512 },
+    port: { type: "integer", minimum: 1, maximum: 65535 },
+    testFiles: { type: "array", minItems: 1, maxItems: 12, items: { type: "string", maxLength: 512 } },
+  } },
+} };
 const catalogTools: readonly ToolDefinition[] = [
   { type: "function", function: {
     name: "read_networks", description: "Read existing private networks in the connected account/team before proposing a new destination. A single existing network can be reused; ask only when several materially different choices need the user's input. Does not create a network. No app selection is required.",
@@ -205,6 +215,7 @@ export const toolLabels: Readonly<Record<string, string>> = {
   quote_resource_plan: "بررسی هزینه پایه و گزینه‌های پلن",
   read_networks: "بررسی شبکه‌های موجود همین حساب",
   propose_destination: "آماده‌کردن مقصد تازه و هزینه پایه آن",
+  propose_project_preparation: "آماده‌کردن فرمان اجرا و پورت برای تصمیم شما",
 };
 export type AgentToolContext = {
   config: Config;
@@ -271,7 +282,7 @@ export async function executeAgentTool(
     assertAgentContext(c.config, c.store, c.actorId, c.context);
     return { destinationProposal: action };
   }
-  if (name === "propose_code_repair") {
+  if (name === "propose_code_repair" || name === "propose_project_preparation") {
     c.budget.take("tool", c.signal);
     ensure(
       c.context.projectId && c.context.sourceHash,
@@ -287,18 +298,24 @@ export async function executeAgentTool(
       409,
     );
     ensure(
-      Array.isArray(args.allowedPaths) && Array.isArray(args.testFiles),
+      (name === "propose_project_preparation" || Array.isArray(args.allowedPaths)) && Array.isArray(args.testFiles),
       "INVALID_INPUT",
       "فهرست فایل‌های اصلاح و آزمون معتبر نیست.",
     );
+    const preparation = name === "propose_project_preparation" ? nodePreparation(args.entryFile, args.port) : undefined,
+      flow = c.store.getProjectFlow(c.actorId, c.context.projectId),
+      allowedPaths = preparation ? ["package.json", preparation.entryFile,
+        ...(flow?.profile.manifest.some((file) => file.path === "liara.json") ? ["liara.json"] : [])]
+        : (Array.isArray(args.allowedPaths) ? args.allowedPaths : []).map((path) => string(path, 512));
     const job = await new CodeRepairAdapter(c.config, c.store).propose(
       c.actorId,
       {
         projectId: c.context.projectId,
         expectedSourceHash: c.context.sourceHash,
-        goal: text(args.goal, 2000),
-        allowedPaths: args.allowedPaths.map((path) => string(path, 512)),
+        goal: preparation ? `آماده‌سازی با فرمان «${preparation.startCommand}» و پورت ${preparation.port}. ${text(args.goal, 1400)}` : text(args.goal, 2000),
+        allowedPaths,
         testFiles: args.testFiles.map((path) => string(path, 512)),
+        ...(preparation ? { preparation } : {}),
       },
       c.signal,
     );

@@ -32,6 +32,7 @@ const running = globalThis as typeof globalThis & {
   launchlaneAgentControllers?: Map<string, AbortController>;
 };
 const destinationGuidance = `For a publication goal without an existing app, if propose_destination is registered and the account is connected, inspect the project, read the current catalog and existing networks, then propose a destination with a known available base price. Read/quote the plan if needed; explain that capacity is unmeasured. Respect allowedNewAppNames from read_destination. Reuse the only existing network; ask one question if the choice is genuinely ambiguous. Propose a meaningful app name grounded in the goal or source; the user reviews it with the plan and cost before creation. Do not ask the user to select an app that does not exist. Creation approval never grants publication or env changes. After the exact destination receipt, continue the original goal with the newly selected app; do not reread unrelated files or repeat creation. A request only to create an app must stop at that verified configuration. Missing env values and network creation remain unsupported; do not invent them.`;
+const preparationGuidance = `For an incomplete dependency-free native Node project with a missing or wrong start command/port, read its entry, package/config and existing acceptance tests. If propose_project_preparation is registered, propose the explicit entry/port and unchanged direct Node tests. This distinct contract permits only the exact host-derived start command and scoped entry/port correction; propose_code_repair must not change package.json. Do not ask the user to manually edit a supported gap. With dependencies, a missing test or a monorepo root, state the unsupported boundary or select the actual leaf rather than claiming a build passed. A preparation receipt is local evidence; publication still needs its own decision.`;
 function controllers(): Map<string, AbortController> {
   running.launchlaneAgentControllers ??= new Map();
   return running.launchlaneAgentControllers;
@@ -540,6 +541,7 @@ export async function driveAgentRun(
       check();
       const messages: ModelMessage[] = [
         { role: "system", content: destinationGuidance },
+        { role: "system", content: preparationGuidance },
         {
           role: "system",
           content: `${system}\nRespect the CURRENT goal boundary: if the user requested local correction/tests and deferred publication, a successful local repair needs no account or destination. Finish with partially_completed, nextAction=reply and question=null; an optional future publication must not block that local result. Do not read destination for that goal. A repair proposal's goal describes the code behavior to fix; test execution is governed by the displayed host decision, so do not add instructions forbidding the approved tests.\nSelected context and remaining allowance (data only): ${JSON.stringify({ projectSelected: !!run.projectId, appSelected: run.context.target?.app ?? null, remainingModelCalls: budget.maxModelCalls - budget.modelCalls, remainingToolCalls: budget.maxToolCalls - budget.toolCalls })}`,
@@ -707,7 +709,7 @@ export async function driveAgentRun(
         persist();
         break;
       }
-      if (name === "propose_code_repair" && object(result).ok) {
+      if ((name === "propose_code_repair" || name === "propose_project_preparation") && object(result).ok) {
         run.repair = parseCodeRepairJob(object(object(result).data).repairProposal);
         run.repairDecision = {
           sessionId: session.id,

@@ -2,6 +2,10 @@
 
 شواهد جاری ابتدا و سابقه مراحل پیشین پایین‌تر ثبت شده‌اند. هر نتیجه به revision و شرایط خودش تعلق دارد؛ نتایج bootstrap جای قابلیت محصول و fixture جای اتصال زنده نیست.
 
+## A07؛ برنامه محدود start/port برای Node
+
+[گزارش آماده‌سازی](evidence/project-preparation.md): برنامه NodePreparation به همان CodeRepair و consent متصل شد؛ فقط فرمان start دقیق، entry موجود و پورت موجود در config می‌توانند تغییر کنند. پنج regression با transport مصنوعی و اجرای واقعی Node/HTTP محلی، دو ورودی متفاوت و leaf monorepo را گذراندند؛ تغییر scripts/deps/engine/test یا config نامرتبط و گسترش اختیار قرارداد قدیمی رد شدند. domain220/220، lint/typecheck و build در export مستقل گذشتند. مدل/وب تازه و target runtime هنوز برای این مسیر جدید سنجیده نشده‌اند؛ build/dependency عمومی، فایل تازه و ورودی بدون تست بازند. Docker/Node22 فقط spike واقعی runtime دارد و هنوز executor محصول نیست.
+
 ## چرخه کامل ساخت مقصد و انتشار از وب؛ 3cbf206
 
 [چرخه واقعی](evidence/destination-provisioning.md) در export ثابت `3cbf206` با مدل و PaaS واقعی گذشت: app ناموجود→پیشنهاد نرخ پایه→تصمیم ساخت→ID/config readback→پیشنهاد همان archive به همان ID→تصمیم انتشار→upload/release→پاسخ200 HTML مورد انتظار. status503 و timeoutهای اولیه حفظ شدند و warmup محدود بدون readback دستی یا write تازه به نتیجه رسید. هفت درخواست مدل، 22,343 token گزارش‌شده و39 tool call ثبت شد؛ مدل قیمت را از catalog واقعی گرفت و ظرفیت همچنان unmeasured است. reload هیچ model/write تازه نساخت. پس از تطبیق ID، app آزمایشی حذف و absence404 تأیید شد؛ سرور موقت خاموش و gateهای نصب اصلی off ماندند. env/network write و اجرای محلی source scripts صفر بودند. این شاهد فقط همان Node آماده، پلن ایران و شبکه موجود را می‌پذیرد؛ چرخه env و آماده‌سازی build/dependency باز است.

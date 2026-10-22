@@ -2,6 +2,7 @@ import type { SourceArtifact } from "./domain.ts";
 import { parseArtifact } from "./source.ts";
 import { hash, integer, object, string, text } from "./validation.ts";
 import { ensure } from "../server/errors.ts";
+import { parseNodePreparation, type NodePreparation } from "./preparation.ts";
 export type RepairTestReceipt = {
   command: string;
   exitCode: number | null;
@@ -27,6 +28,7 @@ export type CodeRepairJob = {
   message: string;
   createdAt: number;
   updatedAt: number;
+  preparation?: NodePreparation;
 };
 
 function paths(value: unknown): string[] {
@@ -88,5 +90,6 @@ export function parseCodeRepairJob(value: unknown): CodeRepairJob {
     message: text(row.message, 2000),
     createdAt: integer(row.createdAt, 0, Number.MAX_SAFE_INTEGER),
     updatedAt: integer(row.updatedAt, 0, Number.MAX_SAFE_INTEGER),
+    ...(row.preparation === undefined ? {} : { preparation: parseNodePreparation(row.preparation) }),
   };
 }
