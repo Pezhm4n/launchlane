@@ -215,11 +215,10 @@ export async function connectLiara(
   });
 }
 
-export function connectedLiaraConfig(
+export function connectedLiaraAccountConfig(
   config: Config,
   store: Store,
   actorId: string,
-  app?: string,
 ): Config {
   const saved = store.getConnection(actorId, "liara");
   ensure(
@@ -228,24 +227,23 @@ export function connectedLiaraConfig(
     "ابتدا حساب لیارا را متصل کنید.",
     403,
   );
-  ensure(
-    saved.view.selectedApp &&
-      (!app || app === saved.view.selectedApp) &&
-      saved.view.apps.some((row) => row.name === saved.view.selectedApp) &&
-      (!config.apps.length || config.apps.includes(saved.view.selectedApp)),
-    "LIARA_APP_REQUIRED",
-    "برنامه مقصد را از فهرست حساب متصل انتخاب کنید.",
-    403,
-  );
   try {
     return {
       ...config,
       liaraToken: openCredential(saved.ciphertext, config.sessionSecret, actorId, "liara"),
-      apps: [saved.view.selectedApp],
     };
   } catch (error) {
     store.saveConnection(actorId, { ...saved, view: { ...saved.view, status: "reauth_required" } });
     store.invalidateProjectApproval(actorId);
     throw error;
   }
+}
+
+export function connectedLiaraConfig(config: Config, store: Store, actorId: string, app?: string): Config {
+  const saved = store.getConnection(actorId, "liara"), scoped = connectedLiaraAccountConfig(config, store, actorId);
+  ensure(saved?.view.selectedApp && (!app || app === saved.view.selectedApp) &&
+    saved.view.apps.some((row) => row.name === saved.view.selectedApp) &&
+    (!config.apps.length || config.apps.includes(saved.view.selectedApp)),
+    "LIARA_APP_REQUIRED", "برنامه مقصد را از فهرست حساب متصل انتخاب کنید.", 403);
+  return { ...scoped, apps: [saved.view.selectedApp] };
 }

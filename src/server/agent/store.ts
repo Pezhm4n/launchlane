@@ -6,11 +6,13 @@ import { ensure } from "../errors.ts";
 import type { Store } from "../persistence/store.ts";
 import type { ModelMessage } from "./model.ts";
 import { parseCodeRepairJob } from "../../contracts/code-repair.ts";
+import { fingerprint } from "../policy/action.ts";
 
 export type AgentContext = {
   projectId: string | null;
   sourceHash: string | null;
   selectionHash: string | null;
+  account: { accountId: string; teamId: string } | null;
   target: { accountId: string; teamId: string; app: string; appId: string } | null;
 };
 export type AgentUsage = {
@@ -40,6 +42,7 @@ function parseRecord(value: unknown): AgentRecord {
     usage = object(row.usage),
     limits = object(row.limits);
   const target = context.target === null ? null : object(context.target);
+  const account = context.account === undefined || context.account === null ? target : object(context.account);
   ensure(
     Array.isArray(row.messages) && row.messages.length <= 80,
     "STORAGE_INVALID",
@@ -110,6 +113,7 @@ function parseRecord(value: unknown): AgentRecord {
       projectId: context.projectId === null ? null : string(context.projectId, 36),
       sourceHash: context.sourceHash === null ? null : string(context.sourceHash, 64),
       selectionHash: context.selectionHash === null ? null : string(context.selectionHash, 64),
+      account: account ? { accountId: string(account.accountId, 100), teamId: string(account.teamId, 63) } : null,
       target: target
         ? {
             accountId: string(target.accountId, 100),
@@ -218,7 +222,7 @@ export class AgentRepository {
         const run = parseRecord(JSON.parse(string(old.data_json, 512 * 1024)));
         ensure(
           run.messages[0]?.content === goal &&
-            JSON.stringify(run.context) === JSON.stringify(context),
+            fingerprint(run.context) === fingerprint(context),
           "IDEMPOTENCY_CONFLICT",
           "این درخواست قبلاً با هدف یا پروژه دیگری ثبت شده است.",
           409,

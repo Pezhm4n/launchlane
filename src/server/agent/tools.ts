@@ -1,6 +1,6 @@
 import { object, exactKeys, string, text } from "../../contracts/validation.ts";
 import type { Config } from "../config.ts";
-import { connectedLiaraConfig } from "../connections/liara.ts";
+import { connectedLiaraConfig, connectedLiaraAccountConfig } from "../connections/liara.ts";
 import { ensure } from "../errors.ts";
 import { LiaraReadClient } from "../liara/client.ts";
 import type { Store } from "../persistence/store.ts";
@@ -13,6 +13,7 @@ import type { AgentContext } from "./store.ts";
 import type { ToolDefinition } from "./model.ts";
 import { CodeRepairAdapter } from "./code-repair.ts";
 import { proposeWorkloadDeployment } from "../application/deployment.ts";
+import { LiaraAccountClient, quotePaaSOffer } from "../liara/catalog.ts";
 
 export function privateValues(c: Config): string[] {
   return [c.liaraToken, c.modelKey, c.operatorToken, c.sessionSecret].filter(Boolean);
@@ -29,6 +30,8 @@ export function currentAgentContext(config: Config, store: Store, actor: string)
     projectId: flow?.id ?? null,
     sourceHash: flow?.profile.sourceHash ?? null,
     selectionHash: flow?.selectionHash ?? null,
+    account: connection?.status === "connected" && connection.teamId === config.teamId
+      ? { accountId: connection.identityId, teamId: connection.teamId } : null,
     target:
       connection?.status === "connected" && connection.teamId === config.teamId && app
         ? {
@@ -144,8 +147,20 @@ const repairTool: ToolDefinition = {
 };
 export function toolsForAgent(config: Config): readonly ToolDefinition[] {
   return [...agentTools, ...(config.enableLocalRepair ? [repairTool] : []),
+    ...(config.enableLiveLiara ? catalogTools : []),
     ...(config.enableMutations && config.enableLiveLiara ? [publicationTool] : [])];
 }
+const catalogTools: readonly ToolDefinition[] = [
+  { type: "function", function: {
+    name: "read_catalog", description: "Read the selected account/team's fresh available PaaS plan/bundle combinations and base hourly prices in toman. Works before app selection. Prices exclude tax/traffic/storage extras, are not an invoice; raw capacity amounts have unverified units and never prove project requirements. Cheapest 20 combinations and truncation count are returned. No create or resize occurs.",
+    parameters: { type: "object", additionalProperties: false, required: [], properties: {} },
+  } },
+  { type: "function", function: {
+    name: "quote_resource_plan", description: "Revalidate one plan/bundle from the actual catalog and return its exact base hourly price, expiry, alternatives and whether credit covers one base hour. Capacity is unmeasured. Does not approve, create or change resources. Never use an unknown-price or unavailable plan.",
+    parameters: { type: "object", additionalProperties: false, required: ["planId", "bundleId"],
+      properties: { planId: { type: "string", maxLength: 63 }, bundleId: { type: "string", maxLength: 63 } } },
+  } },
+];
 const publicationTool: ToolDefinition = {
   type: "function",
   function: {
@@ -173,6 +188,8 @@ export const toolLabels: Readonly<Record<string, string>> = {
   read_logs: "خواندن گزارش‌های اخیر برنامه",
   propose_code_repair: "آماده‌کردن محدوده اصلاح و آزمون محلی",
   propose_publication: "آماده‌کردن پیشنهاد انتشار و بررسی پاسخ سایت",
+  read_catalog: "خواندن پلن‌ها و قیمت‌های تازه حساب",
+  quote_resource_plan: "بررسی هزینه پایه و گزینه‌های پلن",
 };
 export type AgentToolContext = {
   config: Config;
@@ -183,6 +200,7 @@ export type AgentToolContext = {
   budget: RunBudget;
   signal: AbortSignal;
   read?: LiaraReadClient;
+  account?: LiaraAccountClient;
 };
 export async function executeAgentTool(
   name: string,
@@ -199,6 +217,17 @@ export async function executeAgentTool(
     "ورودی ابزار کامل نیست.",
   );
   assertAgentContext(c.config, c.store, c.actorId, c.context);
+  if (name === "read_catalog" || name === "quote_resource_plan") {
+    ensure(c.context.account, "LIARA_AUTH_REQUIRED", "ابتدا حساب مقصد را متصل کنید؛ انتخاب برنامه برای دیدن پلن‌ها لازم نیست.", 409);
+    const scoped = connectedLiaraAccountConfig(c.config, c.store, c.actorId),
+      catalog = await (c.account ?? new LiaraAccountClient(scoped, c.context.account.accountId)).catalog(c.budget, c.signal);
+    assertAgentContext(c.config, c.store, c.actorId, c.context);
+    if (name === "quote_resource_plan") return quotePaaSOffer(catalog, string(args.planId, 63), string(args.bundleId, 63));
+    return { observedAt: catalog.observedAt, pricing: catalog.pricing,
+      offers: catalog.offers.slice(0, 20), omittedOffers: Math.max(0, catalog.offers.length - 20),
+      unavailablePlanIds: catalog.unavailablePlanIds,
+      balanceToman: catalog.balanceToman, measuredRequirement: false, remoteChanges: false };
+  }
   if (name === "propose_publication") {
     ensure(c.context.projectId && c.context.target, "LIARA_APP_REQUIRED", "پروژه و برنامه مقصد را انتخاب کنید.", 409);
     const app = c.context.target.app,

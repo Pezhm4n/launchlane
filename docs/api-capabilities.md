@@ -6,7 +6,7 @@
 
 | قابلیت آینده | منبع قرارداد و نیاز تطبیق | وضعیت این طرح |
 | --- | --- | --- |
-| catalog و انتخاب plan/هزینه | اطلاعات واقعی حساب/تیم و منبع رسمی قیمت؛ unit و دوره صورتحساب | planned؛ recommendation تازه نیازمند AC20 |
+| catalog و انتخاب plan/هزینه | اطلاعات واقعی حساب/تیم و منبع رسمی قیمت؛ unit و دوره صورتحساب | catalog و quote انتخابی implemented/live-read؛ snapshot/واحد/زمان/جایگزین و credit یک ساعت پایه؛ ظرفیت benchmark نشده و approval ساخت/resize باز |
 | create app و تغییر plan | [PaaS](https://developers.liara.ir/pages/paas.md)، پاسخ واقعی حساب و ID پایدار | planned؛ AC21/23 و journal تازه |
 | update env | [Update envs](https://developers.liara.ir/pass/settings/update-envs.md)، merge/replace و readback باید تطبیق داده شوند | planned؛ AC22، secret reference و حفظ env موجود |
 | database/disk و اتصال امن | [DBaaS](https://developers.liara.ir/pages/dbaas.md) و PaaS disks؛ capability مورد استفاده با حساب بررسی شود | planned؛ credential تولیدشده از context مدل جدا |
@@ -86,3 +86,8 @@ transport تشخیص تاریخی، ابزار تک‌منظوره evidence را
 - fixtureها در `tests/domain/providers.test.ts` صریحاً synthetic هستند. `gpt-6-luna/none` انتخاب اولیه با یک diagnosis زنده محدود است؛ مقایسه مدل‌ها و سناریوهای دیگر به oracle مستقل و budget جدا نیاز دارند. streaming پیاده نشده است.
 
 مسیر مدل فعلی، Chat Completions روی BoxAPI است؛ Responses یا provider دیگر fallback خودکار نیستند. فهرست مدل، سهم مصرف و واحد هزینه از حساب واقعی بررسی شوند؛ نرخ عمومی، هزینه قطعی این نصب را ثابت نمی‌کند. بودجه و مجوز هر اجرای واقعی در تنظیمات/رکورد محلی همان اجرا نگهداری می‌شوند.
+
+
+## Catalog حساب پیش از انتخاب app
+
+ابزارهای Agent `read_catalog` و `quote_resource_plan` از `LiaraAccountClient` و همان RunBudget پایدار استفاده می‌کنند. GET ثابت `/v1/me?teamID`، هویت حساب/تیم را validate می‌کند؛ مقادیر حساس profile/credential حذف می‌شوند. app انتخاب‌شده برای quote لازم نیست و تعویض حساب در حین read، context را باطل می‌کند. مجموع resource/bundle، صحیحِ صدم تومان و نرخ پایه تومان/ساعت است؛ هزینه جانبی و ظرفیت اندازه‌گیری‌شده از آن ساخته نمی‌شود. quote از زمان مشاهده ده دقیقه معتبر است. فقدان قیمت یا availability، پیشنهاد هزینه اجرایی نمی‌سازد. [شاهد catalog](evidence/agent-catalog.md) وضعیت واقعی و مصنوعی و gapهای AC20 را ثبت می‌کند. این ابزارها create، resize یا env write ندارند.

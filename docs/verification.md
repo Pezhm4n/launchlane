@@ -2,6 +2,10 @@
 
 شواهد جاری ابتدا و سابقه مراحل پیشین پایین‌تر ثبت شده‌اند. هر نتیجه به revision و شرایط خودش تعلق دارد؛ نتایج bootstrap جای قابلیت محصول و fixture جای اتصال زنده نیست.
 
+## Catalog واقعی پیش از app؛ ادامه A04
+
+[شاهد catalog](evidence/agent-catalog.md): هویت حساب/تیم و 24 ترکیب موجود واقعاً خوانده شدند. مدل واقعی پنج درخواست با registry جدید، پیشنهاد و جایگزین قیمت‌دار از دو quote معتبر داد؛ app انتخاب‌شده لازم نبود، ظرفیت unknown ماند و write صفر بود. چهار regression تازه و domain کامل 199/199، lint و typecheck گذشتند. build و HTTP19 روی export مستقل با UI پایه f94d44b و فایل‌های backend جدید سنجیده شدند؛ بازآرایی UI هم‌زمان، شاهد جدا می‌خواهد. quote، approval یا provisioning نیست و A04 partial مانده است.
+
 ## انتشار و اصلاح زنده از خود Agent؛ f94d44b
 
 [گزارش چرخه واقعی](evidence/agent-publication-live.md) دو درخواست فارسی از مرورگر به مدل، approval، artifact، Liara و پاسخ سایت را ثبت می‌کند. HTML اصلی تأیید شد؛ در goal اصلاح، همان آزمون موجود fail→pass شد، فقط `cart.mjs` تغییر کرد و همان artifact منتشر شد. `/checkout` از 18.25 به 74 رسید. دو failure موقت (503 و 200 نسخه قبلی با وجود READY/current) حفظ شدند؛ readback صریح در همان رابط بدون model/write تازه، نتیجه هر دو action را تأیید کرد. سقف تجمعی guard یک درخواست مدل اضافه را قبل از شبکه متوقف کرد. این خطا از guard آزمون بود، نه شاهد خرابی provider.
