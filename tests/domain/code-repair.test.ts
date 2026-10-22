@@ -26,7 +26,7 @@ function input(f: Fixture) {
 }
 function worker(
   f: Fixture,
-  mode: "correct" | "unrelated" | "outside" | "base" | "stale" = "correct",
+  mode: "correct" | "unrelated" | "outside" | "base" | "stale" | "with_unchanged" | "unchanged" | "unchanged_outside" | "unchanged_base" | "unchanged_duplicate" = "correct",
 ) {
   return new GoalModelClient(f.config, async (_url, init) => {
     const request = object(JSON.parse(String(init.body)));
@@ -42,6 +42,22 @@ function worker(
         join(f.project, "invoice.mjs"),
         `${repairBrokenSource}// user changed source\n`,
       );
+    const files: Record<string, unknown>[] = mode === "unchanged" ? [] : [{
+      path: mode === "outside" ? "invoice.test.mjs" : "invoice.mjs",
+      beforeHash: original.sha256,
+      content: mode === "unrelated" ? `${repairBrokenSource}// unrelated comment\n` : repairCorrectSource,
+    }];
+    if (mode.startsWith("unchanged") || mode === "with_unchanged") {
+      const unchanged = packet.files.map(object).find((file) => file.path === "server.mjs");
+      assert.ok(unchanged);
+      const snapshot = {
+        path: mode === "unchanged_outside" ? "invoice.test.mjs" : "server.mjs",
+        beforeHash: mode === "unchanged_base" ? "0".repeat(64) : unchanged.sha256,
+        content: unchanged.content,
+      };
+      files.unshift(snapshot);
+      if (mode === "unchanged_duplicate") files.unshift(snapshot);
+    }
     return Response.json({
       choices: [
         {
@@ -56,16 +72,7 @@ function worker(
                   name: "submit_patch",
                   arguments: JSON.stringify({
                     baseRevision: mode === "base" ? "0".repeat(64) : packet.baseRevision,
-                    files: [
-                      {
-                        path: mode === "outside" ? "invoice.test.mjs" : "invoice.mjs",
-                        beforeHash: original.sha256,
-                        content:
-                          mode === "unrelated"
-                            ? `${repairBrokenSource}// unrelated comment\n`
-                            : repairCorrectSource,
-                      },
-                    ],
+                    files,
                   }),
                 },
               },
@@ -106,6 +113,36 @@ test("a real scoped workspace reproduces the bug, applies a model patch, reruns 
     assert.equal(f.store.db.prepare("SELECT COUNT(*) n FROM attempts").get()?.n, 0);
   } finally {
     f.close();
+  }
+});
+
+test("unchanged worker snapshots are normalized only after scope, uniqueness and base validation", async () => {
+  for (const mode of ["with_unchanged", "unchanged", "unchanged_outside", "unchanged_base", "unchanged_duplicate"] as const) {
+    const f = await agentFixture();
+    try {
+      const scope = { ...input(f), allowedPaths: ["invoice.mjs", "server.mjs"] };
+      scope.localWorkConsent = repairConsent(scope);
+      const adapter = new CodeRepairAdapter(f.config, f.store, worker(f, mode));
+      const job = await adapter.start(f.session.actorId, scope, AbortSignal.timeout(3000));
+      const result = await adapter.run(f.session.actorId, job.id, AbortSignal.timeout(10000));
+      if (mode === "with_unchanged") {
+        assert.equal(result.state, "succeeded", JSON.stringify(result));
+        assert.deepEqual(result.changedPaths, ["invoice.mjs"]);
+        assert.equal(result.afterTest?.passed, true);
+        assert.ok(result.artifact);
+        assert.ok(!result.diff?.includes("diff --git a/server.mjs"));
+      } else {
+        assert.equal(result.state, "failed");
+        assert.equal(result.artifact, null);
+        assert.equal(result.afterTest, null);
+        assert.equal(result.errorCode,
+          mode === "unchanged" ? "REPAIR_NO_CHANGE"
+            : mode === "unchanged_base" ? "PROJECT_CHANGED" : "REPAIR_PATH_DENIED");
+      }
+      assert.equal(readFileSync(join(f.project, "invoice.mjs"), "utf8"), repairBrokenSource);
+    } finally {
+      f.close();
+    }
   }
 });
 

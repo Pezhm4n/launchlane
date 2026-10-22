@@ -28,7 +28,7 @@ const patchTool: ToolDefinition = {
   function: {
     name: "submit_patch",
     description:
-      "Return exact replacements for allowed files. Host validates the base and independently runs unchanged tests. Never invent test results.",
+      "Return exact replacements for changed allowed files; omit files whose bytes stay the same. Host validates the base and independently runs unchanged tests. Never invent test results.",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -559,7 +559,7 @@ export class CodeRepairAdapter {
         "فایل‌های وصله معتبر نیستند.",
         502,
       );
-      const replacements = new Map<string, string>();
+      const replacements = new Map<string, string>(), seen = new Set<string>();
       for (const value of patch.files) {
         const file = object(value);
         exactKeys(file, ["path", "beforeHash", "content"]);
@@ -567,7 +567,7 @@ export class CodeRepairAdapter {
           before = base.files.find((file) => file.path === path),
           content = text(file.content, 24000);
         ensure(
-          record.job.allowedPaths.includes(path) && before && !replacements.has(path),
+          record.job.allowedPaths.includes(path) && before && !seen.has(path),
           "REPAIR_PATH_DENIED",
           "وصله بیرون محدوده مجاز یا تکراری است.",
           403,
@@ -584,14 +584,11 @@ export class CodeRepairAdapter {
           "وصله شامل مقدار محرمانه است.",
           403,
         );
-        ensure(
-          content !== before.content.toString("utf8"),
-          "REPAIR_NO_CHANGE",
-          "وصله تغییری ایجاد نمی‌کند.",
-          409,
-        );
-        replacements.set(path, content);
+        seen.add(path);
+        // Workers may include unchanged allowed files; only real changes belong in the patch receipt.
+        if (content !== before.content.toString("utf8")) replacements.set(path, content);
       }
+      ensure(replacements.size > 0, "REPAIR_NO_CHANGE", "وصله تغییری ایجاد نمی‌کند.", 409);
       const current = await restoreProjectFlow(
         this.config,
         this.store,
