@@ -194,6 +194,7 @@ export async function connectLiara(
   // Explicit account validation is read-only. It does not enable gated service reads, writes or model calls.
   const view = await validateLiaraConnection(config, token, signal, send);
   ensure(!signal.aborted, "CANCELLED", "اتصال متوقف شد و ثبت نشد.", 409);
+  store.assertAgentIdle(actorId, null, true);
   const old = store.getConnection(actorId, "liara");
   const sameAccount = old?.view.identityId === view.identityId && old.view.teamId === view.teamId;
   const previousApp = old?.view.apps.find((app) => app.name === old.view.selectedApp);

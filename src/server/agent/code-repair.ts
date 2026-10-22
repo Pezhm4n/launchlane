@@ -22,6 +22,7 @@ import { privateValues } from "./tools.ts";
 import { parseNodePreparation, type NodePreparation } from "../../contracts/preparation.ts";
 import { preparationPaths, validatePreparationPatch } from "./preparation.ts";
 import { fingerprint } from "../policy/action.ts";
+import { runContainerTests } from "./container.ts";
 
 const patchTool: ToolDefinition = {
   type: "function",
@@ -74,6 +75,7 @@ export type RepairInput = {
   expectedSourceHash: string;
   localWorkConsent: string;
   preparation?: NodePreparation;
+  execution?: "container";
 };
 export function repairConsent(input: Omit<RepairInput, "localWorkConsent">): string {
   return createHash("sha256")
@@ -85,6 +87,7 @@ export function repairConsent(input: Omit<RepairInput, "localWorkConsent">): str
         testFiles: input.testFiles,
         expectedSourceHash: input.expectedSourceHash,
         ...(input.preparation ? { preparation: parseNodePreparation(input.preparation) } : {}),
+        ...(input.execution ? { execution: input.execution } : {}),
       }),
     )
     .digest("hex");
@@ -111,6 +114,15 @@ function pathName(path: string): string {
 function sha(bytes: Buffer): string {
   return createHash("sha256").update(bytes).digest("hex");
 }
+function nodeTestsPassed(output: string, testFiles: readonly string[], workspace: string): boolean {
+  const count = (name: string) => {
+    const values = [...output.matchAll(new RegExp(`^# ${name} (\\d+)$`, "gm"))];
+    return values.length === 1 ? Number(values[0]?.[1]) : -1;
+  };
+  const automaticNames = new Set(testFiles.flatMap(path => [path, basename(path), join(workspace, path)]));
+  return [...output.matchAll(/^# Subtest: (.+)$/gm)].some(match => !automaticNames.has(match[1] ?? "")) &&
+    count("tests") > 0 && count("fail") === 0 && count("cancelled") === 0 && count("skipped") === 0 && count("todo") === 0;
+}
 function patchDiff(path: string, before: string, after: string): string {
   const old = before.split("\n"),
     next = after.split("\n");
@@ -121,9 +133,16 @@ export function runRepairTests(
   testFiles: readonly string[],
   signal: AbortSignal,
   secrets: readonly string[],
+  execution?: "container",
+  onCreated?: (id: string) => void,
 ): Promise<RepairTestReceipt> {
   ensure(!signal.aborted, "CANCELLED", "آزمون متوقف شد.", 409);
   const started = Date.now();
+  if (execution === "container") return runContainerTests(workspace, testFiles, signal, onCreated).then(result => ({
+    command: `node --test -- ${testFiles.join(" ")}`, exitCode: result.exitCode, signal: result.signal,
+    output: redact(result.output, secrets), durationMs: Date.now() - started,
+    passed: result.exitCode === 0 && !signal.aborted && !result.signal && nodeTestsPassed(result.output, testFiles, workspace),
+  }));
   const args = [
     "--permission",
     `--allow-fs-read=${workspace}`,
@@ -306,6 +325,7 @@ export class CodeRepairAdapter {
           testFiles: input.testFiles,
           expectedSourceHash: input.expectedSourceHash,
           ...(input.preparation ? { preparation: parseNodePreparation(input.preparation) } : {}),
+          ...(input.execution ? { execution: input.execution } : {}),
         }),
       "REPAIR_CONSENT_REQUIRED",
       "محدوده تغییر و آزمون محلی باید پیش از شروع تأیید شود.",
@@ -334,6 +354,7 @@ export class CodeRepairAdapter {
         signal,
         secrets: privateValues(this.config),
       });
+    if (input.execution === "container") ensure(flow.profile.nodeRuntime?.version === "22", "SANDBOX_RUNTIME_UNAVAILABLE", "محیط ایزوله فعلی فقط Node 22 آزموده شده دارد؛ نسخه دیگری روی میزبان اجرا نمی‌شود.", 409);
     ensure(
       captured.profile.sourceHash === input.expectedSourceHash,
       "PROJECT_CHANGED",
@@ -393,6 +414,7 @@ export class CodeRepairAdapter {
         state: draft ? "proposed" : "queued",
         goal,
         ...(preparation ? { preparation } : {}),
+        ...(input.execution ? { execution: input.execution, containerIds: [] } : {}),
         allowedPaths: input.allowedPaths,
         testFiles: input.testFiles,
         changedPaths: [],
@@ -485,8 +507,10 @@ export class CodeRepairAdapter {
         runRepairTests(
           record.workspace,
           record.job.testFiles,
-          AbortSignal.any([bounded, AbortSignal.timeout(20000)]),
+          AbortSignal.any([bounded, AbortSignal.timeout(record.job.execution === "container" ? 60000 : 20000)]),
           privateValues(this.config),
+          record.job.execution,
+          (containerId) => { record.job.containerIds = [...(record.job.containerIds ?? []), containerId]; this.save(record); },
         );
       budget.take("tool", bounded);
       record.job.beforeTest = await tests();

@@ -7,6 +7,7 @@ import type { Store } from "../persistence/store.ts";
 import type { ModelMessage } from "./model.ts";
 import { parseCodeRepairJob } from "../../contracts/code-repair.ts";
 import { fingerprint } from "../policy/action.ts";
+import type { PublicationMission } from "../../contracts/publication-mission.ts";
 
 export type AgentContext = {
   projectId: string | null;
@@ -23,6 +24,7 @@ export type AgentUsage = {
   elapsedMs: number;
 };
 export type AgentRecord = AgentView & {
+  channel: "legacy" | "conversation";
   requestKey: string;
   context: AgentContext;
   messages: ModelMessage[];
@@ -41,6 +43,7 @@ function parseRecord(value: unknown): AgentRecord {
     context = object(row.context),
     usage = object(row.usage),
     limits = object(row.limits);
+  ensure(row.channel === undefined || row.channel === "legacy" || row.channel === "conversation", "STORAGE_INVALID", "نوع کانال بررسی معتبر نیست.", 503);
   const target = context.target === null ? null : object(context.target);
   const account = context.account === undefined || context.account === null ? target : object(context.account);
   ensure(
@@ -89,6 +92,7 @@ function parseRecord(value: unknown): AgentRecord {
   });
   return {
     ...view,
+    channel: row.channel === "conversation" ? "conversation" : "legacy",
     requestKey: string(row.requestKey, 80),
     lastInputKey: string(row.lastInputKey, 80),
     lastInput: text(row.lastInput, 2000),
@@ -171,6 +175,8 @@ export function agentView(run: AgentRecord): AgentView {
     publication: run.publication,
     destination: run.destination,
     destinationContinued: run.destinationContinued,
+    mission: run.mission ?? null,
+    channel: run.channel,
   };
 }
 
@@ -178,6 +184,18 @@ export class AgentRepository {
   readonly store: Store;
   constructor(store: Store) {
     this.store = store;
+  }
+  forProject(actorId: string, projectId: string | null, kind: "publication" | "conversation" | null = null): AgentRecord | null {
+    const row = this.store.db.prepare(
+      "SELECT id FROM agent_runs WHERE actor_id=? AND (json_extract(data_json,'$.projectId') IS ? OR json_extract(data_json,'$.mission.projectId') IS ?) AND (? IS NULL OR (?='publication' AND json_extract(data_json,'$.mission.kind')='publication') OR (?='conversation' AND json_extract(data_json,'$.mission.kind') IS NULL)) ORDER BY updated_at DESC,id DESC LIMIT 1",
+    ).get(actorId, projectId, projectId, kind, kind, kind);
+    return row ? this.get(actorId, string(row.id)) : null;
+  }
+  publication(actorId: string, identity: string): AgentRecord | null {
+    const row = this.store.db.prepare(
+      "SELECT id FROM agent_runs WHERE actor_id=? AND json_extract(data_json,'$.mission.identity')=? ORDER BY updated_at DESC,id DESC LIMIT 1",
+    ).get(actorId, identity);
+    return row ? this.get(actorId, string(row.id)) : null;
   }
   get(actorId: string, id?: string): AgentRecord | null {
     const row = id
@@ -221,6 +239,8 @@ export class AgentRepository {
     context: AgentContext,
     goal: string,
     limits: AgentRecord["limits"],
+    mission: PublicationMission | null = null,
+    channel: "legacy" | "conversation" = "legacy",
   ): { run: AgentRecord; created: boolean } {
     this.store.db.exec("BEGIN IMMEDIATE");
     try {
@@ -231,7 +251,7 @@ export class AgentRepository {
         const run = parseRecord(JSON.parse(string(old.data_json, 512 * 1024)));
         ensure(
           run.messages[0]?.content === goal &&
-            fingerprint(run.context) === fingerprint(context),
+            fingerprint(run.context) === fingerprint(context) && fingerprint(run.mission ?? null) === fingerprint(mission) && run.channel === channel,
           "IDEMPOTENCY_CONFLICT",
           "این درخواست قبلاً با هدف یا پروژه دیگری ثبت شده است.",
           409,
@@ -241,7 +261,7 @@ export class AgentRepository {
       }
       ensure(
         !this.store.db
-          .prepare("SELECT id FROM agent_runs WHERE actor_id=? AND state IN ('queued','working')")
+          .prepare("SELECT id FROM agent_runs WHERE actor_id=? AND state IN ('queued','working','needs_approval')")
           .get(actorId),
         "AGENT_BUSY",
         "یک بررسی در حال انجام است. ابتدا نتیجه آن را ببینید یا متوقف کنید.",
@@ -250,6 +270,7 @@ export class AgentRepository {
       const now = Date.now();
       const run: AgentRecord = {
         id: randomUUID(),
+        channel,
         requestKey,
         lastInputKey: requestKey,
         lastInput: goal,
@@ -263,6 +284,7 @@ export class AgentRepository {
         updatedAt: now,
         createdAt: now,
         effect: "no_remote_changes",
+        mission,
         repair: null,
         publication: null,
         destination: null,

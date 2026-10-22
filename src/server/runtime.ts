@@ -10,7 +10,7 @@ import { AgentRepository } from "./agent/store.ts";
 type CachedRuntime = { config: Config; store: Store; schemaKey?: string };
 type Runtime = CachedRuntime & { schemaKey: string };
 // Keep this stable across route bundles, but invalidate cached Store contracts when migrations change.
-const schemaKey = createHash("sha256").update(JSON.stringify(migrations)).digest("hex");
+const schemaKey = createHash("sha256").update("Store contract 2: guided mission locks\0").update(JSON.stringify(migrations)).digest("hex");
 const globalState = globalThis as typeof globalThis & { launchlaneRuntime?: CachedRuntime };
 
 export function resolveRuntime(config: Config, cached?: CachedRuntime): Runtime {

@@ -18,6 +18,8 @@ import { proposeDestination } from "../application/provision.ts";
 import { nodePreparation } from "../../contracts/preparation.ts";
 import { WorkloadProbe, validateProbePath } from "../liara/probe.ts";
 import { parseProbeOrigins } from "../policy/probe-target.ts";
+import type { PublicationMission } from "../../contracts/publication-mission.ts";
+import type { WorkloadContract } from "../../contracts/deployment.ts";
 
 export function privateValues(c: Config): string[] {
   return [c.liaraToken, c.modelKey, c.operatorToken, c.sessionSecret].filter(Boolean);
@@ -247,6 +249,8 @@ export type AgentToolContext = {
   read?: LiaraReadClient;
   account?: LiaraAccountClient;
   probe?: WorkloadProbe;
+  mission?: PublicationMission | null;
+  publicationExpectation?: WorkloadContract;
 };
 function evidenceRows<T>(rows: readonly T[], maxRows: number, maxBytes: number) {
   const selected: T[] = [];
@@ -295,6 +299,17 @@ export async function executeAgentTool(
       balanceToman: catalog.balanceToman, measuredRequirement: false, remoteChanges: false };
   }
   if (name === "propose_publication") {
+    if (c.publicationExpectation) ensure(
+      fingerprint({ path: args.path, status: args.status, assertion: args.assertion }) === fingerprint({ path: c.publicationExpectation.path, status: c.publicationExpectation.status, assertion: c.publicationExpectation.assertion }),
+      "MISSION_EXPECTATION_CHANGED", "معیار انتشار قبلی برای بررسی همان خطا باید حفظ شود.", 409);
+    if (c.mission) {
+      ensure(args.path === c.mission.path && args.status === 200, "MISSION_EXPECTATION_CHANGED", "صفحه یا وضعیت مورد انتظار مأموریت تغییر نمی‌کند.", 409);
+      if (c.mission.expectedText) {
+        const assertion = object(args.assertion);
+        ensure(assertion.kind === "text" && assertion.contains === c.mission.expectedText,
+          "MISSION_EXPECTATION_CHANGED", "نشانه مورد انتظار باید با تصمیم کاربر یکسان بماند.", 409);
+      }
+    }
     ensure(c.context.projectId && c.context.target, "LIARA_APP_REQUIRED", "پروژه و برنامه مقصد را انتخاب کنید.", 409);
     const app = c.context.target.app,
       origin = c.config.probeOrigins[app] || c.store.getProbeOrigin(c.actorId, c.context.target.teamId, app);
@@ -308,8 +323,10 @@ export async function executeAgentTool(
   }
   if (name === "propose_destination") {
     ensure(c.context.projectId && c.context.account, "AGENT_PROJECT_REQUIRED", "پروژه و حساب مقصد لازم است؛ انتخاب app قبلی لازم نیست.", 409);
+    const proposedApp = string(args.app, 63);
+    ensure(!c.config.apps.length || c.config.apps.includes(proposedApp), "DESTINATION_NAME_NOT_ALLOWED", "نام مقصد باید از فهرست مجازِ read_destination انتخاب شود؛ پیشنهادی ثبت یا درخواستی به لیارا ارسال نشد.", 409);
     const action = await proposeDestination(c.config, c.store, c.actorId,
-      { flowId: c.context.projectId, app: string(args.app, 63), planId: string(args.planId, 63),
+      { flowId: c.context.projectId, app: proposedApp, planId: string(args.planId, 63),
         bundleId: string(args.bundleId, 63), networkId: string(args.networkId, 24) },
       c.signal, { budget: c.budget, ...(c.account ? { read: c.account } : {}) });
     assertAgentContext(c.config, c.store, c.actorId, c.context);
@@ -348,6 +365,7 @@ export async function executeAgentTool(
         goal: preparation ? `آماده‌سازی با فرمان «${preparation.startCommand}» و پورت ${preparation.port}. ${text(args.goal, 1400)}` : text(args.goal, 2000),
         allowedPaths,
         testFiles: args.testFiles.map((path) => string(path, 512)),
+        ...(c.mission ? { execution: "container" as const } : {}),
         ...(preparation ? { preparation } : {}),
       },
       c.signal,

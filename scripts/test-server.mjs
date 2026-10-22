@@ -61,7 +61,7 @@ export async function startTestServer({ browserHost = "127.0.0.1", agentFixture 
     ],
     { env, stdio: ["ignore", "pipe", "pipe"], windowsHide: true },
   );
-  let output = "";
+  let output = "", lastHealth = "not requested";
   for (const pipe of [child.stdout, child.stderr])
     pipe.on("data", (chunk) => {
       output = `${output}${chunk}`.slice(-6000);
@@ -75,13 +75,17 @@ export async function startTestServer({ browserHost = "127.0.0.1", agentFixture 
       throw new Error("Unsafe test cleanup path");
     await rm(directory, { recursive: true, force: true });
   }
-  for (let attempt = 0; attempt < 100; attempt++) {
+  const startupDeadline = Date.now() + 45_000;
+  for (let attempt = 0; attempt < 100 && Date.now() < startupDeadline; attempt++) {
     if (child.exitCode !== null) {
       await close();
       throw new Error(`Isolated server failed: ${output.replaceAll(token, "[REDACTED]")}`);
     }
     try {
-      const response = await fetch(`${origin}/api/health`, { signal: AbortSignal.timeout(500) });
+      // Cold route loading under concurrent Windows workloads measured over two seconds.
+      // This bounds test-server readiness only; workload verification keeps its own contract.
+      const response = await fetch(`${origin}/api/health`, { signal: AbortSignal.timeout(3000) });
+      lastHealth = `HTTP ${response.status}`;
       if (response.ok)
         return {
           origin,
@@ -94,11 +98,12 @@ export async function startTestServer({ browserHost = "127.0.0.1", agentFixture 
           modelLog:agentFixture?env.LAUNCHLANE_AGENT_FIXTURE_LOG:null,
           close,
         };
-    } catch {
+    } catch (error) {
+      lastHealth = `${error.name}:${error.cause?.code ?? error.message}`;
       /* Wait for this local server only; never contact an external provider. */
     }
     await pause(100);
   }
   await close();
-  throw new Error("Isolated production server did not become available.");
+  throw new Error(`Isolated production server did not become available (${lastHealth}): ${output.replaceAll(token, "[REDACTED]")}`);
 }

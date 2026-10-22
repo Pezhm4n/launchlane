@@ -56,6 +56,7 @@ export async function POST(request: Request) {
     const input = object(await jsonBody(request)),
       operation = string(input.operation, 16),
       signal = AbortSignal.any([request.signal, AbortSignal.timeout(config.runTimeoutMs)]);
+    store.assertAgentIdle(session.actorId, null, true);
     if (operation === "prepare") {
       exactKeys(input, ["operation", "selection"]);
       const selection = parseSelection(input.selection);

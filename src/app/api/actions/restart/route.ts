@@ -6,6 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   return endpoint(request, true, async ({ config, store, session }) => {
+    store.assertAgentIdle(session.actorId);
     const input = object(await jsonBody(request));
     exactKeys(input, ["incidentRunId"]);
     return reply(

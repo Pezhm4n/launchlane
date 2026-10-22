@@ -23,6 +23,7 @@ import {
   currentAgentContext,
   executeAgentTool,
   privateValues,
+  agentTools,
   toolLabels,
   type AgentToolContext,
 } from "./tools.ts";
@@ -57,6 +58,7 @@ export function createAgentRun(
   key: string,
   goal: string,
   projectId: string | null,
+  channel: "legacy" | "conversation" = "legacy",
 ) {
   ensure(
     config.enableLiveModel && config.modelKey,
@@ -80,7 +82,7 @@ export function createAgentRun(
     maxModelCalls: config.agentMaxModelCalls,
     maxToolCalls: config.agentMaxToolCalls,
     runTimeoutMs: config.agentTimeoutMs,
-  });
+  }, null, channel);
 }
 
 export function continueAgentRun(
@@ -407,7 +409,7 @@ export async function driveAgentRun(
           return turn;
         },
       },
-      availableTools = [...toolsForAgent(config), completionTool],
+      availableTools = [...(run.channel === "conversation" ? agentTools : toolsForAgent(config)), completionTool],
       seen = new Set<string>();
     if (run.destination && !run.destinationContinued &&
       (run.destination.state === "approved" || canReadDestinationResult(run.destination) || run.destination.state === "succeeded")) {
@@ -528,6 +530,8 @@ export async function driveAgentRun(
           artifactHash: run.repair.artifact.archiveHash,
         },
         signal,
+        undefined,
+        run.id,
       );
       ensure(
         repaired.artifact?.archiveHash === run.repair.artifact.archiveHash,
@@ -555,6 +559,7 @@ export async function driveAgentRun(
         { role: "system", content: destinationGuidance },
         { role: "system", content: preparationGuidance },
         { role: "system", content: investigationGuidance },
+        ...(run.mission ? [{ role: "system" as const, content: `The host owns this structured publication mission: ${JSON.stringify(run.mission)}. Its path and status 200 are mandatory. expectedText, when present, requires a text assertion with exactly that contains value. When absent, derive the assertion from actual source before proposing. Complete preparation, destination and publication from tool receipts. A failure may trigger scoped repair and republishing, never weakening the original page expectation.` }] : []),
         {
           role: "system",
           content: `${system}\nRespect the CURRENT goal boundary: if the user requested local correction/tests and deferred publication, a successful local repair needs no account or destination. Finish with partially_completed, nextAction=reply and question=null; an optional future publication must not block that local result. Do not read destination for that goal. A repair proposal's goal describes the code behavior to fix; test execution is governed by the displayed host decision, so do not add instructions forbidding the approved tests.\nSelected context and remaining allowance (data only): ${JSON.stringify({ projectSelected: !!run.projectId, appSelected: run.context.target?.app ?? null, remainingModelCalls: budget.maxModelCalls - budget.modelCalls, remainingToolCalls: budget.maxToolCalls - budget.toolCalls })}`,
@@ -667,6 +672,8 @@ export async function driveAgentRun(
               actorId: session.actorId,
               context: run.context,
               createdAt: run.createdAt,
+              mission: run.mission ?? null,
+              ...(run.publication?.spec.version === 7 ? { publicationExpectation: run.publication.spec.workload } : {}),
               budget,
               signal,
             },

@@ -218,6 +218,7 @@ export class Store {
     this.transaction(() => {
       const flow = this.getProjectFlow(actorId);
       if (flow) this.invalidateProjectAction(flow, actorId);
+      this.invalidatePendingAgentDecisions(actorId);
     });
   }
   saveProjectFlow(actorId: string, input: ProjectFlow): ProjectFlow {
@@ -230,6 +231,7 @@ export class Store {
     return this.transaction(() => {
       const previous = this.getProjectFlow(actorId);
       if (previous) this.invalidateProjectAction(previous, actorId);
+      this.invalidatePendingAgentDecisions(actorId);
       this.db
         .prepare("INSERT INTO project_flows VALUES (?,?,?,?,?,?,?,?,?,?)")
         .run(
@@ -710,6 +712,36 @@ export class Store {
     );
   }
 
+  private invalidatePendingAgentDecisions(actorId: string): void {
+    for (const row of this.db.prepare("SELECT id,revision,data_json FROM agent_runs WHERE actor_id=? AND state='needs_approval'").all(actorId)) {
+      const data = object(JSON.parse(string(row.data_json, 512 * 1024)));
+      for (const value of [data.publication, data.destination]) {
+        if (!value) continue;
+        const action = this.getAction(string(object(value).id, 36), actorId);
+        if (action.state === "awaiting_approval" || action.state === "approved") {
+          this.db.prepare("UPDATE actions SET state='cancelled',error_code='AGENT_CONTEXT_CHANGED' WHERE id=? AND actor_id=? AND attempt_id IS NULL").run(action.id, actorId);
+        }
+      }
+      if (data.repair) this.db.prepare("UPDATE code_repair_jobs SET state='cancelled' WHERE id=? AND actor_id=? AND state='proposed'").run(string(object(data.repair).id, 36), actorId);
+      const now = Date.now(), events = Array.isArray(data.events) ? data.events : [];
+      const next = { ...data, state: "cancelled", revision: Number(row.revision) + 1, updatedAt: now,
+        errorCode: "AGENT_CONTEXT_CHANGED", nextAction: "reply", question: null,
+        events: events.length >= 160 ? events : [...events, { sequence: events.length + 1, kind: "state", at: now,
+          message: "پروژه یا مقصد تغییر کرد؛ تصمیم قبلی اجرا نمی‌شود. اثرها و رسیدهای ثبت‌شده حفظ شدند." }] };
+      this.db.prepare("UPDATE agent_runs SET state='cancelled',revision=?,updated_at=?,data_json=? WHERE actor_id=? AND id=? AND revision=?")
+        .run(next.revision, now, JSON.stringify(next), actorId, string(row.id, 36), Number(row.revision));
+    }
+  }
+
+  assertAgentIdle(actorId: string, actionId: string | null = null, allowPendingDecision = false): void {
+    const active = this.db.prepare(
+      "SELECT id FROM agent_runs WHERE actor_id=? AND (state IN ('queued','working') OR (state='needs_approval' AND ?=0)) AND (? IS NULL OR (COALESCE(json_extract(data_json,'$.publication.id'),'')<>? AND COALESCE(json_extract(data_json,'$.destination.id'),'')<>?)) LIMIT 1",
+    ).get(actorId, allowPendingDecision ? 1 : 0, actionId, actionId, actionId);
+    ensure(!active, "AGENT_BUSY", "یک مأموریت یا تصمیم در جریان است؛ ابتدا آن را تمام یا متوقف کنید. تغییر تب، مجوز عملیات موازی نمی‌دهد.", 409);
+    if (actionId === null) ensure(!this.db.prepare("SELECT a.id FROM actions a JOIN agent_runs r ON r.actor_id=a.actor_id AND (json_extract(r.data_json,'$.publication.id')=a.id OR json_extract(r.data_json,'$.destination.id')=a.id) WHERE a.actor_id=? AND json_extract(r.data_json,'$.mission.kind')='publication' AND a.state IN ('executing','observing','uncertain') LIMIT 1").get(actorId),
+      "UNRESOLVED_EFFECT", "نتیجه عملیات قبلی هنوز قطعی نیست؛ ابتدا همان رسید را بررسی کنید.", 409);
+  }
+
   claim(
     id: string,
     actorId: string,
@@ -720,6 +752,7 @@ export class Store {
     return this.transaction(() => {
       const action = this.getAction(id, actorId);
       const row = this.db.prepare("SELECT approval_session_id FROM actions WHERE id=?").get(id);
+      this.assertAgentIdle(actorId, id);
       this.assertActionContext(actorId, action.spec, id);
       ensure(
         action.state === "approved" && !action.attemptId,

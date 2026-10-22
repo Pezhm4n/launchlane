@@ -19,6 +19,7 @@ export async function GET(request: Request) {
 }
 export async function DELETE(request: Request) {
   return endpoint(request, true, ({ store, session }) => {
+    store.assertAgentIdle(session.actorId, null, true);
     store.invalidateProjectApproval(session.actorId);
     store.disconnectConnection(session.actorId, "liara");
     return reply({ disconnected: true, providerRevoked: false });
@@ -26,6 +27,7 @@ export async function DELETE(request: Request) {
 }
 export async function POST(request: Request) {
   return endpoint(request, true, async ({ config, store, session }) => {
+    store.assertAgentIdle(session.actorId, null, true);
     const input = object(await jsonBody(request)),
       operation = string(input.operation, 16);
     ensure(
@@ -85,6 +87,7 @@ export async function POST(request: Request) {
         "نشانی بررسی این برنامه در تنظیمات نصب ثابت شده است. برای تغییر آن از مسئول نصب کمک بگیرید.",
         403,
       );
+      if (store.getProbeOrigin(session.actorId, config.teamId, saved.view.selectedApp) !== origin) store.invalidateProjectApproval(session.actorId);
       store.setProbeOrigin(
         session.actorId,
         { teamId: config.teamId, app: saved.view.selectedApp },

@@ -3,6 +3,7 @@ import { integer, object, string, text } from "./validation.ts";
 import { parseCodeRepairJob, type CodeRepairJob } from "./code-repair.ts";
 import { decodeAction } from "./client-decode.ts";
 import type { Action } from "./domain.ts";
+import { parsePublicationMission, type PublicationMission } from "./publication-mission.ts";
 
 export const agentStates = [
   "queued",
@@ -47,6 +48,8 @@ export type AgentView = {
   publication: Action | null;
   destination: Action | null;
   destinationContinued: boolean;
+  mission?: PublicationMission | null;
+  channel?: "legacy" | "conversation";
 };
 export function parseAgentView(value: unknown): AgentView {
   const row = object(value);
@@ -107,5 +110,7 @@ export function parseAgentView(value: unknown): AgentView {
     publication: row.publication === null || row.publication === undefined ? null : decodeAction(row.publication),
     destination,
     destinationContinued: row.destinationContinued === true,
+    mission: row.mission === undefined || row.mission === null ? null : parsePublicationMission(row.mission),
+    channel: row.channel === "conversation" ? "conversation" : "legacy",
   };
 }

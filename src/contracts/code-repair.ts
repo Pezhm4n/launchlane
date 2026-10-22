@@ -29,6 +29,8 @@ export type CodeRepairJob = {
   createdAt: number;
   updatedAt: number;
   preparation?: NodePreparation;
+  execution?: "container";
+  containerIds?: string[];
 };
 
 function paths(value: unknown): string[] {
@@ -91,5 +93,9 @@ export function parseCodeRepairJob(value: unknown): CodeRepairJob {
     createdAt: integer(row.createdAt, 0, Number.MAX_SAFE_INTEGER),
     updatedAt: integer(row.updatedAt, 0, Number.MAX_SAFE_INTEGER),
     ...(row.preparation === undefined ? {} : { preparation: parseNodePreparation(row.preparation) }),
+    ...(row.execution === undefined ? {} : (() => {
+      ensure(row.execution === "container", "STORAGE_INVALID", "روش اجرای اصلاح معتبر نیست.");
+      return { execution: "container" as const, containerIds: paths(row.containerIds ?? []) };
+    })()),
   };
 }

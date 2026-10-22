@@ -47,6 +47,7 @@ export async function prepareProjectFlow(
   selection: ProjectSelection,
   signal: AbortSignal,
   github?: GitHubClient,
+  ownerRunId?: string,
 ): Promise<ProjectFlow> {
   ensure(
     !preparing,
@@ -115,6 +116,10 @@ export async function prepareProjectFlow(
           })
         : null;
     ensure(!signal.aborted, "CANCELLED", "بررسی پروژه متوقف شد؛ انتخاب قبلی حفظ شده است.", 409);
+    if (ownerRunId) ensure(selection.kind === "repair" && store.db.prepare(
+      "SELECT id FROM agent_runs WHERE id=? AND actor_id=? AND state='working' AND json_extract(data_json,'$.repair.id')=?",
+    ).get(ownerRunId, actorId, selection.jobId), "AGENT_CONFLICT", "انتخاب نسخه آزموده‌شده متعلق به مأموریت فعال نیست.", 409);
+    else store.assertAgentIdle(actorId, null, true);
     return store.saveProjectFlow(actorId, {
       id,
       selection,
