@@ -171,7 +171,8 @@ export class WorkloadProbe {
     const url = new URL(path, origin);
     ensure(url.origin === origin, "PROBE_TARGET_DENIED", "مقصد بررسی تغییر کرده است.", 403);
     budget.take("tool", signal);
-    const boundedSignal = AbortSignal.any([budget.signal(signal), AbortSignal.timeout(5000)]);
+    // Observed TLS handshakes can exceed 5s; this transport cap is separate from workload assertions.
+    const boundedSignal = AbortSignal.any([budget.signal(signal), AbortSignal.timeout(15_000)]);
     try {
       const addresses = await abortable(this.resolve(url.hostname), boundedSignal);
       ensure(

@@ -4,7 +4,7 @@
 
 ## رفتار پیاده‌شده
 
-مدل می‌تواند read_workload را برای path همان app انتخاب‌شده و read_metrics را برای فرضیه مرتبط با منابع انتخاب کند. مدل host نمی‌دهد؛ origin از تنظیم مجاز همان actor/team/app می‌آید. همان WorkloadProbe، DNS عمومی و IP pin‌شده، TLS، منع redirect، timeout پنج‌ثانیه‌ای، سقف64KiB و redaction را نگه می‌دارد. preview مدل حداکثر۴۰۹۶ نویسه است و حذف محتوا مشخص می‌شود. یک نمونه زمان پاسخ، p95 یا ظرفیت نیست و تأیید artifact ایجاد نمی‌کند.
+مدل می‌تواند read_workload را برای path همان app انتخاب‌شده و read_metrics را برای فرضیه مرتبط با منابع انتخاب کند. مدل host نمی‌دهد؛ origin از تنظیم مجاز همان actor/team/app می‌آید. همان WorkloadProbe، DNS عمومی و IP pin‌شده، TLS، منع redirect، مهلت شبکه۱۵ثانیه‌ای با تقدم deadline کوتاه‌تر run، سقف64KiB و redaction را نگه می‌دارد. preview مدل حداکثر۴۰۹۶ نویسه است و حذف محتوا مشخص می‌شود. یک نمونه زمان پاسخ، p95 یا ظرفیت نیست و تأیید artifact ایجاد نمی‌کند.
 
 هویت داخلی app پیش/پس از داده و context پس از خواندن کنترل می‌شوند. read_logs با lookbackMinutes یک تا۶۰، پیام خارج از بازه، پاسخ خالی و حذف برای حجم را جدا گزارش می‌کند. بازه از پیش از شروع goal تا زمان دریافت خواندن است؛ شامل query یا host دلخواه نیست. rawPoints منابع با واحد/زمان unverified حفظ و برای مدل محدود می‌شوند؛ omittedPoints داده ناموجود را صفر یا سالم نمی‌کند. سقف24KiB نتیجه ابزار نیز حفظ شده است.
 
@@ -28,6 +28,10 @@
 آزمون قبلی حفظ شد: case200 خلاصه محتاطانه داشت؛ case500 پس از probe، فیلد خارج قرارداد فرستاد و INVALID_INPUT گرفت. هیچ درخواست نامعتبر به provider نرسید و آن failure به success تغییر نام نداد. سیاست application validation و regressionهای bounded correction برای رفع همین مرز اضافه شدند. JSON ناقص و scope/identity نامعتبر همچنان fail closed باقی‌اند.
 
 ## مرز باز
+
+درea08a40، مقصد تازه با ID واقعی ساخته و همان archive با تصمیم جدا منتشر شد. outcome=verified/WORKLOAD_VERIFIED و200 صفحه اصلی و متن درست، همراه خواندن مستقل عمومی تأیید شدند. reload مدل/write تازه نساخت و پس از تطبیق ID، حذف وabsence404 گذشتند. اما goal تحقیق /orders با PROBE_TIMEOUT پنج‌ثانیه‌ای پاسخ نگرفت؛ model در۵ درخواست و14,518 token گزارش‌شده، workload/release/logs/metrics را انتخاب و وضعیت صفحه و منابع را unknown نگه داشت. READY را سلامت و نبود خطا در log را علت تلقی نکرد. oracleِ مورد انتظار500 پاس نشد و case200 دوم اجرا نشد؛ این تلاش پذیرش کامل SRE نیست.
+
+با توجه به handshakeهای5–7s اندازه‌گیری‌شده، cap انتقال probe از5s به15s تغییر کرد؛ status/محتوای مورد انتظار، عدم retry/redirect، scope، pin، redaction و deadline کوتاه‌تر run تغییر نکردند. پاسخ6s با همان500 در regression ابتدا روی کد قبلی PROBE_TIMEOUT داد، سپس در بودجه12s همان500 را حفظ کرد. این تنظیم، SLA سرعت یا سالم‌بودن پاسخ500 نیست. domain248/248، lint/typecheck/build و HTTP21/21 export ثابت گذشتند. SRE واقعی پس از این تنظیم هنوز در ادامه لازم است.
 
 درb525c18، ساخت تا preflight و POST واحد پیش رفت ولی اتصال POST پس از10.655s نامعلوم شد؛ journal همان uncertain/request_started را حفظ و replay را بست. سه GET بعدیِ سازگار با Pool،404های7.014/0.500/1.067s دادند؛ نبودن فعلی app، receipt ازدست‌رفته را بازسازی نمی‌کند. [ADR 0009](../decisions/0009-liara-transport-pool.md) اندازه‌گیری TLS، Pool محدود فقط برای API و pin سازگار7.30.1 را ثبت می‌کند. ناسازگاری dispatcher8 با native fetch در تست واقعی محلی شکست خورد و به regression تبدیل شد. سه تست تازه، multipart/cancellation و POST بدون replay را روی HTTP واقعی محلی می‌سنجند. ادامه SRE روی مقصد تازه با journal و allowance جدا و همان دفتر تجمعی انجام می‌شود؛ create قبلی تکرار نمی‌شود.
 

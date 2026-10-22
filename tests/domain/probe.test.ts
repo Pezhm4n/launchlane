@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { setTimeout as delay } from "node:timers/promises";
 import { readConfig } from "../../src/server/config.ts";
 import { AppError } from "../../src/server/errors.ts";
 import { isPublicAddress, WorkloadProbe } from "../../src/server/liara/probe.ts";
@@ -198,4 +199,23 @@ test("cancellation during DNS never opens a socket; a late healthy answer never 
     oversize.check(scope, "/", new RunBudget(active), signal()),
     code("PROBE_INVALID"),
   );
+});
+
+test("a response after a slow handshake retains its real 500 within the remaining operation deadline", async () => {
+  let requests = 0;
+  const probe = new WorkloadProbe(active, async () => [publicAddress], async (_url, pin, bounded) => {
+    requests++;
+    assert.deepEqual(pin, publicAddress);
+    await delay(6000, undefined, { signal: bounded });
+    return { ...response, durationMs: 6000 };
+  });
+  const budget = new RunBudget({ ...active, runTimeoutMs: 12_000 });
+  const result = await probe.check(scope, "/orders", budget, signal());
+  assert.equal(result.status, 500);
+  assert.equal(result.body, response.body);
+  assert.equal(result.path, "/orders");
+  assert.equal(result.durationMs, 6000);
+  assert.equal(result.outcome, "response");
+  assert.equal(requests, 1);
+  assert.equal(budget.toolCalls, 1);
 });

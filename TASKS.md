@@ -45,6 +45,8 @@
 
 ادامه پس ازb525c18: شش browser suite ثابت75/27/27/22/20/5 دوباره گذشتند. POST ساخت پس از preflight نامعلوم شد؛ receipt و منع replay حفظ شدند و سه خواندن بعدی404 بودند. TLS واقعی5–7s در برابر TCP چندمیلی‌ثانیه‌ای، Pool محدود فقط برای API و dependency دقیق سازگار7.30.1 را توجیه کرد؛ [ADR0009](docs/decisions/0009-liara-transport-pool.md). سه regression تازه با HTTP/multipart/cancel و POST بدون replay واقعی محلی؛ domain247/247، lint/typecheck/build و HTTP21/21 export ثابت و bootstrap2/2 primary گذشتند. dispatcher8 ناسازگار به regression تبدیل شد. قدم بعد، SRE واقعی در مقصد تازه و journal جدا با همان دفتر مصرف است؛ create قبلی تکرار نمی‌شود و A09 partial است.
 
+ادامه پس ازea08a40: شش browser suite ثابت75/27/27/22/20/5 گذشتند. ساخت مقصد تازه، ID/config، انتشار همان archive و HTTP200/متن اصلی با مدل و PaaS واقعی و cleanup404 تأیید شدند. goal تحقیق بعدی /orders با PROBE_TIMEOUT متوقف شد و مدل در۵ درخواست وضعیت صفحه/منابع را unknown نگه داشت؛ oracle500 پاس نشد. cap شبکه probe با شاهد TLS5–7s به15s با تقدم deadline run تنظیم شد؛ status/content و سایر حفاظت‌ها عوض نشدند. regression6s/500 قبل شکست و بعد همان500 را حفظ کرد؛ domain248/248، lint/typecheck/build و HTTP21/21 export ثابت گذشتند. قدم بعد یک تکرار محدود SRE با دفتر تجمعی قبلی است؛ A09 partial مانده است.
+
 ## وضعیت ثبت‌شده پایه و کارهای هم‌زمان
 
 ### بررسی کامل انتخاب GitHub و آماده‌سازی پیش از مرحله Agent — bounded_live_verified
