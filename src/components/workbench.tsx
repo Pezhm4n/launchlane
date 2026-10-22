@@ -985,7 +985,9 @@ export function Workbench() {
                     }}
                   >
                     <FolderIcon />
-                    {flow ? "تغییر پوشه پروژه" : "انتخاب پوشه پروژه"}
+                    {flow?.selection.kind === "github"
+                      ? "انتخاب پوشه محلی"
+                      : flow ? "تغییر پوشه پروژه" : "انتخاب پوشه پروژه"}
                   </button>
                   <button
                     type="button"
@@ -997,7 +999,7 @@ export function Workbench() {
                       setGitHubOpen(true);
                     }}
                   >
-                    انتخاب از GitHub
+                    {flow?.selection.kind === "github" ? "تغییر انتخاب GitHub" : "انتخاب از GitHub"}
                   </button>
                 </div>
                 <p id="project-choice-help" className="hint">

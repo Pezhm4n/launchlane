@@ -858,7 +858,11 @@ try {
   await heading().waitFor();
   assert.equal(new URL(page.url()).searchParams.get("project"), imported.id);
   await layout(360, "github-import-restored-pinned-snapshot-fixture");
-  await page.getByRole("button", { name: "انتخاب از GitHub", exact: true }).click();
+  await page.getByRole("button", { name: "انتخاب پوشه محلی", exact: true }).click();
+  await page.getByRole("dialog", { name: "انتخاب پوشه پروژه", exact: true }).waitFor();
+  await closeDialog("انتخاب پوشه پروژه");
+  assert.equal(new URL(page.url()).searchParams.get("project"), imported.id);
+  await page.getByRole("button", { name: "تغییر انتخاب GitHub", exact: true }).click();
   await github.getByRole("button", { name: new RegExp(longName) }).waitFor();
   await github.getByRole("button", { name: "قطع اتصال GitHub", exact: true }).click();
   await github.getByRole("button", { name: "اتصال به GitHub", exact: true }).waitFor();
