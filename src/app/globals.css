@@ -1255,6 +1255,78 @@ button[aria-busy="true"] {
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);
 }
+.publication-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-0);
+  margin-block: var(--space-4);
+  list-style: none;
+  counter-reset: publication-step;
+}
+.publication-steps li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+}
+.publication-steps li::before {
+  counter-increment: publication-step;
+  content: counter(publication-step);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--space-5);
+  block-size: var(--space-5);
+  border-radius: 50%;
+  background: var(--color-paper);
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+}
+.publication-steps .is-current {
+  border-color: var(--color-primary);
+  color: var(--color-ink);
+  font-weight: 700;
+}
+.publication-steps .is-current::before {
+  background: var(--color-primary);
+  color: var(--color-primary-text);
+}
+.publication-steps .is-done::before {
+  background: var(--color-primary-soft);
+  color: var(--color-primary-hover);
+}
+.publication-steps .is-stopped,
+.publication-steps .is-failed {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+.publication-steps .is-stopped::before,
+.publication-steps .is-failed::before {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+.publication-criterion {
+  padding: var(--space-3);
+  margin-block: var(--space-3);
+  background: var(--color-paper);
+  border-inline-start: var(--space-1) solid var(--color-primary);
+  border-radius: var(--radius-sm);
+}
+.publication-criterion h4 {
+  margin-block: var(--space-0) var(--space-2);
+  font-size: var(--text-sm);
+}
+.publication-criterion p {
+  margin-block-end: var(--space-2);
+}
+.publication-criterion p:last-child {
+  margin-block-end: var(--space-0);
+}
 .agent-transcript {
   max-block-size: clamp(14rem, 44dvh, var(--agent-transcript-height));
   overflow: auto;

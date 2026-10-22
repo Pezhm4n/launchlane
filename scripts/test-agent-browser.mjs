@@ -273,6 +273,13 @@ try {
   const beforePublicationReload = await modelRequests();
   await page.reload();
   await badge("منتظر تصمیم شما");
+  await panel.getByText("معیار موفقیت", { exact: true }).waitFor();
+  assert.match(await panel.locator(".publication-criterion").textContent(), /total[\s\S]*81/);
+  await panel.getByText(/پاسخ فعلی سایت به‌تنهایی موفقیت نیست/).waitFor();
+  assert.equal(
+    await panel.locator(".publication-steps [aria-current='step']").filter({ hasText: "تصمیم شما" }).count(),
+    1,
+  );
   const approvePublication = panel.getByRole("button", { name: "تأیید و انتشار این نسخه", exact: true });
   for (const width of [360, 768, 1280]) {
     await layout(width, "publication-decision");
@@ -287,6 +294,8 @@ try {
   assert.equal(store.getAction(publication.id, actor).state, "awaiting_approval");
   await panel.getByRole("button", { name: "رد انتشار", exact: true }).click();
   await badge("منتظر پاسخ شما");
+  await panel.getByText("شما این انتشار را رد کردید.", { exact: true }).waitFor();
+  assert.equal(await panel.locator(".publication-steps .is-stopped").count(), 1);
   assert.equal(store.getAction(publication.id, actor).state, "cancelled");
   assert.equal(await modelRequests(), beforePublicationReload);
   assert.equal(store.db.prepare("SELECT COUNT(*) AS count FROM attempts").get().count, 0);
