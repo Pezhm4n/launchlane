@@ -5,6 +5,8 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { inspectProject } from "../../src/server/workspace/inspect.ts";
 import { AppError } from "../../src/server/errors.ts";
+import { SOURCE_MAX_FILE_BYTES, SOURCE_MAX_CONFIG_BYTES } from "../../src/contracts/source-limits.ts";
+import { containsSourceCredential, redact } from "../../src/server/policy/redaction.ts";
 
 const code = (expected: string) => (error: unknown) =>
   error instanceof AppError && error.code === expected;
@@ -97,11 +99,37 @@ test("traversal, private paths, symlink/junction escape and oversized files are 
     await symlink(join(f.root, "outside"), join(f.root, "app/link"), "junction");
     await assert.rejects(inspectProject(f.root, "app"), code("UNSAFE_PATH"));
     await rm(join(f.root, "app/link"));
-    await writeFile(join(f.root, "app/large.txt"), "x".repeat(512 * 1024 + 1));
-    await assert.rejects(inspectProject(f.root, "app"), code("SOURCE_LIMIT"));
+    await writeFile(join(f.root, "app/large.txt"), "x".repeat(SOURCE_MAX_FILE_BYTES + 1));
+    await assert.rejects(inspectProject(f.root, "app"), (error: unknown) =>
+      code("SOURCE_LIMIT")(error) && String(error).includes("large.txt") && String(error).includes("4096"));
   } finally {
     await f.cleanup();
   }
+});
+
+test("source vocabulary is accepted while credential assignments and exact installed secrets remain blocked", () => {
+  const benign = 'Motion tokens: subtle animations\n"js-tokens": "^4.0.0"\nRadius tokens: `radius.sm=24px`';
+  assert.equal(containsSourceCredential(benign), false);
+  // Log redaction stays conservative, independently of the source classifier.
+  assert.notEqual(redact(benign), benign);
+  for (const key of ["token", "authToken", "api_key", "SERVICE_TOKEN", "password", "clientSecret", "authorization", "tokenValue", "passwordHash"])
+    assert.equal(containsSourceCredential(JSON.stringify({ [key]: "do-not-publish" })), true, key);
+  for (const value of ['fetch("https://name:private-value@example.com")', '"Bearer private-value"', '-----BEGIN RSA PRIVATE KEY-----\nprivate\n-----END RSA PRIVATE KEY-----'])
+    assert.equal(containsSourceCredential(value), true);
+  assert.equal(containsSourceCredential(benign, ["subtle animations"]), true);
+});
+
+test("a bounded data asset and normal lockfile/design vocabulary survive inspection; config stays smaller", async () => {
+  const f = await fixture();
+  try {
+    await writeFile(join(f.root, "app/data.json"), JSON.stringify({ rows: "x".repeat(3_949_880) }));
+    await writeFile(join(f.root, "app/package-lock.json"), '{"dependencies":{"js-tokens":"^4.0.0"}}');
+    await writeFile(join(f.root, "app/DESIGN.md"), "Motion tokens: subtle animations");
+    const profile = await inspectProject(f.root, "app");
+    assert.equal(profile.manifest.find((file) => file.path === "data.json")?.bytes, 3_949_891);
+    await writeFile(join(f.root, "app/package.json"), " ".repeat(SOURCE_MAX_CONFIG_BYTES + 1));
+    await assert.rejects(inspectProject(f.root, "app"), (error: unknown) => code("SOURCE_LIMIT")(error) && String(error).includes("package.json"));
+  } finally { await f.cleanup(); }
 });
 
 test("credential-bearing source is rejected without returning its content; cancellation is explicit", async () => {

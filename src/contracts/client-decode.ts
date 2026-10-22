@@ -15,6 +15,7 @@ import { parseConnection } from "./connections.ts";
 import { parseWorkloadExpectation, parseWorkloadTarget, parseDeploymentProgress } from "./deployment.ts";
 import { parseRestartProgress } from "./restart.ts";
 import { parseNodeRuntime, parseNodeVersion } from "./node-runtime.ts";
+import { sourceFileByteLimit, SOURCE_MAX_BYTES, SOURCE_MAX_FILES } from "./source-limits.ts";
 
 function nullableString(value: unknown, max = 256): string | null {
   return value === null ? null : string(value, max);
@@ -179,7 +180,7 @@ export function decodeProfile(value: unknown): ProjectProfile {
     "runtime پاسخ معتبر نیست.",
   );
   ensure(
-    Array.isArray(raw.manifest) && raw.manifest.length <= 1000,
+    Array.isArray(raw.manifest) && raw.manifest.length <= SOURCE_MAX_FILES,
     "INVALID_RESPONSE",
     "manifest پاسخ معتبر نیست.",
   );
@@ -195,14 +196,15 @@ export function decodeProfile(value: unknown): ProjectProfile {
     missing: strings(raw.missing),
     manifest: raw.manifest.map((value: unknown) => {
       const entry = object(value);
+      const path = string(entry.path, 512);
       return {
-        path: string(entry.path, 512),
-        bytes: integer(entry.bytes, 0, 512 * 1024),
+        path,
+        bytes: integer(entry.bytes, 0, sourceFileByteLimit(path)),
         sha256: string(entry.sha256, 64),
       };
     }),
     sourceHash: string(raw.sourceHash, 64),
-    totalBytes: integer(raw.totalBytes, 0, 20 * 1024 * 1024),
+    totalBytes: integer(raw.totalBytes, 0, SOURCE_MAX_BYTES),
     excludedCount: integer(raw.excludedCount, 0, 5000),
     inspectedAt: string(raw.inspectedAt),
   };

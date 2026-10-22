@@ -48,7 +48,7 @@ export function under(root: string, target: string): boolean {
 }
 export function checkName(name: string): void {
   ensure(
-    name.length > 0 && name.length <= 160 && /^[\p{L}\p{N}._ @()+-]+$/u.test(name),
+    name.length > 0 && name.length <= 160 && /^[\p{L}\p{N}._ @()+[\]-]+$/u.test(name),
     "UNSAFE_PATH",
     "نام یکی از فایل‌ها پشتیبانی نمی‌شود؛ نام ساده‌تری انتخاب کنید.",
   );

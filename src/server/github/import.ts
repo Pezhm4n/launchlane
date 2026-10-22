@@ -1,4 +1,5 @@
 import { lstat, mkdir, readdir, realpath, rm, writeFile } from "node:fs/promises";
+import type { Stats } from "node:fs";
 import { dirname, join } from "node:path";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -8,6 +9,7 @@ import { string } from "../../contracts/validation.ts";
 import { AppError, ensure } from "../errors.ts";
 import { checkName, excludedPath, sourceFileAllowed, under } from "../workspace/paths.ts";
 import type { SourceFile } from "../workspace/inspect.ts";
+import { SOURCE_MAX_BYTES, SOURCE_MAX_FILES, SOURCE_MAX_ENTRIES, sourceFileByteLimit, sourceFileLimitMessage } from "../../contracts/source-limits.ts";
 
 export function projectSubdirectory(value: unknown): string {
   const path = string(value, 240);
@@ -51,7 +53,7 @@ export async function unpackGitHubArchive(
     void (async () => {
       ensure(!signal.aborted, "CANCELLED", "دریافت پروژه لغو شد.", 409);
       ensure(
-        ++entries <= 5000,
+        ++entries <= SOURCE_MAX_ENTRIES,
         "GITHUB_DOWNLOAD_LIMIT",
         "تعداد فایل‌های مخزن بیش از سقف ورود مستقیم است.",
         413,
@@ -105,13 +107,16 @@ export async function unpackGitHubArchive(
           502,
         );
         ensure(
-          Number.isSafeInteger(header.size) &&
-            header.size >= 0 &&
-            header.size <= 524_288 &&
-            total + header.size <= 20_971_520 &&
-            files.length < 1000,
+          Number.isSafeInteger(header.size) && header.size >= 0,
+          "GITHUB_ARCHIVE_INVALID",
+          "اندازه فایل مخزن معتبر نیست.",
+          502,
+        );
+        ensure(header.size <= sourceFileByteLimit(output), "GITHUB_DOWNLOAD_LIMIT", sourceFileLimitMessage(output), 413);
+        ensure(
+          total + header.size <= SOURCE_MAX_BYTES && files.length < SOURCE_MAX_FILES,
           "GITHUB_DOWNLOAD_LIMIT",
-          "فایل‌های پروژه بیش از سقف بررسی محلی هستند. پروژه کوچک‌تری انتخاب کنید.",
+          "مجموع فایل‌های انتخاب‌شده از سقف ۲۰ مگابایت یا ۱۰۰۰ فایل بیشتر است. پوشه یک برنامه کوچک‌تر را انتخاب کنید.",
           413,
         );
       }
@@ -122,7 +127,7 @@ export async function unpackGitHubArchive(
         if (keep) {
           count += part.length;
           ensure(
-            count <= 524_288 && total + count <= 20_971_520,
+            count <= sourceFileByteLimit(output) && total + count <= SOURCE_MAX_BYTES,
             "GITHUB_DOWNLOAD_LIMIT",
             "حجم فایل‌های پروژه بیش از سقف مجاز است.",
             413,
@@ -235,8 +240,24 @@ export async function persistGitHubSource(
     );
     return destination;
   } catch (error) {
-    if (under(base, destination) && destination !== base)
-      await rm(destination, { recursive: true, force: true });
+    await discardGitHubSource(stateDir, id);
     throw error;
   }
+}
+
+export async function discardGitHubSource(stateDir: string, id: string): Promise<void> {
+  ensure(/^[a-f0-9-]{36}$/.test(id), "INVALID_INPUT", "شناسه پروژه معتبر نیست.");
+  const root = await realpath(stateDir), base = join(root, "github-sources"), target = join(base, id);
+  const stat = await lstat(base);
+  ensure(stat.isDirectory() && !stat.isSymbolicLink() && (await realpath(base)) === base,
+    "UNSAFE_PATH", "پوشه نگهداری پروژه امن نیست؛ پاک‌سازی متوقف شد.", 503);
+  let targetStat: Stats;
+  try { targetStat = await lstat(target); }
+  catch (error) {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT") return;
+    throw error;
+  }
+  ensure(targetStat.isDirectory() && !targetStat.isSymbolicLink() && under(base, target) && target !== base && (await realpath(target)) === target,
+    "UNSAFE_PATH", "مسیر پروژه تغییر کرده است؛ پاک‌سازی متوقف شد.", 503);
+  await rm(target, { recursive: true, force: true });
 }

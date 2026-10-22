@@ -6,7 +6,7 @@ import type { Config } from "../config.ts";
 import { connectedLiaraConfig } from "../connections/liara.ts";
 import { AppError, ensure } from "../errors.ts";
 import type { GitHubClient } from "../github/client.ts";
-import { persistGitHubSource, projectSubdirectory, unpackGitHubArchive } from "../github/import.ts";
+import { discardGitHubSource, persistGitHubSource, projectSubdirectory, unpackGitHubArchive } from "../github/import.ts";
 import { connectedGitHub } from "../github/login.ts";
 import type { Store } from "../persistence/store.ts";
 import { authorizeScope, fingerprint } from "../policy/action.ts";
@@ -52,8 +52,9 @@ export async function prepareProjectFlow(
     429,
   );
   preparing = true;
+  const id = randomUUID();
+  let imported = false;
   try {
-    const id = randomUUID();
     if (selection.kind === "sample")
       ensure(
         selection.directory === "examples/node-service",
@@ -82,6 +83,7 @@ export async function prepareProjectFlow(
         signal,
       );
       await persistGitHubSource(config.stateDir, id, files, signal);
+      imported = true;
     }
     const location = projectRoot(config, { id, selection }),
       privateValues = secrets(config);
@@ -120,6 +122,16 @@ export async function prepareProjectFlow(
       updatedAt: Date.now(),
       actionId: null,
     });
+  } catch (error) {
+    if (imported) {
+      try {
+        // A committed flow owns its snapshot, including when a response is lost after persistence.
+        if (!store.getProjectFlow(actorId, id)) await discardGitHubSource(config.stateDir, id);
+      } catch {
+        throw new AppError("GITHUB_CLEANUP_UNAVAILABLE", "بررسی پروژه کامل نشد و پاک‌سازی فایل‌های موقت ممکن نبود. پروژه قبلی حفظ شده است؛ از مسئول نصب برای بررسی فضای ذخیره‌سازی کمک بگیرید.", 503);
+      }
+    }
+    throw error;
   } finally {
     preparing = false;
   }

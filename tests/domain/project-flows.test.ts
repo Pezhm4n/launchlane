@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, rm, readdir, symlink, access } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -13,13 +13,14 @@ import {
   restoreProjectFlow,
   validateProjectAction,
 } from "../../src/server/application/project-flows.ts";
-import { unpackGitHubArchive } from "../../src/server/github/import.ts";
+import { discardGitHubSource, unpackGitHubArchive } from "../../src/server/github/import.ts";
 import { GitHubClient } from "../../src/server/github/client.ts";
 import { Store } from "../../src/server/persistence/store.ts";
 import { AppError } from "../../src/server/errors.ts";
-import type { ProjectSelection } from "../../src/contracts/project-flow.ts";
+import type { ProjectFlow, ProjectSelection } from "../../src/contracts/project-flow.ts";
 import { sealCredential } from "../../src/server/connections/credentials.ts";
 import { connectLiara } from "../../src/server/connections/liara.ts";
+import { SOURCE_MAX_FILE_BYTES, SOURCE_MAX_CONFIG_BYTES } from "../../src/contracts/source-limits.ts";
 const code = (expected: string) => (error: unknown) =>
   error instanceof AppError && error.code === expected;
 const scope = { teamId: "a".repeat(24), app: "sample-app" },
@@ -58,6 +59,110 @@ async function tar(
   await collect;
   return gzipSync(Buffer.concat(chunks));
 }
+
+function importedClient(archive: Buffer, revision: string) {
+  return new GitHubClient(async (path) => ({
+    status: 200, hasNext: false, rateLimited: false,
+    body: path.includes("tarball") ? archive : Buffer.from(JSON.stringify(
+      path.includes("branches") ? { name: "feature/ui", commit: { sha: revision } } : {
+        id: 17, name: "fresh-node", owner: { login: "synthetic-owner" },
+        full_name: "synthetic-owner/fresh-node", private: true, default_branch: "feature/ui",
+      },
+    )),
+  }));
+}
+
+test("GitHub imports keep bounded data assets and reject individual, aggregate and config excess", async () => {
+  const f = await fixture(), revision = "e".repeat(40), data = JSON.stringify({ rows: "x".repeat(3_949_880) });
+  const selection: ProjectSelection = { kind: "github", owner: "synthetic-owner", name: "fresh-node", repositoryId: 17, branch: "feature/ui", revision, directory: "." };
+  try {
+    const flow = await prepareProjectFlow(f.config, f.store, "alice", selection, signal(), importedClient(await tar([
+      { name: "repo/package.json", content: packageText },
+      { name: "repo/server.mjs", content: "app.listen(3000)" },
+      { name: "repo/data.json", content: data },
+      { name: "repo/package-lock.json", content: '{"dependencies":{"js-tokens":"^4.0.0"}}' },
+      { name: "repo/DESIGN.md", content: "Motion tokens: subtle animations" },
+    ]), revision));
+    assert.equal(flow.status, "ready");
+    assert.equal(flow.profile.manifest.find((file) => file.path === "data.json")?.bytes, Buffer.byteLength(data));
+    assert.equal((await restoreProjectFlow(f.config, f.store, "alice", signal(), flow.id))?.profile.sourceHash, flow.profile.sourceHash);
+    for (const [path, limit] of [["large.json", SOURCE_MAX_FILE_BYTES], ["package.json", SOURCE_MAX_CONFIG_BYTES]] as const) {
+      await assert.rejects(unpackGitHubArchive(await tar([{ name: `repo/${path}`, content: "x".repeat(limit + 1) }]), ".", signal()),
+        (error: unknown) => code("GITHUB_DOWNLOAD_LIMIT")(error) && String(error).includes(path));
+    }
+    await assert.rejects(unpackGitHubArchive(await tar(Array.from({ length: 6 }, (_, index) => ({ name: `repo/${index}.txt`, content: "x".repeat(SOURCE_MAX_FILE_BYTES) }))), ".", signal()), code("GITHUB_DOWNLOAD_LIMIT"));
+  } finally { f.store.close(); await f.cleanup(); }
+});
+
+test("failed GitHub inspections do not consume snapshot slots or replace the last valid project", async () => {
+  const f = await fixture(), revision = "e".repeat(40);
+  const selection: ProjectSelection = { kind: "github", owner: "synthetic-owner", name: "fresh-node", repositoryId: 17, branch: "feature/ui", revision, directory: "apps/web" };
+  const client = importedClient(await tar([{ name: "repo/apps/web/package.json", content: "{ invalid JSON" }]), revision);
+  try {
+    const previous = await prepareProjectFlow(f.config, f.store, "alice", { kind: "local", directory: "app" }, signal());
+    for (let attempt = 0; attempt < 18; attempt++) {
+      await assert.rejects(prepareProjectFlow(f.config, f.store, "alice", selection, signal(), client), code("INVALID_PROJECT"));
+      assert.equal(f.store.getProjectFlow("alice")?.id, previous.id);
+      assert.deepEqual(await readdir(join(f.config.stateDir, "github-sources")), []);
+    }
+    assert.equal(f.store.listActions("alice").length, 0);
+  } finally { f.store.close(); await f.cleanup(); }
+});
+
+test("a pinned Node subproject preserves safe bracket filenames without executing retrieved code", async () => {
+  const f = await fixture(), revision = "e".repeat(40);
+  const selection: ProjectSelection = { kind: "github", owner: "synthetic-owner", name: "fresh-node", repositoryId: 17, branch: "feature/ui", revision, directory: "apps/web" };
+  const client = importedClient(await tar([
+    { name: "repo/apps/web/package.json", content: packageText },
+    { name: "repo/apps/web/server.mjs", content: "throw new Error('never execute retrieved code'); app.listen(3000)" },
+    { name: "repo/apps/web/src/routes/[slug].ts", content: "export const route = '[slug]';" },
+    { name: "repo/apps/web/.env.local", content: "PRIVATE=excluded" },
+    { name: "repo/other/package.json", content: "{ invalid" },
+  ]), revision);
+  try {
+    const flow = await prepareProjectFlow(f.config, f.store, "alice", selection, signal(), client);
+    assert.equal(flow.status, "ready");
+    assert.deepEqual(flow.profile.manifest.map((row) => row.path), ["package.json", "server.mjs", "src/routes/[slug].ts"]);
+    assert.equal((await restoreProjectFlow(f.config, f.store, "alice", signal(), flow.id))?.profile.sourceHash, flow.profile.sourceHash);
+    assert.ok(flow.artifact);
+  } finally { f.store.close(); await f.cleanup(); }
+});
+
+test("a committed GitHub flow retains its snapshot when a local response is lost after the commit", async (t) => {
+  const f = await fixture(), revision = "e".repeat(40);
+  const selection: ProjectSelection = { kind: "github", owner: "synthetic-owner", name: "fresh-node", repositoryId: 17, branch: "feature/ui", revision, directory: "." };
+  const client = importedClient(await tar([
+    { name: "repo/package.json", content: packageText },
+    { name: "repo/server.mjs", content: "app.listen(3000)" },
+  ]), revision);
+  const save = f.store.saveProjectFlow.bind(f.store);
+  t.mock.method(f.store, "saveProjectFlow", (actor: string, flow: ProjectFlow) => {
+    save(actor, flow);
+    throw new AppError("SYNTHETIC_RESPONSE_LOST", "Synthetic local response lost", 503);
+  });
+  try {
+    await assert.rejects(prepareProjectFlow(f.config, f.store, "alice", selection, signal(), client), code("SYNTHETIC_RESPONSE_LOST"));
+    const saved = f.store.getProjectFlow("alice");
+    assert.ok(saved);
+    assert.deepEqual(await readdir(join(f.config.stateDir, "github-sources")), [saved.id]);
+    assert.equal((await restoreProjectFlow(f.config, f.store, "alice", signal(), saved.id))?.status, "ready");
+  } finally { f.store.close(); await f.cleanup(); }
+});
+
+test("snapshot cleanup refuses a junction at either the storage base or the snapshot", async () => {
+  for (const linkedBase of [true, false]) {
+    const f = await fixture(), id = randomUUID(), outside = join(f.root, "outside");
+    try {
+      await mkdir(outside);
+      await writeFile(join(outside, "retained.txt"), "must remain");
+      const base = join(f.config.stateDir, "github-sources");
+      if (!linkedBase) await mkdir(base);
+      await symlink(outside, linkedBase ? base : join(base, id), "junction");
+      await assert.rejects(discardGitHubSource(f.config.stateDir, id), code("UNSAFE_PATH"));
+      await access(join(outside, "retained.txt"));
+    } finally { f.store.close(); await f.cleanup(); }
+  }
+});
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), "launchlane-flow-")),
     stateDir = join(root, "state");
@@ -385,7 +490,7 @@ test("malicious archives reject traversal, symlinks, duplicate Windows names, in
       { name: "repo/Case.js", content: "one" },
       { name: "repo/case.js", content: "two" },
     ],
-    [{ name: "repo/huge.js", content: "x".repeat(524289) }],
+    [{ name: "repo/huge.js", content: "x".repeat(SOURCE_MAX_FILE_BYTES + 1) }],
   ] as const)
     await assert.rejects(unpackGitHubArchive(await tar([...entries]), ".", signal()));
   await assert.rejects(

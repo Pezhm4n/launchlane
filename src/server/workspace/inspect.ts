@@ -7,7 +7,8 @@ import { hasControl, object } from "../../contracts/validation.ts";
 import { AppError, ensure } from "../errors.ts";
 import { resolveNodeRuntime } from "./node-runtime.ts";
 import { fingerprint } from "../policy/action.ts";
-import { containsCredential } from "../policy/redaction.ts";
+import { containsSourceCredential } from "../policy/redaction.ts";
+import { SOURCE_MAX_FILES, SOURCE_MAX_ENTRIES, SOURCE_MAX_BYTES, sourceFileByteLimit, sourceFileLimitMessage } from "../../contracts/source-limits.ts";
 import {
   checkName,
   excludedPath,
@@ -18,12 +19,8 @@ import {
 } from "./paths.ts";
 export { excludedPath } from "./paths.ts";
 
-const MAX_FILES = 1000;
-const MAX_ENTRIES = 5000;
-const MAX_BYTES = 20 * 1024 * 1024;
-const MAX_FILE_BYTES = 512 * 1024;
-
 async function readSafeFile(root: string, path: string): Promise<Buffer> {
+  const relativePath = relative(root, path).split(sep).join("/"), limit = sourceFileByteLimit(relativePath);
   const resolved = await realpath(path);
   ensure(under(root, resolved), "UNSAFE_PATH", "فایل بیرون workspace است.", 403);
   const before = await lstat(path);
@@ -34,9 +31,9 @@ async function readSafeFile(root: string, path: string): Promise<Buffer> {
     403,
   );
   ensure(
-    before.size <= MAX_FILE_BYTES,
+    before.size <= limit,
     "SOURCE_LIMIT",
-    "یک فایل از سقف بررسی source بزرگ‌تر است.",
+    sourceFileLimitMessage(relativePath),
     413,
   );
   // O_NOFOLLOW is supported on POSIX; canonical + lstat checks also run on Windows.
@@ -52,7 +49,7 @@ async function readSafeFile(root: string, path: string): Promise<Buffer> {
       "source هنگام بررسی تغییر کرد؛ دوباره بررسی کنید.",
       409,
     );
-    const buffer = Buffer.alloc(MAX_FILE_BYTES + 1);
+    const buffer = Buffer.alloc(before.size + 1);
     let bytes = 0;
     while (bytes < buffer.length) {
       const part = await handle.read(buffer, bytes, buffer.length - bytes, null);
@@ -60,7 +57,7 @@ async function readSafeFile(root: string, path: string): Promise<Buffer> {
       bytes += part.bytesRead;
     }
     ensure(
-      bytes === before.size && bytes <= MAX_FILE_BYTES,
+      bytes === before.size && bytes <= limit,
       "SOURCE_CHANGED",
       "source هنگام بررسی تغییر کرد؛ دوباره بررسی کنید.",
       409,
@@ -83,7 +80,7 @@ async function readSafeFile(root: string, path: string): Promise<Buffer> {
 function safeScript(value: unknown): string | null {
   if (typeof value !== "string" || !value || value.length > 256 || hasControl(value)) return null;
   ensure(
-    !containsCredential(value),
+    !containsSourceCredential(value),
     "SENSITIVE_SOURCE",
     "یک script مقدار حساس دارد؛ آن را به متغیر محیطی منتقل کنید.",
   );
@@ -141,7 +138,7 @@ async function scanProject(
     // Enforce the enumeration bound before a large directory is materialized in memory.
     for await (const entry of await opendir(folder, { bufferSize: 32 })) {
       ensure(!options.signal?.aborted, "CANCELLED", "بررسی پروژه لغو شد.", 409);
-      ensure(++seen <= MAX_ENTRIES, "SOURCE_LIMIT", "تعداد فایل‌ها بیشتر از سقف بررسی است.", 413);
+      ensure(++seen <= SOURCE_MAX_ENTRIES, "SOURCE_LIMIT", "تعداد فایل‌ها بیشتر از سقف بررسی است.", 413);
       entries.push(entry);
     }
     entries.sort((a, b) => a.name.localeCompare(b.name, "en"));
@@ -171,18 +168,18 @@ async function scanProject(
       }
       const content = await readSafeFile(target, path);
       ensure(
-        manifest.length < MAX_FILES && totalBytes + content.length <= MAX_BYTES,
+        manifest.length < SOURCE_MAX_FILES && totalBytes + content.length <= SOURCE_MAX_BYTES,
         "SOURCE_LIMIT",
         "حجم یا تعداد source بیشتر از سقف مجاز است.",
         413,
       );
       const text = content.toString("utf8");
-      ensure(
-        !containsCredential(text, options.secrets),
-        "SENSITIVE_SOURCE",
-        "source شامل مقدار حساس احتمالی است؛ آن را به env منتقل و دوباره بررسی کنید.",
-      );
       const relativePath = relative(target, path).split(sep).join("/");
+      ensure(
+        !containsSourceCredential(text, options.secrets),
+        "SENSITIVE_SOURCE",
+        `فایل «${relativePath}» احتمالاً مقدار محرمانه دارد. آن را به متغیر محیطی منتقل و پروژه را دوباره بررسی کنید.`,
+      );
       ensure(relativePath.length <= 512, "UNSAFE_PATH", "مسیر یک فایل بیش از حد بلند است.", 403);
       manifest.push({
         path: relativePath,
