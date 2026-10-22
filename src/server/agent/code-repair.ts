@@ -126,6 +126,8 @@ export function runRepairTests(
     "--test-isolation=none",
     "--test-reporter=tap",
     "--test",
+    // Source-owned filenames must never become interpreter options.
+    "--",
     ...testFiles,
   ];
   // No shell, package manager, inherited NODE_OPTIONS, credentials, addon, worker or child-process grants.
@@ -171,7 +173,7 @@ export function runRepairTests(
         (match) => !automaticFileNames.has(match[1] ?? ""),
       );
       resolve({
-        command: `node --test ${testFiles.join(" ")}`,
+        command: `node --test -- ${testFiles.join(" ")}`,
         exitCode,
         signal: killedBy,
         output: redact(

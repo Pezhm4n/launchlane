@@ -225,3 +225,22 @@ test("an empty, skipped or early-exit test run is not a passing repair receipt",
     f.close();
   }
 });
+
+test("source-owned test filenames cannot be interpreted as Node command options", async () => {
+  const f = await agentFixture();
+  try {
+    writeFileSync(
+      join(f.project, "--help.test.mjs"),
+      "import {test} from 'node:test';import assert from 'node:assert/strict';test('literal test filename',()=>assert.equal(2+3,5));\n",
+    );
+    const result = await runRepairTests(
+      f.project,
+      ["--help.test.mjs"],
+      AbortSignal.timeout(4000),
+      [],
+    );
+    assert.equal(result.passed, true, result.output);
+  } finally {
+    f.close();
+  }
+});

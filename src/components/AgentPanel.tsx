@@ -365,7 +365,7 @@ export function AgentPanel({
                   ))}
                 </ul>
                 <p className="hint">همین آزمون موجود، پیش و پس از اصلاح اجرا می‌شود:</p>
-                <code dir="ltr">node --test {run.repair.testFiles.join(" ")}</code>
+                <code dir="ltr">node --test -- {run.repair.testFiles.join(" ")}</code>
                 <p className="hint">
                   فرمان در نسخه جدا با دسترسی محدود Node اجرا می‌شود. پوشه اصلی تغییر نمی‌کند. این
                   اجرا محیط مجازی با شبکه جدا نیست.
