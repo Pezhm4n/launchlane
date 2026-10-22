@@ -1484,22 +1484,27 @@ export function Workbench() {
                       </ol>
                       <p className="hint">{journeyHint}</p>
                     </section>
-                    <section className="panel">
-                      <h2>مقصد انتشار</h2>
-                      <p>
+                    <section
+                      className="panel destination-panel"
+                      aria-labelledby="publish-destination-title"
+                    >
+                      <h2 id="publish-destination-title">مقصد انتشار</h2>
+                      <div className="destination-target">
                         {connected ? (
                           <>
-                            {liara?.teamName} /{" "}
-                            <bdi>{liara?.selectedApp || "برنامه انتخاب نشده"}</bdi>
+                            <span>{liara?.teamName}</span>
+                            <strong>
+                              <bdi>{liara?.selectedApp || "برنامه انتخاب نشده"}</bdi>
+                            </strong>
                           </>
                         ) : (
-                          "حساب لیارا متصل نشده است."
+                          <span>حساب لیارا متصل نشده است.</span>
                         )}
-                      </p>
+                      </div>
                       {connected ? (
                         <button
                           type="button"
-                          className="button-secondary"
+                          className="button-secondary destination-action"
                           disabled={disabled}
                           onClick={openAccounts}
                         >
