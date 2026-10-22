@@ -1,13 +1,13 @@
 # قرارداد و وضعیت API لیارا
 
-## توسعه Agent؛ قراردادهای planned
+## توسعه Agent؛ وضعیت جاری و قراردادهای باز
 
-برنامه Agent در [agent-experience](agent-experience.md) و A00–A19 تعریف شده است. این بخش **دامنه توسعه** را ثبت می‌کند و وضعیت live جدول‌های قبلی را تغییر نمی‌دهد. ساخت app/network که در harness آزمون انجام شد، هنوز ابزار محصول نیست؛ parser و executor فعلی را بدون پیاده‌سازی تازه توانمندتر معرفی نکنیم.
+برنامه Agent در [agent-experience](agent-experience.md) و A00–A19 تعریف شده است. ساخت Node app با شبکه موجود و ادامه به انتشار همان artifact اکنون ابزار محصول است و چرخه واقعی وب دارد؛ ساخت شبکه، env و resize هنوز بازند. وضعیت documented با implementation و شاهد زنده یکی نیست.
 
 | قابلیت آینده | منبع قرارداد و نیاز تطبیق | وضعیت این طرح |
 | --- | --- | --- |
-| catalog و انتخاب plan/هزینه | اطلاعات واقعی حساب/تیم و منبع رسمی قیمت؛ unit و دوره صورتحساب | catalog و quote انتخابی implemented/live-read؛ snapshot/واحد/زمان/جایگزین و credit یک ساعت پایه؛ ظرفیت benchmark نشده و approval ساخت/resize باز |
-| create app و تغییر plan | [PaaS](https://developers.liara.ir/pages/paas.md)، پاسخ واقعی حساب و ID پایدار | planned؛ AC21/23 و journal تازه |
+| catalog و انتخاب plan/هزینه | اطلاعات واقعی حساب/تیم و منبع رسمی قیمت؛ unit و دوره صورتحساب | catalog و quote implemented/live-read؛ snapshot/واحد/زمان/جایگزین و credit یک ساعت پایه؛ approval ساخت همان quote را می‌بندد؛ ظرفیت benchmark نشده و resize باز |
+| create app و تغییر plan | [PaaS](https://developers.liara.ir/pages/paas.md)، پاسخ واقعی حساب و ID پایدار | create محدود Node با v8/journal/هویت برگشتی و وب واقعی سنجیده شد؛ تغییر plan planned |
 | update env | [Update envs](https://developers.liara.ir/pass/settings/update-envs.md)، merge/replace و readback باید تطبیق داده شوند | planned؛ AC22، secret reference و حفظ env موجود |
 | database/disk و اتصال امن | [DBaaS](https://developers.liara.ir/pages/dbaas.md) و PaaS disks؛ capability مورد استفاده با حساب بررسی شود | planned؛ credential تولیدشده از context مدل جدا |
 | domain/HTTPS | [PaaS](https://developers.liara.ir/pages/paas.md) و [DNS](https://developers.liara.ir/pages/dns.md)، مالکیت و نتیجه واقعی | راهنمای محلی موجود؛ عملیات جدید planned |
@@ -17,23 +17,25 @@ registry ابزار Agent، قرارداد داخلی host است؛ مدل path/
 
 transport تشخیص تاریخی، ابزار تک‌منظوره evidence را حفظ می‌کند. runtime جدید Agent، registry چندابزاری و tool-result مطابق call ID دارد و با مدل واقعی منتخب در یک مسیر read و اصلاح محدود Node آزموده شده است؛ [گزارش Agent](evidence/agent-first-slice.md) حدود آن را ثبت می‌کند. parser و سقف feature قدیمی باز نشده‌اند. replay UI یا reconnect مدل را دوباره فراخوانی نمی‌کند. فرمان smoke فعلی همان آزمون محدود است؛ `test:browser` اکنون runner مجزای Agent با مدل مصنوعی و آزمون واقعی Node نیز دارد.
 
-برای بررسی عمومی HTML/API، WorkloadContract جدید اضافه شود. شکل receipt، parser و انتظار JSON/revision مسیرهای تاریخی بازنویسی نشوند. command، env key یا endpointی که هنوز implementation ندارد، در راهنمای اجرای جاری قرار نگیرد.
+WorkloadContract v7، HTML/متن و فیلد scalar در API را با همان receipt و artifact/account/release بررسی می‌کند. JSON/revision مسیرهای تاریخی حفظ شده‌اند؛ پروژه عادی به endpoint مصنوعی مجبور نیست. command، env key یا endpoint بدون implementation، فرمان جاری محسوب نمی‌شود.
 
 برش محلی T33، انتخاب کندی را به سه GET متوالی از همان origin/path مجاز متصل می‌کند؛ با دو کنترل هویت app و سایر خواندن‌ها، سقف لازم ده فراخوانی است. `https-get-body-v1` مدت اتصال تا پایان پاسخ کوتاه حداکثر 4096 بایت را با میلی‌ثانیه ثبت می‌کند؛ DNS و بارگذاری کامل صفحه در آن نیستند. مقایسه فقط برای سری کامل، مرتب، تازه، هم‌روش و همان حساب/app داخلی و fingerprint متن پاسخ **پس از redaction** انجام می‌شود. این fingerprint برابری همه محتوای اصلی یا محتوای محرمانه را اثبات نمی‌کند. تغییر پاسخ یا سری ناقص نتیجه نامشخص دارد؛ عدم هم‌پوشانی بازه فقط کمتر/بیشتربودن همین نمونه‌هاست، نه علت، ظرفیت، p95 یا رفع پایدار. parser واحد CPU/RAM همچنان unknown است؛ T33 زنده و AC10 کامل پذیرفته نشده‌اند. timeout با زمان صفر جایگزین و write یا retry ایجاد نمی‌شود.
 
 آخرین تطبیق محدود در ۲۰۲۶-۱۰-۲۲ انجام شد. هویت/تیم، برنامه Node آزمایشی، upload، release/current و پاسخ همان workload با API واقعی بررسی شدند؛ [trace کنترل‌شده](evidence/controlled-live-cycle.md) جزئیات و محدودیت‌ها را ثبت می‌کند. `documented`، `implemented_contract` و `live_verified` وضعیت‌های متفاوت‌اند.
 
-انتشار تازه، برنامه Node موجود و پیشنهاد v5 تأییدشده را لازم دارد؛ شاخه انتخاب‌شده Node نیز به approval بسته است. همان archive را در multipart `file` می‌فرستد؛ receipt دارای پسوند `.tar.gz` را پیش از release پایدار می‌کند. READY/current به‌تنهایی موفقیت نیست؛ status و JSON revision همان صفحه نیز باید تطبیق داشته باشند. سه انتشار چرخه قبلی با v4 و یک انتشار تازه v5 با Node صریح، در [آزمون restart](evidence/restart-live-cycle.md) سنجیده شدند. ساخت app/network در harness اپراتور بود و قابلیت محصول نیست.
+انتشار Agent با پیشنهاد v7، برنامه Node موجود یا تازه‌ساخته‌شده و approval مستقل انجام می‌شود؛ archive، شناسه داخلی مقصد، Node و oracle همان صفحه به تصمیم بسته‌اند. همان archive در multipart `file` ارسال و receipt پیش از release پایدار می‌شود. READY/current به‌تنهایی موفقیت نیست. مسیر دستی تاریخی v5 و شواهد v4/v5 در [آزمون restart](evidence/restart-live-cycle.md) محفوظ‌اند؛ [ساخت از وب](evidence/destination-provisioning.md) و [آماده‌سازی تا انتشار](evidence/project-preparation.md) شاهد نسخه جدیدند. network creation در محصول پیاده نیست.
 
 انتخاب Node بر پایه [مستند رسمی](https://docs.liara.ir/paas/nodejs/how-tos/choose-version/) و CLI نصب‌شده 9.4.7 است: `node.version` در liara.json به `platformConfig.version` در release می‌رسد. catalog مستند شاخه‌های 8/10/12/14/16/18/20/22/24 و پیش‌فرض 22 را دارد؛ availability حساب برای همه آن‌ها سنجیده نشده است. محدوده semver کامل بررسی می‌شود؛ انتخاب major، نسخه دقیق patch محیط را اثبات نمی‌کند. ارسال صریح نسخه 22 در یک release واقعی v5 سنجیده شد؛ endpoint نوشته‌شده با process.versions.node، runtime را 22.23.3 گزارش کرد. سایر majorها، patchها و پروژه‌ها live verified نیستند.
 
-در زیرساخت آزموده‌شده، logs از قرارداد v2 در CLI رسمی 9.4.7 می‌آیند و events ردیف lifecycle دارند. applets پاسخ 500 داد؛ واحد metric/event و حفظ secretها تأیید نشده‌اند. قیمت داخل پیشنهاد همچنان unknown است. gateهای Liara/mutation/model در نصب پیش‌فرض خاموش‌اند.
+در زیرساخت آزموده‌شده، logs از قرارداد v2 در CLI رسمی 9.4.7 می‌آیند و events ردیف lifecycle دارند. applets پاسخ500 داد؛ واحد metric/event و حفظ secretهای نامعلوم تأیید نشده‌اند. نرخ پایه ساخت از catalog واقعی می‌آید؛ هزینه نهایی و جانبی unknown است. gateهای Liara/mutation/model در نصب پیش‌فرض خاموش‌اند و فعال‌سازی مجازِ یک نصب، approval را حذف نمی‌کند.
 
 ## منابع معتبر
 
 - [Liara API و احراز هویت](https://docs.liara.ir/references/api/about/): PaaS روی `https://api.liara.ir`؛ header از نوع `Authorization: Bearer TOKEN`؛ در حالت تیم پارامتر `teamID` لازم است.
 - [مستندات توسعه‌دهندگان](https://developers.liara.ir/) و [فهرست](https://developers.liara.ir/llms.txt).
 - [OpenAPI PaaS](https://developers.liara.ir/spec/paas.yaml)، snapshot در [liara-paas.openapi.yaml](sources/liara-paas.openapi.yaml)، SHA-256: `a8b8ab24c0b2decf8a67a93a9fc935f93846a991f999d0c4ebb7478a6fc4d56d`، ۵۴۲۹۰ بایت. این فایل reference است و runtime config محسوب نمی‌شود.
+
+بازبینی تازه ۲۰۲۶-۱۰-۲۲ با فهرست رسمی و دانلود مجدد OpenAPI انجام شد؛ ۵۴۲۹۰ بایت و SHA-256 فعلی با snapshot بالا دقیقاً برابر بودند. endpoint تازه‌ای از توصیه CLI حدس زده نشد. CLI برای تطبیق قرارداد مفید است؛ اجرای آن جای application، approval و journal محصول را نمی‌گیرد. پورت6067 در release واقعی این برش با پاسخ200 همان workload سنجیده شد.
 - [CLI رسمی](https://github.com/liara-cloud/cli) در صورت نیاز fallback؛ ساختار command در نسخه نصب‌شده با help بررسی شود. کلون تحقیقی آن خواندن جامع همه کد یا تست آن محسوب نمی‌شود.
 
 ## endpointهای مستند مرتبط
@@ -43,7 +45,7 @@ transport تشخیص تاریخی، ابزار تک‌منظوره evidence را
 | Capability | روش و مسیر مستند | جزئیات مهم | وضعیت |
 | --- | --- | --- | --- |
 | فهرست و جزئیات app | `GET /v1/projects`، `GET /v1/projects/{name}` | app در scope کاربر؛ response validate شود | live_verified محدود به تیم و Node app آزمون |
-| ساخت app | `POST /v1/projects` | schema شامل `name,planID,platform,readOnlyRootFilesystem,network` است؛ نبود required کامل در schema مجوز حدس نیست | documented / approval required |
+| ساخت app | `POST /v1/projects` | schema مستند با bundle/هویت برگشتی واقعی تکمیل و در v8 بسته شده است؛ نبود required کامل در schema مجوز حدس نیست | bounded_live_verified / approval required؛ فقط Node/شبکه موجود |
 | source upload | `POST /v2/projects/{name}/sources` | multipart، field `file`؛ نتیجه source filename با پسوند `.tar.gz`؛ manifest/hash و exclude secrets پیش از upload | live_verified محدود؛ approval required |
 | release | `POST /v2/projects/{name}/releases` | body schema شامل `sourceID,port,type`؛ نتیجه `releaseID`؛ accepted پایان deploy نیست | live_verified پذیرش محدود؛ approval required |
 | تاریخچه release | `GET /v1/projects/{name}/releases` | `page/count`، currentRelease و BUILDING/READY روی app آزمون تطبیق داده شدند | live_verified محدود |
@@ -95,4 +97,4 @@ transport تشخیص تاریخی، ابزار تک‌منظوره evidence را
 
 ## ساخت مقصد محدود؛ ActionSpec v8
 
-`POST /v1/projects?teamID` با name/planID/bundlePlanID/platform=node/network/readOnlyRootFilesystem به ID داخلی `projectID` پاسخ می‌دهد؛ این field با حساب واقعی تطبیق داده شد. application ساخت، actor/account/source/cost/network را پیش از claim بازبینی و ID را قبل از readback ذخیره می‌کند. GET همان نام باید همان ID و تنظیمات را برگرداند. نام موجود adopt نمی‌شود و پاسخ write نامعلوم، retry یا انتخاب بر اساس نام ایجاد نمی‌کند. حدود فعلی Node/پلن ایران/شبکه موجود، APIهای محلی و مرز real/synthetic در [شاهد مقصد](evidence/destination-provisioning.md) آمده‌اند. این شاهدِ env یا مسیر تازه Agent/UI نیست.
+`POST /v1/projects?teamID` با name/planID/bundlePlanID/platform=node/network/readOnlyRootFilesystem به ID داخلی `projectID` پاسخ می‌دهد؛ این field با حساب واقعی تطبیق داده شد. application ساخت، actor/account/source/cost/network را پیش از claim بازبینی و ID را قبل از readback ذخیره می‌کند. GET همان نام باید همان ID و تنظیمات را برگرداند. نام موجود adopt نمی‌شود و پاسخ write نامعلوم، retry یا انتخاب بر اساس نام ایجاد نمی‌کند. حدود فعلی Node/پلن ایران/شبکه موجود، APIهای محلی و مرز real/synthetic در [شاهد مقصد](evidence/destination-provisioning.md) آمده‌اند؛ Agent/UI و ادامه به انتشار شاهد زنده دارند. env و network creation همچنان بازند.

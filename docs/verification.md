@@ -2,6 +2,16 @@
 
 شواهد جاری ابتدا و سابقه مراحل پیشین پایین‌تر ثبت شده‌اند. هر نتیجه به revision و شرایط خودش تعلق دارد؛ نتایج bootstrap جای قابلیت محصول و fixture جای اتصال زنده نیست.
 
+## آماده‌سازی واقعی تا انتشار و نصب فعال؛ ae9a5f9
+
+[گزارش این برش](evidence/project-preparation.md) شکست‌های حفظ‌شده و نتیجه بعد از اصلاح را ثبت می‌کند. دو پروژه فاقد start و دارای پورت ناسازگار، با۱۴ درخواست واقعی مدل، همان تست fail→pass، source اصلی محفوظ و همان artifact انتخاب‌شده گذشتند. direct test و npm start روی همان workspace با image ثابت Node22.23.3 نیز HTTP200 درست دادند؛ Docker راستی‌آزمایی مستقل بود و executor محصول نیست.
+
+یک هدف تازه در وب، source فاقد start را تا اصلاح/تست، ساخت مقصد با هزینه/ID معتبر، انتشار همان artifact و پاسخ200/calendar-ready پیش برد. سه تصمیم داخل مرورگر ثبت شدند. READY همراه503 موفقیت نشد و readback محدود بدون oracle تازه یا write تکراری به پاسخ درست رسید. ۱۲ model call، 46,780 token گزارش‌شده، ۴۵ tool call و191,787ms ثبت شدند. دفتر provider یک create/upload/release/delete و۳۶ GET دارد؛ پس از تطبیق ID، حذف و absence404 تأیید شد. reload مدل یا write تازه نساخت. env و ساخت شبکه اجرا نشدند.
+
+همین backend در export ثابت با UI پیش از4cee36d، lint/typecheck/build، domain227/227، HTTP21/21 و شش suite browser75/27/27/22/20/5 را گذراند. suiteهای مرورگر مصنوعی‌اند؛ model/provider چرخه‌های بالا واقعی‌اند. روی نصب اصلی main نیز پس از فعال‌سازی مجازِ چهار gate، یک درخواست چت فقط‌خواندنی با دو فراخوانی واقعی مدل و reload بدون replay و صفر pageerror گذشت؛ API، analysis/serviceReads=true داشت و پیام خاموش‌بودن نبود. این شاهد کارکرد نصب اصلی است؛ بازآرایی همزمان UI و پذیرش عمومی همه پروژه‌ها از آن نتیجه نمی‌شود.
+
+منبع معرفی‌شده توسعه‌دهندگان دوباره بررسی شد؛ OpenAPI فعلی با snapshot commit‌شده بایت‌به‌بایت و SHA-256 برابر بود. README، API capabilities و A02/A03/A05/A07/A08/A18/A19 با این شواهد تطبیق شدند. نصب‌های تازه همچنان gateهای off دارند؛ نصب اصلی این آزمون با درخواست مالک فعال ماند. صورت‌حساب، اعتبار باقی‌مانده مدل، reader تازه، screen reader، build/dependency عمومی، env و کل مأموریت همچنان از این شاهد محدود پذیرفته نمی‌شوند.
+
 ## بازبینی تناسب و خوانایی UI؛ working tree پس از bb06e41
 
 مرور اندازه و تناسب کامپوننت/دکمه/فونت در 320/360/768/1280 روی build همین تغییرات: مقیاس `clamp` عنوان و متن، برچسب کوتاه nav زیر 560px، composer چسبان هم‌تراز با پدینگ پنل، ردیف label/value کارت مقصد در موبایل و reserve اسکرول focus. شش suite مرورگر 75/27/27/22/23/5 حالت، domain 220/220 و HTTP 21/21 را گذراندند؛ صفر overflow/axe violation/pageerror/external request در حالت‌های سنجیده‌شده. پس از اصلاح یک selector focus، typecheck و build تولیدی و 23 حالت Agent (شامل 320px) روی worktree ایزولهٔ HEAD+همین پنج فایل دوباره pass شدند؛ artifact `.artifacts/agent-ui/2026-10-22T11-24-59.751Z/`. typecheck شاخه مشترک موقتاً به‌دلیل `src/server/workspace/ports.ts` در حال ویرایش هم‌کار مسدود بود؛ پس از رفع آن، typecheck و build تولیدی Turbopack روی main نیز pass شدند. reader تازه، screen reader و تأیید کامل WCAG همچنان UNCONFIRMED هستند؛ هیچ gate زنده یا درخواست provider اجرا نشد.
