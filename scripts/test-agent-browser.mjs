@@ -57,14 +57,12 @@ async function layout(width, label) {
     content: document.documentElement.scrollWidth,
   }));
   assert.ok(geometry.content <= geometry.viewport, `${label}: horizontal overflow`);
-  const controls = await panel
-    .locator("button:visible,textarea:visible")
-    .evaluateAll((nodes) =>
-      nodes.map((node) => ({
-        width: node.getBoundingClientRect().width,
-        height: node.getBoundingClientRect().height,
-      })),
-    );
+  const controls = await panel.locator("button:visible,textarea:visible").evaluateAll((nodes) =>
+    nodes.map((node) => ({
+      width: node.getBoundingClientRect().width,
+      height: node.getBoundingClientRect().height,
+    })),
+  );
   assert.ok(
     controls.every((control) => control.width >= 44 && control.height >= 44),
     `${label}: small target`,
@@ -198,6 +196,19 @@ try {
   await page.evaluate(() => (document.documentElement.style.fontSize = "200%"));
   await layout(360, "text-200-percent");
   await page.evaluate(() => (document.documentElement.style.fontSize = ""));
+  await panel.getByRole("button", { name: "تغییر پروژه", exact: true }).click();
+  await folder.getByRole("button", { name: /examples/ }).click();
+  await folder.getByRole("button", { name: /node-service/ }).click();
+  await folder.getByRole("button", { name: "انتخاب همین پوشه", exact: true }).click();
+  await panel.locator(".agent-project-name").filter({ hasText: "node-service" }).waitFor();
+  const explicitlySelected = new URL(page.url()).searchParams.get("project"),
+    callsBeforeProjectReload = await modelRequests();
+  await page.reload();
+  await panel.getByText(/این گفت‌وگو برای پروژه قبلی است/).waitFor();
+  assert.equal(new URL(page.url()).searchParams.get("project"), explicitlySelected);
+  assert.ok((await panel.locator(".agent-project-name").textContent()).includes("node-service"));
+  assert.equal(await modelRequests(), callsBeforeProjectReload);
+  await layout(360, "explicit-project-change-survives-repair-replay");
   await fresh();
   await submit("آزمون خطای ارتباط");
   await badge("بررسی کامل نشد");

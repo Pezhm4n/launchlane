@@ -121,8 +121,10 @@ export function AgentPanel({
   }, [runId, active, activeView, accept, failed]);
   useEffect(() => () => pending.current?.abort(), []);
   useEffect(() => {
+    // A restored receipt must not override a project the user selected after that repair.
     if (
       run?.repair?.state !== "succeeded" ||
+      run.repair.projectId !== projectId ||
       !run.projectId ||
       run.projectId === projectId ||
       syncedProject.current === run.projectId
