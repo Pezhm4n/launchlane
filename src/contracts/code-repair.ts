@@ -3,6 +3,7 @@ import { parseArtifact } from "./source.ts";
 import { hash, integer, object, string, text } from "./validation.ts";
 import { ensure } from "../server/errors.ts";
 import { parseNodePreparation, type NodePreparation } from "./preparation.ts";
+import { parseProjectBuildPlan, type ProjectBuildPlan } from "./project-build.ts";
 export type RepairTestReceipt = {
   command: string;
   exitCode: number | null;
@@ -31,6 +32,9 @@ export type CodeRepairJob = {
   preparation?: NodePreparation;
   execution?: "container";
   containerIds?: string[];
+  containerImage?: string;
+  build?: ProjectBuildPlan;
+  validationOnly?: true;
 };
 
 function paths(value: unknown): string[] {
@@ -56,13 +60,14 @@ function receipt(value: unknown): RepairTestReceipt | null {
     exitCode: row.exitCode === null ? null : integer(row.exitCode, -2147483648, 2147483647),
     signal: row.signal === null ? null : string(row.signal, 50),
     output: row.output,
-    durationMs: integer(row.durationMs, 0, 120000),
+    durationMs: integer(row.durationMs, 0, 360000),
     passed: row.passed,
   };
 }
 export function parseCodeRepairJob(value: unknown): CodeRepairJob {
   const row = object(value),
     state = row.state;
+  ensure(row.validationOnly === undefined || (row.validationOnly === true && row.build !== undefined), "STORAGE_INVALID", "نوع آماده‌سازی معتبر نیست.", 503);
   ensure(
     state === "proposed" ||
       state === "queued" ||
@@ -93,9 +98,12 @@ export function parseCodeRepairJob(value: unknown): CodeRepairJob {
     createdAt: integer(row.createdAt, 0, Number.MAX_SAFE_INTEGER),
     updatedAt: integer(row.updatedAt, 0, Number.MAX_SAFE_INTEGER),
     ...(row.preparation === undefined ? {} : { preparation: parseNodePreparation(row.preparation) }),
+    ...(row.build === undefined ? {} : { build: parseProjectBuildPlan(row.build) }),
+    ...(row.validationOnly === true ? { validationOnly: true as const } : {}),
     ...(row.execution === undefined ? {} : (() => {
       ensure(row.execution === "container", "STORAGE_INVALID", "روش اجرای اصلاح معتبر نیست.");
-      return { execution: "container" as const, containerIds: paths(row.containerIds ?? []) };
+      return { execution: "container" as const, containerIds: paths(row.containerIds ?? []),
+        ...(row.containerImage === undefined ? {} : { containerImage: string(row.containerImage, 240) }) };
     })()),
   };
 }

@@ -1,12 +1,17 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile, cp } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { chromium } from "playwright";
 import AxeBuilder from "@axe-core/playwright";
 import { startTestServer } from "./test-server.mjs";
 import { Store } from "../src/server/persistence/store.ts";
 import { AgentRepository } from "../src/server/agent/store.ts";
+import { readConfig } from "../src/server/config.ts";
+import { CodeRepairAdapter } from "../src/server/agent/code-repair.ts";
+import { currentAgentContext } from "../src/server/agent/tools.ts";
+import { projectBuildImage } from "../src/contracts/project-build.ts";
+import { fingerprint } from "../src/server/policy/action.ts";
 
 const server = await startTestServer({ agentFixture: true }), browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ locale: "fa-IR", reducedMotion: "reduce" }), page = await context.newPage();
@@ -42,6 +47,7 @@ try {
   await page.getByLabel("کلید ورود محلی", { exact: true }).fill(server.token);
   await page.getByRole("button", { name: "ورود به میز کار", exact: true }).click();
   await page.getByRole("heading", { name: "پروژه‌تان را انتخاب کنید", exact: true }).waitFor();
+  await page.waitForURL(url => url.searchParams.get("view") === "publish");
   assert.equal(new URL(page.url()).searchParams.get("view"), "publish");
   assert.equal(await page.locator(".app-nav a").count(), 2);
   assert.equal(await page.getByRole("link", { name: "دستیار پروژه", exact: true }).count(), 0);
@@ -61,6 +67,7 @@ try {
   assert.equal(await modelRequests(), 0);
   await page.goto(`${server.origin}/?view=agent&project=invalid`);
   await page.getByRole("heading", { name: "پروژه‌تان را انتخاب کنید", exact: true }).waitFor();
+  await page.waitForURL(url => url.searchParams.get("view") === "publish");
   assert.equal(new URL(page.url()).searchParams.get("view"), "publish"); assert.equal(new URL(page.url()).searchParams.get("project"), null);
   assert.equal(await page.locator(".assistant-float[open]").count(), 0);
   const choose = page.getByRole("button", { name: "انتخاب پوشه پروژه", exact: true });
@@ -102,6 +109,40 @@ try {
   assert.equal(new URL(page.url()).searchParams.get("project"), selected); assert.equal(await modelRequests(), cancelledCount);
   assert.equal(store.db.prepare("SELECT COUNT(*) n FROM attempts").get().n, 0);
   assert.equal(store.db.prepare("SELECT COUNT(*) n FROM code_repair_jobs").get().n, 0);
+  await cp(resolve("tests/fixtures/locked-node-build"), join(server.workspace, "built-service"), { recursive: true });
+  const built = await page.evaluate(async () => {
+    const workspace = await (await fetch("/api/workspace")).json();
+    const response = await fetch("/api/project-flows", { method: "POST", headers: { "content-type": "application/json", "x-csrf-token": workspace.session.csrfToken },
+      body: JSON.stringify({ operation: "prepare", selection: { kind: "local", directory: "built-service" } }) });
+    if (!response.ok) throw Error("Build fixture selection failed"); return (await response.json()).flow;
+  });
+  const config = readConfig({ LAUNCHLANE_STATE_DIR: server.stateDir, LAUNCHLANE_WORKSPACE_ROOT: server.workspace, LAUNCHLANE_SESSION_SECRET: server.sessionSecret });
+  const build = { version: 1, nodeVersion: "22", image: projectBuildImage, buildCommand: built.profile.build, testCommand: "node --test invoice.test.mjs", startCommand: built.profile.start, port: built.profile.port,
+    workload: { path: "/orders", status: 200, assertion: { kind: "json", field: "total", equals: 73 } } };
+  const job = await new CodeRepairAdapter(config, store).propose(actor, { projectId: built.id, expectedSourceHash: built.profile.sourceHash,
+    goal: "بررسی ساخت و پاسخ برنامه", allowedPaths: [], testFiles: [], execution: "container", build, validationOnly: true }, AbortSignal.timeout(5000));
+  const input = { projectId: built.id, sourceHash: built.profile.sourceHash, path: "/orders", expectedText: null }, sourceContext = currentAgentContext(config, store, actor);
+  const proposed = repo.create(actor, crypto.randomUUID(), sourceContext, "انتشار پروژه با ساخت قفل‌شده", { maxModelCalls: 16, maxToolCalls: 80, runTimeoutMs: 600000 },
+    { ...input, kind: "publication", identity: fingerprint({ input, context: sourceContext }) }).run;
+  proposed.repair = job; proposed.state = "needs_approval";
+  proposed.repairDecision = { sessionId: store.db.prepare("SELECT id FROM sessions WHERE actor_id=?").get(actor).id, expiresAt: Date.now() + 600000, consumed: false };
+  repo.save(actor, proposed);
+  await page.goto(`${server.origin}/?view=publish&project=${built.id}`);
+  await journey.getByRole("button", { name: "تأیید ساخت و بررسی برنامه", exact: true }).waitFor();
+  for (const width of [320, 360, 390, 768, 1280]) {
+    await layout(width, "locked-build-decision-without-chat");
+    if (width === 360) await page.screenshot({ path: join(output, "build-decision-360.png"), fullPage: true });
+  }
+  assert.equal(await page.locator(".assistant-float[open]").count(), 0);
+  await journey.locator(".agent-repair summary").click();
+  await layout(320, "locked-build-command-details");
+  await page.screenshot({ path: join(output, "build-details-320.png"), fullPage: true });
+  assert.match(await journey.locator(".agent-repair code").textContent(), /npm ci --offline/);
+  await journey.getByRole("button", { name: "رد آماده‌سازی", exact: true }).click();
+  await journey.locator(".badge").filter({ hasText: "منتظر پاسخ شما" }).waitFor();
+  const rejected = repo.get(actor, proposed.id); assert.equal(rejected.repair.state, "cancelled"); assert.deepEqual(rejected.repair.containerIds, []);
+  await journey.getByRole("button", { name: "ادامه همان مأموریت", exact: true }).waitFor();
+  assert.equal(await modelRequests(), cancelledCount); assert.equal(store.db.prepare("SELECT COUNT(*) n FROM attempts").get().n, 0);
   assert.deepEqual(errors, []); assert.deepEqual(external, []);
   await writeFile(join(output, "results.json"), JSON.stringify({ results, errors, external, model: "synthetic", cloudWrites: 0 }, null, 2));
   console.log(JSON.stringify({ states: results.length, widths: [320,360,390,768,1280], model: "synthetic", cloudWrites: 0, output }));

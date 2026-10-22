@@ -14,6 +14,8 @@
 
 ## اجرای محلی
 
+برش npm قفل‌شده در Node22 اکنون تصمیم، نصب آفلاین در container، build/start موجود و همان معیار پاسخ را به worker مشترک وصل می‌کند؛ [ADR0012](docs/decisions/0012-locked-project-build.md). آزمون مستقل آن `npm run test:build-sandbox` است و Docker/image تثبیت‌شده لازم دارد. برای استفاده از cache محتوایی معتبر npm در همین آزمون، `LAUNCHLANE_TEST_NPM_CACHE` را به cache نصب معرفی کنید؛ هر فایل پیش از استفاده با integrity lockfile تطبیق داده می‌شود. cache credential یا کل home به container نمی‌رود. مسیر پیش‌فرض، tarball عمومی npm را می‌خواند. شاهد این برش Node22 است؛ build واقعی Next و env هنوز پذیرش ندارند.
+
 Node 24.15+ از شاخه 24.x و npm لازم است. برای مسیر آفلاین کلید Liara/مدل لازم نیست.
 
 ```text

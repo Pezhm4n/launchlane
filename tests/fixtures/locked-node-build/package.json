@@ -1,0 +1,1 @@
+{"name":"locked-node-build-spike","version":"1.0.0","private":true,"type":"module","engines":{"node":"22.x"},"scripts":{"build":"node build.mjs","start":"node dist/server.mjs","test":"node --test invoice.test.mjs"},"dependencies":{"picocolors":"1.1.1"}}

@@ -1,0 +1,1 @@
+import {readFile,mkdir,writeFile} from 'node:fs/promises';const source=await readFile('server.txt','utf8');if(!source.includes('__REVISION__'))throw Error('Missing template revision');await mkdir('dist',{recursive:true});await writeFile('dist/server.mjs',source.replace('__REVISION__','locked-node-v1'));

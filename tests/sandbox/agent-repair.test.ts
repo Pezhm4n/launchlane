@@ -112,6 +112,21 @@ async function proposed(f: Awaited<ReturnType<typeof agentFixture>>) {
 const errorCode = (code: string) => (error: unknown) =>
   error instanceof AppError && error.code === code;
 
+test("a local-work decision that expires in the queue cannot start a container", async () => {
+  const f = await agentFixture();
+  try {
+    const p = await proposed(f);
+    const queued = await decideAgentRepair(f.config, f.store, f.session, p.run.id, p.run.revision, p.jobId, "approve");
+    assert.ok(queued.repairDecision); queued.repairDecision.expiresAt = 0;
+    p.repo.save(f.session.actorId, queued);
+    await driveAgentRun(f.config, f.store, f.session, queued.id, { model: p.model });
+    const result = p.repo.get(f.session.actorId, queued.id);
+    assert.equal(result?.errorCode, "REPAIR_APPROVAL_EXPIRED"); assert.equal(result?.state, "failed");
+    assert.deepEqual(result?.repair?.containerIds, []); assert.equal(result?.repair?.beforeTest, null);
+    assert.equal(readFileSync(join(f.project, "invoice.mjs"), "utf8"), repairBrokenSource);
+  } finally { f.close(); }
+});
+
 test("an approved agent repair executes actual tests and selects exactly the tested artifact under the same cumulative budget", async () => {
   const f = await agentFixture();
   try {

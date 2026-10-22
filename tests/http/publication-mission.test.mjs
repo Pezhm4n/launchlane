@@ -47,6 +47,15 @@ test("guided HTTP registration, scoped replay, context locks and read-only quest
       assert.equal(saved.run.id, run.id);
       assert.equal((await expect(await request(`/api/agent/runs?project=${publication.projectId}&kind=conversation`),200)).run,null);
     });
+    await t.test("structured continuation preserves the run and concurrent keys join without accepting a new goal", async () => {
+      const before = await settled(values[0].run.id);
+      await expect(await request(`/api/agent/runs/${before.id}`, { operation: "resume-publication", revision: before.revision, requestKey: randomUUID(), goal: "override" }), 400, "INVALID_INPUT");
+      const responses = await Promise.all([randomUUID(), randomUUID()].map(requestKey => request(`/api/agent/runs/${before.id}`, { operation: "resume-publication", revision: before.revision, requestKey })));
+      for (const response of responses) {
+        const value = await expect(response, 200); assert.equal(value.run.id, before.id); assert.deepEqual(value.run.mission, before.mission);
+      }
+      assert.equal((await settled(before.id)).id, before.id);
+    });
     const question = await expect(await request("/api/agent/runs", { operation: "question", requestKey: randomUUID(), goal: "آزمون توقف", projectId: publication.projectId }), 201);
     await t.test("an active optional question cannot start parallel source selection, account changes or a technical write", async () => {
       await expect(await request("/api/project-flows", { operation: "prepare", selection: { kind: "sample", directory: "examples/node-service" } }), 409, "AGENT_BUSY");
@@ -58,5 +67,6 @@ test("guided HTTP registration, scoped replay, context locks and read-only quest
     const cancelled = await request(`/api/agent/runs/${question.run.id}`, { operation: "cancel", revision: active.run.revision });
     assert.equal(cancelled.status,200);
     assert.equal((await settled(question.run.id)).state,"cancelled");
+    await expect(await request(`/api/agent/runs/${question.run.id}`, { operation: "resume-publication", revision: active.run.revision, requestKey: randomUUID() }), 409, "AGENT_CONFLICT");
   } finally { await server.close(); }
 });

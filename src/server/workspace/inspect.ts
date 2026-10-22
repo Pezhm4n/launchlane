@@ -232,7 +232,10 @@ async function scanProject(
     liara.port <= 65535
   )
     literalPort = liara.port;
-  const port = literalPort ?? (!unresolvedPort && ports.size === 1 ? ([...ports][0] ?? null) : null);
+  const nextStart = typeof object(pkg.dependencies ?? {}).next === "string" && typeof scripts.start === "string"
+    ? /^next start(?: (?:-H|--hostname) (?:0\.0\.0\.0|127\.0\.0\.1))?(?: (?:-p|--port) (\d{1,5}))?$/.exec(scripts.start) : null;
+  const nextPort = nextStart ? Number(nextStart[1] ?? 3000) : null;
+  const port = literalPort ?? (nextPort && nextPort <= 65535 ? nextPort : null) ?? (!unresolvedPort && ports.size === 1 ? ([...ports][0] ?? null) : null);
   // A workspace manifest describes multiple packages. Do not treat an orchestrator start
   // as the single Node workload supported by this deployment path; require an explicit leaf.
   const hasWorkspaces = pkg.workspaces !== undefined;

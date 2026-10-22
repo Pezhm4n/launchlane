@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { test } from "node:test";
 import { agentFixture } from "../helpers/agent-fixture.ts";
-import { createPublicationMission } from "../../src/server/application/publication-mission.ts";
+import { createPublicationMission, resumePublicationMission } from "../../src/server/application/publication-mission.ts";
 import { AgentRepository, agentView } from "../../src/server/agent/store.ts";
 import { executeAgentTool, currentAgentContext } from "../../src/server/agent/tools.ts";
 import { RunBudget } from "../../src/server/policy/budget.ts";
@@ -16,6 +16,33 @@ import { CodeRepairAdapter } from "../../src/server/agent/code-repair.ts";
 import { sealCredential } from "../../src/server/connections/credentials.ts";
 
 const errorCode = (code: string) => (error: unknown) => error instanceof AppError && error.code === code;
+
+test("account setup continues the same mission and seeded allowance; two resume keys join one continuation", async () => {
+  const f = await agentFixture();
+  try {
+    const config = { ...f.config, teamId: "a".repeat(24) }, input = { projectId: f.flow.id, sourceHash: f.flow.profile.sourceHash, path: "/", expectedText: "invoice ready" };
+    const initial = await createPublicationMission(config, f.store, f.session, randomUUID(), input, AbortSignal.timeout(5000)), repo = new AgentRepository(f.store), run = initial.run;
+    run.state = "needs_input"; run.nextAction = "connect_account"; run.question = "حساب را متصل کنید.";
+    run.usage.modelCalls = 3; run.usage.toolCalls = 2; run.usage.elapsedMs = 100;
+    repo.save(f.session.actorId, run);
+    f.store.saveConnection(f.session.actorId, { source: "token", ciphertext: sealCredential("synthetic-resume-credential", config.sessionSecret, f.session.actorId, "liara"),
+      view: { provider: "liara", status: "connected", identityId: "b".repeat(24), displayName: "حساب آزمون", login: "test@example.test", checkedAt: Date.now(),
+        teamId: config.teamId, teamName: "تیم آزمون", apps: [], selectedApp: null } });
+    const duplicate = await createPublicationMission(config, f.store, f.session, randomUUID(), input, AbortSignal.timeout(5000));
+    assert.equal(duplicate.created, false); assert.equal(duplicate.run.id, run.id);
+    const keys = [randomUUID(), randomUUID()], resumed = await Promise.all(keys.map(key => resumePublicationMission(config, f.store, f.session, run.id, run.revision, key, AbortSignal.timeout(5000))));
+    assert.equal(resumed.filter(value => value.created).length, 1);
+    for (const value of resumed) {
+      assert.equal(value.run.id, run.id); assert.equal(value.run.state, "queued"); assert.equal(value.run.usage.modelCalls, 3);
+      assert.equal(value.run.usage.toolCalls, 2); assert.equal(value.run.usage.elapsedMs, 100); assert.equal(value.run.context.account?.accountId, "b".repeat(24));
+      assert.equal(value.run.mission?.expectedText, input.expectedText); assert.equal(value.run.effect, "no_remote_changes");
+    }
+    assert.equal(f.store.db.prepare("SELECT COUNT(*) n FROM agent_runs").get()?.n, 1);
+    assert.equal(f.store.db.prepare("SELECT COUNT(*) n FROM attempts").get()?.n, 0);
+    const joined = await createPublicationMission(config, f.store, f.session, randomUUID(), input, AbortSignal.timeout(5000));
+    assert.equal(joined.run.id, run.id); assert.equal(joined.created, false);
+  } finally { f.close(); }
+});
 test("structured publication joins concurrent registrations and replays without model or write; project history is scoped", async () => {
   const f = await agentFixture();
   try {

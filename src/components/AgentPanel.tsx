@@ -140,6 +140,7 @@ export function AgentPanel({
     );
   const [missionPath, setMissionPath] = useState("/"), [expectedText, setExpectedText] = useState("");
   const missionKey = useRef<{ input: string; key: string } | null>(null);
+  const resumeKey = useRef<{ revision: number; key: string } | null>(null);
   const input = useRef<HTMLTextAreaElement>(null),
     transcript = useRef<HTMLElement>(null),
     latest = useRef<AgentView | null>(null),
@@ -391,6 +392,15 @@ export function AgentPanel({
       setBusy(false);
       pending.current = null;
     }
+  }
+  async function resumePublication() {
+    if (!run?.mission || busy || active || disabled || !enabled) return;
+    if (resumeKey.current?.revision !== run.revision) resumeKey.current = { revision: run.revision, key: crypto.randomUUID() };
+    setBusy(true); setError(null);
+    try {
+      accept(await api(`/api/agent/runs/${run.id}`, decodeRun, { csrf, body: { operation: "resume-publication", revision: run.revision, requestKey: resumeKey.current.key } }));
+    } catch (cause) { failed(cause); }
+    finally { setBusy(false); }
   }
   async function refresh() {
     setRetryable(null);
@@ -677,7 +687,7 @@ export function AgentPanel({
         </p>
       ) : null}
       {restoring ? <p role="status">در حال بازیابی وضعیت…</p> : null}
-      {guided && enabled && projectId && !restoring && !active && run?.state !== "needs_approval" && (!run?.mission || (run.state === "needs_input" && ((run.nextAction === "connect_account" && accountReady) || (run.nextAction === "select_app" && appSelected)))) ? (
+      {guided && enabled && projectId && !restoring && !active && !run?.mission ? (
         <form onSubmit={event => void startPublication(event)} className="publication-start">
           <p>روش اجرای پروژه و مقصد بررسی می‌شوند. تغییرات لازم و هزینه پیش از اجرا برای تصمیم شما نمایش داده می‌شوند.</p>
           <details><summary>صفحه و نشانه مورد انتظار</summary>
@@ -690,6 +700,10 @@ export function AgentPanel({
           <button type="submit" disabled={busy || disabled}>{busy ? "در حال ثبت…" : "بررسی و آماده‌سازی انتشار"}</button>
         </form>
       ) : null}
+      {guided && run?.mission && !active && ["needs_input", "partially_completed", "failed", "interrupted"].includes(run.state) &&
+        ![run.publication?.state, run.destination?.state].some(state => state === "executing" || state === "observing" || state === "uncertain") &&
+        (run.nextAction !== "connect_account" || accountReady) && (run.nextAction !== "select_app" || appSelected) ?
+        <button type="button" disabled={busy || disabled || restoring} onClick={() => void resumePublication()}>{busy ? "در حال ثبت ادامه…" : "ادامه همان مأموریت"}</button> : null}
       {!enabled ? (
         <section className="note agent-unavailable" aria-labelledby="agent-unavailable-title">
           <h3 id="agent-unavailable-title">دستیار در این نصب خاموش است</h3>
@@ -745,11 +759,11 @@ export function AgentPanel({
           {run.question && sameProject ? <p className="note">{run.question}</p> : null}
           {run.repair ? (
             <section className="agent-repair" aria-labelledby="repair-title">
-              <h3 id="repair-title">اصلاح نسخه جدا از پروژه</h3>
+              <h3 id="repair-title">{run.repair.validationOnly ? "بررسی ساخت و اجرای پروژه" : "اصلاح نسخه جدا از پروژه"}</h3>
               <details>
                 <summary>جزئیات اصلاح و رسید آزمون</summary>
                 <p>{run.repair.goal}</p>
-                <p className="hint">فقط این فایل‌ها قابل تغییرند:</p>
+                <p className="hint">{run.repair.validationOnly ? "فایل‌های پروژه در این مرحله تغییر نمی‌کنند." : "فقط این فایل‌ها قابل تغییرند:"}</p>
                 <ul>
                   {run.repair.allowedPaths.map((path) => (
                     <li key={path}>
@@ -757,8 +771,8 @@ export function AgentPanel({
                     </li>
                   ))}
                 </ul>
-                <p className="hint">همین آزمون موجود، پیش و پس از اصلاح اجرا می‌شود:</p>
-                <code dir="ltr">node --test -- {run.repair.testFiles.join(" ")}</code>
+                <p className="hint">{run.repair.validationOnly ? "نصب قفل‌شده، فرمان ساخت و اجرای موجود و پاسخ مورد انتظار بررسی می‌شوند:" : "همین معیار موجود، پیش و پس از اصلاح اجرا می‌شود:"}</p>
+                <code dir="ltr">{run.repair.build ? `npm ci --offline${run.repair.build.buildCommand ? `; build: ${run.repair.build.buildCommand}` : ""}${run.repair.build.testCommand ? `; test: ${run.repair.build.testCommand}` : ""}; start: ${run.repair.build.startCommand}; GET ${run.repair.build.workload.path}` : `node --test -- ${run.repair.testFiles.join(" ")}`}</code>
                 <p className="hint">
                   {run.repair.execution === "container" ? "آزمون در container محدود، بدون شبکه و بدون دسترسی نوشتن به پوشه اصلی اجرا می‌شود." : "فرمان در نسخه جدا با دسترسی محدود Node اجرا می‌شود. این روش شبکه جدا یا sandbox سیستم‌عامل نیست."} پوشه اصلی تغییر نمی‌کند.
                 </p>
@@ -767,16 +781,16 @@ export function AgentPanel({
                     <code>{run.repair.diff}</code>
                   </pre>
                 ) : null}
-                {run.repair.beforeTest ? (
+                {run.repair.beforeTest || run.repair.afterTest ? (
                   <pre dir="ltr">
-                    {run.repair.afterTest?.output ?? run.repair.beforeTest.output}
+                    {run.repair.afterTest?.output ?? run.repair.beforeTest?.output}
                   </pre>
                 ) : null}
               </details>
               {run.state === "needs_approval" && run.repair.state === "proposed" ? (
                 <>
                   <p>
-                    این تصمیم فقط اصلاح محلی و اجرای آزمون بالا را مجاز می‌کند. انتشار نیاز به تصمیم
+                    این تصمیم فقط {run.repair.validationOnly ? "نصب و بررسی ساخت و اجرای نسخه جدا" : "اصلاح محلی و اجرای معیار بالا"} را مجاز می‌کند. انتشار نیاز به تصمیم
                     جدا دارد.
                   </p>
                   <div className="button-row">
@@ -785,7 +799,7 @@ export function AgentPanel({
                       disabled={disabled || busy || !sameProject}
                       onClick={() => void decideRepair("approve")}
                     >
-                      تأیید اصلاح و اجرای آزمون
+                      {run.repair.validationOnly ? "تأیید ساخت و بررسی برنامه" : "تأیید اصلاح و اجرای آزمون"}
                     </button>
                     <button
                       type="button"
@@ -793,7 +807,7 @@ export function AgentPanel({
                       disabled={disabled || busy}
                       onClick={() => void decideRepair("reject")}
                     >
-                      رد اصلاح
+                      {run.repair.validationOnly ? "رد آماده‌سازی" : "رد اصلاح"}
                     </button>
                   </div>
                 </>
@@ -802,7 +816,7 @@ export function AgentPanel({
               )}
               {run.repair.beforeTest || run.repair.afterTest ? (
                 <dl className="profile-facts">
-                  <div>
+                  {!run.repair.validationOnly ? <div>
                     <dt>آزمون پیش از اصلاح</dt>
                     <dd>
                       {run.repair.beforeTest
@@ -811,9 +825,9 @@ export function AgentPanel({
                           : "نگذشت"
                         : "اجرا نشده"}
                     </dd>
-                  </div>
+                  </div> : null}
                   <div>
-                    <dt>آزمون پس از اصلاح</dt>
+                    <dt>{run.repair.validationOnly ? "ساخت و پاسخ برنامه" : "آزمون پس از اصلاح"}</dt>
                     <dd>
                       {run.repair.afterTest
                         ? run.repair.afterTest.passed

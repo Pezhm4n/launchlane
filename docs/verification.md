@@ -1,5 +1,14 @@
 # شواهد اعتبارسنجی Launchlane
 
+## نصب قفل‌شده و ادامه مأموریت؛ index مستقل بر پایه41e5080
+
+برنامه immutable npm v3/Node22 به همان worker، تصمیم و artifact وصل شد. دو case Docker واقعی با dependency دارای integrity و مدل مصنوعی، install/build/start/GET و پروژه خراب fail→patch→همان معیار pass را گذراندند؛ source اصلی محفوظ، cloud write صفر و containerهای همان job پاک شدند. این نتیجه، مدل/PaaS واقعی یا Next نیست. [ADR0012](decisions/0012-locked-project-build.md) limits، تصویر دقیق، DNS/registry/integrity و مرز env/dependency تغییرکرده را توضیح می‌دهد.
+
+سقف۱۶ ابزار client مدل حفظ و دو مجموعه آماده‌سازی متناسب با source به‌جای افزایش سقف آزموده شدند. ادامه structured، run و بودجه را حفظ می‌کند و دو nonce برای یک revision join می‌شوند. source یا scope مادی عوض‌شده منتقل نمی‌شود؛ تکمیل حساب اولیه پیش از اثر remote استثنای server-validated است. approval منقضی‌شدهٔ worker اجرا نمی‌شود و retry دریافت dependency تصمیم تازه می‌خواهد. سه regression Docker از domain به sandbox منتقل شدند، نه حذف.
+
+روی candidate مستقل index بر پایه41e5080، build، typecheck، domain271/271 و HTTP27/27 گذشتند؛ lint بدون error با30warning/2info است. مرورگر23 حالت (320/360/390/768/1280، جزئیات فرمان‌ها و رد build با ادامه دکمه‌ای) را با صفر overflow/axe/pageerror/external request گذراند. پیش از تطبیق با41e5080، test:build-sandbox دو case واقعی Docker با npm ci/build/test/start/GET، تست فعلی unchanged و مدل مصنوعی را گذراند؛1+3 container همان jobها حذف شدند و artifact هر دو نسخه سالم،815468242e09fec4ef3954a73e1465fc66c0c6a56c4e6e0890588eb4c9ba831b بود. test:sandbox نیز containment و هر4 regression از جمله expiry صف را گذراند. تغییر آخر دریافت dependency با reader بی‌اعتنا به abort، در gate تازه domain پوشش داده شد؛ شاهد کانتینر قبلی به‌عنوان اجرای تازه بازشماری نشده است. Next compiler و چند tarball در مسیر معمول و relay خصوصی timeout شدند. cache فقط با digestهای همان lock خوانده شد؛ VPN/TUN/route تغییر نکرد و هیچ endpoint خصوصی نصب وارد محصول نشد. build واقعی Next، env امن، GitHub/build زنده و fail-deploy→repair→redeploy جدید همچنان باز/UNCONFIRMED هستند.
+
+
 ## انتشار مرحله‌ای؛ working tree پس از e7fffd1
 
 دو تب و پیش‌فرض انتشار، ثبت structured، join درخواست هم‌زمان، تاریخچه scoped، چت اختیاری فقط‌خواندنی، expectation ثابت و worker container Node22 پیاده شدند. [گزارش تفکیکی](evidence/guided-publication.md) دو چرخه مدل/PaaS واقعی، failureهای حفظ‌شده و حدود آن‌ها را دارد. آماده‌سازی پروژه خراب، تست fail→patch→همان تست pass→انتشار همان artifact از وب و بدون چت گذشت؛ این شاهد، شکست انتشار اولیه و redeploy نیست.

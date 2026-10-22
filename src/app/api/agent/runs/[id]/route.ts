@@ -13,6 +13,7 @@ import {
 import { AgentRepository, agentView } from "../../../../../server/agent/store.ts";
 import { ensure } from "../../../../../server/errors.ts";
 import { endpoint, jsonBody, reply } from "../../../../../server/http.ts";
+import { resumePublicationMission } from "../../../../../server/application/publication-mission.ts";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 600;
@@ -46,6 +47,12 @@ export async function POST(request: Request, { params }: Context) {
     if (input.operation === "cancel") {
       exactKeys(input, ["operation", "revision"]);
       return reply({ run: agentView(cancelAgentRun(store, session.actorId, id, revision)) });
+    }
+    if (input.operation === "resume-publication") {
+      exactKeys(input, ["operation", "revision", "requestKey"]);
+      const result = await resumePublicationMission(config, store, session, id, revision, string(input.requestKey, 80), request.signal);
+      if (result.created) after(() => driveAgentRun(config, store, session, id));
+      return reply({ run: agentView(result.run) });
     }
     if (input.operation === "repair-decision") {
       exactKeys(input, ["operation", "revision", "jobId", "decision"]);

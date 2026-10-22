@@ -25,6 +25,9 @@ export type AgentUsage = {
 };
 export type AgentRecord = AgentView & {
   channel: "legacy" | "conversation";
+  buildRetryKey: string | null;
+  buildRetryConsumed: boolean;
+  lastResumeRevision: number | null;
   requestKey: string;
   context: AgentContext;
   messages: ModelMessage[];
@@ -44,6 +47,7 @@ function parseRecord(value: unknown): AgentRecord {
     usage = object(row.usage),
     limits = object(row.limits);
   ensure(row.channel === undefined || row.channel === "legacy" || row.channel === "conversation", "STORAGE_INVALID", "نوع کانال بررسی معتبر نیست.", 503);
+  ensure(row.buildRetryConsumed === undefined || typeof row.buildRetryConsumed === "boolean", "STORAGE_INVALID", "رسید تلاش مجدد معتبر نیست.", 503);
   const target = context.target === null ? null : object(context.target);
   const account = context.account === undefined || context.account === null ? target : object(context.account);
   ensure(
@@ -93,6 +97,9 @@ function parseRecord(value: unknown): AgentRecord {
   return {
     ...view,
     channel: row.channel === "conversation" ? "conversation" : "legacy",
+    buildRetryKey: row.buildRetryKey === undefined || row.buildRetryKey === null ? null : string(row.buildRetryKey, 80),
+    buildRetryConsumed: row.buildRetryConsumed !== false,
+    lastResumeRevision: row.lastResumeRevision === undefined || row.lastResumeRevision === null ? null : integer(row.lastResumeRevision, 1, 10000),
     requestKey: string(row.requestKey, 80),
     lastInputKey: string(row.lastInputKey, 80),
     lastInput: text(row.lastInput, 2000),
@@ -271,6 +278,9 @@ export class AgentRepository {
       const run: AgentRecord = {
         id: randomUUID(),
         channel,
+        buildRetryKey: null,
+        buildRetryConsumed: true,
+        lastResumeRevision: null,
         requestKey,
         lastInputKey: requestKey,
         lastInput: goal,

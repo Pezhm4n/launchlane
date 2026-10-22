@@ -12,6 +12,8 @@
 
 ## سوابق مأموریت Agent استقرار و نگهداری
 
+برش بعد از `802685e`: A07/A11 برای npm v3 در Node22 توسعه یافت. همان CodeRepairJob برنامه immutable install/build/start/workload و تصویر دقیق می‌گیرد؛ تصمیم اولیه اجازه ویرایش نمی‌دهد، انتشار بدون رسید همان source/معیار رد می‌شود و اصلاح build از همان معیار استفاده می‌کند. دو case Docker واقعی با مدل مصنوعی، یکی سالم و یکی fail→patch→pass، گذشتند؛ اثر cloud صفر و source اصلی محفوظ بود. درخواست تازه از API قدیمی نیز container لازم دارد. سه regression نیازمند Docker به `tests/sandbox` منتقل و در `test:sandbox` باقی ماندند. Next به‌علت دریافت ناموفق چند tarball هنوز UNCONFIRMED است؛ env، تغییر dependency و فرمان در پروژه دارای build، و مسیر GitHub/build زنده، کار بعدی‌اند. [تصمیم و حدود](docs/decisions/0012-locked-project-build.md).
+
 رفتار هدف در [agent-experience](docs/agent-experience.md) و پذیرش در [AC17–AC34](docs/acceptance.md) تعریف شده‌اند. حلقه چندابزاری، اصلاح محدود Node و انتشار از گفت‌وگو برای ورودی‌های کنترل‌شده اجرایی و زنده سنجیده شده‌اند؛ پذیرش عمومی کل هسته هنوز باز است. خروجی دانلودی handoff جای اتصال اجرایی را نمی‌گیرد.
 
 پیش از شروع A01، آخرین HEAD، diff و task جاری بازبینی شوند. اصلاحات GitHub/ورود و کارهای هم‌زمان پایین این بخش، بدون بررسی نتیجه کنار گذاشته یا تکرار نشوند. وضعیت «موجود در پایه» با پذیرش capability جدید یکی نیست. برای هر task، scope فایل‌ها پس از trace منطق واقعی مشخص شود.

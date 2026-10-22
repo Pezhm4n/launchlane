@@ -40,6 +40,7 @@ Run from the repository root with Node **24.15+ within 24.x** and npm. Dependenc
 | Domain regressions | `npm run test:domain` | Node native test runner; temporary SQLite/filesystem and synthetic transports; no server/provider required |
 | HTTP boundary | `npm run test:http` | Requires a successful build; starts an isolated production server with synthetic scope and empty provider keys |
 | Container worker | `npm run test:sandbox` | Docker Linux engine and the pinned Node22 image; actual bounded tests, synthetic patch model |
+| Locked project build | `npm run test:build-sandbox` | Docker and pinned Node22 image; actual npm ci/build/start/GET, synthetic model; public npm read or explicit `LAUNCHLANE_TEST_NPM_CACHE` content cache |
 | Browser flow | `npm run test:browser` | Requires build and Playwright Chromium; six isolated suites for workbench/deployment/restart/domain/agent/destination; model transport synthetic, repair Node tests actual; no real account |
 | Local operator setup | `npm run setup:local` | Preserves existing config; writes ignored operator access locally; prints no token |
 | GitHub login tool setup | `npm run setup:github` | Windows x64; checksum-verified official CLI 2.103.0 in ignored local tools; no account grant or global PATH change |

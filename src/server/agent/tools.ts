@@ -20,6 +20,9 @@ import { WorkloadProbe, validateProbePath } from "../liara/probe.ts";
 import { parseProbeOrigins } from "../policy/probe-target.ts";
 import type { PublicationMission } from "../../contracts/publication-mission.ts";
 import type { WorkloadContract } from "../../contracts/deployment.ts";
+import { parseProjectBuildPlan, projectBuildImage } from "../../contracts/project-build.ts";
+import { parseCodeRepairJob, type CodeRepairJob } from "../../contracts/code-repair.ts";
+import { requiresProjectBuild, sameBuildWorkload, projectTestCommand } from "./build-policy.ts";
 
 export function privateValues(c: Config): string[] {
   return [c.liaraToken, c.modelKey, c.operatorToken, c.sessionSecret].filter(Boolean);
@@ -158,7 +161,7 @@ const repairTool: ToolDefinition = {
         },
         testFiles: {
           type: "array",
-          minItems: 1,
+          minItems: 0,
           maxItems: 12,
           items: { type: "string", maxLength: 512 },
         },
@@ -166,10 +169,15 @@ const repairTool: ToolDefinition = {
     },
   },
 };
-export function toolsForAgent(config: Config): readonly ToolDefinition[] {
-  return [...agentTools, ...(config.enableLocalRepair ? [repairTool, preparationTool] : []),
+function registeredTools(config: Config): readonly ToolDefinition[] {
+  return [...agentTools, ...(config.enableLocalRepair ? [repairTool, preparationTool, buildTool] : []),
     ...(config.enableLiveLiara ? catalogTools : []),
     ...(config.enableMutations && config.enableLiveLiara ? [publicationTool, destinationTool] : [])];
+}
+export function toolsForAgent(config: Config, preparation: "native" | "build" = "native"): readonly ToolDefinition[] {
+  // Native start/port preparation cannot handle dependencies; its applicable alternative keeps the model's 16-tool bound.
+  const omitted = preparation === "build" ? "propose_project_preparation" : "propose_project_build";
+  return registeredTools(config).filter(tool => tool.function.name !== omitted);
 }
 const preparationTool: ToolDefinition = { type: "function", function: {
   name: "propose_project_preparation",
@@ -221,6 +229,11 @@ const publicationTool: ToolDefinition = {
       } },
   },
 };
+const buildTool: ToolDefinition = { type: "function", function: {
+  name: "propose_project_build",
+  description: "Propose a host-reviewed locked npm install, existing build script, existing start script and independent workload check in an isolated Node22 container. Read package/lock/source first; supply the original path/status/text or JSON assertion. Commands and port come from actual source, never invented. The user approves before any install/script runs. No code changes or cloud writes. A monorepo requires a leaf with its own npm v3 lockfile. Builds needing undeclared network or secrets fail explicitly.",
+  parameters: publicationTool.function.parameters,
+} };
 export const toolLabels: Readonly<Record<string, string>> = {
   inspect_project: "بررسی فایل‌ها و روش اجرای پروژه",
   read_project_file: "خواندن فایل مرتبط پروژه",
@@ -235,6 +248,7 @@ export const toolLabels: Readonly<Record<string, string>> = {
   read_networks: "بررسی شبکه‌های موجود همین حساب",
   propose_destination: "آماده‌کردن مقصد تازه و هزینه پایه آن",
   propose_project_preparation: "آماده‌کردن فرمان اجرا و پورت برای تصمیم شما",
+  propose_project_build: "آماده‌کردن نصب قفل‌شده و بررسی ساخت و اجرای برنامه",
   read_workload: "خواندن پاسخ تازه همان صفحه سایت",
   read_metrics: "بررسی داده منابع و محدودیت اندازه‌گیری آن",
 };
@@ -251,6 +265,8 @@ export type AgentToolContext = {
   probe?: WorkloadProbe;
   mission?: PublicationMission | null;
   publicationExpectation?: WorkloadContract;
+  buildJob?: CodeRepairJob | null;
+  explicitBuildRetry?: boolean;
 };
 function evidenceRows<T>(rows: readonly T[], maxRows: number, maxBytes: number) {
   const selected: T[] = [];
@@ -268,7 +284,7 @@ export async function executeAgentTool(
   input: unknown,
   c: AgentToolContext,
 ): Promise<unknown> {
-  const definition = toolsForAgent(c.config).find((tool) => tool.function.name === name);
+  const definition = registeredTools(c.config).find((tool) => tool.function.name === name);
   ensure(definition, "TOOL_DENIED", "این ابزار برای بررسی مجاز نیست.", 403);
   const args = object(input);
   exactKeys(args, Object.keys(definition.function.parameters.properties));
@@ -298,7 +314,7 @@ export async function executeAgentTool(
       unavailablePlanIds: catalog.unavailablePlanIds,
       balanceToman: catalog.balanceToman, measuredRequirement: false, remoteChanges: false };
   }
-  if (name === "propose_publication") {
+  if (name === "propose_publication" || name === "propose_project_build") {
     if (c.publicationExpectation) ensure(
       fingerprint({ path: args.path, status: args.status, assertion: args.assertion }) === fingerprint({ path: c.publicationExpectation.path, status: c.publicationExpectation.status, assertion: c.publicationExpectation.assertion }),
       "MISSION_EXPECTATION_CHANGED", "معیار انتشار قبلی برای بررسی همان خطا باید حفظ شود.", 409);
@@ -309,6 +325,34 @@ export async function executeAgentTool(
         ensure(assertion.kind === "text" && assertion.contains === c.mission.expectedText,
           "MISSION_EXPECTATION_CHANGED", "نشانه مورد انتظار باید با تصمیم کاربر یکسان بماند.", 409);
       }
+    }
+    ensure(c.context.projectId && c.context.sourceHash, "AGENT_PROJECT_REQUIRED", "ابتدا پروژه را انتخاب کنید.", 409);
+    const flow = await restoreProjectFlow(c.config, c.store, c.actorId, c.signal, c.context.projectId);
+    ensure(flow && flow.status !== "stale" && flow.status !== "unavailable" && flow.profile.sourceHash === c.context.sourceHash, "PROJECT_CHANGED", "نسخه پروژه تغییر کرده است.", 409);
+    const location = projectRoot(c.config, flow), captured = await captureProject(location.root, location.directory, { signal: c.signal, secrets: privateValues(c.config) });
+    ensure(captured.profile.sourceHash === c.context.sourceHash, "PROJECT_CHANGED", "نسخه source تغییر کرده است.", 409);
+    const workload = { path: args.path, status: args.status, assertion: args.assertion };
+    if (c.buildJob?.build) ensure(fingerprint(workload) === fingerprint(c.buildJob.build.workload), "MISSION_EXPECTATION_CHANGED", "معیار build قبلی تغییر نمی‌کند.", 409);
+    if (name === "propose_project_build") {
+      ensure(!(c.buildJob?.validationOnly && c.buildJob.state === "failed" && c.buildJob.baseRevision === c.context.sourceHash) || c.explicitBuildRetry === true,
+        "BUILD_NO_PROGRESS", "همان build ناموفق بدون تغییر شواهد تکرار نمی‌شود؛ علت توقف را بررسی کنید.", 409);
+      c.budget.take("tool", c.signal);
+      const build = parseProjectBuildPlan({ version: 1, nodeVersion: flow.profile.nodeRuntime?.version, image: projectBuildImage,
+        buildCommand: flow.profile.build, testCommand: projectTestCommand(captured.files), startCommand: flow.profile.start, port: flow.profile.port, workload });
+      const job = await new CodeRepairAdapter(c.config, c.store).propose(c.actorId, {
+        projectId: flow.id, expectedSourceHash: c.context.sourceHash, goal: "نصب قفل‌شده، ساخت و بررسی پاسخ همان برنامه در محیط ایزوله",
+        allowedPaths: [], testFiles: [], execution: "container", build, validationOnly: true,
+      }, c.signal);
+      return { repairProposal: job };
+    }
+    if (requiresProjectBuild(captured.files)) {
+      const rows = c.store.db.prepare("SELECT state,data_json FROM code_repair_jobs WHERE actor_id=? AND state='succeeded' AND json_extract(data_json,'$.job.artifact.sourceHash')=? ORDER BY updated_at DESC LIMIT 10").all(c.actorId, c.context.sourceHash);
+      const verified = rows.some(row => {
+        const job = parseCodeRepairJob({ ...object(object(JSON.parse(string(row.data_json, 1024 * 1024))).job), state: row.state });
+        return job.build && job.build.nodeVersion === flow.profile.nodeRuntime?.version && job.build.buildCommand === flow.profile.build && job.build.testCommand === projectTestCommand(captured.files) && job.build.startCommand === flow.profile.start && job.build.port === flow.profile.port &&
+          job.execution === "container" && !!job.containerIds?.length && job.afterTest?.passed && sameBuildWorkload(job.build, parseProjectBuildPlan({ ...job.build, workload }).workload);
+      });
+      ensure(verified, "PROJECT_BUILD_REQUIRED", "این پروژه پیش از پیشنهاد انتشار به نصب، ساخت و بررسی پاسخ در محیط ایزوله نیاز دارد؛ ابتدا propose_project_build را اجرا کنید.", 409);
     }
     ensure(c.context.projectId && c.context.target, "LIARA_APP_REQUIRED", "پروژه و برنامه مقصد را انتخاب کنید.", 409);
     const app = c.context.target.app,
@@ -357,6 +401,8 @@ export async function executeAgentTool(
       allowedPaths = preparation ? ["package.json", preparation.entryFile,
         ...(flow?.profile.manifest.some((file) => file.path === "liara.json") ? ["liara.json"] : [])]
         : (Array.isArray(args.allowedPaths) ? args.allowedPaths : []).map((path) => string(path, 512));
+    if (c.buildJob?.build) ensure([72, 73, 76].includes((c.buildJob.beforeTest ?? c.buildJob.afterTest)?.exitCode ?? -1) && !(c.buildJob.beforeTest ?? c.buildJob.afterTest)?.signal,
+      "BUILD_EXECUTION_REQUIRED", "مشکل دریافت dependency یا آماده‌شدن sandbox مجوز تغییر source نیست؛ اجرای برنامه باید خطا را بازتولید کرده باشد.", 409);
     const job = await new CodeRepairAdapter(c.config, c.store).propose(
       c.actorId,
       {
@@ -365,8 +411,9 @@ export async function executeAgentTool(
         goal: preparation ? `آماده‌سازی با فرمان «${preparation.startCommand}» و پورت ${preparation.port}. ${text(args.goal, 1400)}` : text(args.goal, 2000),
         allowedPaths,
         testFiles: args.testFiles.map((path) => string(path, 512)),
-        ...(c.mission ? { execution: "container" as const } : {}),
+        execution: "container",
         ...(preparation ? { preparation } : {}),
+        ...(c.buildJob?.build ? { build: c.buildJob.build } : {}),
       },
       c.signal,
     );
