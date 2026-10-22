@@ -7,6 +7,7 @@ Read this file first. Then read [project-overview.md](project-overview.md), [ARC
 - The operator-local workbench implements source inspection, private immutable archives, durable approvals, bounded Liara deployment and evidence collection. A controlled Node 22 live cycle verified three releases, a real 500, one grounded diagnosis, an ineffective change and an approved source correction with same-page readback. This does not verify arbitrary projects, automatic code editing, env writes or restart.
 - The live diagnosis requested BoxAPI `gpt-6-luna` with `reasoning_effort=none`, used two chat-completions requests and 1,653 reported tokens. One controlled configuration case is not a general model-quality evaluation. Keep all live gates off outside an explicitly bounded run; read the current limitations and evidence in `docs/verification.md`.
 - Product name: **Launchlane**. Keep product UI and package names consistent.
+- Approved restart requests use ActionSpec v6 and a separate durable journal. The transport, same-page readback and UI are contract-tested; provider acceptance and a responding page do not prove restart completion. No live restart has been verified.
 - Product acceptance is defined in `docs/acceptance.md`. Treat planned architecture as a proposal until implemented and verified.
 
 ## Commands and evidence

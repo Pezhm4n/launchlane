@@ -824,6 +824,8 @@ export class Store {
       "EVIDENCE_MISMATCH", "بررسی تازه‌تری ثبت شده است؛ نتیجه ذخیره‌شده را دوباره بخوانید.", 409);
       if (observation.outcome === "responding" || observation.outcome === "unhealthy")
         ensure(observation.releaseId === action.spec.targetReleaseId && observation.status !== null &&
+          observation.observedAt !== null && observation.observedAt >= Number(attempt?.started_at) &&
+          observation.observedAt <= observation.checkedAt && observation.checkedAt - observation.observedAt <= 900_000 &&
           (observation.outcome === "responding" ? observation.status >= 200 && observation.status < 300 : observation.status >= 300),
         "EVIDENCE_MISMATCH", "پاسخ باید متعلق به همان صفحه و نسخه باشد.", 409);
       if (observation.outcome === "not_started")

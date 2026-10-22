@@ -6,7 +6,8 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { setTimeout as pause } from "node:timers/promises";
 
-export async function startTestServer() {
+export async function startTestServer({ browserHost = "127.0.0.1" } = {}) {
+  if (!["127.0.0.1", "localhost"].includes(browserHost)) throw new Error("Unsupported loopback test host");
   const directory = await mkdtemp(join(tmpdir(), "launchlane-http-"));
   const workspace = join(directory, "workspace");
   await mkdir(join(workspace, "examples"), { recursive: true });
@@ -17,7 +18,7 @@ export async function startTestServer() {
   await new Promise((done) => probe.listen(0, "127.0.0.1", done));
   const port = probe.address().port;
   await new Promise((done) => probe.close(done));
-  const origin = `http://127.0.0.1:${port}`,
+  const origin = `http://${browserHost}:${port}`,
     token = randomBytes(32).toString("base64url");
   const teamId = "a".repeat(24),
     app = "sample-node";

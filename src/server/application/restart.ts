@@ -32,7 +32,7 @@ export function validateRestartAction(
 ): Config {
   const scoped = scopedConfig(config, store, actorId, spec.scope.app);
   ensure(
-    scoped.enableLiveLiara && scoped.probeOrigins[spec.scope.app] === spec.target.origin,
+    scoped.probeOrigins[spec.scope.app] === spec.target.origin,
     "RESTART_TARGET_CHANGED",
     "نشانی یا دسترسی برنامه تغییر کرده است؛ پیشنهاد تازه لازم است.",
     409,
@@ -226,6 +226,7 @@ export async function observeRestart(
   signal: AbortSignal,
   deps: Dependencies = {},
 ): Promise<Action> {
+  ensure(config.enableLiveLiara, "LIVE_LIARA_DISABLED", "خواندن واقعی برنامه در این نصب غیرفعال است؛ تغییری ارسال نشد.", 403);
   const action = store.getAction(id, session.actorId);
   ensure(
     action.spec.version === 6 && action.restart && canReadRestartResult(action),
@@ -250,6 +251,7 @@ export async function observeRestart(
     outcome: "inconclusive",
     code: "RESTART_OBSERVATION_UNAVAILABLE",
     checkedAt: 0,
+    observedAt: null,
     status: null,
     releaseId: null,
   };
@@ -293,6 +295,7 @@ export async function observeRestart(
                   ? "responding"
                   : "unhealthy",
               status: probe.status,
+              observedAt: probe.observedAt,
               code: "RESTART_PAGE_CHECKED",
             };
     }

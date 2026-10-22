@@ -16,7 +16,7 @@
     "test": "node --test tests/bootstrap.test.mjs",
     "test:domain": "node --test tests/domain/*.test.ts",
     "test:http": "node --test tests/http/*.test.mjs",
-    "test:browser": "node scripts/test-browser.mjs && node scripts/test-deployment-browser.mjs",
+    "test:browser": "node scripts/test-browser.mjs && node scripts/test-deployment-browser.mjs && node scripts/test-restart-browser.mjs",
     "setup:local": "node scripts/setup-local.mjs",
     "setup:github": "powershell -NoProfile -File scripts/setup-github.ps1",
     "smoke:model": "node scripts/smoke-model.mjs",

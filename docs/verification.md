@@ -2,6 +2,18 @@
 
 شواهد جاری ابتدا و سابقه مراحل پیشین پایین‌تر ثبت شده‌اند. هر نتیجه به revision و شرایط خودش تعلق دارد؛ نتایج bootstrap جای قابلیت محصول و fixture جای اتصال زنده نیست.
 
+## T23 — مسیر رابط و بازخوانی هماهنگ؛ پایه 69ba98c و تغییرات این برش
+
+AC04/06/13/14/16؛ Node 24.18.0، Next 16.4.2. پنل اختیاری restart به routeها، تصمیم اتمیک و journal وصل است. ثبت تأیید با خاموش‌بودن خواندن، درخواست provider ندارد؛ مرز observe مستقل و پیش از dependency تزریق‌شده fail-closed است. زمان دریافت HTTP مستقل از checkedAt ثبت می‌شود؛ تنها شاهد دارای زمان و app/release/path معتبر در گزارش اصلی همان incident مصرف می‌شود. تاریخچه بدون observedAt به شاهد تازه تبدیل نمی‌شود. UI approval، اجرا، پذیرش و پاسخ صفحه را تفکیک و قطع انتظار را از replay جدا می‌کند.
+
+اعتبارسنجی تازه روی همین candidate: `npm run lint` (124 فایل، بدون warning)، `npm run typecheck`، `npm run build`، `npm run test:domain` برابر 132/132 و `npm run test:http` برابر 16/16 pass؛ صفر fail/skip/cancel. `npm run test:browser` سه بخش مستقل دارد: 55 حالت/9 عرض عمومی در `.artifacts/ux/2026-10-22T00-52-07-836Z/`، 27 حالت/6 عرض انتشار در `.artifacts/deployment-ui/2026-10-22T00-52-46.229Z/` و 26 حالت/8 عرض restart در `.artifacts/restart-ui/2026-10-22T00-53-11.092Z/`. عرض‌های restart: 280/360/559/560/768/959/960/1280؛ متن 200٪ در 280/360/768/959/960 و جزئیات شناسه/مسیر/نام تیم بلند باز نیز سنجیده شدند. هیچ overflow، axe violation، page error، هشدار key تکراری یا درخواست خارجی در حالت‌های سنجیده‌شده ثبت نشد. این‌ها تأیید کامل WCAG، screen reader یا آسان‌بودن برای کاربر تازه نیستند.
+
+سه failure اولیه حفظ شدند: key مشترک دو sibling، پس از refresh گزارش را تکرار می‌کرد؛ keyها مستقل و assertion یکتایی گزارش اضافه شد. سپس test، Enter را پیش از فعال‌شدن کنترل می‌فرستاد؛ انتخاب‌گر آزمون اکنون enabled بودن کنترل واقعی را انتظار می‌کشد و هنوز با صفحه‌کلید اقدام می‌کند. آخرین شکست، بیرون‌زدگی واقعی URL و radio در 280 با متن 200٪ بود؛ overflow-wrap و اندازه کنترل محدود شدند، بدون overflow-x مخفی یا حذف متن. artifactهای اولیه در `.artifacts/restart-ui/2026-10-22T00-41-40.640Z/`، `00-43-39.455Z/`، `00-45-00.057Z/` و اجرای دارای overflow.json باقی‌اند. oracle پذیرش، همان صفحه، انقضا و عدم replay کاهش نیافت.
+
+مرور دستی با CUA روی production ایزوله و hostname جدا از نشست کاری انجام شد: ورود محلی، کنترل بسته همراه علت، رد با Enter، بازگشت focus به عنوان پنل، reload و رفتن به انتشار/Back تصمیم را حفظ کردند؛ گزارش یکتا ماند. client/content در 360/768/1280 برابر 345/345، 753/753 و 1265/1265 بود؛ تصاویر و geometry در `.artifacts/restart-manual/` خصوصی‌اند. fixture پایانی cancelled و صفر provider request داشت؛ tabها و server موقت بسته و viewport بازگردانده شدند. اسکیل‌های مؤثر: competition-agent-engineer، ux-ui-agent-skills، frontend-design، vercel-react-best-practices و web-design-guidelines؛ graph نسل 2026-10-21T19:24:24Z قدیمی بود و مسیرهای متکی به کد با source مستقیم بررسی شدند.
+
+حساب و transport خودکار مصنوعی‌اند؛ login/decision/restore و SQLite محلی واقعاً اجرا شدند. هیچ smoke پولی مدل، درخواست واقعی Liara یا write زیرساختی تازه انجام نشد؛ هر سه gate نصب خاموش‌اند. restart live، correlation پایان واقعی آن و رفتار تغییر بیرونی بین preflight و POST همچنان unconfirmed هستند.
+
 ## T23 — قرارداد restart؛ پایه 12805b8 و تغییرات همین برش
 
 AC04/06/13/16؛ Node 24.18.0. ActionSpec v6 و migration append-only شماره 7، هویت حساب/برنامه، پلن، نسخه جاری و شاهد تازه همان صفحه را به approval متصل می‌کنند. یک POST پس از claim و journal پایدار انجام می‌شود؛ HTTP 200 خالی پذیرش است و release ID ساخته نمی‌شود. پذیرش و پاسخ همان صفحه جدا ثبت می‌شوند؛ پایان واقعی restart همچنان اثبات نشده است. تصمیم در ADR 0003 است.

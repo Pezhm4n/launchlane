@@ -1,10 +1,13 @@
 "use client";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import type { WorkspaceView } from "../contracts/domain.ts";
+import type { Action, WorkspaceView } from "../contracts/domain.ts";
 import { parseIncidentRun, type IncidentRun, type Symptom } from "../contracts/incident-run.ts";
 import { object } from "../contracts/validation.ts";
 import { api, ClientError } from "./api.ts";
 import { IncidentReport } from "./IncidentReport.tsx";
+import { RestartPanel } from "./RestartPanel.tsx";
+import { restartReadbackEvidence } from "../contracts/restart.ts";
+import type { EvidenceBundle } from "../contracts/incident.ts";
 const choices: { id: Symptom; title: string }[] = [
   { id: "unavailable", title: "سایت باز نمی‌شود" },
   { id: "errors", title: "خطا نشان می‌دهد" },
@@ -40,13 +43,15 @@ export function IncidentWorkbench({
   onConnect,
   onRefresh,
   onSessionExpired,
+  onAction,
 }: {
   workspace: WorkspaceView;
   active: boolean;
   disabled: boolean;
   onConnect: () => void;
-  onRefresh: () => Promise<unknown>;
+  onRefresh: () => Promise<WorkspaceView>;
   onSessionExpired: () => void;
+  onAction: (action: Action) => void;
 }) {
   const [kind, setKind] = useState<"live" | "sample">("live"),
     [live, setLive] = useState<IncidentRun | null>(null),
@@ -55,6 +60,7 @@ export function IncidentWorkbench({
     [problem, setProblem] = useState(""),
     [path, setPath] = useState("/");
   const [loading, setLoading] = useState(true),
+    [restartBusy, setRestartBusy] = useState(false),
     [busy, setBusy] = useState<string | null>(null),
     [error, setError] = useState<ClientError | null>(null),
     [notice, setNotice] = useState("");
@@ -69,6 +75,12 @@ export function IncidentWorkbench({
   const current = kind === "live" ? live : sample,
     connection = workspace.connections.liara,
     scopeReady = connection?.status === "connected" && Boolean(connection.selectedApp);
+  let operationEvidence: EvidenceBundle | null = null;
+  if (current?.kind === "live") for (const action of workspace.actions) {
+    if (action.spec.version !== 6 || action.spec.incidentRunId !== current.id || action.spec.targetAppId !== current.appId) continue;
+    const evidence = restartReadbackEvidence(action);
+    if (evidence && (!operationEvidence || evidence.collectedAt > operationEvidence.collectedAt)) operationEvidence = evidence;
+  }
   const sameApp =
     current?.kind === "sample" ||
     (scopeReady &&
@@ -77,7 +89,7 @@ export function IncidentWorkbench({
       current?.appId === connection?.apps.find((app) => app.name === connection.selectedApp)?.id &&
       current?.evidence.scope.teamId === connection?.teamId);
   const canRead = scopeReady && workspace.features.serviceReads && Boolean(sameApp),
-    blocked = disabled || busy !== null || loading;
+    blocked = disabled || busy !== null || loading || restartBusy;
   const accept = useCallback((run: IncidentRun | null, requestedKind: "live" | "sample") => {
     if (run?.kind === "sample") setSample(run);
     else if (run) {
@@ -550,7 +562,12 @@ export function IncidentWorkbench({
             onRecheck={() => void job("recheck", { id: current.id })}
             onCompare={(choice) => void job("compare", { id: current.id, choice })}
             onRestore={() => void retrieve()}
+            operationEvidence={operationEvidence}
           />
+          {current.kind === "live" ? <RestartPanel key={`restart-${current.id}`} run={current} workspace={workspace}
+            active={active} disabled={disabled || busy !== null || loading} onAction={onAction}
+            onBusyChange={setRestartBusy} onRefresh={onRefresh} onConnect={onConnect}
+            onRecheck={() => void job("recheck", { id: current.id })} onSessionExpired={onSessionExpired} /> : null}
         </>
       ) : kind === "sample" && !loading && !busy ? (
         <button type="button" ref={sampleTrigger} disabled={blocked} onClick={() => example()}>

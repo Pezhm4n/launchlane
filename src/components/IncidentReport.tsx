@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { inWindow, verifySameSymptom } from "../contracts/incident.ts";
+import { inWindow, verifySameSymptom, type EvidenceBundle } from "../contracts/incident.ts";
 import type { IncidentRun } from "../contracts/incident-run.ts";
 const names = {
   workload: "پاسخ سایت",
@@ -20,6 +20,7 @@ export function IncidentReport({
   onAnalyze,
   onCompare,
   onRestore,
+  operationEvidence,
 }: {
   run: IncidentRun;
   busy: boolean;
@@ -29,6 +30,7 @@ export function IncidentReport({
   onAnalyze: () => void;
   onCompare: (choice: "related" | "unrelated") => void;
   onRestore: () => void;
+  operationEvidence?: EvidenceBundle | null;
 }) {
   const [evidenceOpen, setEvidenceOpen] = useState(false),
     [showAfter, setShowAfter] = useState(false),
@@ -36,11 +38,13 @@ export function IncidentReport({
   const title = useRef<HTMLHeadingElement>(null);
   const outcome = useRef<HTMLElement>(null),
     cause = useRef<HTMLElement>(null);
-  const latest = run.after ?? run.evidence,
-    displayedEvidence = showAfter && run.after ? run.after : run.evidence,
+  const saved = run.after ?? run.evidence,
+    latest = operationEvidence && operationEvidence.collectedAt > saved.collectedAt ? operationEvidence : saved,
+    hasAfter = latest !== run.evidence,
+    displayedEvidence = showAfter && hasAfter ? latest : run.evidence,
     workload = latest.entries.find((row) => row.fact?.kind === "http"),
     fact = workload?.fact;
-  const comparison = run.after ? verifySameSymptom(run.evidence, run.after) : null;
+  const comparison = hasAfter ? verifySameSymptom(run.evidence, latest) : null;
   const observed =
     fact?.kind === "http"
       ? fact.status >= 500
@@ -129,7 +133,7 @@ export function IncidentReport({
               {run.diagnosis
                 ? "این توضیح یک فرضیه است و علت تأییدشده محسوب نمی‌شود."
                 : run.analysisMessage || "اطلاعات در دسترس را بدون حدس بررسی کنید."}
-              {run.after && run.diagnosis
+              {hasAfter && run.diagnosis
                 ? " توضیح علت به بررسی نخست مربوط است؛ نتیجه تازه در بخش آخر آمده است."
                 : ""}
             </p>
@@ -209,7 +213,7 @@ export function IncidentReport({
         <>
           <div className="button-row">
             {canAnalyze &&
-            !run.after &&
+            !hasAfter &&
             (run.analysis === "ready" || run.analysis === "unavailable") ? (
               <button type="button" disabled={busy} onClick={onAnalyze}>
                 توضیح علت با شواهد این بررسی
@@ -255,7 +259,7 @@ export function IncidentReport({
           شواهد و گزارش‌های پاک‌سازی‌شده (
           {new Intl.NumberFormat("fa-IR").format(displayedEvidence.entries.length)})
         </summary>
-        {run.after ? (
+        {hasAfter ? (
           <div className="button-row">
             <button
               type="button"

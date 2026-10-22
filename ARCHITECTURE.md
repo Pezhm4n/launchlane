@@ -95,6 +95,8 @@ read و تشخیص می‌توانند بدون تأیید هر بار انجا�
 
 راه‌اندازی دوباره از پیشنهاد v6 و journal مستقل استفاده می‌کند؛ حساب، شناسه داخلی app، پلن، نسخه فعلی، گزارش مشکل و همان صفحه به تأیید بسته‌اند. attempt و شروع درخواست پیش از تنها POST پایدارند؛ رسید پذیرش release ID نیست. بازخوانی فقط پذیرش و پاسخ همان صفحه را می‌سنجد و پایان تعویض process را اثبات نمی‌کند. پاسخ گم‌شده حتی با صفحه 200 uncertain می‌ماند؛ `succeeded` این operation فقط «درخواست پذیرفته شد و همان صفحه پاسخ داد» است. [تصمیم و trade-off](docs/decisions/0003-restart-acceptance.md).
 
+زمان دریافت HTTP در observation مستقل از پایان بازخوانی ذخیره می‌شود. رابط، تازه‌ترین شاهد معتبر restart همان incident/app را در گزارش اصلی مصرف می‌کند؛ گزارش نخست و تشخیص آن بازنویسی نمی‌شوند و تحلیل جدید خودکار آغاز نمی‌شود. خروجی تاریخی فاقد زمان دریافت می‌تواند نمایش داده شود، اما شاهد تازه برای مقایسه تولید نمی‌کند. ثبت approval محلی به خواندن upstream وابسته نیست؛ propose/execute و adapter نوشتن هر دو gate را enforce می‌کنند و observe حتی با dependency تزریق‌شده، gate خواندن را پیش از هر فراخوانی enforce می‌کند.
+
 - `OperatorSession`: actor ID، expiry و scope؛ ورود با operator token قوی از env سمت سرور، مقایسه امن و تلاش محدود. session با secret جدا امضا می‌شود؛ کوکی HttpOnly و SameSite=Strict، Secure روی HTTPS، نه browser storage. token یا session secret خالی، دسترسی privileged را می‌بندد.
 - `ProjectProfile`: runtime، port، نیاز env با **نام بدون مقدار**، build/start پیشنهادی، workspace/source fingerprint و اطلاعات نامعلوم.
 - `Run`: intent، account/team/app، state، request ID، budget مصرف‌شده، زمان‌ها و revision/policy version.

@@ -363,6 +363,9 @@ export function Workbench() {
     );
     return data;
   }, []);
+  const acceptIncidentAction = useCallback((action: Action) => {
+    setWorkspace((current) => current ? { ...current, actions: [action, ...current.actions.filter((row) => row.id !== action.id)] } : null);
+  }, []);
   const applyFlow = useCallback((data: FlowResult) => {
     const changed = activeFlow.current !== (data.flow?.id ?? null);
     setFlow(data.flow);
@@ -504,7 +507,7 @@ export function Workbench() {
       setNotice(
         saved.flow
           ? "پروژه ذخیره‌شده بازیابی شد. فایل‌ها دوباره بررسی شدند."
-          : "وارد شدید. پروژه‌تان را انتخاب کنید.",
+          : "وارد میز کار شدید.",
       );
     } catch (error) {
       if (error instanceof ClientError && error.code === "AUTH_REQUIRED") setError(error);
@@ -1400,6 +1403,7 @@ export function Workbench() {
             <div hidden={mode !== "incident"}>
               <IncidentWorkbench
                 workspace={workspace}
+                onAction={acceptIncidentAction}
                 active={mode === "incident"}
                 onConnect={openAccounts}
                 onRefresh={refresh}

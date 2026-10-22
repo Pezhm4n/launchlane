@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { decodeAction } from "../../src/contracts/client-decode.ts";
+import { restartReadbackEvidence } from "../../src/contracts/restart.ts";
+import { verifySameSymptom } from "../../src/contracts/incident.ts";
 import {
   executeRestart,
   observeRestart,
@@ -55,6 +57,15 @@ test("restart binds account, app, current release and incident; acceptance is no
     assert.equal(responding.state, "succeeded");
     assert.equal(responding.restart?.observation?.outcome, "responding");
     assert.equal(responding.remoteId, null);
+    const evidence = restartReadbackEvidence(responding);
+    assert.ok(evidence);
+    assert.equal(verifySameSymptom(f.run.evidence, evidence).outcome, "verified");
+    const historical = decodeAction({ ...responding, restart: { ...responding.restart,
+      observation: { ...responding.restart?.observation, observedAt: undefined } } });
+    assert.equal(historical.hash, responding.hash);
+    assert.equal(restartReadbackEvidence(historical), null);
+    assert.throws(() => decodeAction({ ...responding, restart: { ...responding.restart,
+      observation: { ...responding.restart?.observation, observedAt: (responding.restart?.observation?.checkedAt ?? 0) + 1 } } }));
     assert.equal(f.counts.writes, 1);
     await assert.rejects(
       executeRestart(f.config, f.store, session, action.id, signal(), f.deps),
@@ -433,4 +444,16 @@ test("an older concurrent read cannot overwrite a newer same-page observation", 
   } finally {
     f.cleanup();
   }
+});
+
+test("disabling service reads after acceptance prevents even an injected observer from calling upstream", async () => {
+  const f = restartFixture();
+  try {
+    const action = await approved(f);
+    await executeRestart(f.config, f.store, session, action.id, signal(), f.deps);
+    const before = f.counts;
+    await assert.rejects(observeRestart({ ...f.config, enableLiveLiara: false }, f.store, session, action.id, signal(), f.deps), code("LIVE_LIARA_DISABLED"));
+    assert.deepEqual(f.counts, before);
+    assert.equal(f.store.getAction(action.id, session.actorId).state, "observing");
+  } finally { f.cleanup(); }
 });
