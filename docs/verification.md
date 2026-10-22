@@ -2,6 +2,12 @@
 
 شواهد جاری ابتدا و سابقه مراحل پیشین پایین‌تر ثبت شده‌اند. هر نتیجه به revision و شرایط خودش تعلق دارد؛ نتایج bootstrap جای قابلیت محصول و fixture جای اتصال زنده نیست.
 
+## UX67 — خوانایی تبلت؛ پایه 69f1705
+
+تغییر محصول فقط نقطه دو ستونی `.workbench-grid` از 768 به 960 است؛ ورود، چیدمان گزارش اختلال، توکن‌ها و منطق API/state دست‌نخورده‌اند. در دو production ایزوله، با همان نمونه/متن پیشنهاد تأییدشده، اندازه viewport=768×1000 و پس از `document.fonts.ready`، client/content در هر دو 753/753 بود. عرض ستون اصلی از 409.21875 به 689 و ارتفاع همان proposal از 1158.609375 به 911.671875 پیکسل تغییر کرد. در 959، client/content=944/944 و یک ستون 880px؛ در 960، client/content=945/945 و دو ستون 527.375/329.625px دیده شدند. تصاویر و داده قبل/بعد در `.artifacts/tablet-ux/` خصوصی‌اند. این‌ها اندازه هندسی‌اند و امتیاز UX یا تأیید WCAG نیستند.
+
+`npm run lint`، `npm run typecheck` و `npm run build` pass. `npm run test:browser` تازه، 55 حالت در 9 عرض مسیر عمومی و 27 حالت در 6 عرض انتشار را گذراند؛ متن 200٪ در 360/768/959/960 بررسی شد. در حالت‌های سنجیده‌شده overflow، axe violation، browser error و external request صفر بودند. artifactها: `.artifacts/ux/2026-10-22T00-07-32-266Z/` و `.artifacts/deployment-ui/2026-10-22T00-08-05.392Z/`. شواهد domain 89/89 و HTTP 15/15 متعلق به 69f1705 در بخش بعدند؛ تغییر CSS علت اجرای دوباره آن‌ها نبود. تمام حساب/providerهای این برش مصنوعی‌اند؛ کلید واقعی کپی نشد، gateها خاموش و درخواست واقعی Liara/مدل صفر بود. تست انسانی با کاربر تازه و screen reader انجام نشده است.
+
 ## T21 — انتخاب Node و approval v5؛ پایه 667227b
 
 مرز نخست خراب: profile دارای نیاز `>=24.15.0 <25` بود ولی release JSON هیچ platformConfig نداشت. regression مستقل ابتدا diff نبود `platformConfig.version=24` داد؛ پس از اصلاح همان case pass شد. helper server-only محدوده کامل semver را با catalog مستند تطبیق می‌دهد، تنظیم صریح liara.json را با engines می‌سنجد و به runtime رایانه fallback نمی‌کند. semver 7.8.5 و types 7.8.0 با lockfile pinned شدند؛ همان نسخه runtime پیش‌تر dependency غیرمستقیم sharp بود و اکنون direct و deduplicated است.

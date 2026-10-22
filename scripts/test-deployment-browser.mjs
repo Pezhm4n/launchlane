@@ -65,7 +65,7 @@ async function state(label, width = 360) {
     label,
   );
   results.push({ label, width });
-  if ([360, 768, 1280].includes(width))
+  if ([360, 768, 959, 960, 1280].includes(width))
     await page.screenshot({
       path: resolve(output, `${label}-${width}.png`),
       fullPage: true,
@@ -202,7 +202,7 @@ try {
   await page.getByRole("heading", { name: "نتیجه بررسی پروژه", exact: true }).waitFor();
   await page.getByLabel("مسیر بررسی نسخه", { exact: true }).fill("/checkout");
   await page.getByLabel("نسخه مورد انتظار", { exact: true }).fill("sample-v2");
-  for (const width of [280, 360, 768, 1280]) await state("explicit-workload-oracle", width);
+  for (const width of [280, 360, 768, 959, 960, 1280]) await state("explicit-workload-oracle", width);
   await page.getByRole("button", { name: "دریافت پیشنهاد انتشار", exact: true }).press("Enter");
   await page.getByRole("heading", { name: "پیشنهاد انتشار", exact: true }).waitFor();
   await page.getByText("Node.js 24", { exact: true }).waitFor();
@@ -341,7 +341,7 @@ try {
   await page.evaluate(() => {
     document.documentElement.style.fontSize = "200%";
   });
-  await state("uncertain-text-200-percent", 360);
+  for (const width of [360, 768, 959, 960]) await state("uncertain-text-200-percent", width);
   observation = "not_started";
   await page.getByRole("button", { name: "بررسی نتیجه بدون ارسال دوباره", exact: true }).press("Enter");
   await page.getByText("انتشار نسخه شروع نشده است. وضعیت بارگذاری بسته ممکن است نامعلوم باشد؛ پیشنهاد تازه به تأیید دوباره نیاز دارد.", { exact: true }).waitFor();

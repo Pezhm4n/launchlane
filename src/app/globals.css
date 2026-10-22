@@ -719,15 +719,17 @@ th {
   .login-layout {
     grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
   }
-  .workbench-grid {
-    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
-  }
   .panel,
   .action-card {
     padding: var(--space-6);
   }
   .button-row button {
     flex: 0 1 auto;
+  }
+}
+@media (min-width: 960px) {
+  .workbench-grid {
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
   }
 }
 @media (min-width: 1100px) {
