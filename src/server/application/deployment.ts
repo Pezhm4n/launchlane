@@ -20,12 +20,15 @@ import { RunBudget } from "../policy/budget.ts";
 import { containsCredential } from "../policy/redaction.ts";
 import { executeApproved } from "./execute.ts";
 import { restoreProjectFlow } from "./project-flows.ts";
+import { currentEnvironment, environmentFingerprint, projectEnvironmentValues } from "../environment/secrets.ts";
+import { LiaraEnvironmentClient } from "../liara/environment.ts";
 
 type Dependencies = {
   read?: LiaraReadClient;
   write?: LiaraDeployClient;
   probe?: WorkloadProbe;
   budget?: RunBudget;
+  environment?: LiaraEnvironmentClient;
 };
 function scopedConfig(config: Config, store: Store, actorId: string, app: string): Config {
   const scoped = connectedLiaraConfig(config, store, actorId, app);
@@ -47,7 +50,10 @@ function authorize(
     "نشانی یا دسترسی برنامه تغییر کرده است؛ پیشنهاد تازه لازم است.",
     409,
   );
-  if (requireActiveProject) store.assertProjectAction(actorId, spec, actionId);
+  if (requireActiveProject) {
+    store.assertProjectAction(actorId, spec, actionId);
+    if (spec.version === 10) projectEnvironmentValues(store, current.sessionSecret, actorId, spec.projectFlowId, spec.environment);
+  }
   else
     ensure(
       store
@@ -57,7 +63,7 @@ function authorize(
       "هویت برنامه بررسی‌شده تغییر کرده است.",
       403,
     );
-  ensure(spec.version !== 7 || store.getConnection(actorId, "liara")?.view.identityId === spec.accountId,
+  ensure((spec.version !== 7 && spec.version !== 10) || store.getConnection(actorId, "liara")?.view.identityId === spec.accountId,
     "SCOPE_DENIED", "حساب انتشار تغییر کرده است.", 403);
 }
 async function checkProject(
@@ -75,6 +81,12 @@ async function checkProject(
     "هویت برنامه، نوع اجرا یا پلن پس از پیشنهاد تغییر کرده است؛ تأیید تازه لازم است.",
     409,
   );
+}
+async function checkEnvironment(config: Config, spec: DeploymentSpec, budget: RunBudget, signal: AbortSignal, client?: LiaraEnvironmentClient) {
+  if (spec.version !== 10) return;
+  const current = await (client ?? new LiaraEnvironmentClient(config)).read(spec, budget, signal);
+  ensure(current.planId === spec.args.planId && environmentFingerprint(config.sessionSecret, current.values) === spec.environment.fingerprint,
+    "ENV_REFERENCE_CHANGED", "اطلاعات مقصد با نسخه ساخته‌شده برابر نیست؛ انتشار یا سلامت تأیید نمی‌شود.", 409);
 }
 
 async function prepareDeployment(
@@ -111,6 +123,7 @@ async function prepareDeployment(
       scoped.modelKey,
       scoped.operatorToken,
       scoped.sessionSecret,
+      ...scoped.projectSecretValues,
     ]),
     "SENSITIVE_INPUT",
     "معیار بررسی نباید حاوی اطلاعات محرمانه باشد.",
@@ -147,10 +160,14 @@ async function prepareDeployment(
   };
   const connection = store.getConnection(actorId, "liara")?.view;
   ensure(connection?.status === "connected", "LIARA_AUTH_REQUIRED", "ابتدا حساب را متصل کنید.", 409);
+  const environment = currentEnvironment(store, scoped.sessionSecret, actorId, flow.id);
+  ensure(generic || !environment, "ENV_PUBLICATION_REQUIRED", "انتشار با اطلاعات امن از مسیر مرحله‌ای و تصمیم متصل به همان اطلاعات ادامه می‌یابد.", 409);
   const spec: DeploySpec = generic
-    ? { ...common, version: 7, accountId: connection.identityId, workload: parseWorkloadContract(workload) }
+    ? environment ? { ...common, sourceHash: flow.profile.sourceHash, version: 10, operation: "deploy", accountId: connection.identityId, workload: parseWorkloadContract(workload), environment }
+      : { ...common, version: 7, accountId: connection.identityId, workload: parseWorkloadContract(workload) }
     : { ...common, version: 5, workload: parseWorkloadExpectation(workload) };
   authorize(scoped, store, actorId, spec);
+  await checkEnvironment(scoped, spec, budget, signal, dependencies.environment);
   ensure(!signal.aborted, "CANCELLED", "پیشنهاد متوقف شد.", 409);
   return store.createAction(actorId, spec);
 }
@@ -181,7 +198,7 @@ export async function executeDeployment(
   );
   const action = store.getAction(id, session.actorId);
   ensure(
-    action.spec.version === 5 || action.spec.version === 7,
+    action.spec.version === 5 || (action.spec.version === 7 || action.spec.version === 10),
     "DEPLOYMENT_PROPOSAL_REQUIRED",
     "این پیشنهاد قدیمی قابل انتشار نیست؛ پیشنهاد تازه با نسخه Node و معیار بررسی سایت بسازید.",
     409,
@@ -205,7 +222,7 @@ export async function executeDeployment(
     "بودجه برای upload، release و بررسی پیش‌نیاز هر مرحله کافی نیست.",
     409,
   );
-  return executeApproved({
+  try { return await executeApproved({
     config: scoped,
     store,
     session,
@@ -215,8 +232,9 @@ export async function executeDeployment(
     adapter: {
       async preflight(bounded) {
         await checkProject(client, spec, budget, bounded);
+        await checkEnvironment(scoped, spec, budget, bounded, dependencies.environment);
         // Leave room for both writes and the second identity read, including its one connect retry.
-        ensure(budget.maxToolCalls - budget.toolCalls >= 4, "BUDGET_EXHAUSTED", "بودجه ادامه انتشار و بررسی مقصد کافی نیست.", 409);
+        ensure(budget.maxToolCalls - budget.toolCalls >= (spec.version === 10 ? 6 : 4), "BUDGET_EXHAUSTED", "بودجه ادامه انتشار و بررسی مقصد کافی نیست.", 409);
         authorize(scoped, store, session.actorId, spec, id);
       },
       async execute(claimed, bounded, source) {
@@ -226,6 +244,7 @@ export async function executeDeployment(
         const sourceId = await writer.upload(spec, source, budget, bounded);
         store.deploymentStep(claimed.id, session.actorId, "uploaded", sourceId);
         await checkProject(client, spec, budget, bounded);
+        await checkEnvironment(scoped, spec, budget, bounded, dependencies.environment);
         authorize(scoped, store, session.actorId, spec, id);
         store.deploymentStep(claimed.id, session.actorId, "release_started", sourceId);
         return {
@@ -233,7 +252,11 @@ export async function executeDeployment(
         };
       },
     },
-  });
+  }); } catch (error) {
+    if (spec.version === 10 && error instanceof AppError && error.code === "ENV_REFERENCE_CHANGED")
+      return store.invalidateEnvironmentPublication(id, session.actorId);
+    throw error;
+  }
 }
 
 export async function observeDeployment(
@@ -279,6 +302,7 @@ export async function observeDeployment(
       result = { ...result, outcome: "not_started", code: "RELEASE_NOT_STARTED" };
     } else if (action.remoteId) {
       await checkProject(client, spec, budget, signal);
+      await checkEnvironment(scoped, spec, budget, signal, dependencies.environment);
       const releases = await client.releases(spec.scope, 1, 50, budget, signal);
       const release = releases.releases.find((row) => row.id === action.remoteId);
       result = {
@@ -298,7 +322,7 @@ export async function observeDeployment(
           spec.workload.path,
           budget,
           signal,
-          spec.version === 7 ? 65536 : 4096,
+          (spec.version === 7 || spec.version === 10) ? 65536 : 4096,
         );
         ensure(
           probe.scope.teamId === spec.scope.teamId &&
@@ -329,7 +353,7 @@ export async function observeDeployment(
           outcome:
             probe.outcome === "response" &&
             probe.status === spec.workload.status &&
-            (spec.version === 7
+            ((spec.version === 7 || spec.version === 10)
               ? matchesWorkload(spec.workload, probe.status, probe.body)
               : revision === spec.workload.revision)
               ? "verified"
@@ -338,7 +362,7 @@ export async function observeDeployment(
         };
         // Provider current/READY can precede the public route switching from the old response.
         // Waiting never changes the approved assertion; a persistent mismatch still fails at the deadline.
-        if (result.outcome === "failed" && spec.version === 7 && probe.outcome === "response" &&
+        if (result.outcome === "failed" && (spec.version === 7 || spec.version === 10) && probe.outcome === "response" &&
           action.deployment.releaseAcceptedAt !== undefined &&
           probe.observedAt >= action.deployment.releaseAcceptedAt &&
           probe.observedAt - action.deployment.releaseAcceptedAt < 300_000)
@@ -346,6 +370,7 @@ export async function observeDeployment(
         if (result.outcome === "verified") {
           // Fence the probe with fresh project/release reads. READY from an older release is insufficient.
           await checkProject(client, spec, budget, signal);
+          await checkEnvironment(scoped, spec, budget, signal, dependencies.environment);
           const current = await client.releases(spec.scope, 1, 50, budget, signal);
           result =
             current.currentRelease === action.remoteId &&

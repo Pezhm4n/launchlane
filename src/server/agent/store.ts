@@ -228,6 +228,10 @@ export class AgentRepository {
         else if (run.destination.attemptId) run.effect = "remote_changes_unverified";
       }
     }
+    if (!run.publication?.attemptId && (!run.destination?.attemptId || run.destination.state === "succeeded")) {
+      const environment = this.store.db.prepare("SELECT a.state FROM actions a JOIN environment_progress p ON p.action_id=a.id WHERE a.actor_id=? AND json_extract(a.spec,'$.version')=9 AND json_extract(a.spec,'$.agentRunId')=? AND (a.state='succeeded' OR (a.state IN ('executing','observing','uncertain') AND json_extract(p.data_json,'$.stage') IN ('request_started','accepted'))) ORDER BY a.rowid DESC LIMIT 1").get(actorId, run.id);
+      if (environment) run.effect = environment.state === "succeeded" ? "configuration_changed" : "remote_changes_unverified";
+    }
     if (run.repair) {
       const job = this.store.db
         .prepare("SELECT data_json,state FROM code_repair_jobs WHERE actor_id=? AND id=?")

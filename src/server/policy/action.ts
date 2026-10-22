@@ -12,7 +12,7 @@ import { ensure } from "../errors.ts";
 import { parseWorkloadContract, parseWorkloadExpectation, parseWorkloadTarget } from "../../contracts/deployment.ts";
 import { parseNodeVersion } from "../../contracts/node-runtime.ts";
 import { parseProvisionSpec } from "../../contracts/provision.ts";
-import { parseEnvironmentSpec } from "../../contracts/environment.ts";
+import { parseEnvironmentSpec, parseEnvironmentReference } from "../../contracts/environment.ts";
 
 export function canonical(value: unknown): string {
   if (
@@ -36,6 +36,11 @@ export function fingerprint(value: unknown): string {
 
 export function parseActionSpec(value: unknown): ActionSpec {
   const input = object(value);
+  if (input.version === 10) {
+    const { environment, ...rest } = input, base = parseActionSpec({ ...rest, version: 7 });
+    ensure(base.version === 7 && typeof base.sourceHash === "string", "INVALID_INPUT", "پیشنهاد انتشار معتبر نیست.");
+    return { ...base, version: 10, operation: "deploy", sourceHash: base.sourceHash, environment: parseEnvironmentReference(environment) };
+  }
   if (input.version === 9) return parseEnvironmentSpec(input);
   if (input.version === 8) return parseProvisionSpec(input);
   exactKeys(input, [

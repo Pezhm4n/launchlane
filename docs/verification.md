@@ -1,5 +1,16 @@
 # شواهد اعتبارسنجی Launchlane
 
+## env متصل به build و انتشار؛ candidate مستقل بر پایه37beb7a
+
+مرجع configuration اکنون جزئی از برنامه و تصمیم build و ActionSpec v10 است. actor/project/account/app، lineage آزموده‌شده، کلیدها و HMAC بسته‌اند؛ source/image/فرمان/معیار قبلی به env عوض‌شده منتقل نمی‌شوند. secret با stdin و log driver none وارد container می‌شود، نه command line، Docker Env، mount یا فایل میزبان. configuration_changed با workload verified یکی نیست. [ADR0014](decisions/0014-build-environment-binding.md) مرز مصدر source artifact، CAS بیرونی و حفظ v1–v9 تاریخی را توضیح می‌دهد.
+
+روی code tree `a77bcf4f3ff1658a4d6418244b9ce2d84071154d`: build، typecheck، domain281/281 و HTTP28/28 گذشتند؛ lint صفر error،30warning و9info داشت. شش suite مرورگر به‌ترتیب75/27/27/22/35/5 حالت را با transport مصنوعی گذراندند. 35 حالت guided شامل فرم امن، تصمیم build دارای reference، پنج عرض و رد بدون container است؛ تصویر تصمیم360 جدا بازبینی شد. این snapshot از hunkهای همین فاز ساخته شد و CSS/nav/icon هم‌زمان همکار را شامل نمی‌شود.
+
+test:build-sandbox با dependencyهای واقعیِ cache و integrity همان lock، دو case واقعی Docker install/build/test/start/GET را گذراند: سالم1 container و fail→patch→همان تست pass سه container، artifact سالم هر دو815468242e09fec4ef3954a73e1465fc66c0c6a56c4e6e0890588eb4c9ba831b. case سوم env، همان mission و source را حفظ کرد، echo مصنوعی در receipt حذف شد، archive بازشده مقدار را نداشت و container خود job حذف شد. test:sandbox نیز containment و هر5 regression را گذراند. تکرارها واقعیِ local Docker ولی مدل/ابر همه مصنوعی‌اند؛ هیچ مصرف تازه مدل/لیارا، تغییر سرور اصلی، تنظیم اتصال، VPN یا reset دفتر مصرف در این فاز انجام نشد.
+
+تست v10، تغییر configuration پیش از upload را بدون attempt و با نامعتبرشدن مجوز رد می‌کند؛ تغییر پس از HTTP200 نیز success نمی‌سازد. configuration ثابت با release جاری و workload درست می‌گذرد. env زنده، Next/GitHub دارای build زنده، چرخه تازه fail-deploy→repair→redeploy، reader/keyboard موبایل واقعی و ادغام نهایی با UI موازی همچنان UNCONFIRMED هستند. گزارش live همکار در afbbf0c شاهد جداست؛ سقف تجمعی آن run پیش از تکمیل repair مانع ادامه شد و این فاز آن را باز نکرد.
+
+
 ## اطلاعات امن runtime؛ candidate مستقل بر پایهafbbf0c
 
 فرم داخل انتشار، مقدارها را به مرجع AES-GCM/actor/spec و ActionSpec v9 متصل می‌کند؛ migration10 فقط افزوده است. public readback نام/وضعیت دارد. HMAC مبنای کل configuration پیش از write دوباره تطبیق می‌یابد و مقادیر موجود در payload ادغام‌شده حفظ می‌شوند. احتمال restart پیش از تصمیم آشکار است؛ نتیجه configuration به معنی سلامت یا restart کامل نیست. منبع/حساب/app/پلن، جلسه، TTL، مصرف یک‌باره و journal قبلی reuse می‌شوند. [ADR0013](decisions/0013-project-environment.md) مرز CAS بیرونی و env ساخت محلی را ثبت می‌کند.

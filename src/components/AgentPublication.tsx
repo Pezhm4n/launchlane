@@ -18,7 +18,7 @@ export function AgentPublication({
   onDecision: (decision: "approve" | "reject") => void;
   onObserve: () => void;
 }) {
-  if (action.spec.version !== 7) return null;
+  if ((action.spec.version !== 7 && action.spec.version !== 10)) return null;
   const spec = action.spec,
     assertion = spec.workload.assertion;
   const verified = action.state === "succeeded",

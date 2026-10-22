@@ -90,6 +90,19 @@ export type ActionSpec = (ActionInputs &
         evidenceHash: string;
         target: import("./deployment.ts").WorkloadTarget;
       }>
+    | Readonly<{
+        version: 10;
+        operation: "deploy";
+        sourceHash: string;
+        artifactHash: string;
+        projectFlowId: string;
+        selectionHash: string;
+        accountId: string;
+        targetAppId: string;
+        workload: import("./deployment.ts").WorkloadContract;
+        nodeVersion: import("./node-runtime.ts").NodeVersion;
+        environment: import("./environment.ts").EnvironmentReference;
+      }>
   )) | import("./provision.ts").ProvisionSpec | import("./environment.ts").EnvironmentSpec;
 
 export type ActionState =

@@ -1,6 +1,6 @@
 # معماری Launchlane
 
-اطلاعات محیطی runtime از فرم همان انتشار به application/environment، reference رمز‌شده و ActionSpec v9 می‌روند؛ مدل فقط نام/وضعیت می‌بیند. همان Store مالک تصمیم، claim و قفل scope است؛ journal جدا فقط مراحل env را ثبت می‌کند. input با actor/spec در AES-GCM بسته و snapshot ادغام‌شده با HMAC متصل است. خواندن و نوشتن سهمیه همان mission را مصرف می‌کنند. readback پیکربندی، restart یا سلامت برنامه نیست؛ پذیرش زنده و env ساخت محلی هنوز بازند. [ADR0013](docs/decisions/0013-project-environment.md).
+اطلاعات محیطی از فرم همان انتشار به application/environment، reference رمز‌شده و ActionSpec v9 می‌روند؛ مدل فقط نام/وضعیت می‌بیند. همان Store مالک تصمیم، claim و قفل scope است؛ journal جدا مراحل env را ثبت می‌کند. input با actor/spec در AES-GCM بسته و snapshot ادغام‌شده با HMAC متصل است. برنامه build همان reference را با تصمیم استفاده محلی، stdin و container بدون log پایدار می‌گیرد. انتشار وابسته، v10 و readback configuration در دو سوی workload دارد؛ v1–v9 تاریخی محفوظ‌اند. خواندن و نوشتن سهمیه همان mission را مصرف می‌کنند. readback پیکربندی، restart یا سلامت برنامه نیست؛ پذیرش زنده و Next/GitHub همچنان بازند. [ADR0013](docs/decisions/0013-project-environment.md) و [ADR0014](docs/decisions/0014-build-environment-binding.md).
 
 ## مسیر اصلی مرحله‌ای؛ تصمیم جاری
 

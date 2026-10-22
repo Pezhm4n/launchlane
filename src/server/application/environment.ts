@@ -1,5 +1,5 @@
 import type { Action, Session } from "../../contracts/domain.ts";
-import { environmentVariables, type EnvironmentSpec } from "../../contracts/environment.ts";
+import { environmentVariables, isApplicationEnvironmentKey, type EnvironmentSpec } from "../../contracts/environment.ts";
 import type { Config } from "../config.ts";
 import { connectedLiaraConfig } from "../connections/liara.ts";
 import { ensure } from "../errors.ts";
@@ -52,7 +52,7 @@ export async function proposeEnvironment(config: Config, store: Store, session: 
     if (row.public === true && typeof row.key === "string") publicKeys.add(row.key);
     return { key: row.key, value: row.value };
   }), 32), { run, flow, target, scoped } = environmentContext(config, store, session.actorId, runId);
-  ensure(changes.length > 0 && changes.every(({ key, value }) => (publicKeys.has(key) || value.length >= 4) && flow.profile.envNames.includes(key) && !/^(?:PATH|HOME|TMPDIR|NODE_OPTIONS|NODE_ENV|PORT|npm_config_.*)$/i.test(key)),
+  ensure(changes.length > 0 && changes.every(({ key, value }) => (publicKeys.has(key) || value.length >= 4) && flow.profile.envNames.includes(key) && isApplicationEnvironmentKey(key)),
     "ENV_SCOPE_DENIED", "فقط اطلاعات لازمِ شناسایی‌شده در همین پروژه قابل تکمیل است؛ تنظیمات اجرای محیط جدا بررسی می‌شوند.", 409);
   const infrastructureSecrets = [scoped.liaraToken, config.modelKey, config.operatorToken, config.sessionSecret].filter(Boolean);
   ensure(changes.every(row => infrastructureSecrets.every(secret => !row.value.includes(secret))), "ENV_INFRASTRUCTURE_CREDENTIAL", "کلیدهای نصب یا زیرساخت را به برنامه مشتری منتقل نکنید.", 409);

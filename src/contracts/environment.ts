@@ -4,6 +4,15 @@ import { exactKeys, hash, object, string } from "./validation.ts";
 import { providerObjectId } from "./provision.ts";
 
 export type EnvironmentVariable = { key: string; value: string };
+export type EnvironmentReference = Readonly<{ actionId: string; fingerprint: string; keys: readonly string[] }>;
+export function parseEnvironmentReference(value: unknown): EnvironmentReference {
+  const row = object(value); exactKeys(row, ["actionId", "fingerprint", "keys"]);
+  const actionId = string(row.actionId, 36);
+  ensure(/^[a-f0-9-]{36}$/.test(actionId) && Array.isArray(row.keys) && row.keys.length <= 128, "INVALID_ENV_REFERENCE", "مرجع اطلاعات برنامه معتبر نیست.");
+  const keys = row.keys.map(environmentKey);
+  ensure(new Set(keys).size === keys.length, "INVALID_ENV_REFERENCE", "نام متغیر تکراری است.");
+  return { actionId, fingerprint: hash(row.fingerprint), keys };
+}
 export type EnvironmentSpec = Readonly<{
   version: 9; operation: "update_env"; scope: Scope; sourceHash: string; artifactHash: string;
   projectFlowId: string; selectionHash: string; accountId: string; targetAppId: string;
@@ -16,6 +25,9 @@ export function environmentKey(value: unknown): string {
   const key = string(value, 128);
   ensure(/^[A-Za-z_][A-Za-z0-9_]*$/.test(key), "INVALID_ENV_KEY", "نام متغیر معتبر نیست.");
   return key;
+}
+export function isApplicationEnvironmentKey(key: string): boolean {
+  return !/^(?:PATH|HOME|TMPDIR|NODE_OPTIONS|NODE_ENV|PORT|CI|NEXT_TELEMETRY_DISABLED|npm_config_.*)$/i.test(key);
 }
 export function environmentVariables(value: unknown, max = 128): EnvironmentVariable[] {
   ensure(Array.isArray(value) && value.length <= max, "INVALID_ENV_INPUT", "تعداد متغیرها بیشتر از سقف مجاز است.");

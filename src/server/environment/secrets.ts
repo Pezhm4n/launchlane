@@ -1,10 +1,10 @@
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from "node:crypto";
-import type { EnvironmentSpec, EnvironmentVariable } from "../../contracts/environment.ts";
-import { environmentVariables } from "../../contracts/environment.ts";
-import { string } from "../../contracts/validation.ts";
+import type { EnvironmentSpec, EnvironmentVariable, EnvironmentReference } from "../../contracts/environment.ts";
+import { environmentVariables, isApplicationEnvironmentKey } from "../../contracts/environment.ts";
+import { object, string } from "../../contracts/validation.ts";
 import { parseEnvironmentSpec } from "../../contracts/environment.ts";
 import { AppError, ensure } from "../errors.ts";
-import { canonical } from "../policy/action.ts";
+import { canonical, fingerprint } from "../policy/action.ts";
 import type { Store } from "../persistence/store.ts";
 
 function key(secret: string): Buffer {
@@ -17,6 +17,39 @@ export function environmentFingerprint(secret: string, values: readonly Environm
   finally { bytes.fill(0); }
 }
 function binding(actorId: string, spec: EnvironmentSpec) { return canonical({ actorId, spec }); }
+export function environmentProjectIds(store: Store, actorId: string, projectId: string): Set<string> {
+  const projects = new Set<string>(); let flow = store.getProjectFlow(actorId, projectId), complete = false;
+  for (let depth = 0; flow && depth < 8 && !projects.has(flow.id); depth++) {
+    projects.add(flow.id);
+    if (flow.selection.kind !== "repair") { complete = true; break; }
+    const record = store.db.prepare("SELECT data_json FROM code_repair_jobs WHERE actor_id=? AND id=?").get(actorId, flow.selection.jobId);
+    if (!record) break;
+    const job = object(object(JSON.parse(string(record.data_json, 1024 * 1024))).job);
+    flow = store.getProjectFlow(actorId, string(job.projectId, 36));
+  }
+  ensure(complete, "ENV_LINEAGE_UNAVAILABLE", "تبار نسخه اصلاح‌شده قابل تأیید نیست؛ اطلاعات پروژه دیگری استفاده نمی‌شود.", 409);
+  return projects;
+}
+export function currentEnvironment(store: Store, secret: string, actorId: string, projectId: string): EnvironmentReference | null {
+  const connection = store.getConnection(actorId, "liara")?.view, target = connection?.apps.find(row => row.name === connection.selectedApp);
+  if (!connection || !target) return null;
+  const projects = environmentProjectIds(store, actorId, projectId);
+  const rows = store.db.prepare("SELECT id FROM actions WHERE actor_id=? AND state='succeeded' AND json_extract(spec,'$.version')=9 ORDER BY rowid DESC LIMIT 128").all(actorId);
+  for (const row of rows) {
+    const action = store.getAction(string(row.id, 36), actorId), spec = action.spec;
+    if (spec.version !== 9 || !projects.has(spec.projectFlowId) || spec.accountId !== connection.identityId || spec.scope.teamId !== connection.teamId || spec.targetAppId !== target.id || spec.scope.app !== target.name) continue;
+    const values = openEnvironmentInput(store, secret, actorId, spec, true), names = store.getProjectFlow(actorId, projectId)?.profile.envNames ?? [];
+    return { actionId: action.id, fingerprint: spec.effectiveFingerprint, keys: values.map(row => row.key).filter(key => names.includes(key) && isApplicationEnvironmentKey(key)) };
+  }
+  return null;
+}
+export function projectEnvironmentValues(store: Store, secret: string, actorId: string, projectId: string, reference: EnvironmentReference | null | undefined): EnvironmentVariable[] {
+  ensure(fingerprint(reference ?? null) === fingerprint(currentEnvironment(store, secret, actorId, projectId)), "ENV_REFERENCE_CHANGED", "اطلاعات برنامه تغییر کرده است؛ ساخت و تصمیم تازه لازم است.", 409);
+  if (!reference) return [];
+  const action = store.getAction(reference.actionId, actorId);
+  ensure(action.spec.version === 9 && action.state === "succeeded", "ENV_REFERENCE_UNVERIFIED", "ذخیره اطلاعات برنامه هنوز تأیید نشده است.", 409);
+  return openEnvironmentInput(store, secret, actorId, action.spec, true).filter(row => reference.keys.includes(row.key));
+}
 export function projectSecretValues(store: Store, secret: string, actorId: string): string[] {
   const rows = store.db.prepare("SELECT spec FROM actions WHERE actor_id=? AND json_extract(spec,'$.version')=9 ORDER BY rowid DESC LIMIT 128").all(actorId);
   return [...new Set(rows.flatMap(row => {

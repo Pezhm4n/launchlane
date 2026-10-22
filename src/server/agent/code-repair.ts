@@ -26,6 +26,8 @@ import { runContainerTests, runContainerBuild } from "./container.ts";
 import { parseProjectBuildPlan, projectBuildImage, type ProjectBuildPlan } from "../../contracts/project-build.ts";
 import { validateBuildPlan, validateBuildRepairPaths } from "./build-policy.ts";
 import { downloadLockedTarballs, lockedTarballs, type TarballReader } from "./npm-source.ts";
+import { projectEnvironmentValues } from "../environment/secrets.ts";
+import { connectedLiaraConfig } from "../connections/liara.ts";
 
 const patchTool: ToolDefinition = {
   type: "function",
@@ -374,6 +376,7 @@ export class CodeRepairAdapter {
     );
     const paths = new Set(captured.files.map((file) => file.path));
     const build = input.build ? validateBuildPlan(captured.files, captured.profile, input.build) : undefined;
+    if (build) projectEnvironmentValues(this.store, this.config.sessionSecret, actor, flow.id, build.environment);
     if (build) validateBuildRepairPaths(input.allowedPaths);
     ensure(!build || input.execution === "container", "BUILD_ISOLATION_REQUIRED", "install و build فقط در container اجرا می‌شوند.", 403);
     ensure(!input.validationOnly || (build && input.allowedPaths.length === 0 && input.testFiles.length === 0), "BUILD_SCOPE_INVALID", "بررسی build مجوز ویرایش فایل نمی‌دهد.", 403);
@@ -524,15 +527,19 @@ export class CodeRepairAdapter {
       );
       const tarballs = join(this.config.stateDir, "repair-tarballs", id);
       if (record.job.build) {
+        projectEnvironmentValues(this.store, this.config.sessionSecret, actor, record.job.projectId, record.job.build.environment);
         validateBuildPlan(base.files, base.profile, record.job.build);
         await downloadLockedTarballs(lockedTarballs(base.files), tarballs, bounded, () => budget.take("tool", bounded), this.tarballReader);
       }
       const tests = async (): Promise<RepairTestReceipt> => {
         if (record.job.build) {
+          const environment = projectEnvironmentValues(this.store, this.config.sessionSecret, actor, record.job.projectId, record.job.build.environment),
+            infrastructure = [record.job.build.environment ? connectedLiaraConfig(this.config, this.store, actor).liaraToken : this.config.liaraToken, this.config.modelKey, this.config.operatorToken, this.config.sessionSecret].filter(Boolean);
+          ensure(environment.every(row => infrastructure.every(secret => !row.value.includes(secret))), "ENV_INFRASTRUCTURE_CREDENTIAL", "کلید زیرساخت وارد worker نمی‌شود.", 409);
           const started = Date.now(), result = await runContainerBuild(record.workspace, tarballs, record.job.build,
-            AbortSignal.any([bounded, AbortSignal.timeout(120000)]), containerId => { record.job.containerIds = [...(record.job.containerIds ?? []), containerId]; this.save(record); });
+            AbortSignal.any([bounded, AbortSignal.timeout(120000)]), containerId => { record.job.containerIds = [...(record.job.containerIds ?? []), containerId]; this.save(record); }, environment);
           return { command: `npm ci --offline${record.job.build.buildCommand ? " && npm run build" : ""}${record.job.build.testCommand ? " && npm test" : ""} && npm start; GET ${record.job.build.workload.path}`,
-            exitCode: result.exitCode, signal: result.signal, durationMs: Date.now() - started, output: redact(result.output, privateValues(this.config)),
+            exitCode: result.exitCode, signal: result.signal, durationMs: Date.now() - started, output: redact(result.output, [...privateValues(this.config), ...environment.map(row => row.value).filter(value => value.length >= 4)]),
             passed: result.exitCode === 0 && !bounded.aborted && !result.signal };
         }
         return runRepairTests(

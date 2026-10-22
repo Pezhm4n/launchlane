@@ -23,6 +23,8 @@ import type { WorkloadContract } from "../../contracts/deployment.ts";
 import { parseProjectBuildPlan, projectBuildImage } from "../../contracts/project-build.ts";
 import { parseCodeRepairJob, type CodeRepairJob } from "../../contracts/code-repair.ts";
 import { requiresProjectBuild, sameBuildWorkload, projectTestCommand } from "./build-policy.ts";
+import { currentEnvironment } from "../environment/secrets.ts";
+import { isApplicationEnvironmentKey } from "../../contracts/environment.ts";
 
 export function privateValues(c: Config): string[] {
   return [c.liaraToken, c.modelKey, c.operatorToken, c.sessionSecret, ...c.projectSecretValues].filter(Boolean);
@@ -146,7 +148,7 @@ const repairTool: ToolDefinition = {
   function: {
     name: "propose_code_repair",
     description:
-      "Propose a scoped local code correction, after reading relevant source and existing tests. The host validates files and the existing direct Node test command. Does NOT execute tests or edit files until the user approves the displayed scope. No dependencies or test edits. Do not propose when test files are absent or the issue is not reproduced by an existing test.",
+      "Propose a scoped local code correction, after reading relevant source and existing tests. The host validates files and the existing direct Node test command. Does NOT execute tests or edit files until the user approves the displayed scope. No dependency or test edits. A direct native repair requires the existing Node tests. After an executed build job fails its original build/test/workload criterion, testFiles=[] retains that exact host-owned plan and permits a scoped source repair. A missing env or network/integrity/sandbox failure does not justify a source edit.",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -334,11 +336,13 @@ export async function executeAgentTool(
     const workload = { path: args.path, status: args.status, assertion: args.assertion };
     if (c.buildJob?.build) ensure(fingerprint(workload) === fingerprint(c.buildJob.build.workload), "MISSION_EXPECTATION_CHANGED", "معیار build قبلی تغییر نمی‌کند.", 409);
     if (name === "propose_project_build") {
-      ensure(!(c.buildJob?.validationOnly && c.buildJob.state === "failed" && c.buildJob.baseRevision === c.context.sourceHash) || c.explicitBuildRetry === true,
+      ensure(!(c.buildJob?.validationOnly && c.buildJob.state === "failed" && c.buildJob.baseRevision === c.context.sourceHash) || c.explicitBuildRetry === true ||
+        fingerprint(c.buildJob.build?.environment ?? null) !== fingerprint(currentEnvironment(c.store, c.config.sessionSecret, c.actorId, flow.id)),
         "BUILD_NO_PROGRESS", "همان build ناموفق بدون تغییر شواهد تکرار نمی‌شود؛ علت توقف را بررسی کنید.", 409);
       c.budget.take("tool", c.signal);
       const build = parseProjectBuildPlan({ version: 1, nodeVersion: flow.profile.nodeRuntime?.version, image: projectBuildImage,
-        buildCommand: flow.profile.build, testCommand: projectTestCommand(captured.files), startCommand: flow.profile.start, port: flow.profile.port, workload });
+        buildCommand: flow.profile.build, testCommand: projectTestCommand(captured.files), startCommand: flow.profile.start, port: flow.profile.port, workload,
+        environment: currentEnvironment(c.store, c.config.sessionSecret, c.actorId, flow.id) });
       const job = await new CodeRepairAdapter(c.config, c.store).propose(c.actorId, {
         projectId: flow.id, expectedSourceHash: c.context.sourceHash, goal: "نصب قفل‌شده، ساخت و بررسی پاسخ همان برنامه در محیط ایزوله",
         allowedPaths: [], testFiles: [], execution: "container", build, validationOnly: true,
@@ -349,7 +353,7 @@ export async function executeAgentTool(
       const rows = c.store.db.prepare("SELECT state,data_json FROM code_repair_jobs WHERE actor_id=? AND state='succeeded' AND json_extract(data_json,'$.job.artifact.sourceHash')=? ORDER BY updated_at DESC LIMIT 10").all(c.actorId, c.context.sourceHash);
       const verified = rows.some(row => {
         const job = parseCodeRepairJob({ ...object(object(JSON.parse(string(row.data_json, 1024 * 1024))).job), state: row.state });
-        return job.build && job.build.nodeVersion === flow.profile.nodeRuntime?.version && job.build.buildCommand === flow.profile.build && job.build.testCommand === projectTestCommand(captured.files) && job.build.startCommand === flow.profile.start && job.build.port === flow.profile.port &&
+        return job.build && fingerprint(job.build.environment ?? null) === fingerprint(currentEnvironment(c.store, c.config.sessionSecret, c.actorId, flow.id)) && job.build.nodeVersion === flow.profile.nodeRuntime?.version && job.build.buildCommand === flow.profile.build && job.build.testCommand === projectTestCommand(captured.files) && job.build.startCommand === flow.profile.start && job.build.port === flow.profile.port &&
           job.execution === "container" && !!job.containerIds?.length && job.afterTest?.passed && sameBuildWorkload(job.build, parseProjectBuildPlan({ ...job.build, workload }).workload);
       });
       ensure(verified, "PROJECT_BUILD_REQUIRED", "این پروژه پیش از پیشنهاد انتشار به نصب، ساخت و بررسی پاسخ در محیط ایزوله نیاز دارد؛ ابتدا propose_project_build را اجرا کنید.", 409);
@@ -475,6 +479,7 @@ export async function executeAgentTool(
         build: flow.profile.build,
         port: flow.profile.port,
         envNames: flow.profile.envNames,
+        environmentFormNames: flow.profile.envNames.filter(isApplicationEnvironmentKey),
         gaps: flow.profile.missing,
         archiveReady: !!flow.artifact,
         files: flow.profile.manifest

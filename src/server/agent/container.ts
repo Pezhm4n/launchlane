@@ -3,13 +3,15 @@ import { randomUUID } from "node:crypto";
 import { AppError, ensure } from "../errors.ts";
 import { parseProjectBuildPlan, projectBuildImage, type ProjectBuildPlan } from "../../contracts/project-build.ts";
 import { object } from "../../contracts/validation.ts";
+import { environmentVariables, isApplicationEnvironmentKey, type EnvironmentVariable } from "../../contracts/environment.ts";
 
 export const node22Image = projectBuildImage;
 export type CommandResult = { output: string; exitCode: number | null; signal: string | null };
-function docker(args: string[], signal: AbortSignal, maxBytes = 32768): Promise<CommandResult> {
+function docker(args: string[], signal: AbortSignal, maxBytes = 32768, input?: Buffer): Promise<CommandResult> {
   ensure(!signal.aborted, "CANCELLED", "اجرای ایزوله متوقف شد.", 409);
   return new Promise((resolve, reject) => {
-    const child = spawn("docker", args, { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn("docker", args, { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
+    child.stdin.on("error", () => undefined); child.stdin.end(input);
     let output = "", limited = false;
     const stop = () => child.kill();
     signal.addEventListener("abort", stop, { once: true });
@@ -76,6 +78,7 @@ export async function runContainerTests(workspace: string, testFiles: readonly s
 const buildProgram = `const fs=require('node:fs'),{spawn}=require('node:child_process'),{createHash}=require('node:crypto');
 const plan=JSON.parse(process.argv[1]);let stage='cache';const watchdog=setTimeout(()=>process.exit(124),110000);
 const env={PATH:'/usr/local/bin:/usr/bin:/bin',HOME:'/work',TMPDIR:'/work',CI:'true',NEXT_TELEMETRY_DISABLED:'1',PORT:String(plan.port),NODE_OPTIONS:'--max-old-space-size=512',npm_config_cache:'/work/cache',npm_config_offline:'true',npm_config_audit:'false',npm_config_fund:'false'};
+for(const item of JSON.parse(fs.readFileSync(0,'utf8')||'[]')){if(!/^[A-Za-z_][A-Za-z0-9_]*$/.test(item.key)||/^(?:PATH|HOME|TMPDIR|NODE_OPTIONS|NODE_ENV|PORT|CI|NEXT_TELEMETRY_DISABLED|npm_config_.*)$/i.test(item.key)||typeof item.value!=='string')throw Error('invalid project environment');env[item.key]=item.value}
 fs.cpSync('/source','/work/project',{recursive:true,dereference:false});
 fs.writeFileSync('/work/user.npmrc','');fs.writeFileSync('/work/global.npmrc','');
 const npm=async args=>new Promise((resolve,reject)=>{const p=spawn('/usr/local/bin/npm',args,{cwd:'/work/project',env,stdio:['ignore','pipe','pipe']});p.stdout.pipe(process.stdout);p.stderr.pipe(process.stderr);p.once('error',reject);p.once('exit',code=>code===0?resolve():reject(Error('command exited '+code)))});
@@ -95,12 +98,14 @@ clearTimeout(watchdog);process.exit(0)
 })().catch(error=>{console.error('Launchlane build check failed:',stage,error.message);process.exit({cache:74,install:71,build:72,workload:73,test:76}[stage]??75)});`;
 
 export async function runContainerBuild(workspace: string, tarballs: string, value: ProjectBuildPlan, signal: AbortSignal,
-  onCreated?: (id: string) => void): Promise<CommandResult & { containerId: string; image: string }> {
-  const plan = parseProjectBuildPlan(value);
+  onCreated?: (id: string) => void, environment: readonly EnvironmentVariable[] = []): Promise<CommandResult & { containerId: string; image: string }> {
+  const plan = parseProjectBuildPlan(value), values = environmentVariables(environment);
+  ensure(values.every(row => isApplicationEnvironmentKey(row.key)), "ENV_SCOPE_DENIED", "تنظیمات runner از اطلاعات پروژه جداست.", 409);
+  ensure(values.map(row => row.key).sort().join("\0") === [...(plan.environment?.keys ?? [])].sort().join("\0"), "ENV_REFERENCE_CHANGED", "ورودی محیط build با تصمیم برابر نیست.", 409);
   ensure(!workspace.includes(",") && !tarballs.includes(","), "SANDBOX_PATH_DENIED", "مسیر ورودی build معتبر نیست.", 403);
   let id: string | null = null;
   try {
-    const created = await docker(["create", "--pull=never", "--name", `launchlane-build-${randomUUID()}`, "--label", "ir.launchlane.worker=locked-build-v1",
+    const created = await docker(["create", "--interactive", "--log-driver", "none", "--pull=never", "--name", `launchlane-build-${randomUUID()}`, "--label", "ir.launchlane.worker=locked-build-v1",
       "--network", "none", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--user", "1000:1000",
       "--cpus", "1", "--memory", "2g", "--memory-swap", "2g", "--pids-limit", "128",
       "--tmpfs", "/work:rw,nosuid,nodev,size=1073741824,uid=1000,gid=1000,mode=0700",
@@ -108,7 +113,10 @@ export async function runContainerBuild(workspace: string, tarballs: string, val
       node22Image, "node", "-e", buildProgram, "--", JSON.stringify(plan)], signal, 4096);
     ensure(created.exitCode === 0 && /^[a-f0-9]{64}$/.test(created.output.trim()), "SANDBOX_UNAVAILABLE", "محیط build محدود ایجاد نشد؛ script روی میزبان اجرا نشده است.", 503);
     id = created.output.trim(); onCreated?.(id);
-    const result = await docker(["start", "--attach", id], signal);
+    const input = Buffer.from(JSON.stringify(values));
+    let result: CommandResult;
+    try { result = await docker(["start", "--attach", "--interactive", id], signal, 32768, input); }
+    finally { input.fill(0); }
     const state = await containerState(id), stopped = result.signal ?? (state.oom ? "OOM" : null);
     return { ...result, signal: stopped, exitCode: signal.aborted || stopped ? null : state.exitCode, containerId: id, image: node22Image };
   } finally {

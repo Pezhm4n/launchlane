@@ -13,6 +13,7 @@ import { currentAgentContext } from "../src/server/agent/tools.ts";
 import { projectBuildImage } from "../src/contracts/project-build.ts";
 import { fingerprint } from "../src/server/policy/action.ts";
 import { sealCredential } from "../src/server/connections/credentials.ts";
+import { currentEnvironment } from "../src/server/environment/secrets.ts";
 
 const server = await startTestServer({ agentFixture: true, environmentFixture: true }), browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ locale: "fa-IR", reducedMotion: "reduce" }), page = await context.newPage();
@@ -145,7 +146,9 @@ try {
   await journey.getByRole("button", { name: "ادامه همان مأموریت", exact: true }).waitFor();
   assert.equal(await modelRequests(), cancelledCount); assert.equal(store.db.prepare("SELECT COUNT(*) n FROM attempts").get().n, 0);
   await mkdir(join(server.workspace, "environment-service"));
-  await writeFile(join(server.workspace, "environment-service/package.json"), JSON.stringify({ name: "environment-service", type: "module", engines: { node: "22.x" }, scripts: { start: "node server.mjs" } }));
+  await writeFile(join(server.workspace, "environment-service/package.json"), JSON.stringify({ name: "environment-service", version: "1.0.0", type: "module", engines: { node: "22.x" }, scripts: { build: "node build.mjs", start: "node server.mjs" } }));
+  await writeFile(join(server.workspace, "environment-service/package-lock.json"), JSON.stringify({ name: "environment-service", version: "1.0.0", lockfileVersion: 3, packages: { "": { name: "environment-service", version: "1.0.0", engines: { node: "22.x" } } } }));
+  await writeFile(join(server.workspace, "environment-service/build.mjs"), "console.log('build fixture');");
   await writeFile(join(server.workspace, "environment-service/server.mjs"), "import http from 'node:http'; const ready=process.env.SERVICE_ACCESS; http.createServer((_req,res)=>res.end(ready?'ready':'missing')).listen(3000);");
   const envFlow = await page.evaluate(async () => {
     const workspace = await (await fetch("/api/workspace")).json();
@@ -184,6 +187,18 @@ try {
   assert.equal((await readFile(server.modelLog, "utf8")).split("\n").filter(line => line.includes('"environmentWrite":true')).length, 1);
   assert.equal(await page.evaluate(() => Object.values(localStorage).some(value => value.includes("new-private-environment-fixture"))), false);
   await layout(360, "secure-environment-verified-without-chat");
+  const envBuildPlan = { version: 1, nodeVersion: "22", image: projectBuildImage, buildCommand: envFlow.profile.build, testCommand: null, startCommand: envFlow.profile.start,
+    port: envFlow.profile.port, workload: { path: "/", status: 200, assertion: { kind: "text", contains: "ready" } }, environment: currentEnvironment(store, server.sessionSecret, actor, envFlow.id) };
+  const envJob = await new CodeRepairAdapter(envConfig, store).propose(actor, { projectId: envFlow.id, expectedSourceHash: envFlow.profile.sourceHash,
+    goal: "بررسی ساخت با اطلاعات امن همان پروژه", allowedPaths: [], testFiles: [], execution: "container", build: envBuildPlan, validationOnly: true }, AbortSignal.timeout(5000));
+  const envState = repo.get(actor, envRun.id); envState.repair = envJob; envState.state = "needs_approval"; envState.nextAction = null; envState.question = null;
+  envState.repairDecision = { sessionId: store.db.prepare("SELECT id FROM sessions WHERE actor_id=?").get(actor).id, expiresAt: Date.now() + 600000, consumed: false }; repo.save(actor, envState);
+  await page.reload(); await journey.getByRole("button", { name: "تأیید ساخت و بررسی برنامه", exact: true }).waitFor();
+  await journey.getByText(/اجازهٔ استفاده از اطلاعات امن این کلیدها/).waitFor();
+  for (const width of [320, 360, 390, 768, 1280]) await layout(width, "environment-bound-build-consent");
+  await page.setViewportSize({ width: 360, height: 844 }); await page.evaluate(() => scrollTo(0, 0)); await page.screenshot({ path: join(output, "environment-build-decision-360.png"), fullPage: true });
+  await journey.getByRole("button", { name: "رد آماده‌سازی", exact: true }).click();
+  await journey.locator(".badge").filter({ hasText: "منتظر پاسخ شما" }).waitFor(); assert.deepEqual(repo.get(actor, envRun.id).repair.containerIds, []);
   assert.deepEqual(errors, []); assert.deepEqual(external, []);
   await writeFile(join(output, "results.json"), JSON.stringify({ results, errors, external, model: "synthetic", cloudWrites: 0 }, null, 2));
   console.log(JSON.stringify({ states: results.length, widths: [320,360,390,768,1280], model: "synthetic", cloudWrites: 0, output }));

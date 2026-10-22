@@ -4,6 +4,7 @@ import { openEnvironmentInput } from "../../../server/environment/secrets.ts";
 import { endpoint, jsonBody, reply } from "../../../server/http.ts";
 import { ensure } from "../../../server/errors.ts";
 import { exactKeys, hash, object, string } from "../../../contracts/validation.ts";
+import { isApplicationEnvironmentKey } from "../../../contracts/environment.ts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ export async function GET(request: Request) {
     const id = string(params.get("run"), 36), { flow, target } = environmentContext(config, store, session.actorId, id);
     store.listActions(session.actorId);
     const row = store.db.prepare("SELECT id FROM actions WHERE actor_id=? AND json_extract(spec,'$.version')=9 AND json_extract(spec,'$.agentRunId')=? ORDER BY rowid DESC LIMIT 1").get(session.actorId, id);
-    return reply({ names: flow.profile.envNames.filter(key => !/^(?:PORT|NODE_ENV)$/.test(key)), app: target.app,
+    return reply({ names: flow.profile.envNames.filter(isApplicationEnvironmentKey), app: target.app,
       action: row ? store.getAction(String(row.id), session.actorId) : null });
   });
 }

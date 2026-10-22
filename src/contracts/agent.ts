@@ -44,7 +44,7 @@ export type AgentView = {
   question: string | null;
   updatedAt: number;
   // A host-owned statement. Model prose is never an execution receipt.
-  effect: "no_remote_changes" | "destination_created" | "remote_changes_unverified" | "remote_changes_verified";
+  effect: "no_remote_changes" | "destination_created" | "configuration_changed" | "remote_changes_unverified" | "remote_changes_verified";
   repair: CodeRepairJob | null;
   publication: Action | null;
   destination: Action | null;
@@ -60,7 +60,7 @@ export function parseAgentView(value: unknown): AgentView {
   const nextAction =
     row.nextAction === null ? null : nextActions.find((action) => action === row.nextAction);
   ensure(
-    state && nextAction !== undefined && (row.effect === "no_remote_changes" || row.effect === "destination_created" || row.effect === "remote_changes_unverified" || row.effect === "remote_changes_verified"),
+    state && nextAction !== undefined && (row.effect === "no_remote_changes" || row.effect === "destination_created" || row.effect === "configuration_changed" || row.effect === "remote_changes_unverified" || row.effect === "remote_changes_verified"),
     "INVALID_RESPONSE",
     "وضعیت دستیار معتبر نیست.",
   );

@@ -731,6 +731,7 @@ export function AgentPanel({
           {!guided ? conversation : null}
           {guided && !active && run.events.filter(event => event.kind === "assistant").at(-1)?.message ? <div className="mission-summary"><RichText text={run.events.filter(event => event.kind === "assistant").at(-1)?.message ?? ""} /></div> : null}
           <p className="agent-effect">{run.effect === "remote_changes_verified" ? "نسخه منتشرشده و پاسخ مورد انتظار بررسی شدند."
+            : run.effect === "configuration_changed" ? "تنظیمات برنامه ذخیره و بررسی شد؛ نسخه تازه و سلامت آن هنوز جدا بررسی می‌شوند."
             : run.effect === "destination_created" ? "مقصد ساخته و تنظیمات آن تأیید شد؛ انتشار هنوز جداگانه بررسی می‌شود."
             : run.effect === "remote_changes_unverified" ? "ارسال به سرویس آغاز شده است؛ نتیجه نهایی هنوز تأیید نشده است."
             : "تغییری در سایت منتشر نشده است."}</p>
@@ -799,6 +800,7 @@ export function AgentPanel({
                     این تصمیم فقط {run.repair.validationOnly ? "نصب و بررسی ساخت و اجرای نسخه جدا" : "اصلاح محلی و اجرای معیار بالا"} را مجاز می‌کند. انتشار نیاز به تصمیم
                     جدا دارد.
                   </p>
+                  {run.repair.build?.environment?.keys.length ? <p className="note">اجازهٔ استفاده از اطلاعات امن این کلیدها در ساخت، آزمون و اجرای نسخه جدا نیز در همین تصمیم است: {run.repair.build.environment.keys.map(key => <bdi key={key}> {key} </bdi>)}. مقدارها نمایش داده نمی‌شوند.</p> : null}
                   <div className="button-row">
                     <button
                       type="button"

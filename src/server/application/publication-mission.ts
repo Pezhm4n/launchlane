@@ -10,10 +10,12 @@ import { AgentRepository, addEvent } from "../agent/store.ts";
 import { restoreProjectFlow } from "./project-flows.ts";
 import { continueAgentRun } from "../agent/runs.ts";
 import { CodeRepairAdapter } from "../agent/code-repair.ts";
+import { projectSecretValues } from "../environment/secrets.ts";
 
 // The button owns a typed intent and immutable source; prose is only model context.
 export async function createPublicationMission(config: Config, store: Store, session: Session,
   requestKey: string, value: unknown, signal: AbortSignal) {
+  config = { ...config, projectSecretValues: projectSecretValues(store, config.sessionSecret, session.actorId) };
   const input = parsePublicationInput(value);
   ensure(config.enableLiveModel && config.modelKey, "LIVE_MODEL_DISABLED", "آماده‌سازی هوشمند در این نصب فعال نیست؛ از مسئول نصب پیگیری کنید.", 403);
   ensure(!containsCredential(input.expectedText ?? "", privateValues(config)), "SENSITIVE_INPUT", "نشانه صفحه نباید مقدار محرمانه باشد.");

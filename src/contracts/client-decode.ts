@@ -15,7 +15,7 @@ import { parseConnection } from "./connections.ts";
 import { parseWorkloadContract, parseWorkloadExpectation, parseWorkloadTarget, parseDeploymentProgress } from "./deployment.ts";
 import { parseRestartProgress } from "./restart.ts";
 import { parseProvisionSpec, parseProvisionProgress } from "./provision.ts";
-import { parseEnvironmentSpec, parseEnvironmentProgress } from "./environment.ts";
+import { parseEnvironmentSpec, parseEnvironmentProgress, parseEnvironmentReference } from "./environment.ts";
 import { parseNodeRuntime, parseNodeVersion } from "./node-runtime.ts";
 import { sourceFileByteLimit, SOURCE_MAX_BYTES, SOURCE_MAX_FILES } from "./source-limits.ts";
 
@@ -48,6 +48,11 @@ export function decodeAction(value: unknown): Action {
     spec = object(raw.spec),
     scope = object(spec.scope),
     args = object(spec.args);
+  if (spec.version === 10) {
+    const { environment, ...rest } = spec, base = decodeAction({ ...raw, spec: { ...rest, version: 7 } });
+    ensure(base.spec.version === 7 && typeof base.spec.sourceHash === "string", "INVALID_RESPONSE", "پیشنهاد انتشار معتبر نیست.");
+    return { ...base, spec: { ...base.spec, version: 10, operation: "deploy", sourceHash: base.spec.sourceHash, environment: parseEnvironmentReference(environment) } };
+  }
   const states: readonly ActionState[] = [
     "awaiting_approval",
     "approved",

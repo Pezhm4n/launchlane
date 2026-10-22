@@ -15,6 +15,7 @@ import { readArtifact } from "../workspace/archive.ts";
 import { prepareArchive } from "./prepare-source.ts";
 import { parseCodeRepairJob } from "../../contracts/code-repair.ts";
 import { object, string } from "../../contracts/validation.ts";
+import { projectEnvironmentValues, projectSecretValues } from "../environment/secrets.ts";
 
 let preparing = false;
 export function projectRoot(
@@ -34,8 +35,8 @@ export function projectRoot(
   );
   return { root: config.workspaceRoot, directory: flow.selection.directory };
 }
-function secrets(config: Config): string[] {
-  return [config.liaraToken, config.modelKey, config.operatorToken, config.sessionSecret].filter(
+function secrets(config: Config, store: Store, actorId: string): string[] {
+  return [config.liaraToken, config.modelKey, config.operatorToken, config.sessionSecret, ...projectSecretValues(store, config.sessionSecret, actorId)].filter(
     Boolean,
   );
 }
@@ -96,7 +97,7 @@ export async function prepareProjectFlow(
       imported = true;
     }
     const location = projectRoot(config, { id, selection }),
-      privateValues = secrets(config);
+      privateValues = secrets(config, store, actorId);
     const profile = await inspectProject(location.root, location.directory, {
       signal,
       secrets: privateValues,
@@ -174,7 +175,7 @@ export async function restoreProjectFlow(
     const location = projectRoot(config, flow);
     const current = await inspectProject(location.root, location.directory, {
       signal,
-      secrets: secrets(config),
+      secrets: secrets(config, store, actorId),
     });
     if (current.sourceHash !== flow.profile.sourceHash)
       return store.staleProjectFlow(
@@ -207,7 +208,7 @@ export async function validateProjectAction(
   spec: ActionSpec,
   signal: AbortSignal,
 ): Promise<void> {
-  if (spec.version !== 3 && spec.version !== 4 && spec.version !== 5 && spec.version !== 7 && spec.version !== 8 && spec.version !== 9) return;
+  if (spec.version !== 3 && spec.version !== 4 && spec.version !== 5 && (spec.version !== 7 && spec.version !== 10) && spec.version !== 8 && spec.version !== 9) return;
   const flow = await restoreProjectFlow(config, store, actorId, signal, spec.projectFlowId);
   ensure(
     flow?.status === "ready",
@@ -216,7 +217,8 @@ export async function validateProjectAction(
     409,
   );
   store.assertProjectAction(actorId, spec);
-  ensure((spec.version !== 5 && spec.version !== 7 && spec.version !== 8) || flow.profile.nodeRuntime?.version === spec.nodeVersion, "NODE_VERSION_CHANGED", "نسخه Node پیشنهاد با پروژه برابر نیست؛ پیشنهاد تازه دریافت کنید.", 409);
+  if (spec.version === 10) projectEnvironmentValues(store, config.sessionSecret, actorId, spec.projectFlowId, spec.environment);
+  ensure((spec.version !== 5 && (spec.version !== 7 && spec.version !== 10) && spec.version !== 8) || flow.profile.nodeRuntime?.version === spec.nodeVersion, "NODE_VERSION_CHANGED", "نسخه Node پیشنهاد با پروژه برابر نیست؛ پیشنهاد تازه دریافت کنید.", 409);
 }
 
 export async function proposeProjectFlow(

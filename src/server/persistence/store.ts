@@ -14,6 +14,7 @@ import { fingerprint, parseActionSpec } from "../policy/action.ts";
 import { parseProvisionProgress, providerObjectId, type ProvisionProgress, type ProvisionReadback, type ProvisionObservation } from "../../contracts/provision.ts";
 import { migrations } from "./migrations.ts";
 import { parseEnvironmentProgress, type EnvironmentProgress } from "../../contracts/environment.ts";
+import { environmentProjectIds } from "../environment/secrets.ts";
 import { parseProjectFlow, type ProjectFlow } from "../../contracts/project-flow.ts";
 import { parseIncidentRun, type IncidentRun } from "../../contracts/incident-run.ts";
 import { inWindow } from "../../contracts/incident.ts";
@@ -272,7 +273,7 @@ export class Store {
     });
   }
   assertProjectAction(actorId: string, spec: ActionSpec, existingId?: string): void {
-    if (spec.version !== 3 && spec.version !== 4 && spec.version !== 5 && spec.version !== 7 && spec.version !== 8 && spec.version !== 9) return;
+    if (spec.version !== 3 && spec.version !== 4 && spec.version !== 5 && (spec.version !== 7 && spec.version !== 10) && spec.version !== 8 && spec.version !== 9) return;
     const flow = this.getProjectFlow(actorId);
     ensure(
       flow &&
@@ -286,8 +287,15 @@ export class Store {
       "پروژه یا فایل‌های آن تغییر کرده‌اند. پروژه را دوباره بررسی و پیشنهاد تازه دریافت کنید.",
       409,
     );
-    ensure((spec.version !== 5 && spec.version !== 7 && spec.version !== 8) || flow.profile.nodeRuntime?.version === spec.nodeVersion, "NODE_VERSION_CHANGED", "نسخه Node پیشنهاد با بررسی پروژه برابر نیست؛ پیشنهاد تازه دریافت کنید.", 409);
+    ensure((spec.version !== 5 && (spec.version !== 7 && spec.version !== 10) && spec.version !== 8) || flow.profile.nodeRuntime?.version === spec.nodeVersion, "NODE_VERSION_CHANGED", "نسخه Node پیشنهاد با بررسی پروژه برابر نیست؛ پیشنهاد تازه دریافت کنید.", 409);
     const connection = this.getConnection(actorId, "liara")?.view;
+    if (spec.version === 10) {
+      const environment = this.getAction(spec.environment.actionId, actorId), input = environment.spec;
+      ensure(input.version === 9 && environment.state === "succeeded" && input.effectiveFingerprint === spec.environment.fingerprint &&
+        input.accountId === spec.accountId && input.scope.teamId === spec.scope.teamId && input.scope.app === spec.scope.app && input.targetAppId === spec.targetAppId &&
+        environmentProjectIds(this, actorId, flow.id).has(input.projectFlowId) && spec.environment.keys.every(key => flow.profile.envNames.includes(key)),
+        "ENV_REFERENCE_CHANGED", "مرجع اطلاعات برنامه به همین پروژه، حساب و مقصد تعلق ندارد.", 409);
+    }
     if (spec.version === 8) {
       const previous = connection?.apps.find((app) => app.name === connection.selectedApp)?.id ?? null;
       ensure(connection?.status === "connected" && connection.identityId === spec.accountId &&
@@ -298,7 +306,7 @@ export class Store {
     ensure(
       connection?.status === "connected" &&
         connection.teamId === spec.scope.teamId &&
-        ((spec.version !== 7 && spec.version !== 9) || connection.identityId === spec.accountId) &&
+        (((spec.version !== 7 && spec.version !== 10) && spec.version !== 9) || connection.identityId === spec.accountId) &&
         connection.selectedApp === spec.scope.app &&
         connection.apps.some(
           (app) =>
@@ -569,7 +577,7 @@ export class Store {
       this.ensureNoConflict(spec);
       this.assertActionContext(actorId, spec);
       if (
-        ((spec.version === 2 || spec.version === 3 || spec.version === 4 || spec.version === 5 || spec.version === 7) &&
+        ((spec.version === 2 || spec.version === 3 || spec.version === 4 || spec.version === 5 || (spec.version === 7 || spec.version === 10)) &&
         spec.operation === "deploy") || spec.version === 8 || spec.version === 9
       ) {
         const artifact = this.getArtifact(actorId, spec.artifactHash ?? "");
@@ -616,7 +624,7 @@ export class Store {
           .run(action.id, spec.secretRef, actorId, now);
         ensure(linked.changes === 1, "ENV_INPUT_EXPIRED", "اطلاعات امن مصرف شده یا منقضی است.", 409);
       }
-      if (spec.version === 3 || spec.version === 4 || spec.version === 5 || spec.version === 7 || spec.version === 8 || spec.version === 9) {
+      if (spec.version === 3 || spec.version === 4 || spec.version === 5 || (spec.version === 7 || spec.version === 10) || spec.version === 8 || spec.version === 9) {
         const flow = this.getProjectFlow(actorId);
         if (flow) this.invalidateProjectAction(flow, actorId);
         this.db
@@ -841,7 +849,7 @@ export class Store {
         this.writeDeploymentProgress(id, {
           ...action.deployment,
           stage: "release_accepted",
-          ...(action.spec.version === 7 ? { releaseAcceptedAt: now } : {}),
+          ...((action.spec.version === 7 || action.spec.version === 10) ? { releaseAcceptedAt: now } : {}),
         });
       }
       this.db
@@ -856,6 +864,14 @@ export class Store {
   private writeEnvironmentProgress(id: string, progress: EnvironmentProgress): void {
     this.db.prepare("INSERT INTO environment_progress VALUES (?,?) ON CONFLICT(action_id) DO UPDATE SET data_json=excluded.data_json")
       .run(id, JSON.stringify(parseEnvironmentProgress(progress)));
+  }
+  invalidateEnvironmentPublication(id: string, actorId: string): Action {
+    return this.transaction(() => {
+      const action = this.getAction(id, actorId);
+      ensure(action.spec.version === 10 && action.state === "approved" && !action.attemptId, "ACTION_CONFLICT", "این تصمیم دیگر قابل ابطال پیش از اجرا نیست.", 409);
+      this.db.prepare("UPDATE actions SET state='failed',error_code='ENV_REFERENCE_CHANGED' WHERE id=?").run(id);
+      this.audit(action, "environment_approval_invalidated", Date.now()); return this.getAction(id, actorId);
+    });
   }
   environmentStep(id: string, actorId: string, stage: "request_started" | "accepted"): Action {
     return this.transaction(() => {
@@ -1063,7 +1079,7 @@ export class Store {
       ensure(
         connection?.status === "connected" &&
           connection.teamId === action.spec.scope.teamId &&
-        (action.spec.version !== 7 || connection.identityId === action.spec.accountId) &&
+        ((action.spec.version !== 7 && action.spec.version !== 10) || connection.identityId === action.spec.accountId) &&
           connection.selectedApp === action.spec.scope.app &&
           connection.apps.some(
             (app) =>
