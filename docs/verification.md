@@ -2,6 +2,14 @@
 
 شواهد جاری ابتدا و سابقه مراحل پیشین پایین‌تر ثبت شده‌اند. هر نتیجه به revision و شرایط خودش تعلق دارد؛ نتایج bootstrap جای قابلیت محصول و fixture جای اتصال زنده نیست.
 
+## چرخه زنده v5 و restart؛ candidate 7917816
+
+[گزارش مستقل چرخه](evidence/restart-live-cycle.md) مسیر واقعی create fixture ← source inspection/archive ← پیشنهاد v5/approval/execute ← release/readback ← incident 500 ← رد و پیشنهاد v6 تازه ← یک restart ← همان صفحه 500 ← حذف را ثبت می‌کند. صرف READY ابتدا همراه پاسخ نامعتبر بود؛ تنها بازخوانی دوازدهم، current release و JSON revision/status دقیق را تأیید کرد. runtime اندازه‌گیری‌شده از process.versions.node برابر 22.23.3 بود. restart با HTTP 200 پذیرفته شد؛ بازخوانی همان release/page، 500 و `unhealthy/failed` داشت. همسان‌بودن شناسه فرایند در مشاهده فوری و نبود operation ID اجازه ادعای پایان restart را نمی‌دهد. این failure مورد انتظار oracle بود؛ کد یا env برای سبزکردن نتیجه تغییر نکرد. UI واقعی با CUA مشاهده و تصویر `.artifacts/restart-live-7917816/restart-real.png` ثبت شد؛ این تصویر synthetic نیست.
+
+شمارنده‌های durable هر پنج write برابر 1 بودند؛ پیشنهاد ردشده attempt نداشت. 67 درخواست API ثبت شد، شامل 62 GET؛ یک applets=500 به unknown تبدیل شد. probeهای HTTPS جدا از این شمارند. مدل صفر درخواست داشت. برنامه پس از 180575ms، زیر ۲۰ دقیقه، حذف و نبودش با API خوانده شد. اختلاف موجودی مشاهده‌شده 1145.8 تومان زیر سقف ۵۰۰۰ بود؛ فاکتور قطعی یا انتساب تمام این اختلاف ادعا نمی‌شود. `.local/restart-cycle/verification.json` با DBهای readOnly، دو attempt محصول، صفر اقدام ناتمام، migrationهای 1–7 چرخه و صفر match کلیدهای config/ورود چرخه در ۱۱ فایل client را ثبت کرد؛ token Liara در DB چرخه plaintext نبود. audit نصب اصلی با migrationهای 1–6، checksum اولیه ثابت، همان شش attempt قبلی و سه gate خاموش pass شد. هیچ migration/recovery تازه روی DB اصلی اجرا نشد. fixture/ledger/DBها خصوصی و خارج Git هستند.
+
+این شاهد محدود، پایان restart یا اصلاح‌کننده‌بودن آن، app دوم، سایر Nodeها/پروژه‌ها، secret envها یا پذیرش نهایی محصول را نمی‌سنجد. lint137/typecheck/build، domain147 و HTTP17 پیش‌تر روی همین source سنجیده شدند؛ مرورگر عمومی68/انتشار27/restart27 قبل از اصلاح scoped فاصله focus دامنه و مجموعه دامنه22 بعد از آن pass هستند. این یک run تجمیعی تازه همه تست‌ها یا clean export تازه نیست.
+
 ## T25 — رابط راهنمای دامنه؛ پایه 2b30287 و تغییرات این برش
 
 ورود ← انتخاب صریح نمونه ← نتیجه بررسی ← «دامنه دلخواه وصل کنید» ← نام و روش DNS ← راهنما در production ایزوله طی شد. endpoint واقعی محلی و SQLite واقعی‌اند؛ هویت حساب انتخابی مصنوعی است. هیچ فراخوانی DNS/provider/model یا تغییر زیرساخت در این برش انجام نشد. guide شامل مقصد شناخته‌شده یا نبود اتصال، گام‌های منبع‌دار، کار registrar/ایرنیک و وضعیت صریح تأییدنشده است؛ CNAME/NS حدسی، completed یا مجوز بررسی میزبان تازه تولید نمی‌کند.

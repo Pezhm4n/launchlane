@@ -4,10 +4,10 @@ Read this file first. Then read [project-overview.md](project-overview.md), [ARC
 
 ## Current scope and truth
 
-- The operator-local workbench implements source inspection, private immutable archives, durable approvals, bounded Liara deployment and evidence collection. A controlled Node 22 live cycle verified three releases, a real 500, one grounded diagnosis, an ineffective change and an approved source correction with same-page readback. This does not verify arbitrary projects, automatic code editing, env writes or restart.
+- The operator-local workbench implements source inspection, private immutable archives, durable approvals, bounded Liara deployment and evidence collection. A controlled Node 22 live cycle verified three releases, a real 500, one grounded diagnosis, an ineffective change and an approved source correction with same-page readback. This does not verify arbitrary projects, automatic code editing, env writes or restart completion.
 - The live diagnosis requested BoxAPI `gpt-6-luna` with `reasoning_effort=none`, used two chat-completions requests and 1,653 reported tokens. One controlled configuration case is not a general model-quality evaluation. Keep all live gates off outside an explicitly bounded run; read the current limitations and evidence in `docs/verification.md`.
 - Product name: **Launchlane**. Keep product UI and package names consistent.
-- Approved restart requests use ActionSpec v6 and a separate durable journal. The transport, same-page readback and UI are contract-tested; provider acceptance and a responding page do not prove restart completion. No live restart has been verified.
+- Approved restart requests use ActionSpec v6 and a separate durable journal. The transport, same-page readback and UI are contract-tested. A separate bounded live cycle verified one explicit-Node-22 v5 deployment and one accepted restart request; the controlled /orders page remained 500 and the action correctly failed its page check. Restart completion is still unverified. See docs/evidence/restart-live-cycle.md.
 - Product acceptance is defined in `docs/acceptance.md`. Treat planned architecture as a proposal until implemented and verified.
 
 ## Commands and evidence

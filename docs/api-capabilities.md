@@ -2,9 +2,9 @@
 
 آخرین تطبیق محدود در ۲۰۲۶-۱۰-۲۲ انجام شد. هویت/تیم، برنامه Node آزمایشی، upload، release/current و پاسخ همان workload با API واقعی بررسی شدند؛ [trace کنترل‌شده](evidence/controlled-live-cycle.md) جزئیات و محدودیت‌ها را ثبت می‌کند. `documented`، `implemented_contract` و `live_verified` وضعیت‌های متفاوت‌اند.
 
-انتشار تازه، برنامه Node موجود و پیشنهاد v5 تأییدشده را لازم دارد؛ شاخه انتخاب‌شده Node نیز به approval بسته است. همان archive را در multipart `file` می‌فرستد؛ receipt دارای پسوند `.tar.gz` را پیش از release پایدار می‌کند. READY/current به‌تنهایی موفقیت نیست؛ status و JSON revision همان صفحه نیز باید تطبیق داشته باشند. چرخه live ثبت‌شده با v4 پیشین بود. ساخت app/network در harness اپراتور بود و قابلیت محصول نیست.
+انتشار تازه، برنامه Node موجود و پیشنهاد v5 تأییدشده را لازم دارد؛ شاخه انتخاب‌شده Node نیز به approval بسته است. همان archive را در multipart `file` می‌فرستد؛ receipt دارای پسوند `.tar.gz` را پیش از release پایدار می‌کند. READY/current به‌تنهایی موفقیت نیست؛ status و JSON revision همان صفحه نیز باید تطبیق داشته باشند. سه انتشار چرخه قبلی با v4 و یک انتشار تازه v5 با Node صریح، در [آزمون restart](evidence/restart-live-cycle.md) سنجیده شدند. ساخت app/network در harness اپراتور بود و قابلیت محصول نیست.
 
-انتخاب Node بر پایه [مستند رسمی](https://docs.liara.ir/paas/nodejs/how-tos/choose-version/) و CLI نصب‌شده 9.4.7 است: `node.version` در liara.json به `platformConfig.version` در release می‌رسد. catalog مستند شاخه‌های 8/10/12/14/16/18/20/22/24 و پیش‌فرض 22 را دارد؛ availability حساب برای همه آن‌ها سنجیده نشده است. محدوده semver کامل بررسی می‌شود؛ انتخاب major، نسخه دقیق patch محیط را اثبات نمی‌کند. ارسال فیلد جدید با transport کنترل‌شده آزموده شده و live unverified است.
+انتخاب Node بر پایه [مستند رسمی](https://docs.liara.ir/paas/nodejs/how-tos/choose-version/) و CLI نصب‌شده 9.4.7 است: `node.version` در liara.json به `platformConfig.version` در release می‌رسد. catalog مستند شاخه‌های 8/10/12/14/16/18/20/22/24 و پیش‌فرض 22 را دارد؛ availability حساب برای همه آن‌ها سنجیده نشده است. محدوده semver کامل بررسی می‌شود؛ انتخاب major، نسخه دقیق patch محیط را اثبات نمی‌کند. ارسال صریح نسخه 22 در یک release واقعی v5 سنجیده شد؛ endpoint نوشته‌شده با process.versions.node، runtime را 22.23.3 گزارش کرد. سایر majorها، patchها و پروژه‌ها live verified نیستند.
 
 در زیرساخت آزموده‌شده، logs از قرارداد v2 در CLI رسمی 9.4.7 می‌آیند و events ردیف lifecycle دارند. applets پاسخ 500 داد؛ واحد metric/event و حفظ secretها تأیید نشده‌اند. قیمت داخل پیشنهاد همچنان unknown است. gateهای Liara/mutation/model در نصب پیش‌فرض خاموش‌اند.
 
@@ -27,7 +27,7 @@
 | release | `POST /v2/projects/{name}/releases` | body schema شامل `sourceID,port,type`؛ نتیجه `releaseID`؛ accepted پایان deploy نیست | live_verified پذیرش محدود؛ approval required |
 | تاریخچه release | `GET /v1/projects/{name}/releases` | `page/count`، currentRelease و BUILDING/READY روی app آزمون تطبیق داده شدند | live_verified محدود |
 | وضعیت applets | `GET /v1/projects/{name}/applets` | در app آزمون زیرساخت جدید، 500؛ سلامت استنتاج نمی‌شود | live_checked unavailable |
-| restart | `POST /v1/projects/{name}/actions/restart` | HTTP 200 فقط پذیرش، بدون operation ID؛ journal مستقل v6، یک POST و readback همان app/release/page؛ پایان restart اثبات نمی‌شود | implemented_contract / approval required / not live_verified |
+| restart | `POST /v1/projects/{name}/actions/restart` | HTTP 200 فقط پذیرش، بدون operation ID؛ journal مستقل v6، یک POST و readback همان app/release/page؛ پایان restart اثبات نمی‌شود | bounded_live acceptance + same-page 500 verified؛ completion unverified / approval required |
 | resize | `POST /v1/projects/{name}/resize` | body `planID`؛ هزینه و برگشت‌پذیری فرض نشود | documented / approval required |
 | env update | `POST /v1/projects/update-envs` | schema `project,variables:[{key,value}]`؛ merge/replace و اثر restart باید بررسی شود؛ مقادیر محرمانه log نشوند | documented / approval required |
 | logs | `GET /v2/projects/{name}/logs`؛ قرارداد CLI 9.4.7 | start از تاریخ معتبر به Unix seconds؛ tuple نانوثانیه/JSON type و _entry؛ سقف 200 خط/20 گروه؛ v1 ISO since رد شد | live_verified محدود؛ v1 pure documentary parser محفوظ |
