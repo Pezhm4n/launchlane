@@ -4,6 +4,8 @@
 
 ## وضعیت فعال
 
+بررسی setup مستقل روی `90e392a`، همان source چرخه زنده `7917816` با اسناد تکمیل‌شده، از export tracked بدون env/DB/context خصوصی گذشت: install/setup/typecheck/build، domain147، HTTP17 و bootstrap2 تازه pass؛ providerها خالی و gateها خاموش. ۱۱ فایل client با کلیدهای setup match نداشتند؛ server و پوشه موقت حذف شدند. این شاهد clone GitHub، reader تازه یا revision نهایی تحویل نیست؛ جزئیات در verification ثبت است.
+
 ### چرخه زنده مستقل T21/T22/T23 — بسته‌شده روی 7917816
 
 مجوز صریح چرخه تازه با سقف ۵۰۰۰ تومان، یک release و یک restart، بدون مدل و حذف حداکثر تا ۲۰ دقیقه دریافت شد. نام app پیش از ساخت خالی و تیم/پلن/شبکه/اعتبار دوباره خوانده شدند؛ حساب، SQLite، نشست و journal چرخه جدا بودند و سهم قبلی بازنشانی نشد. یک upload و یک انتشار v5 با Node صریح 22 به `/identity`/200/`restart-v1` رسید؛ runtime واقعی از process.versions.node برابر 22.23.3 بود. READY با 404/503 به موفقیت تبدیل نشد؛ تنها خواندن همان release ادامه یافت و بازخوانی دوازدهم معیار دقیق را گذراند. incident واقعی `/orders`، 500 بود. پیشنهاد restart نخست رد شد و attempt نداشت؛ پیشنهاد تازه v6 تأیید و یک POST بدون body با HTTP 200 پذیرفته شد. همان release و صفحه پس از آن همچنان 500 بود؛ action درست `failed/unhealthy` شد و رابط واقعی، رفع مشکل یا پایان restart را ادعا نکرد. شناسه فرایند در مشاهده فوری عوض نشده بود؛ completion همچنان UNCONFIRMED است.
@@ -180,7 +182,7 @@ T32 هسته است. T25، T33 و T34 توسعه‌های P1 هستند؛ فقط
 
 | Task | هدف/محدوده | وابستگی | پذیرش/تست | وضعیت |
 | --- | --- | --- | --- | --- |
-| T50 | README نهایی معماری/API/تعامل/limits و setup از checkout تمیز | T41 | AC15,16؛ دستورات واقعی، نسخه و real/simulated واضح؛ هیچ وابستگی به فایل محلی خارج Git | partial؛ export مستقل tracked روی 2975375، npm ci/setup/type/build/domain140/HTTP16/bootstrap2 تازه pass؛ بدون کپی env/DB/context خصوصی. lint و سه مجموعه browser همان source و 25 لینک محلی اسناد pass؛ review تازه، clone مستقیم GitHub و revision تحویل نهایی باقی‌اند |
+| T50 | README نهایی معماری/API/تعامل/limits و setup از checkout تمیز | T41 | AC15,16؛ دستورات واقعی، نسخه و real/simulated واضح؛ هیچ وابستگی به فایل محلی خارج Git | partial؛ export مستقل tracked روی 90e392a، npm ci/setup/type/build/domain147/HTTP17/bootstrap2 تازه pass؛ بدون کپی env/DB/context خصوصی، با سه gate خاموش. lint و browser با محدوده ثبت‌شده در verification، و 42 لینک محلی اسناد pass؛ review تازه، clone مستقیم GitHub و revision تحویل نهایی باقی‌اند |
 | T51 | اجرای سناریوی واقعی end-to-end و ثبت evidence پاک‌سازی‌شده | T50 + دسترسی مجاز | AC05,09,11,15؛ trace درخواست→approval→اثر→readback؛ reproduction روی candidate مشخص؛ failureها محفوظ | not_started |
 | T52 | بازبینی candidate و محدوده انتشار فنی | T51 | AC15,16؛ diff/secret scan، config و revision ثبت؛ visibility و تغییرات خارجی فقط طبق اختیار مالک | not_started |
 

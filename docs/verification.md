@@ -2,6 +2,12 @@
 
 شواهد جاری ابتدا و سابقه مراحل پیشین پایین‌تر ثبت شده‌اند. هر نتیجه به revision و شرایط خودش تعلق دارد؛ نتایج bootstrap جای قابلیت محصول و fixture جای اتصال زنده نیست.
 
+## candidate مستقل پس از راهنمای دامنه و چرخه restart؛ 90e392a
+
+revision `90e392a6299f66b6a222b095dfc03fc1745d50c8` با `git archive` در پوشه موقت مستقل استخراج شد. هیچ `.env.local`، `.local`، DB، source archive خصوصی یا context محلی کپی نشد. با Node 24.18.0 و lockfile همین revision، `npm ci --no-audit --no-fund`، `npm run setup:local`، typecheck، build، domain تازه 147/147، HTTP تازه 17/17 (شامل parent) و bootstrap تازه 2/2 pass شدند؛ fail/skip/cancel صفر بود. setup کلیدهای محلی تازه ساخت؛ provider keyها خالی و سه gate خاموش ماندند. ۱۱ فایل client با کلیدهای همان setup match نداشتند. logها و نتیجه در `.artifacts/candidate/90e392a-2026-10-22T03-04-14.920Z/` هستند؛ server و پوشه موقت در پایان بسته/حذف شدند.
+
+این export مستقل tracked است، نه clone مستقیم GitHub و نه مرورگر تازه در آن پوشه. source/scripts/tests/package/lock بین `7917816`، چرخه زنده، و `90e392a` یکسان‌اند؛ commit میانی فقط شواهد و حدود قابلیت را مستند کرد. مجموعه‌های مرورگر و اصلاح focus در بخش T25 با revision/محدوده خودشان ثبت شده‌اند؛ اعداد چند run به یک ارزیابی ساختگی تبدیل نمی‌شوند. 42 لینک محلی در نه سند فنی نیز به فایل‌های tracked رسیدند؛ URL خارجی و anchorها موضوع آن check نبودند. reader تازه، T40 و candidate تحویل نهایی هنوز بازند.
+
 ## چرخه زنده v5 و restart؛ candidate 7917816
 
 [گزارش مستقل چرخه](evidence/restart-live-cycle.md) مسیر واقعی create fixture ← source inspection/archive ← پیشنهاد v5/approval/execute ← release/readback ← incident 500 ← رد و پیشنهاد v6 تازه ← یک restart ← همان صفحه 500 ← حذف را ثبت می‌کند. صرف READY ابتدا همراه پاسخ نامعتبر بود؛ تنها بازخوانی دوازدهم، current release و JSON revision/status دقیق را تأیید کرد. runtime اندازه‌گیری‌شده از process.versions.node برابر 22.23.3 بود. restart با HTTP 200 پذیرفته شد؛ بازخوانی همان release/page، 500 و `unhealthy/failed` داشت. همسان‌بودن شناسه فرایند در مشاهده فوری و نبود operation ID اجازه ادعای پایان restart را نمی‌دهد. این failure مورد انتظار oracle بود؛ کد یا env برای سبزکردن نتیجه تغییر نکرد. UI واقعی با CUA مشاهده و تصویر `.artifacts/restart-live-7917816/restart-real.png` ثبت شد؛ این تصویر synthetic نیست.
