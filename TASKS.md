@@ -347,3 +347,12 @@ snapshot جدا روی `a697eba`، دو پاسخ 200 و همان oracle را د�
 اعتبارسنجی و artifactهای این برش در `docs/verification.md` ثبت می‌شوند. هیچ درخواست تازه مدل یا Liara در این برش وجود ندارد. گام بعد مستقل: قرارداد logs/events/evidence و probe امن برای T30/T31؛ اتصال زنده T20 همچنان به آماده‌شدن همان سرویس وابسته است. پاک‌سازی خودکار archive، env secret-reference و deploy/diagnosis/correction واقعی باقی‌اند.
 
 تثبیت روی `7ba2a2a`: export تمیز Git، `npm ci`، setup بدون کلید provider، build، 26 domain، 8 HTTP (با parent) و 23 حالت مرورگر در 7 عرض، همگی pass و بدون skip. لینک‌های 9 سند/20 مسیر و 11 build trace بدون وابستگی به فایل خصوصی بودند. رکورد و تصویر همین candidate در verification مشخص است. این نتیجه بازتولید مسیر آفلاین است؛ T20/T22/T31/T32 را live پذیرفته نمی‌کند.
+
+
+## A18/A19 — ارزیابی واقعی موازی، ۲۰۲۶-۱۰-۲۲
+
+وضعیت partial است؛ [گزارش مستقل ارزیابی](docs/evidence/live-qa-2026-10-22.md) بر محتوای دقیق 41e5080 تکیه دارد. ۶۲ درخواست واقعی مدل در ۲۷ run (با تکرار و regression)، ماتریس گفت‌وگوی ۱۳/۱۴ و سپس بازآزمایی هدفمند ۳/۳ ثبت شدند. این اعداد یک ماتریس تازهٔ ۱۴/۱۴ یا آزمون بار هزاران کاربر نیستند.
+
+اصلاح conversation/پیام خالی و template منبع در e6fe795 و 41e5080 ثبت شد. ۲۶۶ domain، HTTP نهایی ۳۷/۳۷، browser واقعی ۱۲/۱۲ در پنج عرض، lint/typecheck/build و identity هر ۲۴۱ فایل candidate گذشتند؛ مرزهای هر snapshot در گزارش آمده‌اند. محیط و credential واقعی بودند؛ providerهای domain عمدتاً مصنوعی‌اند.
+
+یک مقصد و release واقعی Node22 ساخته شدند؛ READY و HTTP200 با total=36 به‌جای 73 به WORKLOAD_MISMATCH منجر شد. readback پس از قطع harness، بدون attempt تازه ادامه یافت؛ app با ID و 404 پاک شد. سقف تجمعی مصوب، مدل را پیش از patch متوقف کرد؛ اصلاح و انتشار مجدد در این چرخه پذیرفته نیستند. ترب پس از رفع مانع README انتخاب شد، اما Python/runtime/data/archive آن هنوز پشتیبانی کامل ندارد. افزایش سقف مدل جای این implementation را نمی‌گیرد. تغییرات باز Agent موازی از این ارزیابی پذیرش تازه نمی‌گیرند.
