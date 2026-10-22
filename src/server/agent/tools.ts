@@ -104,6 +104,8 @@ export const agentTools: readonly ToolDefinition[] = [
   },
   {
     type: "function",
+    // Real models can add fields to this empty object; reject them in the tool so correction is bounded.
+    argumentValidation: "application",
     function: {
       name: "read_releases",
       description:

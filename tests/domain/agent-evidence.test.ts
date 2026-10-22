@@ -37,6 +37,8 @@ async function fixture() {
     if (target.pathname.endsWith("/logs")) return Response.json({data:[{metaData:{},values:state.logs.map(log => [
       String(BigInt(log.at)*1_000_000n),JSON.stringify({type:"out",_entry:log.message}),
     ])}]});
+    if (target.pathname.endsWith("/releases")) return Response.json({currentRelease:"ready-release",total:1,
+      releases:[{_id:"ready-release",state:"READY",port:3000}]});
     state.identities++;
     return Response.json({project:{_id:state.changedIdentity && state.identities>=state.changedIdentity ? "replacement-app-id" : appId,
       project_id:app,type:"node",status:"Running",planID:"small-g2",envs:[]}});
@@ -159,6 +161,40 @@ test("rejected SRE arguments reach the model as a correlated error before any se
     assert.equal(requests,3);assert.equal(saved.usage.modelCalls,3);assert.equal(saved.usage.unknownModelCalls,0);
     assert.equal(f.state.paths.length,2);assert.equal(f.state.sockets,1);
   }finally{f.close();}
+});
+
+test("invalid real-model release argument shapes are rejected before a read and can be corrected",async()=>{
+  for(const invalid of [{"}":""},{call:{}}]){
+    const f=await fixture();try{
+      let requests=0;const rejectedId=randomUUID();
+      const model=new GoalModelClient(f.config,async(_url,init)=>{
+        const request=object(JSON.parse(String(init.body)));
+        assert.ok(Array.isArray(request.messages));
+        if(requests===1){
+          const previous=object(request.messages.at(-1)),result=object(JSON.parse(String(previous.content)));
+          assert.equal(previous.tool_call_id,rejectedId);
+          assert.equal(result.ok,false);assert.equal(object(result.error).code,"INVALID_INPUT");
+          assert.deepEqual(f.state.paths,[]);
+        }
+        const name=requests<2 ? "read_releases" : "finish_investigation",
+          args=requests===0 ? invalid : requests===1 ? {} : {state:"partially_completed",
+            message:"نسخه READY است؛ پاسخ صفحه و علت خطا هنوز بررسی نشده‌اند.",question:null,nextAction:"reply"};
+        const id=requests===0 ? rejectedId : randomUUID();requests++;
+        return Response.json({choices:[{finish_reason:"tool_calls",message:{role:"assistant",tool_calls:[{
+          id,type:"function",function:{name,arguments:JSON.stringify(args)},
+        }]}}],usage:{total_tokens:35}});
+      });
+      const run=createAgentRun(f.config,f.store,f.session,randomUUID(),"وضعیت نسخه همین برنامه را بخوان",f.flow.id).run;
+      await driveAgentRun(f.config,f.store,f.session,run.id,{model,
+        tool:(name,args,context)=>executeAgentTool(name,args,{...context,read:f.context().read})});
+      const saved=new AgentRepository(f.store).get(f.session.actorId,run.id);
+      assert.equal(saved?.state,"partially_completed");assert.equal(saved.effect,"no_remote_changes");
+      assert.equal(requests,3);assert.equal(saved.usage.unknownModelCalls,0);
+      assert.equal(f.state.paths.filter(path=>path.endsWith("/releases")).length,1);
+      assert.equal(f.state.paths.length,3);assert.equal(f.state.sockets,0);
+      assert.equal(f.store.db.prepare("SELECT COUNT(*) n FROM attempts").get()?.n,0);
+    }finally{f.close();}
+  }
 });
 
 test("malformed JSON stays fatal and repetitive invalid SRE calls exhaust the existing budget without a read",async()=>{

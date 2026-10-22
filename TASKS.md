@@ -47,6 +47,8 @@
 
 ادامه پس ازea08a40: شش browser suite ثابت75/27/27/22/20/5 گذشتند. ساخت مقصد تازه، ID/config، انتشار همان archive و HTTP200/متن اصلی با مدل و PaaS واقعی و cleanup404 تأیید شدند. goal تحقیق بعدی /orders با PROBE_TIMEOUT متوقف شد و مدل در۵ درخواست وضعیت صفحه/منابع را unknown نگه داشت؛ oracle500 پاس نشد. cap شبکه probe با شاهد TLS5–7s به15s با تقدم deadline run تنظیم شد؛ status/content و سایر حفاظت‌ها عوض نشدند. regression6s/500 قبل شکست و بعد همان500 را حفظ کرد؛ domain248/248، lint/typecheck/build و HTTP21/21 export ثابت گذشتند. قدم بعد یک تکرار محدود SRE با دفتر تجمعی قبلی است؛ A09 partial مانده است.
 
+ادامه پس ازbbd45cb: شش browser suite ثابت75/27/27/22/20/5 گذشتند. چرخه ساخت/انتشار تازه و cleanup404 موفق و /orders با500 واقعی در2.855s ثبت شد؛ goal بعد از آن INVALID_INPUT گرفت. سه بازپخش فقط‌مدل، read_releases با کلید خارج قرارداد را بازتولید کردند. recovery همین خواندن، با رد پیش از API و اصلاح هم‌بسته در همان بودجه اضافه شد؛ domain249/249، lint/typecheck/build و HTTP21/21 export ثابت گذشتند. مسیر خصوصی مستقیمِ هر socket برای این نصب Windows با VPN روشن فعال شد؛ native fetch/pinnedHttps و چهار ردِ auth/host/IP/DNS گذشتند. primary مرورگری با دو درخواست مدل واقعی و reload بدون model call و page error گذشت. این تنظیم پیش‌فرض محصول نیست؛ سایر ترافیک و تنظیمات VPN تغییر نکرده‌اند. قدم بعد،200/500 کامل با مدل و PaaS واقعی و همین دفتر تجمعی است؛ A09 partial است و failureهای قبلی حفظ شده‌اند.
+
 ## وضعیت ثبت‌شده پایه و کارهای هم‌زمان
 
 ### بررسی کامل انتخاب GitHub و آماده‌سازی پیش از مرحله Agent — bounded_live_verified
