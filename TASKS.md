@@ -1,15 +1,51 @@
 # برنامه اجرایی Launchlane
 
-آخرین وضعیت: ۲۰۲۶-۱۰-۲۲، Asia/Tehran. این فایل باید پس از هر مرحله به‌روزرسانی شود. وضعیت `done` فقط با شواهد پذیرش معتبر است. برنامه کار Coding Agent است؛ آماده‌سازی فعلی شامل پیاده‌سازی کل محصول نیست.
+آخرین وضعیت: ۲۰۲۶-۱۰-۲۲، Asia/Tehran. پس از هر مرحله به‌روزرسانی شود؛ وضعیت done فقط با شواهد پذیرش معتبر است. برنامه A00–A19 مأموریت توسعه جاری است و سوابق پایه پایین آن حفظ شده‌اند. این به‌روزرسانی، مشخصات و تسک‌ها را آماده می‌کند و پیاده‌سازی قابلیت تازه محسوب نمی‌شود.
 
-## وضعیت فعال
+## مأموریت فعال جدید — Agent استقرار و نگهداری
+
+این برنامه، هدف توسعه جدید را ثبت می‌کند؛ capability تازه‌ای در این به‌روزرسانی مستندات پیاده نشده است. رفتار هدف در [agent-experience](docs/agent-experience.md) و پذیرش در [AC17–AC34](docs/acceptance.md) تعریف شده‌اند. وب‌اپ دارای Agent داخلی، استقرار هدف‌محور و اتصال اجرایی اصلاح کد، هسته‌اند؛ خروجی دانلودی handoff جای اتصال اجرایی را نمی‌گیرد.
+
+پیش از شروع A01، آخرین HEAD، diff و task جاری بازبینی شوند. اصلاحات GitHub/ورود و کارهای هم‌زمان پایین این بخش، بدون بررسی نتیجه کنار گذاشته یا تکرار نشوند. وضعیت «موجود در پایه» با پذیرش capability جدید یکی نیست. برای هر task، scope فایل‌ها پس از trace منطق واقعی مشخص شود.
+
+| Task / فاز | هدف و محدوده | وابستگی | پذیرش | آزمون و شاهد لازم | وضعیت |
+| --- | --- | --- | --- | --- | --- |
+| A00 / مشخصات | هماهنگی هدف، معماری، طراحی، acceptance و نقشه کار | تصمیم محصول | سند مرکزی و ارجاع‌های سازگار؛ قابلیت آینده از موجود جدا | بررسی لینک‌ها، IDها، diff و local exclude؛ هیچ ادعای UI/live تازه | done_docs؛ لینک‌ها و ۲۰ task/۱۸ AC جدید و DAG بررسی شدند؛ فقط اعتبارسنجی مستندات |
+| A01 / بازیابی | inventory شکاف‌ها، reuse ابزارهای فعلی و تعیین اولین slice اجرایی | A00 و candidate جاری | AC17/18/32؛ هر مورد implemented_verified/partial/missing با source/test | trace مسیر model→tool→application و UI؛ API/CLI نصب‌شده؛ جدول شکاف کوتاه در گزارش | not_started؛ ابتدا با آخرین کار هم‌زمان reconcile شود |
+| A02 / موتور | registry typed چندابزاری، AgentRun پایدار، loop و outcome | A01 | AC17/18/24؛ هدف و نتیجه واقعی ابزار قدم بعدی را عوض کنند | tool انتخاب غلط/تکرار، malformed args، truncation، 429، cancel، crash، replay و context تغییرکرده؛ یک trace مدل واقعی | not_started |
+| A03 / رابط پایه | مکالمه، context پروژه، picker، سؤال/تصمیم و progress به موتور واقعی | A02؛ componentهای موجود | AC18/24/32؛ درخواست انتشار از وب‌اپ به ابزار موجود برسد | UI/API/SQLite واقعی محلی، keyboard/RTL، 360/768/1280، reload و error/cancel؛ بدون چت نمایشی | not_started |
+| A04 / تصمیم استقرار | catalog، قیمت/واحد، انتخاب روش و پلن و نقشه منابع | A01؛ حساب متصل | AC20/23؛ پیشنهاد با دلیل و جایگزین و هزینه معتبر | catalog واقعی، غیرفعال/ناموجود/قیمت نامعلوم، تغییر انتخاب، scope و unit؛ مقایسه دو profile | not_started؛ T21 و adapter موجود بررسی شوند |
+| A05 / آماده‌سازی مقصد | provision app، plan approval مرحله‌ای و env/secret flow | A02/A04؛ policy موجود | AC21/22/23؛ app تازه و مراحل بعد به ID و ورودی مصوب متصل | live create/config، crash پس از create، env merge، concurrent change، secret redaction و reject/replay | not_started |
+| A06 / اتصال کدنویسی | spike runtime رسمی و CodeRepairJob رفت‌وبرگشت اجرایی | A01؛ قرارداد CodeRepair | AC26؛ job→patch/test/artifact، نه فقط Markdown | یک اصلاح واقعی در workspace جدا؛ base stale، تغییر خارج مسیر، timeout/cancel، تست fail؛ روش isolation مستند | not_started؛ زود و مستقل از تکمیل A05 اجرا شود |
+| A07 / آماده‌سازی پروژه | رفع start/port/config و فایل‌های لازم با CodeRepair | A02/A06؛ workspace/profile موجود | AC19/26؛ پروژه ناآماده با patch و build/test معتبر آماده شود | دو ورودی متفاوت، monorepo، command موجود/ناموجود، عدم اجرای script در inspect و حفظ source اصلی | not_started |
+| A08 / انتشار هدف‌محور | اتصال همه مراحل و WorkloadContract عمومی HTML/API | A03/A05/A07 | AC17/21/23/27/32 و AC05/06؛ درخواست→لینک سالم | چرخه live پروژه آماده و ناآماده؛ خطای build، 404/200 اشتباه، نسخه قبلی، receipt گم‌شده، ادامه بدون write تکراری | not_started |
+| A09 / تحقیق پویا | انتخاب مرحله‌ای evidence/source بر اساس hypothesis | A02؛ incident/collector موجود | AC25؛ مدل ابزار بعدی را از نتیجه واقعی انتخاب کند | logs متناقض/قدیمی، metric ناموجود، منبع ناقص، سؤال لازم و ورودی فارسی تازه؛ انتخاب ابزار مدل واقعی | not_started |
+| A10 / اصلاح کامل | CodeRepair برای incident، تأیید patch و انتشار و سنجش اثر | A06/A08/A09 | AC26/27 و AC09/11؛ همان رفتار خراب واقعاً اصلاح شود | باگ source تازه، اصلاح غلط/درست، تست بازتولید و regression، diff و live before/after از وب‌اپ | not_started |
+| A11 / runtime | گسترش profile و deploy برای Node/Next و خانواده متفاوت | A07/A08 | AC28؛ هر runtime فرمان/تنظیمات و oracle درست خود را داشته باشد | پروژه مستقل هر خانواده؛ لااقل مسیر متفاوت مانند Django با build/run/deploy واقعی؛ بدون generator ظاهری | not_started |
+| A12 / preview | app آزمایشی، لینک و انتقال artifact تأییدشده | A05/A08 | AC29؛ تست preview قبل از تغییر مقصد اصلی | تفاوت مقصد/هویت، source عوض‌شده، شکست تست، cleanup دقیق و هزینه؛ یک مسیر live | not_started |
+| A13 / برگشت | تشخیص regression و rollback به نسخه در دسترس | A08؛ journal/artifact واقعی | AC30؛ محتوا و config سابق معلوم و نتیجه دوباره سنجیده شود | source محلی تغییرکرده، artifact مفقود، ناسازگاری داده، رد مجوز و برگشت live روی app آزمایشی | not_started |
+| A14 / منابع و دامنه | نقشه database/disk و اتصال دامنه/HTTPS با API مجاز | A05؛ راهنمای موجود | AC34 و AC07؛ ایجاد و اتصالِ لازم و قابل مشاهده | قرارداد واقعی منابع انتخابی، credential flow، DNS/SSL و عدم تخریب رکوردهای قبلی؛ capability ناموجود صریح | not_started |
+| A15 / بهینه‌سازی | پیشنهاد اصلاح کد یا تغییر منابع با سنجش هزینه/عملکرد | A09/A10؛ T33 | AC33 و AC10/20؛ نتیجه با روش یکسان سنجیده شود | workload مستقل، before/after هم‌شرایط، unit/time معتبر و گزینه کد در برابر resize | not_started |
+| A16 / MCP | facade ابزارهای مشترک برای Coding Agent میزبان | A02؛ use caseهای پذیرفته‌شده | AC31؛ policy و receipt با وب‌اپ یکسان | اتصال میزبان واقعی، سناریوی انتشار/تحقیق، denied tool، scope/approval و transport دوم | not_started |
+| A17 / کیفیت تعامل | زبان ساده، کارت‌ها و states کامل و reader تازه | همراه A03/A08/A10؛ نهایی روی candidate | AC32 و AC14؛ بدون راهنمای شفاهی، انتخاب/تصمیم/نتیجه فهمیده شود | مرور کامل keyboard/mobile، focus، متن ۲۰۰٪، viewport و screen reader در حد اجرا؛ خطای واقعی و بازیابی | not_started؛ فعالیت همراه همه sliceها |
+| A18 / ارزیابی زنده | ماتریس سناریوهای تازه و مصرف ثبت‌شده | از اولین slice، تکمیل پس از A08/A10 | AC17–27/32؛ model/operation/outcome هرکدام شاهد داشته باشند | پروژه‌های متفاوت، paraphrase، failure، decline، recovery، code patch و تست تازه؛ revision و real/simulated جدا | not_started؛ تست زنده به آخر کار موکول نشود |
+| A19 / candidate | setup تمیز و تطبیق اسناد/فرمان‌ها با رفتار نهایی | هسته پذیرفته + A17/A18 | AC15/16؛ محدودیت صادقانه و اجرای مستقل | lint/type/build و regression مرتبط روی candidate؛ doc links، setup، secret/public artifacts و انتخاب رفتار اصلی | not_started |
+
+### ترتیب وابستگی و نقطه تحویل
+
+اول A01 و spike اتصال A06؛ سپس A02/A03 برای یک مسیر واقعی با ابزارهای فعلی. A04/A05/A07/A08 چرخه استقرار کامل را می‌بندند؛ A09/A10 چرخه اصلاح را. A17 و A18 از اولین slice همراه‌اند. توسعه‌های A11–A16 بر اساس وابستگی و ارزش وارد می‌شوند؛ engine، approval و UI موازی نسازیم.
+
+پایان هسته: ورودی طبیعی از وب‌اپ، آماده‌سازی و تصمیم، انتشار واقعی و بررسی برنامه؛ سپس یک مشکل source که با job اجرایی، تست و انتشار اصلاح‌شده حل شود. هیچ task زنده با fixture یا نام‌گذاری UI، done نمی‌شود. اگر dependency بیرونی مانع یک مسیر شد، کار مستقل ادامه و gap دقیق ثبت شود.
+
+بعد از هر مرحله: task و AC، scope فایل‌ها، revision/config، رفتار قبل/بعد، دستور و نتیجه، real/simulated، مصرف مشاهده‌شده، failure باز و قدم بعد ثبت شوند. تصمیم‌های معماری جدید در ARCHITECTURE و طراحی اجراشده در DESIGN منعکس شوند؛ بودجه حساب و یادداشت شخصی وارد مستند مشترک نشوند.
+
+## وضعیت ثبت‌شده پایه و کارهای هم‌زمان
 
 ### بررسی کامل انتخاب GitHub و آماده‌سازی پیش از مرحله Agent — bounded_live_verified
 
 AC02/03/13/14/16؛ اصلاح server در `d981734`. اتصال رسمی حساب با اقدام انسانی کامل شد و مسیر واقعی فهرست/جست‌وجو→مخزن→شاخه/SHA→زیرپوشه→tarball→snapshot→inspection/archive→SQLite و reload طی شد. مخزن اولیه با ۱۲۸ فایل و مجموع 5,364,734 بایت به‌دلیل یک فایل داده 3,949,893 بایتی رد می‌شد؛ سقف مشترک هر فایل 4 MiB و تنظیمات ریشه 512 KiB شد، بدون تغییر مجموع20 MiB/1000فایل/5000entry. واژگان js-tokens و Motion tokens دیگر credential نیستند؛ credential واقعی/کلیدهای نصب و redaction گزارش حفظ شدند. snapshot شکست‌خورده بدون مرجع پاک می‌شود؛ snapshot ثبت‌شده و انتخاب قبلی حفظ و junction رد می‌شوند. مسیر [slug].ts نیز پشتیبانی می‌شود. domain169، lint/typecheck و export مستقل tracked روی همین revision با install/setup/build/HTTP18/bootstrap2 و چهار suite مرورگر75/27/27/22 موفق شدند؛ artifact candidate با سرور/DB ایزوله و gateهای خاموش است. مقایسه bytes/hash آرشیو واقعی با manifest و restore نیز گذشت؛ هیچ write زیرساخت یا درخواست مدل انجام نشد. جزئیات و مرز مخزن خصوصی/صفحه‌بندی/peer review در [شواهد GitHub](docs/evidence/github-project-review.md) هستند.
 
 بخش مستقل T41 شامل شکست‌های بالا اصلاح شد؛ T40 reader مستقل با self-review جایگزین نشده است. T50 روی candidate جدید سنجیده شد ولی revision نهایی مأموریت Agent و clone مستقیم GitHub همچنان بازند. باقی‌مانده‌های نیازمند app زنده، بودجه مدل یا reader مستقل done معرفی نمی‌شوند. وظایف فاز Agent برنامه توسعه بعدی‌اند و این بررسی آن‌ها را پیاده نمی‌کند.
-
 
 ### رفع دریافت کد GitHub — bounded_live_verified
 

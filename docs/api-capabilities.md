@@ -1,5 +1,24 @@
 # قرارداد و وضعیت API لیارا
 
+## توسعه Agent؛ قراردادهای planned
+
+برنامه Agent در [agent-experience](agent-experience.md) و A00–A19 تعریف شده است. این بخش **دامنه توسعه** را ثبت می‌کند و وضعیت live جدول‌های قبلی را تغییر نمی‌دهد. ساخت app/network که در harness آزمون انجام شد، هنوز ابزار محصول نیست؛ parser و executor فعلی را بدون پیاده‌سازی تازه توانمندتر معرفی نکنیم.
+
+| قابلیت آینده | منبع قرارداد و نیاز تطبیق | وضعیت این طرح |
+| --- | --- | --- |
+| catalog و انتخاب plan/هزینه | اطلاعات واقعی حساب/تیم و منبع رسمی قیمت؛ unit و دوره صورتحساب | planned؛ recommendation تازه نیازمند AC20 |
+| create app و تغییر plan | [PaaS](https://developers.liara.ir/pages/paas.md)، پاسخ واقعی حساب و ID پایدار | planned؛ AC21/23 و journal تازه |
+| update env | [Update envs](https://developers.liara.ir/pass/settings/update-envs.md)، merge/replace و readback باید تطبیق داده شوند | planned؛ AC22، secret reference و حفظ env موجود |
+| database/disk و اتصال امن | [DBaaS](https://developers.liara.ir/pages/dbaas.md) و PaaS disks؛ capability مورد استفاده با حساب بررسی شود | planned؛ credential تولیدشده از context مدل جدا |
+| domain/HTTPS | [PaaS](https://developers.liara.ir/pages/paas.md) و [DNS](https://developers.liara.ir/pages/dns.md)، مالکیت و نتیجه واقعی | راهنمای محلی موجود؛ عملیات جدید planned |
+| preview/rollback | ترکیب app/release/artifact/config قابل دسترس؛ feature آماده upstream فرض نشود | planned؛ AC29/30 و سنجش مستقل |
+
+registry ابزار Agent، قرارداد داخلی host است؛ مدل path/host دلخواه Liara تولید نمی‌کند. عملیات واقعی از adapter معتبر با schema و scope عبور می‌کنند. وب‌اپ و MCP، application و policy یکسان را مصرف می‌کنند.
+
+transport مدل فعلی، ابزار تک‌منظوره evidence دارد. runtime مأموریت آینده به schemaهای چندابزاری و tool-result typed نیاز دارد؛ این تغییر باید با مدل واقعی منتخب و سناریوی انتخاب ابزار تطبیق داده شود، نه صرفاً بازترکردن parser قدیمی. replay UI یا reconnect مدل را دوباره فراخوانی نکند. فرمان smoke فعلی همان آزمون محدود خود باقی می‌ماند؛ runner ارزیابی Agent پس از ساخته‌شدن مستند شود.
+
+برای بررسی عمومی HTML/API، WorkloadContract جدید اضافه شود. شکل receipt، parser و انتظار JSON/revision مسیرهای تاریخی بازنویسی نشوند. command، env key یا endpointی که هنوز implementation ندارد، در راهنمای اجرای جاری قرار نگیرد.
+
 برش محلی T33، انتخاب کندی را به سه GET متوالی از همان origin/path مجاز متصل می‌کند؛ با دو کنترل هویت app و سایر خواندن‌ها، سقف لازم ده فراخوانی است. `https-get-body-v1` مدت اتصال تا پایان پاسخ کوتاه حداکثر 4096 بایت را با میلی‌ثانیه ثبت می‌کند؛ DNS و بارگذاری کامل صفحه در آن نیستند. مقایسه فقط برای سری کامل، مرتب، تازه، هم‌روش و همان حساب/app داخلی و fingerprint متن پاسخ **پس از redaction** انجام می‌شود. این fingerprint برابری همه محتوای اصلی یا محتوای محرمانه را اثبات نمی‌کند. تغییر پاسخ یا سری ناقص نتیجه نامشخص دارد؛ عدم هم‌پوشانی بازه فقط کمتر/بیشتربودن همین نمونه‌هاست، نه علت، ظرفیت، p95 یا رفع پایدار. parser واحد CPU/RAM همچنان unknown است؛ T33 زنده و AC10 کامل پذیرفته نشده‌اند. timeout با زمان صفر جایگزین و write یا retry ایجاد نمی‌شود.
 
 آخرین تطبیق محدود در ۲۰۲۶-۱۰-۲۲ انجام شد. هویت/تیم، برنامه Node آزمایشی، upload، release/current و پاسخ همان workload با API واقعی بررسی شدند؛ [trace کنترل‌شده](evidence/controlled-live-cycle.md) جزئیات و محدودیت‌ها را ثبت می‌کند. `documented`، `implemented_contract` و `live_verified` وضعیت‌های متفاوت‌اند.
@@ -66,4 +85,4 @@
 - مبنای endpoint/auth، [مستند رسمی BoxAPI](https://boxapi.ir/docs/ai/) است. شکل `tool_calls` و `tool_call_id` از [قرارداد Chat Completions](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create) گرفته شده است. در T24، tool/result/terminal و `max_completion_tokens` با `gpt-6-luna` و `reasoning_effort=none` واقعاً کار کردند؛ بدون reasoning صریح، سرویس 400 داد. سایر مدل‌ها و semantics خطا/usage عمومی هنوز تأیید نشده‌اند. هیچ کلیدی به OpenAI ارسال نمی‌شود و SDK OpenAI نصب نشده است.
 - fixtureها در `tests/domain/providers.test.ts` صریحاً synthetic هستند. `gpt-6-luna/none` انتخاب اولیه با یک diagnosis زنده محدود است؛ مقایسه مدل‌ها و سناریوهای دیگر به oracle مستقل و budget جدا نیاز دارند. streaming پیاده نشده است.
 
-خبر فعال‌شدن اعتبار، فهرست مدل‌ها و سقف ۳ دلار از مالک در ۲۰۲۶-۱۰-۲۱ آمد. [صفحه برنامه BoxAPI](https://boxapi.ir/starcoach) در fetch عمومی قابل خواندن نبود؛ فهرست اختصاصی از متن ارائه‌شده مالک است، نه مشاهده مستقل حساب. مسیر مجاز این برنامه Chat Completions و Embeddings اعلام شده؛ Responses به‌عنوان workaround استفاده نشد. نرخ عمومی [مدل‌ها](https://boxapi.ir/docs/ai/models/) فقط برای انتخاب آزمایش کوچک بررسی شد و هزینه قطعی حساب از آن نتیجه نمی‌شود.
+مسیر مدل فعلی، Chat Completions روی BoxAPI است؛ Responses یا provider دیگر fallback خودکار نیستند. فهرست مدل، سهم مصرف و واحد هزینه از حساب واقعی بررسی شوند؛ نرخ عمومی، هزینه قطعی این نصب را ثابت نمی‌کند. بودجه و مجوز هر اجرای واقعی در تنظیمات/رکورد محلی همان اجرا نگهداری می‌شوند.

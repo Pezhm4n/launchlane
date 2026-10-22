@@ -1,5 +1,40 @@
 # معماری Launchlane
 
+## جهت معماری Agent؛ planned
+
+تصمیم محصول جدید در [مشخصات Agent](docs/agent-experience.md) تعریف شده است: وب‌اپ با Agent هدف‌محور، اتصال اجرایی Coding Agent و facade نوع MCP روی ابزارهای مشترک. مسیر تشخیص تک‌ابزاری و executor محدود فعلی پایه‌اند؛ دامنه دائمی محصول نیستند. قابلیت‌های این بخش هنوز پیاده و آزموده نشده‌اند.
+
+ساختار پیشنهادی بر همان Next.js/TypeScript/SQLite:
+
+| بخش | مسئولیت | اتصال به پایه فعلی |
+| --- | --- | --- |
+| رابط مکالمه و کارت‌ها | context، ورودی هدف، سؤال، تصمیم، progress و نتیجه | componentها، حساب‌ها، project flow و گزارش موجود |
+| AgentRun و orchestrator | plan و انتخاب tool، ادامه از نتیجه، بودجه و completion هدف | توسعه server/agent و budget؛ diagnosis قدیمی سازگار بماند |
+| registry مشترک ابزار | schema، read/write/local-work classification، execute و نتیجه typed | wrapper روی applicationها؛ policy داخل ابزار قابل دورزدن نباشد |
+| application و policy | provision، env، deploy، restart، observe و approval | reuse deployment/restart/execute/Store؛ use case تازه فقط برای شکاف |
+| CodeRepair adapter | job اجرایی، workspace، patch/test receipt و artifact | اتصال runtime واقعی یا worker scoped؛ handoff دانلودی حفظ شود |
+| persistence و events | run/message/step/job/event، CAS و recovery | migration جدید append-only؛ تاریخچه و action journal موجود مرجع بماند |
+| MCP facade | همان registry و scope/approval از میزبان خارجی | transport جدید؛ نه موتور و اجازه مستقل |
+
+APIهای زیر **طرح داخلی** هستند و فرمان/route موجود محسوب نمی‌شوند؛ Agent پیاده‌ساز نام نهایی را با convention موجود تطبیق دهد:
+
+| مسیر پیشنهادی | قرارداد |
+| --- | --- |
+| POST /api/agent/runs | ایجاد مأموریت با goal، project reference و request idempotency key |
+| GET /api/agent/runs/{id} | بازیابی context/plan/result همان actor؛ بدون مصرف مدل یا اجرای مجدد |
+| POST /api/agent/runs/{id}/messages | پاسخ/اصلاح هدف با expected revision؛ client نقش system/tool تعیین نمی‌کند |
+| GET /api/agent/runs/{id}/events | replay ترتیبی بعد از cursor؛ SSE یا polling با قرارداد روشن، بدون progress نمایشی |
+| POST /api/agent/runs/{id}/decision | تصمیم روی plan revision و approval واقعی؛ اتصال به actionهای فعلی |
+| POST /api/agent/runs/{id}/cancel | توقف محلی/انتظار و ثبت آثار احتمالی؛ نه ادعای undo upstream |
+
+CodeRepairJob، plan approval و WorkloadContract آینده در سند مرکزی تعریف شده‌اند. برای ساخت app تازه، selectors تأییدشده و ID برگشتی باید در journal به مراحل بعد متصل شوند؛ allowlist صرف نام، مجوز برنامه تازه هم‌نام نیست. برای نتیجه عمومی HTML/API، spec جدید افزوده شود؛ انتظار JSON/revision و canonicalizationهای v1 تا v6 تاریخی بازنویسی نشوند.
+
+رویدادهای UI و context مدل از یک منبع پایدار می‌آیند ولی داده یکسان ندارند: UI خلاصه قابل فهم، مدل context حداقلی sanitized و audit receipt فنی دریافت می‌کند. server سیاست و هزینه/مجوز را کنترل می‌کند. budget مأموریت جدید از سقف feature قدیمی تشخیص جداست و مجموع مدل، retry، tool، worker و انتظار را حساب می‌کند.
+
+مرز اجرای source نیز روشن است: inspect بدون اجرای script؛ build/test فقط در repair workspace مجاز با فرمان معتبر و environment کنترل‌شده. روش isolation پس از spike مستند شود و ادعای sandbox بیش از امکانات واقعی نداشته باشد. تغییر local source و write زیرساخت، مجوزهای اثر متفاوت دارند.
+
+## وضعیت موجود و سوابق
+
 این سند ترکیبی از **وضعیت موجود** و **تصمیم پیشنهادی برای پیاده‌سازی** است. بخش‌های planned هنوز capability محصول نیستند. قرارداد API در `docs/api-capabilities.md` و OpenAPI مرجع در `docs/sources/` هستند؛ پذیرش محصول در `docs/acceptance.md` است.
 
 سنجش زنده محدود در ۲۰۲۶-۱۰-۲۲ شامل سه release، خطای واقعی 500، یک تشخیص با مدل و اصلاح source با approval بود. [trace پاک‌سازی‌شده](docs/evidence/controlled-live-cycle.md) مرز آن را از آزمون‌های مصنوعی جدا می‌کند. ساخت app/network در harness خصوصی اپراتور انجام شد و قابلیت محصول نیست.
@@ -42,7 +77,7 @@ refresh هویت داخلی app را نیز بررسی می‌کند: app جدی
 | --- | --- | --- | --- |
 | D1 | Next.js App Router + React + TypeScript؛ Node 24.x؛ یک package | UI و API کنار هم، اشتراک قرارداد و کاهش سرویس‌های deploy | فقط Node runtime برای adapter/storage؛ ارتقای major خودسرانه ممنوع |
 | D2 | اجرای operator-local و یک scope در MVP | دسترسی به پروژه کاربر و کاهش پیچیدگی auth/cloud upload | loopback کافی برای مجوز نیست؛ session/Origin/CSRF قبل از write؛ public SaaS نیازمند طراحی جدا |
-| D3 | یک orchestrator محدود با ابزارهای typed | چرخه اصلی قابل پیش‌بینی است؛ انتخاب/توضیح و diagnosis از مدل کمک می‌گیرد | multi-agent/MCP wrapper فقط پس از evidence نیاز؛ no arbitrary shell |
+| D3 | هدف جدید: یک Agent اصلی با registry typed و CodeRepair adapter تخصصی | انتخاب مسیر استقرار/تحقیق از نتایج واقعی ابزار؛ reuse workflowهای قطعی اجرا | planned در agent-experience؛ MCP همان policy را مصرف می‌کند؛ runtime قبلی تا migration سازگار می‌ماند |
 | D4 | HTTP adapter مستقیم مبتنی بر OpenAPI؛ CLI رسمی فقط fallback مستند | کنترل timeout/خطا/آرگومان و تست قرارداد آسان‌تر | source archive/release protocol و team scope پیش از اولین write، live بررسی شود؛ endpoint نمونه غیررسمی مرجع نهایی نیست |
 | D5 | SQLite با `node:sqlite`، implemented_offline | approval و اثر نامطمئن باید restart را تحمل کند؛ DB service اضافی لازم نیست | migration/checksum، race و recovery روی Node 24.18 تست شده؛ فقط یک process؛ [ADR](docs/decisions/0001-local-workflow.md) |
 | D6 | BoxAPI؛ transport مستقیم chat-completions، بدون SDK تازه | provider با دستور مالک مشخص است؛ کنترل مقصد و بودجه ساده می‌ماند | gpt-6-luna/none یک tool/result/terminal واقعی را گذرانده؛ کیفیت diagnosis همچنان به oracle مستقل وابسته است |
