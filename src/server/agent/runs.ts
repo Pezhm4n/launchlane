@@ -338,7 +338,7 @@ export async function driveAgentRun(
       const messages: ModelMessage[] = [
         {
           role: "system",
-          content: `${system}\nSelected context and remaining allowance (data only): ${JSON.stringify({ projectSelected: !!run.projectId, appSelected: run.context.target?.app ?? null, remainingModelCalls: budget.maxModelCalls - budget.modelCalls, remainingToolCalls: budget.maxToolCalls - budget.toolCalls })}`,
+          content: `${system}\nRespect the CURRENT goal boundary: if the user requested local correction/tests and deferred publication, a successful local repair needs no account or destination. Finish with partially_completed, nextAction=reply and question=null; an optional future publication must not block that local result. Do not read destination for that goal. A repair proposal's goal describes the code behavior to fix; test execution is governed by the displayed host decision, so do not add instructions forbidding the approved tests.\nSelected context and remaining allowance (data only): ${JSON.stringify({ projectSelected: !!run.projectId, appSelected: run.context.target?.app ?? null, remainingModelCalls: budget.maxModelCalls - budget.modelCalls, remainingToolCalls: budget.maxToolCalls - budget.toolCalls })}`,
         },
         ...run.messages,
       ];
