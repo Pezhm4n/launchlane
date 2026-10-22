@@ -12,6 +12,7 @@ import { captureProject } from "../workspace/inspect.ts";
 import type { AgentContext } from "./store.ts";
 import type { ToolDefinition } from "./model.ts";
 import { CodeRepairAdapter } from "./code-repair.ts";
+import { proposeWorkloadDeployment } from "../application/deployment.ts";
 
 export function privateValues(c: Config): string[] {
   return [c.liaraToken, c.modelKey, c.operatorToken, c.sessionSecret].filter(Boolean);
@@ -142,8 +143,27 @@ const repairTool: ToolDefinition = {
   },
 };
 export function toolsForAgent(config: Config): readonly ToolDefinition[] {
-  return config.enableLocalRepair ? [...agentTools, repairTool] : agentTools;
+  return [...agentTools, ...(config.enableLocalRepair ? [repairTool] : []),
+    ...(config.enableMutations && config.enableLiveLiara ? [publicationTool] : [])];
 }
+const publicationTool: ToolDefinition = {
+  type: "function",
+  function: {
+    name: "propose_publication",
+    description: "Propose publication of the exact selected archive to the selected existing Node app. The host derives app, approved origin, port and current plan; no remote write occurs. Supply the user's intended path and a concrete text/JSON response expectation grounded in source or the user's goal. A user decision is mandatory. Does not create/resize an app or change env. Never weaken a failing assertion to get a green result.",
+    parameters: { type: "object", additionalProperties: false,
+      required: ["path", "status", "assertion"], properties: {
+        path: { type: "string", maxLength: 200 }, status: { type: "integer", minimum: 200, maximum: 299 },
+        assertion: { oneOf: [
+          { type: "object", additionalProperties: false, required: ["kind", "contains"],
+            properties: { kind: { const: "text" }, contains: { type: "string", minLength: 3, maxLength: 256 } } },
+          { type: "object", additionalProperties: false, required: ["kind", "field", "equals"],
+            properties: { kind: { const: "json" }, field: { type: "string", maxLength: 80 },
+              equals: { type: ["string", "number", "boolean", "null"] } } },
+        ] },
+      } },
+  },
+};
 export const toolLabels: Readonly<Record<string, string>> = {
   inspect_project: "بررسی فایل‌ها و روش اجرای پروژه",
   read_project_file: "خواندن فایل مرتبط پروژه",
@@ -152,6 +172,7 @@ export const toolLabels: Readonly<Record<string, string>> = {
   read_releases: "بررسی نسخه‌های منتشرشده",
   read_logs: "خواندن گزارش‌های اخیر برنامه",
   propose_code_repair: "آماده‌کردن محدوده اصلاح و آزمون محلی",
+  propose_publication: "آماده‌کردن پیشنهاد انتشار و بررسی پاسخ سایت",
 };
 export type AgentToolContext = {
   config: Config;
@@ -178,6 +199,18 @@ export async function executeAgentTool(
     "ورودی ابزار کامل نیست.",
   );
   assertAgentContext(c.config, c.store, c.actorId, c.context);
+  if (name === "propose_publication") {
+    ensure(c.context.projectId && c.context.target, "LIARA_APP_REQUIRED", "پروژه و برنامه مقصد را انتخاب کنید.", 409);
+    const app = c.context.target.app,
+      origin = c.config.probeOrigins[app] || c.store.getProbeOrigin(c.actorId, c.context.target.teamId, app);
+    ensure(origin, "PROBE_UNCONFIGURED", "نشانی سایت را در حساب‌ها برای همین برنامه مشخص کنید.", 409);
+    const action = await proposeWorkloadDeployment(c.config, c.store, c.actorId,
+      { flowId: c.context.projectId, app, port: null,
+        workload: { origin, path: args.path, status: args.status, assertion: args.assertion } },
+      c.signal, { budget: c.budget, ...(c.read ? { read: c.read } : {}) });
+    assertAgentContext(c.config, c.store, c.actorId, c.context);
+    return { publicationProposal: action };
+  }
   if (name === "propose_code_repair") {
     c.budget.take("tool", c.signal);
     ensure(
@@ -226,8 +259,10 @@ export async function executeAgentTool(
       serviceReadsEnabled: c.config.enableLiveLiara,
       mutationsEnabled: c.config.enableMutations,
       pricing: "unknown",
+      siteOriginConfigured: !!(c.context.target && (c.config.probeOrigins[c.context.target.app] ||
+        c.store.getProbeOrigin(c.actorId, c.context.target.teamId, c.context.target.app))),
       limitation:
-        "Creating applications and changing settings are not tools in this slice. No remote changes were made.",
+        "Publication to an existing Node app requires a separate exact-artifact decision. Creating applications or changing env is not available in this slice. No remote changes were made by this read.",
     };
   }
   if (name === "inspect_project" || name === "read_project_file") {

@@ -122,16 +122,16 @@ function parseRecord(value: unknown): AgentRecord {
     messages,
     usage: {
       modelCalls: integer(usage.modelCalls, 0, 100),
-      toolCalls: integer(usage.toolCalls, 0, 100),
+      toolCalls: integer(usage.toolCalls, 0, 160),
       observedTokens: integer(usage.observedTokens, 0, 10000000),
       unknownModelCalls: integer(usage.unknownModelCalls, 0, 100),
       elapsedMs: integer(usage.elapsedMs, 0, 10000000),
     },
     createdAt: integer(row.createdAt, 0, Number.MAX_SAFE_INTEGER),
     limits: {
-      maxModelCalls: integer(limits.maxModelCalls, 1, 8),
-      maxToolCalls: integer(limits.maxToolCalls, 1, 12),
-      runTimeoutMs: integer(limits.runTimeoutMs, 100, 120000),
+      maxModelCalls: integer(limits.maxModelCalls, 1, 24),
+      maxToolCalls: integer(limits.maxToolCalls, 1, 160),
+      runTimeoutMs: integer(limits.runTimeoutMs, 100, 900000),
     },
     errorCode: row.errorCode === null ? null : string(row.errorCode, 100),
   };
@@ -164,6 +164,7 @@ export function agentView(run: AgentRecord): AgentView {
     updatedAt: run.updatedAt,
     effect: run.effect,
     repair: run.repair,
+    publication: run.publication,
   };
 }
 
@@ -184,6 +185,11 @@ export class AgentRepository {
           .get(actorId);
     if (!row) return null;
     const run = parseRecord(JSON.parse(string(row.data_json, 512 * 1024)));
+    if (run.publication) {
+      run.publication = this.store.getAction(run.publication.id, actorId);
+      run.effect = run.publication.state === "succeeded" ? "remote_changes_verified"
+        : run.publication.attemptId ? "remote_changes_unverified" : "no_remote_changes";
+    }
     if (run.repair) {
       const job = this.store.db
         .prepare("SELECT data_json,state FROM code_repair_jobs WHERE actor_id=? AND id=?")
@@ -245,6 +251,7 @@ export class AgentRepository {
         createdAt: now,
         effect: "no_remote_changes",
         repair: null,
+        publication: null,
         repairDecision: null,
         messages: [{ role: "user", content: goal }],
         usage: {
@@ -319,6 +326,14 @@ export class AgentRepository {
       const actor = string(row.actor_id),
         run = this.get(actor, string(row.id));
       if (!run) continue;
+      if (run.publication?.state === "approved" && !run.publication.attemptId) {
+        // A queued approval must not become an unattended write after a process restart.
+        this.store.db.prepare("UPDATE actions SET state='cancelled' WHERE id=? AND actor_id=? AND state='approved' AND attempt_id IS NULL")
+          .run(run.publication.id, actor);
+        this.store.db.prepare("INSERT INTO audit_events(action_id,actor_id,event,at) VALUES (?,?,?,?)")
+          .run(run.publication.id, actor, "agent_process_interrupted", Date.now());
+        run.publication = this.store.getAction(run.publication.id, actor);
+      }
       run.state = "interrupted";
       run.errorCode = "PROCESS_INTERRUPTED";
       run.nextAction = "reply";

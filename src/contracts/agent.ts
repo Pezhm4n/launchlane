@@ -1,6 +1,8 @@
 import { ensure } from "../server/errors.ts";
 import { integer, object, string, text } from "./validation.ts";
 import { parseCodeRepairJob, type CodeRepairJob } from "./code-repair.ts";
+import { decodeAction } from "./client-decode.ts";
+import type { Action } from "./domain.ts";
 
 export const agentStates = [
   "queued",
@@ -8,6 +10,7 @@ export const agentStates = [
   "needs_input",
   "needs_approval",
   "partially_completed",
+  "completed",
   "failed",
   "cancelled",
   "interrupted",
@@ -39,8 +42,9 @@ export type AgentView = {
   question: string | null;
   updatedAt: number;
   // A host-owned statement. Model prose is never an execution receipt.
-  effect: "no_remote_changes";
+  effect: "no_remote_changes" | "remote_changes_unverified" | "remote_changes_verified";
   repair: CodeRepairJob | null;
+  publication: Action | null;
 };
 export function parseAgentView(value: unknown): AgentView {
   const row = object(value);
@@ -48,7 +52,7 @@ export function parseAgentView(value: unknown): AgentView {
   const nextAction =
     row.nextAction === null ? null : nextActions.find((action) => action === row.nextAction);
   ensure(
-    state && nextAction !== undefined && row.effect === "no_remote_changes",
+    state && nextAction !== undefined && (row.effect === "no_remote_changes" || row.effect === "remote_changes_unverified" || row.effect === "remote_changes_verified"),
     "INVALID_RESPONSE",
     "وضعیت دستیار معتبر نیست.",
   );
@@ -92,7 +96,8 @@ export function parseAgentView(value: unknown): AgentView {
     nextAction,
     question: row.question === null ? null : text(row.question, 2000),
     updatedAt: integer(row.updatedAt, 0, Number.MAX_SAFE_INTEGER),
-    effect: "no_remote_changes",
+    effect: row.effect,
     repair: row.repair === null || row.repair === undefined ? null : parseCodeRepairJob(row.repair),
+    publication: row.publication === null || row.publication === undefined ? null : decodeAction(row.publication),
   };
 }

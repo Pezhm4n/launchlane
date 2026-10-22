@@ -7,7 +7,7 @@ import { endpoint, jsonBody, reply } from "../../../../server/http.ts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+export const maxDuration = 600;
 export async function GET(request: Request) {
   return endpoint(request, false, ({ store, session }) => {
     ensure(!new URL(request.url).search, "INVALID_INPUT", "نشانی معتبر نیست.");

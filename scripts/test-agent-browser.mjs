@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { setTimeout as pause } from "node:timers/promises";
@@ -9,6 +9,11 @@ import { Store } from "../src/server/persistence/store.ts";
 import { AgentRepository } from "../src/server/agent/store.ts";
 import { repairBrokenSource } from "../tests/helpers/agent-fixture.ts";
 import { startTestServer } from "./test-server.mjs";
+import { readConfig } from "../src/server/config.ts";
+import { sealCredential } from "../src/server/connections/credentials.ts";
+import { currentAgentContext } from "../src/server/agent/tools.ts";
+import { proposeWorkloadDeployment } from "../src/server/application/deployment.ts";
+import { LiaraReadClient } from "../src/server/liara/client.ts";
 
 const server = await startTestServer({ agentFixture: true }),
   browser = await chromium.launch({ headless: true });
@@ -228,6 +233,53 @@ try {
   assert.equal(await modelRequests(), cancelledCount);
   await layout(360, "cancel-and-reload-without-replay");
   assert.equal(store.db.prepare("SELECT COUNT(*) AS count FROM attempts").get().count, 0);
+  // Seed only the proposal boundary; the server keeps its mutation gate off throughout this UI test.
+  const publicationConfig = readConfig({
+    LAUNCHLANE_STATE_DIR: server.stateDir, LAUNCHLANE_WORKSPACE_ROOT: server.workspace,
+    LAUNCHLANE_SESSION_SECRET: server.sessionSecret, LIARA_TEAM_ID: server.teamId,
+    LAUNCHLANE_APP_ALLOWLIST: server.app, LIARA_API_TOKEN: "synthetic-publication-key",
+    LAUNCHLANE_ENABLE_LIVE_LIARA: "true", LAUNCHLANE_ENABLE_MUTATIONS: "true",
+    LAUNCHLANE_PROBE_ORIGINS: JSON.stringify({ [server.app]: "https://sample.example.com" }),
+  });
+  store.saveConnection(actor, { source: "token", ciphertext: sealCredential(publicationConfig.liaraToken,
+    publicationConfig.sessionSecret, actor, "liara"), view: {
+      provider: "liara", status: "connected", identityId: "test-account", displayName: "حساب آزمون",
+      login: "test@example.test", checkedAt: Date.now(), teamId: server.teamId, teamName: "تیم آزمون",
+      selectedApp: server.app, apps: [{ id: "test-app-id", name: server.app, platform: "node" }],
+    } });
+  const publication = await proposeWorkloadDeployment(publicationConfig, store, actor, {
+    flowId: explicitlySelected, app: server.app, port: null,
+    workload: { origin: "https://sample.example.com", path: "/orders", status: 200,
+      assertion: { kind: "json", field: "total", equals: 81 } },
+  }, AbortSignal.timeout(3000), { read: new LiaraReadClient(publicationConfig, async () => Response.json({
+    project: { _id: "test-app-id", project_id: server.app, type: "node", status: "Running", planID: "current-plan", envs: [] },
+  })) });
+  const repository = new AgentRepository(store), publicationRun = repository.create(actor, randomUUID(),
+    currentAgentContext(publicationConfig, store, actor), "این نسخه را منتشر کن", { maxModelCalls: 16, maxToolCalls: 80, runTimeoutMs: 600000 }).run;
+  publicationRun.publication = publication;
+  publicationRun.state = "needs_approval";
+  repository.save(actor, publicationRun);
+  const beforePublicationReload = await modelRequests();
+  await page.reload();
+  await badge("منتظر تصمیم شما");
+  const approvePublication = panel.getByRole("button", { name: "تأیید و انتشار این نسخه", exact: true });
+  for (const width of [360, 768, 1280]) {
+    await layout(width, "publication-decision");
+    await page.screenshot({ path: join(output, `agent-publication-${width}.png`), fullPage: true });
+  }
+  await page.evaluate(() => (document.documentElement.style.fontSize = "200%"));
+  await layout(360, "publication-text-200-percent");
+  await page.evaluate(() => (document.documentElement.style.fontSize = ""));
+  await approvePublication.focus();
+  await approvePublication.press("Enter");
+  await panel.getByRole("alert").getByText("انتشار واقعی در این نصب خاموش است.", { exact: true }).waitFor();
+  assert.equal(store.getAction(publication.id, actor).state, "awaiting_approval");
+  await panel.getByRole("button", { name: "رد انتشار", exact: true }).click();
+  await badge("منتظر پاسخ شما");
+  assert.equal(store.getAction(publication.id, actor).state, "cancelled");
+  assert.equal(await modelRequests(), beforePublicationReload);
+  assert.equal(store.db.prepare("SELECT COUNT(*) AS count FROM attempts").get().count, 0);
+  await layout(360, "rejected-publication-no-execution");
   assert.deepEqual(errors, []);
   assert.deepEqual(external, []);
   await writeFile(

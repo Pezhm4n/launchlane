@@ -5,13 +5,15 @@ import {
   continueAgentRun,
   driveAgentRun,
   decideAgentRepair,
+  decideAgentPublication,
+  resumeAgentPublication,
 } from "../../../../../server/agent/runs.ts";
 import { AgentRepository, agentView } from "../../../../../server/agent/store.ts";
 import { ensure } from "../../../../../server/errors.ts";
 import { endpoint, jsonBody, reply } from "../../../../../server/http.ts";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+export const maxDuration = 600;
 type Context = { params: Promise<{ id: string }> };
 export async function GET(request: Request, { params }: Context) {
   return endpoint(request, false, async ({ store, session }) => {
@@ -60,6 +62,20 @@ export async function POST(request: Request, { params }: Context) {
         input.decision,
       );
       if (input.decision === "approve") after(() => driveAgentRun(config, store, session, id));
+      return reply({ run: agentView(run) });
+    }
+    if (input.operation === "publication-decision") {
+      exactKeys(input, ["operation", "revision", "actionId", "decision"]);
+      ensure(input.decision === "approve" || input.decision === "reject", "INVALID_INPUT", "تصمیم معتبر نیست.");
+      const run = await decideAgentPublication(config, store, session, id, revision,
+        string(input.actionId, 36), input.decision);
+      if (input.decision === "approve") after(() => driveAgentRun(config, store, session, id));
+      return reply({ run: agentView(run) });
+    }
+    if (input.operation === "publication-observe") {
+      exactKeys(input, ["operation", "revision"]);
+      const run = resumeAgentPublication(store, session, id, revision);
+      after(() => driveAgentRun(config, store, session, id));
       return reply({ run: agentView(run) });
     }
     ensure(input.operation === "message", "INVALID_OPERATION", "این درخواست پشتیبانی نمی‌شود.");

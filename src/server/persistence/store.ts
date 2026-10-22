@@ -654,6 +654,7 @@ export class Store {
     expectedHash: string,
     decision: "approve" | "reject",
     now = Date.now(),
+    afterDecision?: (action: Action) => void,
   ): Action {
     return this.transaction(() => {
       const action = this.getAction(id, actorId);
@@ -680,7 +681,10 @@ export class Store {
         .prepare("UPDATE actions SET state=?,approval_session_id=? WHERE id=?")
         .run(decision === "approve" ? "approved" : "cancelled", sessionId, id);
       this.audit(action, decision === "approve" ? "approved" : "rejected", now);
-      return this.getAction(id, actorId);
+      const decided = this.getAction(id, actorId);
+      // The run transition and approval must commit together; a crash cannot leave a hidden approved write.
+      afterDecision?.(decided);
+      return decided;
     });
   }
 

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { parseAgentView, type AgentView } from "../contracts/agent.ts";
 import { object } from "../contracts/validation.ts";
 import { api, ClientError } from "./api.ts";
+import { AgentPublication } from "./AgentPublication.tsx";
 
 function decodeRun(value: unknown): AgentView | null {
   const row = object(value);
@@ -15,6 +16,7 @@ const stateLabels: Readonly<Record<AgentView["state"], string>> = {
   needs_input: "منتظر پاسخ شما",
   needs_approval: "منتظر تصمیم شما",
   partially_completed: "بررسی اولیه آماده است",
+  completed: "نتیجه بررسی و تأیید شد",
   failed: "بررسی کامل نشد",
   cancelled: "بررسی متوقف شد",
   interrupted: "بررسی قبلی قطع شد",
@@ -248,6 +250,18 @@ export function AgentPanel({
       setBusy(false);
     }
   }
+  async function publicationRequest(decision?: "approve" | "reject") {
+    if (!run?.publication || busy || disabled) return;
+    setBusy(true);
+    setError(null);
+    try {
+      accept(await api(`/api/agent/runs/${run.id}`, decodeRun, { csrf,
+        body: decision ? { operation: "publication-decision", revision: run.revision, actionId: run.publication.id, decision }
+          : { operation: "publication-observe", revision: run.revision },
+      }));
+    } catch (cause) { failed(cause); }
+    finally { setBusy(false); }
+  }
   const messages =
     run?.events.filter((event) => event.kind === "user" || event.kind === "assistant") ?? [];
   const action = run?.nextAction;
@@ -302,7 +316,9 @@ export function AgentPanel({
       {restoring ? <p role="status">در حال بازیابی گفت‌وگو…</p> : null}
       {run ? (
         <>
-          <p className="agent-effect">تغییری در سایت منتشر نشده است.</p>
+          <p className="agent-effect">{run.effect === "remote_changes_verified" ? "نسخه منتشرشده و پاسخ مورد انتظار بررسی شدند."
+            : run.effect === "remote_changes_unverified" ? "ارسال به سرویس آغاز شده است؛ نتیجه نهایی هنوز تأیید نشده است."
+            : "تغییری در سایت منتشر نشده است."}</p>
           {!sameProject ? (
             <p className="note">
               این گفت‌وگو برای پروژه قبلی است. پیام بعدی، بررسی تازه‌ای برای پروژه انتخاب‌شده آغاز
@@ -381,7 +397,7 @@ export function AgentPanel({
                   </pre>
                 ) : null}
               </details>
-              {run.state === "needs_approval" ? (
+              {run.state === "needs_approval" && run.repair.state === "proposed" ? (
                 <>
                   <p>
                     این تصمیم فقط اصلاح محلی و اجرای آزمون بالا را مجاز می‌کند. انتشار نیاز به تصمیم
@@ -434,6 +450,10 @@ export function AgentPanel({
               ) : null}
             </section>
           ) : null}
+          {run.publication ? <AgentPublication action={run.publication} waiting={run.state === "needs_approval"}
+            disabled={disabled || busy || active || !sameProject}
+            onDecision={(decision) => void publicationRequest(decision)}
+            onObserve={() => void publicationRequest()} /> : null}
           {sameProject && action && action !== "reply" ? (
             <div className="button-row">
               <button

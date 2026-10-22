@@ -139,6 +139,9 @@ export function readConfig(env: Environment = process.env) {
     enableLocalRepair: flag(env, "LAUNCHLANE_ENABLE_LOCAL_REPAIR"),
     maxModelCalls: limit(env, "LAUNCHLANE_MAX_MODEL_CALLS", 8, 1, 8),
     maxToolCalls: limit(env, "LAUNCHLANE_MAX_TOOL_CALLS", 12, 1, 12),
+    agentMaxModelCalls: limit(env, "LAUNCHLANE_AGENT_MAX_MODEL_CALLS", 16, 1, 24),
+    agentMaxToolCalls: limit(env, "LAUNCHLANE_AGENT_MAX_TOOL_CALLS", 80, 1, 160),
+    agentTimeoutMs: limit(env, "LAUNCHLANE_AGENT_TIMEOUT_MS", 600_000, 100, 900_000),
     runTimeoutMs: limit(env, "LAUNCHLANE_RUN_TIMEOUT_MS", 120_000, 100, 120_000),
     modelOutputTokens: limit(env, "LAUNCHLANE_MODEL_OUTPUT_TOKENS", 1024, 32, 4096),
   };

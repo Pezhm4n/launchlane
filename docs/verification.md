@@ -2,6 +2,12 @@
 
 شواهد جاری ابتدا و سابقه مراحل پیشین پایین‌تر ثبت شده‌اند. هر نتیجه به revision و شرایط خودش تعلق دارد؛ نتایج bootstrap جای قابلیت محصول و fixture جای اتصال زنده نیست.
 
+## اتصال انتشار به گفت‌وگو؛ پس از 5b0b0b8
+
+ابزار `propose_publication` برنامه، مبدأ مجاز، port و پلن موجود را از host می‌گیرد. کارت تصمیم در همان تب، معیار HTML/API و مقصد را نشان می‌دهد. تصمیم و queued شدن Agent اتمیک‌اند؛ پس از تأیید، همان application انتشار و journal upload/release مصرف می‌شوند. موفقیت Agent فقط از receipt و oracle سرور به `completed` می‌رسد. GET/reload اجرا نمی‌سازد، نتیجه pending فقط readback می‌شود، و startup تأیید queued ولی claim‌نشده را لغو می‌کند. بودجه مستقل Agent، مجموع مدل/worker/tools/writes/polling را پایدار نگه می‌دارد؛ سقف feature تشخیص تاریخی تغییر نکرده است.
+
+Domain تازه 193/193، lint، typecheck و build گذشتند. چهار regression جدید، توقف قبل از claim، رد، خطای ذخیره در لحظه تأیید، publication واقعی application با transport مصنوعی، نتیجه pending و recovery بدون replay را پوشش می‌دهند. suite Agent مرورگر 17 حالت در 360/768/1280 و متن 200٪ گذراند؛ کارت pending در سه اندازه دیده شد. artifact: `.artifacts/agent-ui/2026-10-22T07-49-47.592Z`. پیشنهاد کارت در بخش جدید آزمون UI seed شده و gate نوشتن سرور خاموش است؛ این بخش شاهد write یا مدل واقعی نیست. آزمون‌های Node برش اصلاح، واقعی و در workspace موقت‌اند. چرخه تازه Liara، قیمت catalog در پیشنهاد، ساخت app و env هنوز UNCONFIRMED هستند.
+
 ## ادامه Agent: قرارداد عمومی بررسی انتشار
 
 در تغییر پس از `9213e6e`، ActionSpec v7 معیار متن HTML یا فیلد مستقیم JSON را به حساب، app داخلی، پلن موجود، Node و همان archive متصل می‌کند. نسخه‌های 1–6 بازنویسی نشده‌اند. probe این مسیر حداکثر 64KiB پاسخ کامل می‌گیرد؛ سقف تاریخی 4KiB پابرجاست. نتیجه نیازمند READY/current همان release، پاسخ مطلوب و fence دوباره release است؛ status تنها کافی نیست. این قرارداد ادعای آزمون همه رفتارهای برنامه یا اثبات محتوای سایر مسیرها ندارد.
