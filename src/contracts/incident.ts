@@ -1,6 +1,7 @@
 import type { Scope } from "./domain.ts";
 import { exactKeys, identifier, integer, object, string, text } from "./validation.ts";
 import { ensure } from "../server/errors.ts";
+import { parseLatencySampling, type LatencySampling } from "./latency.ts";
 
 export const evidenceSources = [
   "workload",
@@ -21,7 +22,7 @@ export type EvidenceEntry = {
   details: string[];
   code: string | null;
   fact:
-    | { kind: "http"; origin: string; path: string; status: number; durationMs?: number }
+    | { kind: "http"; origin: string; path: string; status: number; durationMs?: number; sampling?: LatencySampling }
     | { kind: "log"; message: string }
     | { kind: "env_keys"; keys: string[] }
     | null;
@@ -100,8 +101,10 @@ export function parseEvidenceBundle(value: unknown): EvidenceBundle {
       const item = object(row.fact);
       ensure(row.state === "observed", "EVIDENCE_INVALID", "شاهد نامعلوم fact تأییدشده ندارد.");
       if (item.kind === "http") {
-        exactKeys(item, ["kind", "origin", "path", "status", "durationMs"]);
+        exactKeys(item, ["kind", "origin", "path", "status", "durationMs", "sampling"]);
         ensure(source === "workload", "EVIDENCE_INVALID", "منبع HTTP معتبر نیست.");
+        ensure(item.sampling === undefined || item.durationMs !== undefined,
+          "EVIDENCE_INVALID", "نمونه زمان پاسخ باید مدت اندازه‌گیری‌شده داشته باشد.");
         fact = {
           kind: "http",
           origin: string(item.origin, 240),
@@ -110,6 +113,7 @@ export function parseEvidenceBundle(value: unknown): EvidenceBundle {
           ...(item.durationMs === undefined
             ? {}
             : { durationMs: integer(item.durationMs, 0, 60_000) }),
+          ...(item.sampling === undefined ? {} : { sampling: parseLatencySampling(item.sampling) }),
         };
       } else if (item.kind === "log") {
         exactKeys(item, ["kind", "message"]);

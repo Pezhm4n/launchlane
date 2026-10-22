@@ -1,4 +1,6 @@
 import type { Scope } from "../../contracts/domain.ts";
+import { createHash, randomUUID } from "node:crypto";
+import { latencyProtocol, latencySampleCount } from "../../contracts/latency.ts";
 import {
   parseEvidenceBundle,
   type EvidenceBundle,
@@ -8,7 +10,7 @@ import {
 import { integer, string } from "../../contracts/validation.ts";
 import { AppError, ensure } from "../errors.ts";
 import type { LiaraReadClient } from "../liara/client.ts";
-import type { WorkloadProbe } from "../liara/probe.ts";
+import type { WorkloadProbe, ProbeResult } from "../liara/probe.ts";
 import { authorizeScope } from "../policy/action.ts";
 import type { RunBudget } from "../policy/budget.ts";
 
@@ -22,6 +24,7 @@ export async function collectEvidence(
     end: number;
     since: string;
     path: string;
+    sampleLatency?: boolean;
   },
   budget: RunBudget,
   signal: AbortSignal,
@@ -37,6 +40,13 @@ export async function collectEvidence(
   integer(input.end, input.start, input.start + 900_000);
   string(input.since, 64);
   const expectedAppId = input.expectedAppId === undefined ? null : string(input.expectedAppId, 128);
+  if (input.sampleLatency)
+    ensure(
+      expectedAppId && budget.maxToolCalls - budget.toolCalls >= 10,
+      "BUDGET_EXHAUSTED",
+      "بررسی کندی به هویت برنامه و سقف ده خواندن نیاز دارد؛ پیش از شروع، تنظیمات نصب را بررسی کنید.",
+      409,
+    );
   const entries: EvidenceEntry[] = [];
   const controller = new AbortController(),
     boundedSignal = AbortSignal.any([signal, controller.signal, budget.signal(signal)]);
@@ -99,27 +109,67 @@ export async function collectEvidence(
   // Seven independent reads share one deadline. A failed source is visible; cancellation ends the run.
   const groups = await Promise.all([
     read("workload", async () => {
-      const value = await probe.check(input.scope, input.path, budget, boundedSignal);
-      return [
-        entry(
-          "workload",
-          value.outcome === "response" ? "observed" : "unknown",
-          value.outcome === "response"
-            ? `HTTP ${value.status} در مسیر ${value.path}`
-            : "ارجاع به نشانی دیگر دنبال نشد؛ نتیجه بازشدن صفحه مشخص نیست.",
-          value.body ? [value.body.slice(0, 1000)] : [],
-          value.outcome === "response"
-            ? {
-                kind: "http",
-                origin: value.origin,
-                path: value.path,
-                status: value.status,
-                durationMs: Math.round(value.durationMs),
-              }
-            : null,
-          value.observedAt,
-        ),
-      ];
+      const result: EvidenceEntry[] = [],
+        seriesId = randomUUID();
+      for (let index = 1; index <= (input.sampleLatency ? latencySampleCount : 1); index++) {
+        let value: ProbeResult;
+        try {
+          value = await probe.check(input.scope, input.path, budget, boundedSignal);
+        } catch (error) {
+          if (
+            !result.length ||
+            boundedSignal.aborted ||
+            (error instanceof AppError && ["CANCELLED", "BUDGET_EXHAUSTED"].includes(error.code))
+          )
+            throw error;
+          result.push({
+            ...entry(
+              "workload",
+              "unavailable",
+              "اندازه‌گیری بعدی کامل نشد؛ سری ناقص است و زمان صفر ثبت نمی‌شود.",
+              [],
+              null,
+              null,
+            ),
+            code: error instanceof AppError ? error.code : "PROBE_TRANSPORT",
+          });
+          break;
+        }
+        result.push(
+          entry(
+            "workload",
+            value.outcome === "response" ? "observed" : "unknown",
+            value.outcome === "response"
+              ? `HTTP ${value.status} در مسیر ${value.path}`
+              : "ارجاع به نشانی دیگر دنبال نشد؛ نتیجه بازشدن صفحه مشخص نیست.",
+            value.body ? [value.body.slice(0, 1000)] : [],
+            value.outcome === "response"
+              ? {
+                  kind: "http",
+                  origin: value.origin,
+                  path: value.path,
+                  status: value.status,
+                  durationMs: Math.round(value.durationMs),
+                  ...(input.sampleLatency && expectedAppId
+                    ? {
+                        sampling: {
+                          protocol: latencyProtocol,
+                          seriesId,
+                          index,
+                          count: latencySampleCount,
+                          appId: expectedAppId,
+                          responseHash: createHash("sha256").update(value.body).digest("hex"),
+                        },
+                      }
+                    : {}),
+                }
+              : null,
+            value.observedAt,
+          ),
+        );
+        if (value.outcome !== "response" || value.status < 200 || value.status >= 300) break;
+      }
+      return result;
     }),
     read("project", async () => {
       const value = project ?? (await client.project(input.scope, budget, boundedSignal));

@@ -130,7 +130,7 @@ export async function createPracticeRun(
     id: randomUUID(),
     kind: "sample",
     appId: null,
-    symptom: "errors",
+    symptom: scenario === "latency" ? "slow" : "errors",
     problem: "",
     path: "/",
     scenario,
@@ -166,7 +166,7 @@ export function comparePracticeRun(
 
 type Reader = (
   config: Config,
-  input: { app: string; path: string; appId: string },
+  input: { app: string; path: string; appId: string; sampleLatency?: boolean },
   budget: RunBudget,
   signal: AbortSignal,
 ) => Promise<EvidenceBundle>;
@@ -182,6 +182,7 @@ const readEvidence: Reader = (config, input, budget, signal) => {
       end: budget.deadline,
       since: new Date(now - 300_000).toISOString(),
       path: input.path,
+      ...(input.sampleLatency ? { sampleLatency: true } : {}),
     },
     budget,
     signal,
@@ -218,7 +219,7 @@ export async function createLiveIncidentRun(
   const appId = selectedAppId(store, actorId, input.app);
   ensure(appId, "SCOPE_DENIED", "هویت برنامه انتخاب‌شده مشخص نیست؛ دوباره متصل شوید.", 403);
   const evidence = sanitizeEvidence(
-    await reader(scoped, { app: input.app, path, appId }, new RunBudget(scoped), signal),
+    await reader(scoped, { app: input.app, path, appId, ...(input.symptom === "slow" ? { sampleLatency: true } : {}) }, new RunBudget(scoped), signal),
     scoped,
     input.app,
     path,
@@ -302,7 +303,7 @@ export async function recheckIncidentRun(
   const after = sanitizeEvidence(
     await reader(
       scoped,
-      { app: run.evidence.scope.app, path: run.path, appId: run.appId },
+      { app: run.evidence.scope.app, path: run.path, appId: run.appId, ...(run.symptom === "slow" ? { sampleLatency: true } : {}) },
       new RunBudget(scoped),
       signal,
     ),

@@ -5,6 +5,8 @@ import { readConfig } from "../../src/server/config.ts";
 import { sealCredential } from "../../src/server/connections/credentials.ts";
 import { AppError } from "../../src/server/errors.ts";
 import { practiceEvidence } from "../../src/server/incident/practice.ts";
+import { compareLatency, summarizeLatency } from "../../src/contracts/latency.ts";
+import { createIncidentHandoff } from "../../src/server/incident/handoff.ts";
 import {
   analyzeIncidentRun,
   comparePracticeRun,
@@ -78,6 +80,30 @@ const input = {
   problem: "صفحه اصلی خطای سرور دارد",
   path: "/",
 };
+
+test("a saved latency sample restores all measurements, isolates actors and exports a cautious same-page comparison without internal fingerprints", async () => {
+  const store = new Store(":memory:");
+  try {
+    const run = await createPracticeRun(store, "alice", "latency", signal());
+    assert.equal(run.symptom, "slow");
+    const restored = store.getIncidentRun("alice", run.id);
+    assert.ok(restored);
+    assert.equal(summarizeLatency(restored.evidence).state, "complete");
+    assert.equal(store.getIncidentRun("bob", run.id), null);
+    const unchanged = comparePracticeRun(store, "alice", run.id, "unrelated");
+    assert.ok(unchanged.after);
+    assert.equal(compareLatency(run.evidence, unchanged.after).outcome, "overlapping");
+    const faster = comparePracticeRun(store, "alice", run.id, "related");
+    assert.ok(faster.after);
+    assert.equal(compareLatency(run.evidence, faster.after).outcome, "lower_observed");
+    assert.equal(verifySameSymptom(run.evidence, faster.after).outcome, "inconclusive");
+    const exported = createIncidentHandoff(readConfig({}), store, "alice", run.id).markdown;
+    assert.match(exported, /میلی‌ثانیه/);
+    assert.match(exported, /رفع پایدار کندی تأیید نشده/);
+    assert.ok(!exported.includes("a".repeat(64)));
+    assert.ok(!exported.includes("practice-app"));
+  } finally { store.close(); }
+});
 
 test("the default incident reader retains a fresh business-path symptom after a slow authorized read", async (t) => {
   const f = fixture(),

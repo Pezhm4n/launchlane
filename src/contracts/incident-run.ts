@@ -15,7 +15,7 @@ export type IncidentRun = {
   symptom: Symptom;
   problem: string;
   path: string;
-  scenario: "configuration" | "contradictory" | "insufficient" | null;
+  scenario: "configuration" | "contradictory" | "insufficient" | "latency" | null;
   evidence: EvidenceBundle;
   diagnosis: Diagnosis | null;
   analysis: "ready" | "pending" | "model" | "scripted" | "unavailable" | "failed";
@@ -52,6 +52,7 @@ export function parseIncidentRun(value: unknown): IncidentRun {
     scenario === null ||
       scenario === "configuration" ||
       scenario === "contradictory" ||
+      scenario === "latency" ||
       scenario === "insufficient",
     "INCIDENT_INVALID",
     "سناریوی بررسی معتبر نیست.",
@@ -59,7 +60,7 @@ export function parseIncidentRun(value: unknown): IncidentRun {
   ensure(
     row.kind === "live"
       ? scenario === null
-      : scenario === "configuration" || scenario === "contradictory" || scenario === "insufficient",
+      : scenario === "configuration" || scenario === "contradictory" || scenario === "insufficient" || scenario === "latency",
     "INCIDENT_INVALID",
     "سناریوی نمونه معتبر نیست.",
   );

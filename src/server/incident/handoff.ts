@@ -1,4 +1,5 @@
 import { latestIncidentEvidence } from "../../contracts/incident-evidence.ts";
+import { compareLatency, summarizeLatency } from "../../contracts/latency.ts";
 import { parseIncidentHandoff, type IncidentHandoff } from "../../contracts/incident-handoff.ts";
 import {
   inWindow,
@@ -97,7 +98,9 @@ export function createIncidentHandoff(
     beforeHttp = run.evidence.entries.find(
       (row) => row.fact?.kind === "http" && inWindow(row, run.evidence),
     ),
-    comparison = latest !== run.evidence ? verifySameSymptom(run.evidence, latest) : null;
+    comparison = latest !== run.evidence
+      ? run.symptom === "slow" ? compareLatency(run.evidence, latest) : verifySameSymptom(run.evidence, latest)
+      : null;
   const evidence = (bundle: EvidenceBundle) => {
     const cited = new Set(run.diagnosis?.hypotheses.flatMap((row) => row.evidenceIds) ?? []);
     const priority = (row: EvidenceEntry) =>
@@ -116,7 +119,8 @@ export function createIncidentHandoff(
         summary: clean(row.summary, 400),
         fact:
           row.fact?.kind === "http"
-            ? { ...row.fact, origin: clean(row.fact.origin, 240), path: clean(row.fact.path, 200) }
+            ? { kind: "http", status: row.fact.status, durationMs: row.fact.durationMs,
+                origin: clean(row.fact.origin, 240), path: clean(row.fact.path, 200) }
             : row.fact?.kind === "log" && cited.has(row.id)
               ? { kind: "log", excerpt: clean(row.fact.message, 600) }
               : row.fact?.kind === "env_keys"
@@ -161,6 +165,11 @@ export function createIncidentHandoff(
       : []),
     "## مشاهده نخست",
     evidence(run.evidence),
+    ...(run.symptom === "slow" ? ["## زمان پاسخ؛ میلی‌ثانیه", data({
+      before: summarizeLatency(run.evidence),
+      after: latest !== run.evidence ? summarizeLatency(latest) : null,
+      limitation: "سه GET متوالی از اتصال تا پایان پاسخ کوتاه؛ زمان DNS، بارگذاری کامل صفحه و سنجش ظرفیت نیست. علت یا رفع پایدار کندی از آن نتیجه نمی‌شود.",
+    })] : []),
     "## فرضیه‌ها؛ علت تأییدشده نیستند",
     run.diagnosis
       ? data({

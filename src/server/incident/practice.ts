@@ -1,17 +1,31 @@
 import {
   parseEvidenceBundle,
+  parseDiagnosis,
   verifySameSymptom,
   type EvidenceBundle,
 } from "../../contracts/incident.ts";
 import type { ChatMessage, ModelTurn } from "../agent/boxapi.ts";
 import { RunBudget } from "../policy/budget.ts";
 import { diagnose } from "./diagnose.ts";
+import { latencyProtocol, latencySampleCount } from "../../contracts/latency.ts";
 
-export const practiceScenarios = ["configuration", "contradictory", "insufficient"] as const;
+export const practiceScenarios = ["configuration", "contradictory", "insufficient", "latency"] as const;
 export type PracticeScenario = (typeof practiceScenarios)[number];
 const scope = { teamId: "0".repeat(24), app: "practice-node" };
 
 export function practiceEvidence(scenario: PracticeScenario, now = Date.now()): EvidenceBundle {
+  if (scenario === "latency") return parseEvidenceBundle({
+    version: 1, mode: "simulated", scope,
+    window: { start: now - 1000, end: now }, collectedAt: now,
+    entries: [820, 910, 870].map((durationMs, index) => ({
+      id: `workload-${index + 1}`, source: "workload", state: "observed",
+      at: now - (3 - index) * 10, summary: "زمان پاسخ از پیش تعریف‌شده؛ اندازه‌گیری واقعی نیست.",
+      details: [], code: null,
+      fact: { kind: "http", origin: "https://practice-node.example.com", path: "/", status: 200, durationMs,
+        sampling: { protocol: latencyProtocol, seriesId: "practice-before", index: index + 1,
+          count: latencySampleCount, appId: "practice-app", responseHash: "a".repeat(64) } },
+    })),
+  });
   const unknown = scenario === "insufficient";
   return parseEvidenceBundle({
     version: 1,
@@ -66,6 +80,11 @@ export function practiceEvidence(scenario: PracticeScenario, now = Date.now()): 
 
 export async function runPractice(scenario: PracticeScenario, signal: AbortSignal) {
   const evidence = practiceEvidence(scenario);
+  if (scenario === "latency") return {
+    evidence,
+    diagnosis: parseDiagnosis({ summary: "در نمونه، سه پاسخ موفق با زمان‌های متفاوت ثبت شده‌اند؛ علت کندی و مصرف پردازنده و حافظه مشخص نیست.", hypotheses: [] }, evidence),
+    analysis: "scripted" as const, providerRequests: 0 as const,
+  };
   const summary =
     scenario === "configuration"
       ? "پاسخ ۵۰۰ با پیام پیکربندی هم‌زمان است؛ مقدار تنظیمات باید بررسی شود."
@@ -117,6 +136,15 @@ export function practiceComparison(
     after = structuredClone(before);
   after.collectedAt += 1000;
   after.window.end += 1000;
+  if (scenario === "latency") {
+    after.entries.forEach((item, index) => {
+      if (item.fact?.kind !== "http" || !item.fact.sampling) return;
+      item.at = after.collectedAt - (3 - index) * 10;
+      item.fact.sampling.seriesId = "practice-after";
+      if (choice === "related") item.fact.durationMs = [110, 140, 120][index] ?? 120;
+    });
+    return { before, after, verification: verifySameSymptom(before, after), simulated: true as const, changedInfrastructure: false as const };
+  }
   const item = after.entries[0];
   if (item?.fact?.kind === "http") {
     item.id = "workload-after";
