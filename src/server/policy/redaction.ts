@@ -10,12 +10,15 @@ export function redact(value: string, secrets: readonly string[] = []): string {
   return scrub(value, secrets, sensitiveAssignment);
 }
 
-function scrub(value: string, secrets: readonly string[], assignment: RegExp): string {
+function scrub(value: string, secrets: readonly string[], assignment: RegExp, source = false): string {
   let result = value
     .replace(credentialUrl, "[REDACTED_URL]")
     .replace(/\bBearer\s+[^\s"'<>]+/gi, "Bearer [REDACTED]")
-    .replace(assignment, (_match, prefix: string, assigned: string) => {
+    .replace(assignment, (match, prefix: string, assigned: string) => {
       const quote = assigned.startsWith('"') ? '"' : assigned.startsWith("'") ? "'" : "";
+      // Public setup templates contain no credential; exact installed secrets are still checked below.
+      const literal = quote ? assigned.slice(1, -1) : assigned;
+      if (source && /^YOUR_(?:[A-Z]+_)*(?:KEY|TOKEN|SECRET|PASSWORD)$/.test(literal)) return match;
       return `${prefix}${quote}[REDACTED]${quote}`;
     })
     .replace(
@@ -32,5 +35,5 @@ export function containsCredential(value: string, secrets: readonly string[] = [
 }
 
 export function containsSourceCredential(value: string, secrets: readonly string[] = []): boolean {
-  return scrub(value, secrets, sourceSensitiveAssignment) !== value;
+  return scrub(value, secrets, sourceSensitiveAssignment, true) !== value;
 }
