@@ -18,6 +18,7 @@ import { LiaraReadClient } from "../src/server/liara/client.ts";
 const server = await startTestServer({ agentFixture: true }),
   browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ locale: "fa-IR", reducedMotion: "reduce" });
+await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: server.origin });
 const output = resolve(".artifacts/agent-ui", new Date().toISOString().replaceAll(":", "-"));
 await mkdir(output, { recursive: true });
 const results = [],
@@ -151,8 +152,12 @@ try {
   await panel.getByRole("button", { name: "اتصال حساب", exact: true }).waitFor();
   const beforeReload = await modelRequests();
   assert.equal(beforeReload, 3);
+  await goal.fill("پیش‌نویس برای پس از بازخوانی");
   await page.reload();
   await badge("منتظر پاسخ شما");
+  await panel.getByText("در حال بازیابی گفت‌وگو…", { exact: true }).waitFor({ state: "hidden" });
+  assert.equal(await goal.inputValue(), "پیش‌نویس برای پس از بازخوانی");
+  await goal.fill("");
   assert.equal(await modelRequests(), beforeReload);
   const connection = panel.getByRole("button", { name: "اتصال حساب", exact: true });
   await connection.focus();
@@ -286,6 +291,25 @@ try {
   assert.equal(await modelRequests(), beforePublicationReload);
   assert.equal(store.db.prepare("SELECT COUNT(*) AS count FROM attempts").get().count, 0);
   await layout(360, "rejected-publication-no-execution");
+  assert.equal(
+    await panel.locator(".agent-composer").evaluate((node) => getComputedStyle(node).position),
+    "sticky",
+    "the composer must stay reachable while reading a long conversation",
+  );
+  await fresh();
+  await goal.fill("آزمون قالب‌بندی پاسخ");
+  await goal.press("Enter");
+  await panel.locator(".agent-answer .rich-text .md-heading").filter({ hasText: "نتیجه بررسی" }).waitFor();
+  assert.equal(await panel.locator(".agent-answer .md-list li").count(), 2);
+  assert.equal(await panel.locator(".agent-answer strong").count(), 1);
+  assert.equal(await panel.locator(".agent-answer blockquote").count(), 1);
+  assert.equal(await panel.locator(".agent-answer img").count(), 0, "raw HTML must stay text");
+  const code = panel.locator(".agent-answer .code-block pre");
+  assert.equal(await code.getAttribute("dir"), "ltr");
+  assert.ok((await code.textContent()).includes("line.quantity"));
+  await panel.locator(".agent-answer .code-copy").click();
+  await panel.getByRole("button", { name: "کپی شد", exact: true }).waitFor();
+  for (const width of [360, 1280]) await layout(width, "safe-markdown-answer");
   assert.deepEqual(errors, []);
   assert.deepEqual(external, []);
   await writeFile(

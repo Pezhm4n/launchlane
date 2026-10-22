@@ -5,10 +5,64 @@ import { parseAgentView, type AgentView } from "../contracts/agent.ts";
 import { object } from "../contracts/validation.ts";
 import { api, ClientError } from "./api.ts";
 import { AgentPublication } from "./AgentPublication.tsx";
+import { RichText } from "./RichText.tsx";
 
 function decodeRun(value: unknown): AgentView | null {
   const row = object(value);
   return row.run === null ? null : parseAgentView(row.run);
+}
+function CopyMessage({ text }: { text: string }) {
+  const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
+  const timer = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (timer.current !== null) window.clearTimeout(timer.current);
+    },
+    [],
+  );
+  async function copy() {
+    if (timer.current !== null) window.clearTimeout(timer.current);
+    try {
+      await navigator.clipboard.writeText(text);
+      setState("copied");
+    } catch {
+      setState("failed");
+    }
+    timer.current = window.setTimeout(() => setState("idle"), 1800);
+  }
+  return (
+    <button
+      type="button"
+      className="button-quiet agent-message-copy"
+      onClick={() => void copy()}
+    >
+      {state === "copied" ? "کپی شد" : state === "failed" ? "کپی نشد" : "کپی پاسخ"}
+    </button>
+  );
+}
+function messageTime(at: number) {
+  if (!at) return null;
+  const date = new Date(at);
+  if (Number.isNaN(date.getTime())) return null;
+  const sameDay = date.toDateString() === new Date().toDateString();
+  return {
+    label: new Intl.DateTimeFormat(
+      "fa-IR",
+      sameDay
+        ? { hour: "2-digit", minute: "2-digit" }
+        : { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" },
+    ).format(date),
+    iso: date.toISOString(),
+  };
+}
+function formatElapsed(ms: number) {
+  const seconds = Math.max(0, Math.floor(ms / 1000));
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  const number = new Intl.NumberFormat("fa-IR");
+  return minutes > 0
+    ? `${number.format(minutes)} دقیقه و ${number.format(rest)} ثانیه`
+    : `${number.format(seconds)} ثانیه`;
 }
 function summarize(message: string) {
   const clean = message.replace(/\s+/g, " ").trim();
@@ -62,6 +116,7 @@ export function AgentPanel({
     [restoring, setRestoring] = useState(true),
     [newCount, setNewCount] = useState(0),
     [announcement, setAnnouncement] = useState(""),
+    [now, setNow] = useState(() => Date.now()),
     [retryable, setRetryable] = useState<{ message: string; projectId: string | null } | null>(
       null,
     );
@@ -72,8 +127,13 @@ export function AgentPanel({
     submission = useRef<{ key: string; message: string; runId: string | null } | null>(null),
     following = useRef(true),
     seen = useRef({ runId: null as string | null, messages: 0 }),
-    wasActive = useRef(false);
+    wasActive = useRef(false),
+    draftLoaded = useRef<string | null>(null),
+    draftSkipSave = useRef(false),
+    draftValue = useRef("");
   const syncedProject = useRef<string | null>(null);
+  const draftKey = `launchlane:agent:draft:${projectId ?? "none"}`,
+    emptyProjectKey = "launchlane:agent:draft:none";
   const active = run?.state === "queued" || run?.state === "working",
     sameProject = !run || run.projectId === projectId;
   const runId = run?.id;
@@ -166,6 +226,51 @@ export function AgentPanel({
     }
     wasActive.current = isActive;
   }, [run]);
+  useEffect(() => {
+    const carried = draftValue.current,
+      carry = draftLoaded.current === emptyProjectKey && carried.trim().length > 0;
+    draftSkipSave.current = true;
+    draftLoaded.current = draftKey;
+    if (carry) {
+      try {
+        window.sessionStorage.setItem(draftKey, carried);
+      } catch {
+        // The current draft stays in memory when storage is unavailable.
+      }
+      return;
+    }
+    try {
+      setDraft(window.sessionStorage.getItem(draftKey) ?? "");
+    } catch {
+      setDraft("");
+    }
+  }, [draftKey]);
+  useEffect(() => {
+    draftValue.current = draft;
+    if (draftSkipSave.current) {
+      draftSkipSave.current = false;
+      return;
+    }
+    if (draftLoaded.current !== draftKey) return;
+    try {
+      window.sessionStorage.setItem(draftKey, draft);
+    } catch {
+      // Draft persistence is a convenience; the form still works without storage.
+    }
+  }, [draft, draftKey]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the measured field height changes with its value and disabled state.
+  useEffect(() => {
+    const node = input.current;
+    if (!node) return;
+    node.style.height = "auto";
+    node.style.height = `${Math.min(node.scrollHeight, 160)}px`;
+  }, [draft, enabled]);
+  useEffect(() => {
+    if (!active) return;
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [active]);
   useEffect(() => {
     // A restored receipt must not override a project the user selected after that repair.
     if (
@@ -338,6 +443,10 @@ export function AgentPanel({
   }
   const messages =
     run?.events.filter((event) => event.kind === "user" || event.kind === "assistant") ?? [];
+  const progress = run?.events
+    .filter((event) => event.kind === "activity" || event.kind === "tool")
+    .at(-1)?.message;
+  const startedAt = run?.events.find((event) => event.at > 0)?.at ?? now;
   const action = run?.nextAction;
   return (
     <section className="panel agent-panel" aria-labelledby="agent-title" aria-busy={busy || active}>
@@ -430,19 +539,43 @@ export function AgentPanel({
             ref={transcript}
             className="agent-transcript"
             aria-label="گفت‌وگوی پروژه"
+            role="log"
+            aria-live="off"
             onScroll={follow}
             // biome-ignore lint/a11y/noNoninteractiveTabindex: Keyboard users must reach this independently scrolling transcript.
             tabIndex={0}
           >
-            {messages.map((event) => (
-              <article
-                key={event.sequence}
-                className={event.kind === "user" ? "agent-user" : "agent-answer"}
-              >
-                <h3>{event.kind === "user" ? "درخواست شما" : "جمع‌بندی دستیار"}</h3>
-                <p dir="auto">{event.message}</p>
-              </article>
-            ))}
+            {messages.length === 0 ? (
+              <p className="hint agent-empty">
+                {active ? "در حال آماده‌سازی پاسخ…" : "هنوز پیامی در این گفت‌وگو نیست."}
+              </p>
+            ) : (
+              messages.map((event) => {
+                const time = messageTime(event.at);
+                return (
+                  <article
+                    key={event.sequence}
+                    className={event.kind === "user" ? "agent-user" : "agent-answer"}
+                    aria-label={event.kind === "user" ? "درخواست شما" : "پاسخ دستیار"}
+                  >
+                    <div className="agent-message-meta">
+                      <span className="agent-message-role">
+                        {event.kind === "user" ? "شما" : "دستیار"}
+                      </span>
+                      {time ? <time dateTime={time.iso}>{time.label}</time> : null}
+                      {event.kind === "assistant" ? <CopyMessage text={event.message} /> : null}
+                    </div>
+                    {event.kind === "user" ? (
+                      <p className="agent-message-text" dir="auto">
+                        {event.message}
+                      </p>
+                    ) : (
+                      <RichText text={event.message} />
+                    )}
+                  </article>
+                );
+              })
+            )}
           </section>
           {newCount > 0 ? (
             <button type="button" className="button-quiet" onClick={goToLatest}>
@@ -450,11 +583,14 @@ export function AgentPanel({
             </button>
           ) : null}
           {active ? (
-            <p role="status" aria-live="polite" aria-atomic="true" className="hint">
-              {run.events
-                .filter((event) => event.kind === "activity" || event.kind === "tool")
-                .at(-1)?.message}
-            </p>
+            <div className="agent-progress">
+              <p role="status" aria-live="polite" aria-atomic="true" className="hint">
+                {progress ?? "در حال بررسی درخواست…"}
+              </p>
+              <span className="hint agent-elapsed" aria-hidden="true">
+                {formatElapsed(now - startedAt)} از شروع بررسی
+              </span>
+            </div>
           ) : null}
           <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
             {announcement}
@@ -614,7 +750,7 @@ export function AgentPanel({
         </div>
       ) : null}
       {enabled ? (
-        <form onSubmit={(event) => void submit(event)}>
+        <form className="agent-composer" onSubmit={(event) => void submit(event)}>
           <label htmlFor="agent-goal">{run && sameProject ? "پیام بعدی" : "هدف شما"}</label>
           <textarea
             ref={input}
@@ -622,10 +758,24 @@ export function AgentPanel({
             name="goal"
             autoComplete="off"
             dir="auto"
+            rows={2}
+            enterKeyHint="send"
             maxLength={2000}
             placeholder="مثلاً این پروژه را برای انتشار بررسی کن…"
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (
+                event.key !== "Enter" ||
+                event.shiftKey ||
+                event.nativeEvent.isComposing ||
+                active ||
+                busy
+              )
+                return;
+              event.preventDefault();
+              event.currentTarget.form?.requestSubmit();
+            }}
             disabled={disabled || busy || run?.state === "needs_approval"}
             aria-describedby={[
               "agent-help",
@@ -638,18 +788,17 @@ export function AgentPanel({
             aria-invalid={error?.code === "EMPTY_GOAL" || undefined}
           />
           <p id="agent-help" className="hint">
-            مقدار محرمانه را در پیام ننویسید. این بررسی فایل‌ها و وضعیت مجاز را می‌خواند؛ تصمیم انتشار
-            در مرحله جدا دریافت می‌شود.
+            رمز یا کلید دسترسی وارد نکنید. Enter ارسال و Shift+Enter خط تازه است؛ تصمیم انتشار جدا
+            گرفته می‌شود.
           </p>
           {active ? (
             <p id="agent-active-help" className="hint">
-              بررسی در حال اجراست. می‌توانید پیام بعدی را بنویسید؛ ارسال تا پایان بررسی ممکن نیست.
-              برای توقف از «توقف بررسی» استفاده کنید.
+              بررسی در حال اجراست؛ نوشتن آزاد است و ارسال پس از پایان ممکن می‌شود.
             </p>
           ) : null}
           {run?.state === "needs_approval" ? (
             <p id="agent-approval-help" className="hint">
-              پیش از ادامه، تصمیم خواسته‌شده در بالای گفت‌وگو را ثبت کنید.
+              ابتدا تصمیم خواسته‌شده در بالای گفت‌وگو را ثبت کنید.
             </p>
           ) : null}
           <div className="button-row">

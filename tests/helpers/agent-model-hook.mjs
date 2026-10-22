@@ -62,6 +62,30 @@ globalThis.fetch = async (input, init) => {
       worker: body.tools.some((tool) => tool.function.name === "submit_patch"),
     })}\n`,
   );
+  if (first.includes("آزمون قالب‌بندی پاسخ") && last.role === "user")
+    return reply("inspect_project");
+  if (first.includes("آزمون قالب‌بندی پاسخ"))
+    return final(
+      "reply",
+      null,
+      [
+        "## نتیجه بررسی",
+        "پروژه **بدون خطای اجرایی** بررسی شد و تغییری منتشر نشد.",
+        "",
+        "- فایل ورودی: `server.mjs`",
+        "- آزمون موجود: ۳ مورد",
+        "",
+        "> پیش از انتشار، پاسخ مورد انتظار را مشخص کنید.",
+        "",
+        "```js",
+        "export function total(lines) {",
+        "  return lines.reduce((sum, line) => sum + line.price * line.quantity, 0);",
+        "}",
+        "```",
+        "",
+        "<img src=x onerror=alert(1)>",
+      ].join("\n"),
+    );
   if (first.includes("آزمون خطای ارتباط"))
     return new Response("synthetic provider unavailable", { status: 429 });
   if (first.includes("آزمون توقف"))
