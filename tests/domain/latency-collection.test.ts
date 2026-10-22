@@ -162,6 +162,17 @@ test("a stopped or timed-out latency series preserves observed samples and never
   );
 });
 
+test("a server error after a successful timed response stops the series and cannot become a latency improvement", async () => {
+  let calls = 0;
+  const { bundle } = await collect(async () => {
+    calls++;
+    return { status: calls === 1 ? 200 : 500, body: "same", bytes: 4, durationMs: 8 };
+  });
+  assert.equal(calls, 2);
+  assert.equal(summarizeLatency(bundle).state, "incomplete");
+  assert.deepEqual(summarizeLatency(bundle).samples.map((sample) => sample.status), [200, 500]);
+});
+
 test("disabled collection and an inadequate sampling budget stop before any upstream read; cancellation is not saved as a completed series", async () => {
   let probes = 0,
     reads = 0;

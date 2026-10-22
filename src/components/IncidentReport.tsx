@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { inWindow, verifySameSymptom, type EvidenceBundle } from "../contracts/incident.ts";
 import type { IncidentRun } from "../contracts/incident-run.ts";
 import { IncidentHandoffPanel } from "./IncidentHandoffPanel.tsx";
+import { compareLatency, summarizeLatency } from "../contracts/latency.ts";
+import { LatencyReport } from "./LatencyReport.tsx";
 const names = {
   workload: "پاسخ سایت",
   project: "تنظیمات برنامه",
@@ -45,11 +47,17 @@ export function IncidentReport({
     latest = operationEvidence && operationEvidence.collectedAt > saved.collectedAt ? operationEvidence : saved,
     hasAfter = latest !== run.evidence,
     displayedEvidence = showAfter && hasAfter ? latest : run.evidence,
-    workload = latest.entries.find((row) => row.fact?.kind === "http"),
+    workload = run.symptom === "slow"
+      ? latest.entries.findLast((row) => row.fact?.kind === "http")
+      : latest.entries.find((row) => row.fact?.kind === "http"),
     fact = workload?.fact;
-  const comparison = hasAfter ? verifySameSymptom(run.evidence, latest) : null;
+  const comparison = hasAfter
+    ? run.symptom === "slow" ? compareLatency(run.evidence, latest) : verifySameSymptom(run.evidence, latest)
+    : null;
   const observed =
-    fact?.kind === "http"
+    run.symptom === "slow" && !(fact?.kind === "http" && (fact.status < 200 || fact.status >= 300))
+      ? summarizeLatency(latest).reason
+      : fact?.kind === "http"
       ? fact.status >= 500
         ? `صفحه بررسی‌شده خطای سرور ${fact.status} داد.`
         : fact.status >= 200 && fact.status < 300
@@ -111,7 +119,7 @@ export function IncidentReport({
                   {fact.origin}
                   {fact.path}
                 </bdi>
-                {fact.durationMs !== undefined ? (
+                {run.symptom !== "slow" && fact.durationMs !== undefined ? (
                   <>
                     {" "}
                     · مدت دریافت پاسخ محدود:{" "}
@@ -145,7 +153,9 @@ export function IncidentReport({
         <div>
           <dt>اقدام پیشنهادی</dt>
           <dd>
-            {comparison?.outcome === "verified"
+            {run.symptom === "slow"
+              ? "زمان پاسخ همان صفحه را پس از بررسی کد یا وابستگی‌های آن دوباره بسنجید. پاسخ موفق یا زمان کمتر، علت یا رفع پایدار کندی را ثابت نمی‌کند."
+              : comparison?.outcome === "verified"
               ? "اکنون تغییری پیشنهاد نمی‌شود. اگر مشکل تکرار شد، بررسی تازه‌ای از همان صفحه شروع کنید."
               : run.diagnosis?.hypotheses[0]?.nextCheck ||
                 "گزارش‌ها و پاسخ همین صفحه را بررسی کنید. اطلاعات ناموجود را نمی‌توان نشانه سالم‌بودن یا خرابی قطعی گرفت."}
@@ -162,6 +172,7 @@ export function IncidentReport({
           </dd>
         </div>
       </dl>
+      {run.symptom === "slow" ? <LatencyReport before={run.evidence} after={hasAfter ? latest : null} /> : null}
       {run.diagnosis?.hypotheses.length ? (
         <details>
           <summary>دلیل این فرضیه و شواهد مرتبط</summary>

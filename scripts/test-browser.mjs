@@ -441,6 +441,59 @@ try {
   await page.goForward();
   await incidentTitle.waitFor();
 
+  await page.getByRole("button", { name: "امتحان با نمونه اختلال", exact: true }).click();
+  await incidentReport.waitFor();
+  await page.getByText("نمونه‌های دیگر یا شروع دوباره", { exact: true }).click();
+  await page.getByRole("button", { name: "نمونه مقایسه زمان پاسخ", exact: true }).press("Enter");
+  const latency = page.getByRole("region", { name: "زمان پاسخ همین صفحه", exact: true });
+  await latency.waitFor();
+  assert.match(await latency.textContent(), /۸۷۰/);
+  assert.equal(await incidentReport.getByText(/صفحه بررسی‌شده پاسخ موفق داد/).count(), 0);
+  await incidentReport.locator(".sample-comparison summary").click();
+  await incidentReport.getByRole("button", { name: "امتحان تغییر نامرتبط در نمونه", exact: true }).press("Enter");
+  await incidentReport.getByText(/بازه زمان نمونه‌های قبل و بعد هم‌پوشانی دارد/).waitFor();
+  await incidentReport.getByRole("button", { name: "امتحان اصلاح مرتبط در نمونه", exact: true }).click();
+  await incidentReport.getByText(/فقط همین نمونه‌ها سریع‌تر پاسخ دادند/).waitFor();
+  const latencyId = new URL(page.url()).searchParams.get("incident");
+  await page.reload();
+  await latency.waitFor();
+  assert.equal(new URL(page.url()).searchParams.get("incident"), latencyId);
+  for (const width of [360, 767, 768, 1280]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await latency.locator("details summary").first().click();
+    await layout(width, "latency-sample-restored-comparison");
+    if ([360, 1280].includes(width)) await page.screenshot({ path: resolve(output, `latency-${width}.png`), fullPage: true });
+  }
+  await page.setViewportSize({ width: 360, height: 1000 });
+  await page.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
+  await layout(360, "latency-text-200-percent");
+  await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
+  assert.ok(!(await incidentReport.textContent()).includes("a".repeat(64)));
+  const completeLatency = store.getIncidentRun(actorId, latencyId);
+  assert.ok(completeLatency?.after);
+  store.saveIncidentRun(actorId, {
+    ...completeLatency,
+    after: { ...completeLatency.after, entries: completeLatency.after.entries.slice(0, 1) },
+  });
+  await page.reload();
+  await latency.waitFor();
+  await incidentReport.getByText(/برای مقایسه، هر دو بررسی باید سه پاسخ معتبر/).waitFor();
+  assert.match(await latency.textContent(), /سه پاسخ قابل مقایسه ثبت نشده/);
+  assert.equal(await latency.getByText(/میانه:/).count(), 1, "An incomplete fresh series cannot manufacture a median");
+  await layout(360, "latency-partial-series-remains-inconclusive");
+  const partialLatency = store.getIncidentRun(actorId, latencyId);
+  assert.ok(partialLatency?.after);
+  partialLatency.after = structuredClone(completeLatency.after);
+  const failedResponse = partialLatency.after.entries[2];
+  assert.equal(failedResponse.fact.kind, "http");
+  failedResponse.fact.status = 500;
+  store.saveIncidentRun(actorId, partialLatency);
+  await page.reload();
+  await incidentReport.getByText(/صفحه بررسی‌شده خطای سرور 500 داد/).waitFor();
+  await layout(360, "latency-series-server-error-remains-visible");
+  await page.getByRole("button", { name: "بازگشت به بررسی سایت من", exact: true }).click();
+  await incidentTitle.waitFor();
+
   let controlledReads = false,
     incidentStatus = 500,
     failIncident = false,
@@ -509,6 +562,12 @@ try {
   });
   controlledReads = true;
   await page.getByRole("button", { name: "بازخوانی وضعیت دسترسی", exact: true }).click();
+  await page.waitForFunction(() => {
+    const button = document.querySelector("form button[type=submit]");
+    return button instanceof HTMLButtonElement && !button.disabled;
+  });
+  await page.getByLabel("کند شده است", { exact: true }).check();
+  await page.getByText(/برای بررسی کندی، حداکثر سه درخواست کوتاه و متوالی/).waitFor();
   for (const width of [360, 768, 1280]) {
     await page.setViewportSize({ width, height: width >= 768 ? 1000 : 844 });
     await layout(width, "ordinary-incident-app-and-symptom-form-fixture");

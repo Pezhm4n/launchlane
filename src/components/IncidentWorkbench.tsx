@@ -17,6 +17,7 @@ const cases = [
   { id: "configuration", label: "نمونه خطای سرور و تنظیمات ناقص" },
   { id: "contradictory", label: "نمونه شواهد متفاوت و علت نامعلوم" },
   { id: "insufficient", label: "نمونه با گزارش‌های ناموجود" },
+  { id: "latency", label: "نمونه مقایسه زمان پاسخ" },
 ] as const;
 const decodeRun = (value: unknown) => {
   const raw = object(value).run;
@@ -428,12 +429,13 @@ export function IncidentWorkbench({
                   وارد کنید. بخش‌های دارای رمز یا پارامتر را حذف کنید.
                 </p>
               </details>
+              {symptom === "slow" ? <p className="hint" id="latency-collection-help">برای بررسی کندی، حداکثر سه درخواست کوتاه و متوالی به همین صفحه فرستاده می‌شود. تغییری در برنامه انجام نمی‌شود؛ زمان بارگذاری کامل صفحه اندازه‌گیری نمی‌شود.</p> : null}
               <button
                 type="submit"
                 ref={primary}
                 disabled={blocked || !workspace.features.serviceReads}
                 aria-describedby={
-                  !workspace.features.serviceReads ? "incident-access-help" : undefined
+                  !workspace.features.serviceReads ? "incident-access-help" : symptom === "slow" ? "latency-collection-help" : undefined
                 }
               >
                 {busy === "collect" ? "در حال بررسی مشکل…" : "بررسی مشکل سایت"}

@@ -986,6 +986,13 @@ button[aria-busy="true"] {
 .incident-summary bdi {
   overflow-wrap: anywhere;
 }
+.latency-report {
+  margin-block: var(--space-5);
+  font-variant-numeric: tabular-nums;
+}
+.latency-report .incident-summary > div {
+  min-width: var(--column-min);
+}
 .incident-evidence {
   margin-block: var(--space-5);
 }
