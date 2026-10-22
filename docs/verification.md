@@ -1,5 +1,12 @@
 # شواهد اعتبارسنجی Launchlane
 
+## اطلاعات امن runtime؛ candidate مستقل بر پایهafbbf0c
+
+فرم داخل انتشار، مقدارها را به مرجع AES-GCM/actor/spec و ActionSpec v9 متصل می‌کند؛ migration10 فقط افزوده است. public readback نام/وضعیت دارد. HMAC مبنای کل configuration پیش از write دوباره تطبیق می‌یابد و مقادیر موجود در payload ادغام‌شده حفظ می‌شوند. احتمال restart پیش از تصمیم آشکار است؛ نتیجه configuration به معنی سلامت یا restart کامل نیست. منبع/حساب/app/پلن، جلسه، TTL، مصرف یک‌باره و journal قبلی reuse می‌شوند. [ADR0013](decisions/0013-project-environment.md) مرز CAS بیرونی و env ساخت محلی را ثبت می‌کند.
+
+gate نهایی candidate: build، typecheck، HTTP28/28 و مرورگر30 حالت گذشتند؛ lint بدون error با30warning/6info بود. full domain279/279 پیش از تبدیل معادل عبارت مقداردهی mutex گذشت و پس از آن8/8 تست هدف env دوباره سبز شد. مرورگر با transport مصنوعی، پنج عرض320/360/390/768/1280، فرم رمز، refresh، همان proposal، یک env write مصنوعی، readback verified و بدون secret در storage/model log سنجیده شد. بازبینی تصویر320، overlap آیکون چت و دکمه عمومی اضافه را پیدا کرد؛ هر دو اصلاح، oracle اضافه و تصویر تازه بررسی شد. redaction برای نسخه JSON/URL مقدار شناخته‌شده regression دارد؛ staged whitespace و جست‌وجوی credentialهای نصب نیز پاک بود. هیچ provider/model واقعی در این فاز مصرف نشد؛ state/سرور/config و دفتر مصرف زنده دست‌نخورده‌اند. env ساخت محلی، env زنده، Next/GitHub دارای build و چرخه تازه fail-deploy→repair→redeploy همچنان بازند.
+
+
 ## نصب قفل‌شده و ادامه مأموریت؛ index مستقل بر پایه41e5080
 
 برنامه immutable npm v3/Node22 به همان worker، تصمیم و artifact وصل شد. دو case Docker واقعی با dependency دارای integrity و مدل مصنوعی، install/build/start/GET و پروژه خراب fail→patch→همان معیار pass را گذراندند؛ source اصلی محفوظ، cloud write صفر و containerهای همان job پاک شدند. این نتیجه، مدل/PaaS واقعی یا Next نیست. [ADR0012](decisions/0012-locked-project-build.md) limits، تصویر دقیق، DNS/registry/integrity و مرز env/dependency تغییرکرده را توضیح می‌دهد.

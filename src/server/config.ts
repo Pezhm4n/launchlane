@@ -115,6 +115,7 @@ export function readConfig(env: Environment = process.env) {
     origin,
     operatorToken,
     sessionSecret,
+    projectSecretValues: [] as readonly string[],
     authConfigured: operatorToken.length >= 32 && sessionSecret.length >= 32,
     // Runtime-only operator paths. Do not trace private workspace/state into a server build.
     workspaceRoot: env.LAUNCHLANE_WORKSPACE_ROOT

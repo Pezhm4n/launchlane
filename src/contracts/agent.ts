@@ -22,6 +22,7 @@ export const nextActions = [
   "connect_account",
   "select_app",
   "review_project",
+  "configure_env",
   "reply",
 ] as const;
 export type NextAction = (typeof nextActions)[number];

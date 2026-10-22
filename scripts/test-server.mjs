@@ -7,7 +7,8 @@ import { setTimeout as pause } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import { freeHttpTestPort } from "../tests/helpers/http-port.ts";
 
-export async function startTestServer({ browserHost = "127.0.0.1", agentFixture = false } = {}) {
+export async function startTestServer({ browserHost = "127.0.0.1", agentFixture = false, environmentFixture = false } = {}) {
+  if (environmentFixture && !agentFixture) throw new Error("Environment fixture requires the network-denying test hook");
   if (!["127.0.0.1", "localhost"].includes(browserHost)) throw new Error("Unsupported loopback test host");
   const directory = await mkdtemp(join(tmpdir(), "launchlane-http-"));
   const workspace = join(directory, "workspace");
@@ -48,6 +49,7 @@ export async function startTestServer({ browserHost = "127.0.0.1", agentFixture 
       LAUNCHLANE_AGENT_FIXTURE_LOG:join(directory,"model.jsonl"),
       NODE_OPTIONS:`--import=${pathToFileURL(resolve("tests/helpers/agent-model-hook.mjs")).href}`,
     }:{}),
+    ...(environmentFixture ? { LAUNCHLANE_ENABLE_MUTATIONS: "true", LAUNCHLANE_ENABLE_LIVE_LIARA: "true", LAUNCHLANE_ENVIRONMENT_FIXTURE: "true" } : {}),
   };
   const child = spawn(
     process.execPath,

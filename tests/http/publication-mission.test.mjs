@@ -25,9 +25,16 @@ test("guided HTTP registration, scoped replay, context locks and read-only quest
     await t.test("the structured route and scoped history require operator authentication", async () => {
       await expect(await request("/api/agent/runs?project=none&kind=publication"), 401, "AUTH_REQUIRED");
       await expect(await request("/api/agent/runs", { operation: "publish", requestKey: randomUUID(), publication: {} }), 401, "AUTH_REQUIRED");
+      await expect(await request(`/api/project-environment?run=${randomUUID()}`), 401, "AUTH_REQUIRED");
+      await expect(await request("/api/project-environment", { operation: "propose" }), 401, "AUTH_REQUIRED");
     });
     const login = await request("/api/session", { token: server.token }); assert.equal(login.status, 200); cookie = login.headers.get("set-cookie").split(";")[0];
     csrf = (await expect(await request("/api/workspace"), 200)).session.csrfToken;
+    await t.test("environment routes reject unknown operations and query fields before reading private state", async () => {
+      await expect(await request(`/api/project-environment?run=${randomUUID()}&values=true`), 400, "INVALID_INPUT");
+      await expect(await request("/api/project-environment", { operation: "unknown", actionId: randomUUID() }), 400, "INVALID_OPERATION");
+      await expect(await request("/api/project-environment", { operation: "execute", actionId: randomUUID(), variables: [] }), 400, "INVALID_INPUT");
+    });
     const prepared = await expect(await request("/api/project-flows", { operation: "prepare", selection: { kind: "sample", directory: "examples/node-service" } }), 201);
     const publication = { projectId: prepared.flow.id, sourceHash: prepared.flow.profile.sourceHash, path: "/", expectedText: null };
     await t.test("unknown fields, invalid paths, stale source and invalid history filters fail before model work", async () => {

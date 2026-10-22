@@ -8,6 +8,7 @@ import { AgentPublication } from "./AgentPublication.tsx";
 import { AgentDestination } from "./AgentDestination.tsx";
 import { RichText } from "./RichText.tsx";
 import { FloatingAssistant } from "./FloatingAssistant.tsx";
+import { ProjectEnvironment } from "./ProjectEnvironment.tsx";
 
 function decodeRun(value: unknown): AgentView | null {
   const row = object(value);
@@ -139,6 +140,7 @@ export function AgentPanel({
       null,
     );
   const [missionPath, setMissionPath] = useState("/"), [expectedText, setExpectedText] = useState("");
+  const [environmentLocked, setEnvironmentLocked] = useState(false);
   const missionKey = useRef<{ input: string; key: string } | null>(null);
   const resumeKey = useRef<{ revision: number; key: string } | null>(null);
   const input = useRef<HTMLTextAreaElement>(null),
@@ -201,8 +203,8 @@ export function AgentPanel({
     return () => controller.abort();
   }, [accept, failed, projectId, guided, chatOnly]);
   useEffect(() => {
-    onLockChanged?.(busy || active || ["approved", "executing", "observing", "uncertain"].includes(run?.publication?.state ?? "") || ["approved", "executing", "observing", "uncertain"].includes(run?.destination?.state ?? ""));
-  }, [busy, active, run?.publication?.state, run?.destination?.state, onLockChanged]);
+    onLockChanged?.(busy || active || environmentLocked || ["approved", "executing", "observing", "uncertain"].includes(run?.publication?.state ?? "") || ["approved", "executing", "observing", "uncertain"].includes(run?.destination?.state ?? ""));
+  }, [busy, active, environmentLocked, run?.publication?.state, run?.destination?.state, onLockChanged]);
   useEffect(() => {
     if (!active || !runId) return;
     const controller = new AbortController();
@@ -395,10 +397,12 @@ export function AgentPanel({
   }
   async function resumePublication() {
     if (!run?.mission || busy || active || disabled || !enabled) return;
-    if (resumeKey.current?.revision !== run.revision) resumeKey.current = { revision: run.revision, key: crypto.randomUUID() };
     setBusy(true); setError(null);
     try {
-      accept(await api(`/api/agent/runs/${run.id}`, decodeRun, { csrf, body: { operation: "resume-publication", revision: run.revision, requestKey: resumeKey.current.key } }));
+      const current = await api(`/api/agent/runs/${run.id}`, decodeRun);
+      if (!current) return;
+      if (resumeKey.current?.revision !== current.revision) resumeKey.current = { revision: current.revision, key: crypto.randomUUID() };
+      accept(await api(`/api/agent/runs/${run.id}`, decodeRun, { csrf, body: { operation: "resume-publication", revision: current.revision, requestKey: resumeKey.current.key } }));
     } catch (cause) { failed(cause); }
     finally { setBusy(false); }
   }
@@ -700,7 +704,7 @@ export function AgentPanel({
           <button type="submit" disabled={busy || disabled}>{busy ? "در حال ثبت…" : "بررسی و آماده‌سازی انتشار"}</button>
         </form>
       ) : null}
-      {guided && run?.mission && !active && ["needs_input", "partially_completed", "failed", "interrupted"].includes(run.state) &&
+      {guided && run?.mission && run.nextAction !== "configure_env" && !active && ["needs_input", "partially_completed", "failed", "interrupted"].includes(run.state) &&
         ![run.publication?.state, run.destination?.state].some(state => state === "executing" || state === "observing" || state === "uncertain") &&
         (run.nextAction !== "connect_account" || accountReady) && (run.nextAction !== "select_app" || appSelected) ?
         <button type="button" disabled={busy || disabled || restoring} onClick={() => void resumePublication()}>{busy ? "در حال ثبت ادامه…" : "ادامه همان مأموریت"}</button> : null}
@@ -757,6 +761,8 @@ export function AgentPanel({
             {announcement}
           </p>
           {run.question && sameProject ? <p className="note">{run.question}</p> : null}
+          {guided && run.mission && run.nextAction === "configure_env" && !active && sameProject ? <ProjectEnvironment key={run.id} runId={run.id} csrf={csrf} disabled={disabled || busy}
+            onLockChanged={setEnvironmentLocked} onContinue={() => void resumePublication()} /> : null}
           {run.repair ? (
             <section className="agent-repair" aria-labelledby="repair-title">
               <h3 id="repair-title">{run.repair.validationOnly ? "بررسی ساخت و اجرای پروژه" : "اصلاح نسخه جدا از پروژه"}</h3>
@@ -849,7 +855,7 @@ export function AgentPanel({
             disabled={disabled || busy || active || !sameProject}
             onDecision={(decision) => void publicationRequest(decision)}
             onObserve={() => void publicationRequest()} /> : null}
-          {sameProject && action && action !== "reply" && action !== "review_project" && !(guided && ((action === "connect_account" && accountReady) || (action === "select_app" && appSelected))) ? (
+          {sameProject && action && action !== "reply" && action !== "review_project" && action !== "configure_env" && !(guided && ((action === "connect_account" && accountReady) || (action === "select_app" && appSelected))) ? (
             <div className="button-row">
               <button
                 type="button"
@@ -930,7 +936,7 @@ export function AgentPanel({
       ) : null}
       {!guided ? composer : null}
     </section>
-    {guided ? <FloatingAssistant blocked={blocked || run?.state === "needs_approval"} projectName={projectName}>
+    {guided ? <FloatingAssistant blocked={blocked || environmentLocked || run?.nextAction === "configure_env" || run?.state === "needs_approval"} projectName={projectName}>
       <AgentPanel projectId={projectId} projectName={projectName} csrf={csrf} enabled={enabled} disabled={disabled}
         activeView chatOnly onAccounts={onAccounts} onChooseProject={onChooseProject} onGitHub={onGitHub} onReview={onReview}
         onManualPublish={onManualPublish} onExpired={onExpired} onProjectChanged={onProjectChanged}

@@ -90,7 +90,7 @@ export type ActionSpec = (ActionInputs &
         evidenceHash: string;
         target: import("./deployment.ts").WorkloadTarget;
       }>
-  )) | import("./provision.ts").ProvisionSpec;
+  )) | import("./provision.ts").ProvisionSpec | import("./environment.ts").EnvironmentSpec;
 
 export type ActionState =
   | "awaiting_approval"
@@ -117,6 +117,7 @@ export type Action = Readonly<{
   deployment?: import("./deployment.ts").DeploymentProgress;
   restart?: import("./restart.ts").RestartProgress;
   provision?: import("./provision.ts").ProvisionProgress;
+  environment?: import("./environment.ts").EnvironmentProgress;
 }>;
 
 export type Session = Readonly<{

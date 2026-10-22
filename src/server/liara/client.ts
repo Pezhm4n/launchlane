@@ -91,6 +91,7 @@ export class LiaraReadClient {
             this.config.modelKey,
             this.config.operatorToken,
             this.config.sessionSecret,
+            ...this.config.projectSecretValues,
           ].filter(Boolean),
         );
       }, boundedSignal);

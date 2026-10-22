@@ -183,6 +183,7 @@ export class BoxApiClient {
       config.liaraToken,
       config.operatorToken,
       config.sessionSecret,
+      ...config.projectSecretValues,
     ].filter(Boolean);
     const cleaned = messages.map((message) => ({
       ...message,

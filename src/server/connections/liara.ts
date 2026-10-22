@@ -5,6 +5,7 @@ import { AppError, ensure } from "../errors.ts";
 import type { Store } from "../persistence/store.ts";
 import { abortable, boundedJson, transport, type Transport } from "../providers/http.ts";
 import { openCredential, sealCredential } from "./credentials.ts";
+import { projectSecretValues } from "../environment/secrets.ts";
 
 function accountId(value: unknown): string {
   const id = string(value, 24);
@@ -253,5 +254,5 @@ export function connectedLiaraConfig(config: Config, store: Store, actorId: stri
     saved.view.apps.some((row) => row.name === saved.view.selectedApp) &&
     (!config.apps.length || config.apps.includes(saved.view.selectedApp)),
     "LIARA_APP_REQUIRED", "برنامه مقصد را از فهرست حساب متصل انتخاب کنید.", 403);
-  return { ...scoped, apps: [saved.view.selectedApp] };
+  return { ...scoped, apps: [saved.view.selectedApp], projectSecretValues: projectSecretValues(store, config.sessionSecret, actorId) };
 }

@@ -87,6 +87,7 @@ export class LiaraDeployClient {
             this.config.modelKey,
             this.config.operatorToken,
             this.config.sessionSecret,
+            ...this.config.projectSecretValues,
           ]),
         "UPSTREAM_INVALID",
         "شناسه پاسخ لیارا معتبر نیست.",

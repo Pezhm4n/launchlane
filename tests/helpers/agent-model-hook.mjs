@@ -2,6 +2,7 @@
 import { appendFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 const nativeFetch = globalThis.fetch;
+let environmentValues = [{ key: "EXISTING_PRIVATE", value: "existing-private-fixture-value" }];
 const reply = (name, args = {}) =>
   Response.json({
     choices: [
@@ -47,6 +48,18 @@ globalThis.fetch = async (input, init) => {
   const url = new URL(
     typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
   );
+  if (process.env.LAUNCHLANE_ENVIRONMENT_FIXTURE === "true" && url.origin === "https://api.liara.ir") {
+    if (url.pathname === "/v1/projects/sample-node" && init?.method === "GET") return Response.json({ project: {
+      _id: "c".repeat(24), project_id: "sample-node", type: "node", status: "running", planID: "g2-standard", envs: environmentValues } });
+    if (url.pathname === "/v1/projects/update-envs" && init?.method === "POST") {
+      const body = JSON.parse(String(init.body));
+      if (body.project !== "sample-node" || !Array.isArray(body.variables)) throw Error("Wrong synthetic environment target");
+      environmentValues = body.variables;
+      appendFileSync(process.env.LAUNCHLANE_AGENT_FIXTURE_LOG, JSON.stringify({ environmentWrite: true, keys: environmentValues.map(row => row.key) }) + "\n");
+      return new Response("accepted", { status: 200 });
+    }
+    throw new Error("Unregistered provider request denied in environment fixture");
+  }
   if (url.origin !== "https://ai.boxapi.ir") {
     if (!["127.0.0.1", "localhost", "[::1]"].includes(url.hostname))
       throw new Error("External request denied in isolated agent test");

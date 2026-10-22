@@ -12,8 +12,9 @@ import { CodeRepairAdapter } from "../src/server/agent/code-repair.ts";
 import { currentAgentContext } from "../src/server/agent/tools.ts";
 import { projectBuildImage } from "../src/contracts/project-build.ts";
 import { fingerprint } from "../src/server/policy/action.ts";
+import { sealCredential } from "../src/server/connections/credentials.ts";
 
-const server = await startTestServer({ agentFixture: true }), browser = await chromium.launch({ headless: true });
+const server = await startTestServer({ agentFixture: true, environmentFixture: true }), browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ locale: "fa-IR", reducedMotion: "reduce" }), page = await context.newPage();
 const output = resolve(".artifacts/guided-publication", new Date().toISOString().replaceAll(":", "-"));
 await mkdir(output, { recursive: true });
@@ -143,6 +144,46 @@ try {
   const rejected = repo.get(actor, proposed.id); assert.equal(rejected.repair.state, "cancelled"); assert.deepEqual(rejected.repair.containerIds, []);
   await journey.getByRole("button", { name: "ادامه همان مأموریت", exact: true }).waitFor();
   assert.equal(await modelRequests(), cancelledCount); assert.equal(store.db.prepare("SELECT COUNT(*) n FROM attempts").get().n, 0);
+  await mkdir(join(server.workspace, "environment-service"));
+  await writeFile(join(server.workspace, "environment-service/package.json"), JSON.stringify({ name: "environment-service", type: "module", engines: { node: "22.x" }, scripts: { start: "node server.mjs" } }));
+  await writeFile(join(server.workspace, "environment-service/server.mjs"), "import http from 'node:http'; const ready=process.env.SERVICE_ACCESS; http.createServer((_req,res)=>res.end(ready?'ready':'missing')).listen(3000);");
+  const envFlow = await page.evaluate(async () => {
+    const workspace = await (await fetch("/api/workspace")).json();
+    const response = await fetch("/api/project-flows", { method: "POST", headers: { "content-type": "application/json", "x-csrf-token": workspace.session.csrfToken }, body: JSON.stringify({ operation: "prepare", selection: { kind: "local", directory: "environment-service" } }) });
+    if (!response.ok) throw Error("Environment fixture selection failed"); return (await response.json()).flow;
+  });
+  store.saveConnection(actor, { source: "token", ciphertext: sealCredential("synthetic-liara-environment-fixture-credential", server.sessionSecret, actor, "liara"), view: {
+    provider: "liara", status: "connected", identityId: "b".repeat(24), teamId: server.teamId, teamName: "تیم آزمون", displayName: "آزمون", login: "test@example.test", checkedAt: Date.now(),
+    apps: [{ id: "c".repeat(24), name: server.app, platform: "node" }], selectedApp: server.app } });
+  const envConfig = { ...config, teamId: server.teamId }, envContext = currentAgentContext(envConfig, store, actor), envIntent = { projectId: envFlow.id, sourceHash: envFlow.profile.sourceHash, path: "/", expectedText: "ready" };
+  const envRun = repo.create(actor, crypto.randomUUID(), envContext, "انتشار پروژه با اطلاعات امن", { maxModelCalls: 16, maxToolCalls: 80, runTimeoutMs: 600000 }, { ...envIntent, kind: "publication", identity: fingerprint({ input: envIntent, context: envContext }) }).run;
+  envRun.state = "needs_input"; envRun.nextAction = "configure_env"; envRun.question = "اطلاعات لازم را در فرم امن تکمیل کنید."; repo.save(actor, envRun);
+  await page.goto(`${server.origin}/?view=publish&project=${envFlow.id}`);
+  const envPanel = page.locator('section[aria-labelledby="environment-title"]');
+  await envPanel.getByLabel("SERVICE_ACCESS", { exact: true }).waitFor();
+  assert.equal(await launcher.isVisible(), false, "secret entry must not overlap optional chat");
+  assert.equal(await journey.getByRole("button", { name: "دیدن بررسی پروژه و ادامه انتشار", exact: true }).count(), 0);
+  assert.equal(await journey.getByRole("button", { name: "ادامه همان مأموریت", exact: true }).count(), 0);
+  const privateValue = "new-private-environment-fixture";
+  await envPanel.getByLabel("SERVICE_ACCESS", { exact: true }).fill(privateValue);
+  assert.equal(await envPanel.getByLabel("SERVICE_ACCESS", { exact: true }).getAttribute("type"), "password");
+  for (const width of [320, 360, 390, 768, 1280]) await layout(width, "secure-environment-form");
+  await page.setViewportSize({ width: 360, height: 844 }); await page.screenshot({ path: join(output, "environment-form-360.png"), fullPage: true });
+  await envPanel.getByRole("button", { name: "مرور تغییر اطلاعات برنامه", exact: true }).click();
+  await envPanel.getByRole("button", { name: "تأیید و اعمال اطلاعات برنامه", exact: true }).waitFor();
+  assert.equal(await page.getByText(privateValue, { exact: true }).count(), 0);
+  const beforeEnvReload = await modelRequests(); await page.reload();
+  await envPanel.getByRole("button", { name: "تأیید و اعمال اطلاعات برنامه", exact: true }).waitFor(); assert.equal(await modelRequests(), beforeEnvReload);
+  assert.equal(await envPanel.locator('input[type="password"]').count(), 0);
+  await layout(320, "secure-environment-review"); await page.screenshot({ path: join(output, "environment-review-320.png"), fullPage: true });
+  await envPanel.getByRole("button", { name: "تأیید و اعمال اطلاعات برنامه", exact: true }).click();
+  await envPanel.getByRole("button", { name: "ادامه بررسی و انتشار", exact: true }).waitFor();
+  const envActionId = store.db.prepare("SELECT id FROM actions WHERE json_extract(spec,'$.version')=9").get().id;
+  assert.equal(store.getAction(envActionId, actor).state, "succeeded");
+  assert.equal((await readFile(server.modelLog, "utf8")).includes(privateValue), false);
+  assert.equal((await readFile(server.modelLog, "utf8")).split("\n").filter(line => line.includes('"environmentWrite":true')).length, 1);
+  assert.equal(await page.evaluate(() => Object.values(localStorage).some(value => value.includes("new-private-environment-fixture"))), false);
+  await layout(360, "secure-environment-verified-without-chat");
   assert.deepEqual(errors, []); assert.deepEqual(external, []);
   await writeFile(join(output, "results.json"), JSON.stringify({ results, errors, external, model: "synthetic", cloudWrites: 0 }, null, 2));
   console.log(JSON.stringify({ states: results.length, widths: [320,360,390,768,1280], model: "synthetic", cloudWrites: 0, output }));

@@ -398,7 +398,7 @@ export function Workbench() {
   const applyFlow = useCallback((data: FlowResult) => {
     const changed = activeFlow.current !== (data.flow?.id ?? null);
     setFlow(data.flow);
-    setAction(data.action);
+    setAction(data.action?.spec.version === 9 ? null : data.action);
     setPort(data.flow?.profile.port === null || !data.flow ? "" : String(data.flow.profile.port));
     if (data.action && isDeploymentSpec(data.action.spec)) {
       setWorkloadPath(data.action.spec.workload.path);

@@ -4,13 +4,13 @@
 
 ## توسعه Agent؛ وضعیت جاری و قراردادهای باز
 
-برنامه Agent در [agent-experience](agent-experience.md) و A00–A19 تعریف شده است. ساخت Node app با شبکه موجود و ادامه به انتشار همان artifact اکنون ابزار محصول است و چرخه واقعی وب دارد؛ ساخت شبکه، env و resize هنوز بازند. وضعیت documented با implementation و شاهد زنده یکی نیست.
+برنامه Agent در [agent-experience](agent-experience.md) و A00–A19 تعریف شده است. ساخت Node app با شبکه موجود و ادامه به انتشار همان artifact اکنون ابزار محصول است و چرخه واقعی وب دارد؛ env runtime فرم/قرارداد و transport مصنوعی دارد ولی پذیرش زنده باز است؛ ساخت شبکه و resize هنوز بازند. وضعیت documented با implementation و شاهد زنده یکی نیست.
 
 | قابلیت آینده | منبع قرارداد و نیاز تطبیق | وضعیت این طرح |
 | --- | --- | --- |
 | catalog و انتخاب plan/هزینه | اطلاعات واقعی حساب/تیم و منبع رسمی قیمت؛ unit و دوره صورتحساب | catalog و quote implemented/live-read؛ snapshot/واحد/زمان/جایگزین و credit یک ساعت پایه؛ approval ساخت همان quote را می‌بندد؛ ظرفیت benchmark نشده و resize باز |
 | create app و تغییر plan | [PaaS](https://developers.liara.ir/pages/paas.md)، پاسخ واقعی حساب و ID پایدار | create محدود Node با v8/journal/هویت برگشتی و وب واقعی سنجیده شد؛ تغییر plan planned |
-| update env | [Update envs](https://developers.liara.ir/pass/settings/update-envs.md)، merge/replace و readback باید تطبیق داده شوند | planned؛ AC22، secret reference و حفظ env موجود |
+| update env | [Update envs](https://developers.liara.ir/pass/settings/update-envs.md) و CLI رسمی14ec35f؛ read فعلی، merged variables و احتمال restart | runtime Node با v9/migration10/reference رمز‌شده، claim/journal و readback exact قراردادی؛ پذیرش زنده، env ساخت محلی و CAS بیرونی باز؛ [ADR0013](decisions/0013-project-environment.md) |
 | database/disk و اتصال امن | [DBaaS](https://developers.liara.ir/pages/dbaas.md) و PaaS disks؛ capability مورد استفاده با حساب بررسی شود | planned؛ credential تولیدشده از context مدل جدا |
 | domain/HTTPS | [PaaS](https://developers.liara.ir/pages/paas.md) و [DNS](https://developers.liara.ir/pages/dns.md)، مالکیت و نتیجه واقعی | راهنمای محلی موجود؛ عملیات جدید planned |
 | preview/rollback | ترکیب app/release/artifact/config قابل دسترس؛ feature آماده upstream فرض نشود | planned؛ AC29/30 و سنجش مستقل |

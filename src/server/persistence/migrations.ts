@@ -114,4 +114,16 @@ CREATE TABLE provision_progress (
 ) STRICT;
 `,
   },
+  {
+    version: 10,
+    sql: `
+CREATE TABLE environment_inputs (
+  id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, binding_json TEXT NOT NULL,
+  ciphertext TEXT NOT NULL, expires_at INTEGER NOT NULL, action_id TEXT UNIQUE REFERENCES actions(id)
+) STRICT;
+CREATE TABLE environment_progress (
+  action_id TEXT PRIMARY KEY REFERENCES actions(id), data_json TEXT NOT NULL
+) STRICT;
+`,
+  },
 ] as const;

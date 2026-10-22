@@ -25,8 +25,12 @@ function scrub(value: string, secrets: readonly string[], assignment: RegExp, so
       /-----BEGIN [\w ]*PRIVATE KEY-----[\s\S]*?(?:-----END [\w ]*PRIVATE KEY-----|$)/g,
       "[REDACTED_PRIVATE_KEY]",
     );
-  for (const secret of secrets)
-    if (secret.length >= 4) result = result.split(secret).join("[REDACTED]");
+  for (const secret of secrets) {
+    if (secret.length < 4) continue;
+    // JSON/log escaping must not turn a known secret into apparently harmless evidence.
+    for (const variant of new Set([secret, JSON.stringify(secret).slice(1, -1), encodeURIComponent(secret.toWellFormed())]))
+      result = result.split(variant).join("[REDACTED]");
+  }
   return result;
 }
 

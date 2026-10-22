@@ -29,7 +29,8 @@ test("provision journal appends migration 9 without changing versions 1-8, sessi
   const upgraded = new Store(path);
   try {
     assert.deepEqual(upgraded.db.prepare("SELECT * FROM schema_migrations WHERE version<=8 ORDER BY version").all(), before);
-    assert.equal(upgraded.db.prepare("SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1").get()?.version, 9);
+    assert.ok(upgraded.db.prepare("SELECT version FROM schema_migrations WHERE version=9").get());
+    assert.equal(upgraded.db.prepare("SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1").get()?.version, migrations.at(-1)?.version);
     assert.equal(upgraded.db.prepare("SELECT COUNT(*) n FROM provision_progress").get()?.n, 0);
     assert.equal(upgraded.sessionExists("old-session", "actor", Date.now()), true);
     assert.equal(upgraded.db.prepare("SELECT data_json FROM agent_runs WHERE id=?").get(runId)?.data_json, data);

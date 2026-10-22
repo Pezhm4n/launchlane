@@ -25,7 +25,7 @@ import { parseCodeRepairJob, type CodeRepairJob } from "../../contracts/code-rep
 import { requiresProjectBuild, sameBuildWorkload, projectTestCommand } from "./build-policy.ts";
 
 export function privateValues(c: Config): string[] {
-  return [c.liaraToken, c.modelKey, c.operatorToken, c.sessionSecret].filter(Boolean);
+  return [c.liaraToken, c.modelKey, c.operatorToken, c.sessionSecret, ...c.projectSecretValues].filter(Boolean);
 }
 export function currentAgentContext(config: Config, store: Store, actor: string): AgentContext {
   const flow = store.getProjectFlow(actor),

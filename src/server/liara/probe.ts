@@ -210,6 +210,7 @@ export class WorkloadProbe {
               this.config.modelKey,
               this.config.operatorToken,
               this.config.sessionSecret,
+              ...this.config.projectSecretValues,
             ]),
         outcome: redirect ? "redirect_blocked" : "response",
       };

@@ -4,6 +4,8 @@ Read this file first. Then read [project-overview.md](project-overview.md), [the
 
 ## Current scope and truth
 
+- The guided flow now has a scoped runtime-environment form and ActionSpec v9 with encrypted inputs, merge-preserving update, a durable request journal and configuration readback. Migration 10 appends the input/progress tables without changing 1–9. Domain/HTTP/browser synthetic transports verify policy; live env application and local build-time env injection remain unaccepted. Read ADR 0013 before extending it; configuration readback is not restart or workload verification.
+
 - The operator-local workbench implements source inspection, private immutable archives, durable approvals, bounded Liara deployment and evidence collection. A controlled Node 22 live cycle verified three releases, a real 500, one grounded diagnosis, an ineffective change and an approved source correction with same-page readback. This does not verify arbitrary projects, automatic code editing, env writes or restart completion.
 - The live diagnosis requested BoxAPI `gpt-6-luna` with `reasoning_effort=none`, used two chat-completions requests and 1,653 reported tokens. One controlled configuration case is not a general model-quality evaluation. Keep all live gates off outside an explicitly bounded run; read the current limitations and evidence in `docs/verification.md`.
 - Product name: **Launchlane**. Keep product UI and package names consistent.

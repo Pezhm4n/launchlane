@@ -12,6 +12,7 @@ import { ensure } from "../errors.ts";
 import { parseWorkloadContract, parseWorkloadExpectation, parseWorkloadTarget } from "../../contracts/deployment.ts";
 import { parseNodeVersion } from "../../contracts/node-runtime.ts";
 import { parseProvisionSpec } from "../../contracts/provision.ts";
+import { parseEnvironmentSpec } from "../../contracts/environment.ts";
 
 export function canonical(value: unknown): string {
   if (
@@ -35,6 +36,7 @@ export function fingerprint(value: unknown): string {
 
 export function parseActionSpec(value: unknown): ActionSpec {
   const input = object(value);
+  if (input.version === 9) return parseEnvironmentSpec(input);
   if (input.version === 8) return parseProvisionSpec(input);
   exactKeys(input, [
     "version",
@@ -76,7 +78,7 @@ export function parseActionSpec(value: unknown): ActionSpec {
     "INVALID_INPUT",
     "restart آرگومان انتشار نمی‌پذیرد.",
   );
-  const common: Pick<Exclude<ActionSpec, {version: 8}>, "scope" | "operation" | "sourceHash" | "args"> = {
+  const common: Pick<Exclude<ActionSpec, {version: 8 | 9}>, "scope" | "operation" | "sourceHash" | "args"> = {
     scope: { teamId, app },
     operation: input.operation,
     sourceHash,

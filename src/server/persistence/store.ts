@@ -13,6 +13,7 @@ import { AppError, ensure } from "../errors.ts";
 import { fingerprint, parseActionSpec } from "../policy/action.ts";
 import { parseProvisionProgress, providerObjectId, type ProvisionProgress, type ProvisionReadback, type ProvisionObservation } from "../../contracts/provision.ts";
 import { migrations } from "./migrations.ts";
+import { parseEnvironmentProgress, type EnvironmentProgress } from "../../contracts/environment.ts";
 import { parseProjectFlow, type ProjectFlow } from "../../contracts/project-flow.ts";
 import { parseIncidentRun, type IncidentRun } from "../../contracts/incident-run.ts";
 import { inWindow } from "../../contracts/incident.ts";
@@ -271,7 +272,7 @@ export class Store {
     });
   }
   assertProjectAction(actorId: string, spec: ActionSpec, existingId?: string): void {
-    if (spec.version !== 3 && spec.version !== 4 && spec.version !== 5 && spec.version !== 7 && spec.version !== 8) return;
+    if (spec.version !== 3 && spec.version !== 4 && spec.version !== 5 && spec.version !== 7 && spec.version !== 8 && spec.version !== 9) return;
     const flow = this.getProjectFlow(actorId);
     ensure(
       flow &&
@@ -297,11 +298,11 @@ export class Store {
     ensure(
       connection?.status === "connected" &&
         connection.teamId === spec.scope.teamId &&
-        (spec.version !== 7 || connection.identityId === spec.accountId) &&
+        ((spec.version !== 7 && spec.version !== 9) || connection.identityId === spec.accountId) &&
         connection.selectedApp === spec.scope.app &&
         connection.apps.some(
           (app) =>
-            app.name === spec.scope.app && (!isDeploymentSpec(spec) || app.id === spec.targetAppId),
+            app.name === spec.scope.app && (!(isDeploymentSpec(spec) || spec.version === 9) || app.id === spec.targetAppId),
         ),
       "PROJECT_ACCESS_CHANGED",
       "حساب یا برنامه مقصد تغییر کرده است. اتصال را بررسی و پیشنهاد تازه دریافت کنید.",
@@ -569,7 +570,7 @@ export class Store {
       this.assertActionContext(actorId, spec);
       if (
         ((spec.version === 2 || spec.version === 3 || spec.version === 4 || spec.version === 5 || spec.version === 7) &&
-        spec.operation === "deploy") || spec.version === 8
+        spec.operation === "deploy") || spec.version === 8 || spec.version === 9
       ) {
         const artifact = this.getArtifact(actorId, spec.artifactHash ?? "");
         ensure(
@@ -610,7 +611,12 @@ export class Store {
           action.expiresAt,
         );
       this.audit(action, "proposed", now);
-      if (spec.version === 3 || spec.version === 4 || spec.version === 5 || spec.version === 7 || spec.version === 8) {
+      if (spec.version === 9) {
+        const linked = this.db.prepare("UPDATE environment_inputs SET action_id=? WHERE id=? AND actor_id=? AND action_id IS NULL AND expires_at>?")
+          .run(action.id, spec.secretRef, actorId, now);
+        ensure(linked.changes === 1, "ENV_INPUT_EXPIRED", "اطلاعات امن مصرف شده یا منقضی است.", 409);
+      }
+      if (spec.version === 3 || spec.version === 4 || spec.version === 5 || spec.version === 7 || spec.version === 8 || spec.version === 9) {
         const flow = this.getProjectFlow(actorId);
         if (flow) this.invalidateProjectAction(flow, actorId);
         this.db
@@ -630,11 +636,13 @@ export class Store {
       .get(id);
     const restart = this.db.prepare("SELECT data_json FROM restart_progress WHERE action_id=?").get(id);
     const provision = this.db.prepare("SELECT data_json FROM provision_progress WHERE action_id=?").get(id);
+    const environment = this.db.prepare("SELECT data_json FROM environment_progress WHERE action_id=?").get(id);
     return {
       ...action,
       ...(progress ? { deployment: parseDeploymentProgress(JSON.parse(string(progress.data_json, 4096))) } : {}),
       ...(restart ? { restart: parseRestartProgress(JSON.parse(string(restart.data_json, 4096))) } : {}),
       ...(provision ? { provision: parseProvisionProgress(JSON.parse(string(provision.data_json, 4096))) } : {}),
+      ...(environment ? { environment: parseEnvironmentProgress(JSON.parse(string(environment.data_json, 4096))) } : {}),
     };
   }
 
@@ -734,6 +742,8 @@ export class Store {
   }
 
   assertAgentIdle(actorId: string, actionId: string | null = null, allowPendingDecision = false): void {
+    if (actionId === null) ensure(!this.db.prepare("SELECT id FROM actions WHERE actor_id=? AND json_extract(spec,'$.version')=9 AND state IN ('awaiting_approval','approved','executing','observing','uncertain') AND (expires_at>? OR state IN ('executing','observing','uncertain')) LIMIT 1").get(actorId, Date.now()),
+      "UNRESOLVED_EFFECT", "ابتدا نتیجه تغییر اطلاعات برنامه را بررسی کنید.", 409);
     const active = this.db.prepare(
       "SELECT id FROM agent_runs WHERE actor_id=? AND (state IN ('queued','working') OR (state='needs_approval' AND ?=0)) AND (? IS NULL OR (COALESCE(json_extract(data_json,'$.publication.id'),'')<>? AND COALESCE(json_extract(data_json,'$.destination.id'),'')<>?)) LIMIT 1",
     ).get(actorId, allowPendingDecision ? 1 : 0, actionId, actionId, actionId);
@@ -794,6 +804,7 @@ export class Store {
         this.writeRestartProgress(id, { stage: "claimed", acceptedAt: null, observation: null });
       if (action.spec.version === 8)
         this.writeProvisionProgress(id, { stage: "claimed", appId: null, observation: null });
+      if (action.spec.version === 9) this.writeEnvironmentProgress(id, { stage: "claimed", checkedAt: null, outcome: null });
       this.audit(action, "claimed", now);
       return this.getAction(id, actorId);
     });
@@ -803,6 +814,7 @@ export class Store {
     return this.transaction(() => {
       const action = this.getAction(id, actorId);
       ensure(action.spec.version !== 6, "RESTART_RECEIPT_REQUIRED", "راه‌اندازی دوباره رسید انتشار ندارد.", 409);
+      ensure(action.spec.version !== 9, "ENV_RECEIPT_REQUIRED", "تغییر اطلاعات برنامه رسید انتشار ندارد.", 409);
       ensure(
         action.state === "executing",
         "ACTION_CONFLICT",
@@ -838,6 +850,33 @@ export class Store {
       this.db.prepare("UPDATE attempts SET remote_id=? WHERE action_id=?").run(safeId, id);
       this.audit(action, "accepted", now);
       return this.getAction(id, actorId);
+    });
+  }
+
+  private writeEnvironmentProgress(id: string, progress: EnvironmentProgress): void {
+    this.db.prepare("INSERT INTO environment_progress VALUES (?,?) ON CONFLICT(action_id) DO UPDATE SET data_json=excluded.data_json")
+      .run(id, JSON.stringify(parseEnvironmentProgress(progress)));
+  }
+  environmentStep(id: string, actorId: string, stage: "request_started" | "accepted"): Action {
+    return this.transaction(() => {
+      const action = this.getAction(id, actorId);
+      ensure(action.spec.version === 9 && action.state === "executing" && action.attemptId && action.environment &&
+        action.environment.stage === (stage === "request_started" ? "claimed" : "request_started"), "ACTION_CONFLICT", "ترتیب تغییر اطلاعات برنامه معتبر نیست.", 409);
+      this.writeEnvironmentProgress(id, { stage, checkedAt: null, outcome: null });
+      if (stage === "accepted") this.db.prepare("UPDATE actions SET state='observing' WHERE id=?").run(id);
+      this.audit(action, `environment_${stage}`, Date.now()); return this.getAction(id, actorId);
+    });
+  }
+  observeEnvironment(id: string, actorId: string, outcome: "verified" | "inconclusive" | "not_started", expectedCheckedAt: number | null): Action {
+    return this.transaction(() => {
+      const action = this.getAction(id, actorId);
+      ensure(action.spec.version === 9 && action.environment && ["observing", "uncertain"].includes(action.state) && action.environment.checkedAt === expectedCheckedAt &&
+        (outcome !== "not_started" || action.environment.stage === "claimed"), "ACTION_CONFLICT", "وضعیت بررسی اطلاعات برنامه تغییر کرده است.", 409);
+      const checkedAt = Math.max(Date.now(), (expectedCheckedAt ?? 0) + 1);
+      this.writeEnvironmentProgress(id, { ...action.environment, checkedAt, outcome });
+      this.db.prepare("UPDATE actions SET state=?,error_code=? WHERE id=?")
+        .run(outcome === "verified" ? "succeeded" : outcome === "not_started" ? "failed" : "uncertain", outcome === "inconclusive" ? "ENV_READBACK_UNCONFIRMED" : null, id);
+      this.audit(action, `environment_${outcome}`, checkedAt); return this.getAction(id, actorId);
     });
   }
 

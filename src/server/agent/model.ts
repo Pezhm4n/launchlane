@@ -106,7 +106,7 @@ export class GoalModelClient implements ModelPort {
       413,
     );
     validateToolMessages(messages);
-    const secrets = [c.modelKey, c.liaraToken, c.operatorToken, c.sessionSecret].filter(Boolean);
+    const secrets = [c.modelKey, c.liaraToken, c.operatorToken, c.sessionSecret, ...c.projectSecretValues].filter(Boolean);
     const body = JSON.stringify({
       model: c.modelId,
       messages: messages.map((message) => ({

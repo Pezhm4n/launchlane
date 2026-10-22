@@ -1,5 +1,7 @@
 # معماری Launchlane
 
+اطلاعات محیطی runtime از فرم همان انتشار به application/environment، reference رمز‌شده و ActionSpec v9 می‌روند؛ مدل فقط نام/وضعیت می‌بیند. همان Store مالک تصمیم، claim و قفل scope است؛ journal جدا فقط مراحل env را ثبت می‌کند. input با actor/spec در AES-GCM بسته و snapshot ادغام‌شده با HMAC متصل است. خواندن و نوشتن سهمیه همان mission را مصرف می‌کنند. readback پیکربندی، restart یا سلامت برنامه نیست؛ پذیرش زنده و env ساخت محلی هنوز بازند. [ADR0013](docs/decisions/0013-project-environment.md).
+
 ## مسیر اصلی مرحله‌ای؛ تصمیم جاری
 
 تب انتشار از POST /api/agent/runs با operation=publish و publication ساختاریافته استفاده می‌کند. projectId/sourceHash، path و نشانه پاسخ validate می‌شوند؛ context معتبر منبع، نسخه Node، حساب/تیم و مقصد را از host می‌گیرد. مأموریت در JSON همان AgentRun ذخیره می‌شود؛ migration و approval engine دوم ندارد. ورودی یکسان در دو tab به همان run متصل می‌شود. نتیجه قبلی، معیار بعد از شکست و snapshot اصلاح‌شده قابل جابه‌جایی دلخواه مدل نیستند.
