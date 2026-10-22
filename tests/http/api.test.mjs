@@ -34,6 +34,7 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
         await expects(await request("/api/workspace"), 401, "AUTH_REQUIRED");
         await expects(await request("/api/connections/github"), 401, "AUTH_REQUIRED");
         await expects(await request("/api/connections/liara"), 401, "AUTH_REQUIRED");
+        await expects(await request("/api/domains/guide", { hostname: "example.ir", dns: "existing", target: null }), 401, "AUTH_REQUIRED");
         await expects(await request("/api/project-flows"), 401, "AUTH_REQUIRED");
         await expects(await request("/api/incidents/runs"), 401, "AUTH_REQUIRED");
         await expects(await request(`/api/incidents/handoff?id=${"a".repeat(36)}`), 401, "AUTH_REQUIRED");
@@ -136,6 +137,26 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
         assert.equal(workspace.actions.length, 0);
       },
     );
+    await t.test("domain guide validates hostnames and remains unverified without credentials; no probe target or approval is created", async () => {
+      const input = { hostname: " Shop.Example.IR. ", dns: "existing", target: null };
+      await expects(await request("/api/domains/guide", input, { "x-csrf-token": "forged" }), 403, "CSRF_DENIED");
+      await expects(await request("/api/domains/guide", input, { origin: "https://evil.test" }), 403, "ORIGIN_DENIED");
+      await expects(await request("/api/domains/guide", { ...input, hostname: "https://example.ir/?secret=private" }), 400, "DOMAIN_NAME_INVALID");
+      await expects(await request("/api/domains/guide", { ...input, hostname: "site.tk" }), 400, "DOMAIN_TLD_UNSUPPORTED");
+      await expects(await request("/api/domains/guide", { ...input, execute: true }), 400, "INVALID_INPUT");
+      const response = await request("/api/domains/guide", input);
+      assert.equal(response.headers.get("cache-control"), "no-store");
+      assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+      const { guide } = await expects(response, 200);
+      assert.equal(guide.hostname, "shop.example.ir");
+      assert.equal(guide.connection, "not_connected");
+      assert.equal(guide.target, null);
+      assert.equal(guide.verification, "not_checked");
+      assert.ok(!("records" in guide));
+      const workspace = await expects(await request("/api/workspace"), 200);
+      assert.equal(workspace.features.probeOrigin, null);
+      assert.deepEqual(workspace.actions, []);
+    });
     await t.test(
       "GitHub account metadata is private and connection commands require CSRF without starting login",
       async () => {

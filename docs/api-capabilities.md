@@ -34,7 +34,7 @@
 | events | `GET /v1/projects/{name}/events` | lifecycle action/status/time/release و شکل مستند metaData/values محدود parse می‌شوند؛ زمان خام unverified | live_verified shape محدود |
 | summary | `GET /v1/projects/{name}/metrics/summary` | raw cpuUsage/memoryUsage در حساب دیده و parse شد؛ واحد و زمان هنوز unverified | live_checked؛ معنا unknown |
 | CPU / RAM | `GET /v1/projects/{name}/metrics/cpu` و `/metrics/memory` | `since` عددی required؛ نبود دسترسی/نمونه، unknown است | documented / live unverified |
-| دامنه | `GET /v1/domains`، `POST /v1/domains/set-project` | اتصال domain/project در schema با شناسه است؛ registrar و DNS provider جداست | documented / guide first |
+| دامنه | `GET /v1/domains`، `POST /v1/domains/set-project` | اتصال domain/project در schema با شناسه است؛ registrar و DNS provider جداست. راهنمای محلی `POST /api/domains/guide` فقط نام و مقصد ذخیره‌شده را اعتبارسنجی می‌کند؛ مقادیر رکورد یا وضعیت DNS نمی‌سازد | implemented local guide contract؛ API/DNS live unverified |
 | هویت و catalog حساب | `GET /v1/me`؛ در حالت تیم با `teamID` | هویت/تیم و شکل planها تطبیق داده شدند؛ اطلاعات شخصی/کلیدهای پاسخ از parser عبور نمی‌کنند؛ catalog قیمت هنوز در پیشنهاد محصول مصرف نمی‌شود | live_verified محدود؛ قیمت محصول unknown |
 
 نمونه غیررسمی ممکن است route، default base، rollback یا required field متفاوتی داشته باشد. تطبیق مستقیم با OpenAPI/CLI و پاسخ واقعی ضروری است. قابلیت rollback عمومی و idempotency write هنوز تأیید نشده‌اند و در scope پایه promise نمی‌شوند.

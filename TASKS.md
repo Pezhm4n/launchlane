@@ -4,6 +4,14 @@
 
 ## وضعیت فعال
 
+### T25 — راهنمای دامنه برای مقصد انتخاب‌شده؛ backend_verified / UI_in_progress
+
+پایه `48addbf`؛ AC07/13/16. در مرورگر production ایزوله، مسیر ورود ← بررسی پروژه نمونه ← مقصد انتشار طی شد؛ راهنما یا اقدام اتصال دامنه وجود ندارد. graph نسل ۲۰۲۶-۱۰-۲۱ برای این مسیر stale بود و source جاری رابط/API بررسی شد. شدت P1: کاربر پس از انتشار، مسیر ثبت دامنه در برنامه، تنظیم DNS و فعال‌کردن اتصال امن را نمی‌بیند. علت، نبود همین جریان است؛ ثبت نشانی بررسی سایت، اتصال دامنه یا اثبات مالکیت نیست.
+
+پذیرش برش: راهنمای اختیاری برای نام دامنه معتبر، انتخاب حفظ DNS موجود یا استفاده از DNS لیارا، مقصد actor/team/app معتبر و امکان راهنمای عمومی بدون اتصال؛ مقادیر رکورد و نیم‌سرور حدس زده نشوند، کار registrar/ایرنیک روشن بماند و هیچ مرحله انجام‌نشده موفق نمایش داده نشود. تولید راهنما نباید credential باز کند، provider/DNS/model را فراخوانی کند، نشانی مجاز probe یا approval را تغییر دهد. خطای فیلد، تغییر مقصد، قطع اتصال، cancel/error و keyboard/RTL/عرض‌های 360/768/1280 و مرزهای مرتبط سنجیده می‌شوند. اسکیل‌های مؤثر: competition-agent-engineer، ux-ui-agent-skills، frontend-design، vercel-react-best-practices و web-design-guidelines. اتصال زنده دامنه و reader تازه تا آزمون جداگانه UNCONFIRMED می‌مانند.
+
+قرارداد typed، اعتبارسنجی IDNA/hostname، تطبیق actor/team/app/internal ID و route دارای CSRF پیاده شدند. راهنمای عمومی حالت‌های بدون اتصال/نیازمند ورود مجدد/بدون برنامه را جدا می‌کند و فقط وضعیت تأییدنشده دارد. آزمون اولیه پایان‌خط پنهان‌شده توسط trim را یافت؛ ورودی اصلی و counterexample حفظ و علت در ترتیب validation اصلاح شد. lint135/typecheck/build pass؛ domain147 و HTTP17 تازه pass، بدون fail/skip/cancel. هفت regression اختصاصی نام بین‌المللی، IP/URL/control، پسوند مستند غیرمجاز، دامنه actor، تغییر مقصد و عدم تغییر probe/approval را سنجیدند. transport مدل/provider مصنوعی مصرف نشد؛ upstream در آزمون راهنما صفر است. رابط و آزمون مرورگر هنوز در حال اجرا هستند.
+
 ### T34 — گزارش قابل تحویل برای اصلاح کد؛ implemented_local / reader_unverified
 
 پایه `4a01dfb`؛ AC12/13/14. بازتولید در کد: incident و نتیجه بازخوانی پایدارند، اما route یا کنترل دریافت گزارش برای برنامه‌نویس وجود ندارد. شدت P1: کاربر برای انتقال مسئله باید شواهد و محدودیت‌ها را دستی کنار هم بگذارد. پذیرش این برش: خروجی actor-bound از همان گزارش ذخیره‌شده، تفکیک نمونه/حساب متصل و مشاهده/فرضیه، روش تکرار همان صفحه، شواهد دارای زمان و ارجاع، محدوده اصلاح و معیار بررسی؛ بدون فایل/دستور حدسی، secret یا ارسال خودکار به بیرون. آخرین مشاهده معتبر restart نیز باید با گزارش رابط یکسان باشد؛ پذیرش درخواست و پایان restart یکی نشوند. پیش‌نمایش و دانلود اختیاری با keyboard، حالت خطا/لغو و عرض‌های 360/768/1280 بررسی می‌شوند. credential و داده خام اضافی صادر نمی‌شوند؛ هیچ فراخوانی provider، تغییر زیرساخت یا مصرف مدل لازم نیست. اسکیل‌های مؤثر: competition-agent-engineer، ux-ui-agent-skills، vercel-react-best-practices و web-design-guidelines. آزمون حساب واقعی و فهم گزارش توسط reader تازه، ادعای این برش نیستند.
@@ -135,7 +143,7 @@ P0 و مسیر مستقل P1 پیاده‌اند؛ بخش محدود P2/P3 زن�
 | T21 | انتخاب روش/پلن با منبع/قیمت فعلی و تأیید action | T12,T13,T20 | AC03,04؛ unknown price/budget سؤال/راهنمایی؛ تغییر args/source نیازمند consent تازه | partial؛ پلن موجود در approval بسته؛ نسخه Node با پیشنهاد v5 و platformConfig.version صریح، contract-tested است؛ قیمت/انتخاب پلن در محصول unknown و runtime/patch واقعی نسخه‌های دیگر unverified است |
 | T22 | upload source→release→observe→health روی app آزمایشی مجاز | T14,T21 | AC05؛ release واقعی و پاسخ workload؛ build fail/timeout/pending و unsafe path | live_verified_bounded روی v4؛ سه release روی Node 22، رسید/READY/current و status/revision دقیق بررسی شدند؛ v5 با Node صریح فعلاً contract-tested است؛ شاهد پشتیبانی همه پروژه‌ها نیست |
 | T23 | انتشار نسخه بعدی و restart کنترل‌شده | T22 | AC06؛ release قبل/بعد، deny و عدم اثر روی app دیگر؛ readback | partial_live؛ نسخه‌های بعدی با approval تازه زنده مقایسه شدند؛ server/transport/journal/UI restart قراردادی آزموده‌اند؛ live/completion restart باز است |
-| T25 | راهنمای دامنه و تفکیک API از registrar | T22 | AC07؛ مسیر واقعی با منبع معتبر و کار بیرون دسترسی مشخص؛ بدون ادعای اجرای DNS انجام‌نشده | not_started |
+| T25 | راهنمای دامنه و تفکیک API از registrar | T22 | AC07؛ مسیر واقعی با منبع معتبر و کار بیرون دسترسی مشخص؛ بدون ادعای اجرای DNS انجام‌نشده | in_progress؛ قرارداد/سرور و اعتبارسنجی محلی گذشتند؛ رابط و browser بازند، DNS/account live unverified |
 
 T20 و T24 مستقل‌اند؛ نبود مدل نباید مشاهده/آزمون provider را متوقف کند. T25 توسعه P1 است و شرط پذیرش هسته نیست. اگر endpoint یا schema با سند اختلاف داشت، ابتدا مرز adapter اصلاح و regression با پاسخ واقعی اضافه شود. شکست archive/deploy با افزودن framework/پایگاه‌داده جدید حل نمی‌شود مگر bottleneck اثبات شود.
 
