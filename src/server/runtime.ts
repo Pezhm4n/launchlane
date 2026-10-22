@@ -5,6 +5,7 @@ import { readConfig, type Config } from "./config.ts";
 import { Store, storageError } from "./persistence/store.ts";
 import { migrations } from "./persistence/migrations.ts";
 import { ensure } from "./errors.ts";
+import { AgentRepository } from "./agent/store.ts";
 
 type CachedRuntime = { config: Config; store: Store; schemaKey?: string };
 type Runtime = CachedRuntime & { schemaKey: string };
@@ -27,6 +28,7 @@ export function resolveRuntime(config: Config, cached?: CachedRuntime): Runtime 
     mkdirSync(config.stateDir, { recursive: true, mode: 0o700 });
     const store = new Store(join(config.stateDir, "state.sqlite"));
     store.recoverInterrupted();
+    new AgentRepository(store).recover();
     return { config, store, schemaKey };
   } catch (error) {
     throw storageError(error);

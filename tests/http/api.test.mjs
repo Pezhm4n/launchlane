@@ -39,6 +39,8 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
       "privileged reads require a session; host and cross-origin are rejected",
       async () => {
         await expects(await request("/api/workspace"), 401, "AUTH_REQUIRED");
+        await expects(await request("/api/agent/runs"),401,"AUTH_REQUIRED");
+        await expects(await request(`/api/agent/runs/${"a".repeat(36)}`),401,"AUTH_REQUIRED");
         await expects(await request("/api/connections/github"), 401, "AUTH_REQUIRED");
         await expects(await request("/api/connections/liara"), 401, "AUTH_REQUIRED");
         await expects(await request("/api/domains/guide", { hostname: "example.ir", dns: "existing", target: null }), 401, "AUTH_REQUIRED");
@@ -131,6 +133,20 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
         assert.equal(workspace.capabilities.model.state, "unavailable");
         assert.equal(workspace.capabilities.mutations.state, "unavailable");
         assert.ok(!JSON.stringify(workspace).includes(server.token));
+      },
+    );
+    await t.test(
+      "agent runs require CSRF, exact inputs and an enabled model; event reads never drive execution",
+      async()=>{
+        const input={requestKey:"a".repeat(36),goal:"پروژه را بررسی کن",projectId:null};
+        await expects(await request("/api/agent/runs",input,{"x-csrf-token":"forged"}),403,"CSRF_DENIED");
+        await expects(await request("/api/agent/runs",{...input,role:"system"}),400,"INVALID_INPUT");
+        await expects(await request("/api/agent/runs",input),403,"LIVE_MODEL_DISABLED");
+        assert.equal((await expects(await request("/api/agent/runs"),200)).run,null);
+        await expects(await request(`/api/agent/runs/${"a".repeat(36)}?after=invalid`),400,"INVALID_INPUT");
+        await expects(await request(`/api/agent/runs/${"a".repeat(36)}`,{operation:"repair-decision",revision:1,jobId:"b".repeat(36),decision:"approve"},{"x-csrf-token":"forged"}),403,"CSRF_DENIED");
+        await expects(await request(`/api/agent/runs/${"a".repeat(36)}`,{operation:"shell",revision:1}),400,"INVALID_OPERATION");
+        await expects(await request(`/api/agent/runs/${"a".repeat(36)}`,{operation:"cancel",revision:1}),404,"AGENT_NOT_FOUND");
       },
     );
     await t.test(

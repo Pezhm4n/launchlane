@@ -91,4 +91,19 @@ CREATE TABLE restart_progress (
 ) STRICT;
 `,
   },
+  {
+    version: 8,
+    sql: `
+CREATE TABLE agent_runs (
+  id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, request_key TEXT NOT NULL,
+  revision INTEGER NOT NULL, state TEXT NOT NULL, updated_at INTEGER NOT NULL,
+  data_json TEXT NOT NULL, UNIQUE(actor_id, request_key)
+) STRICT;
+CREATE INDEX agent_runs_actor ON agent_runs(actor_id, updated_at);
+CREATE TABLE code_repair_jobs (
+  id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, state TEXT NOT NULL,
+  updated_at INTEGER NOT NULL, data_json TEXT NOT NULL
+) STRICT;
+`,
+  },
 ] as const;

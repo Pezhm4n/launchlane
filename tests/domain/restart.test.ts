@@ -9,6 +9,7 @@ import {
   proposeRestart,
 } from "../../src/server/application/restart.ts";
 import { AppError } from "../../src/server/errors.ts";
+import { migrations } from "../../src/server/persistence/migrations.ts";
 import { LiaraRestartClient } from "../../src/server/liara/restart.ts";
 import { WorkloadProbe } from "../../src/server/liara/probe.ts";
 import { RunBudget } from "../../src/server/policy/budget.ts";
@@ -391,7 +392,7 @@ test("storage claim failure prevents the side effect and migration 7 preserves t
       checksums,
     );
     assert.equal(f.store.getAction(old.id, session.actorId).hash, old.hash);
-    assert.equal(f.store.db.prepare("SELECT COUNT(*) AS n FROM schema_migrations").get()?.n, 7);
+    assert.equal(f.store.db.prepare("SELECT COUNT(*) AS n FROM schema_migrations").get()?.n, migrations.length);
     const action = await approved(f);
     t.mock.method(f.store, "claim", () => {
       throw new AppError("STORAGE_UNAVAILABLE", "synthetic storage failure", 503);

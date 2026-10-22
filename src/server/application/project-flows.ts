@@ -13,6 +13,8 @@ import { authorizeScope, fingerprint } from "../policy/action.ts";
 import { inspectProject } from "../workspace/inspect.ts";
 import { readArtifact } from "../workspace/archive.ts";
 import { prepareArchive } from "./prepare-source.ts";
+import { parseCodeRepairJob } from "../../contracts/code-repair.ts";
+import { object, string } from "../../contracts/validation.ts";
 
 let preparing = false;
 export function projectRoot(
@@ -21,6 +23,7 @@ export function projectRoot(
 ): { root: string; directory: string } {
   if (flow.selection.kind === "github")
     return { root: join(config.stateDir, "github-sources", flow.id), directory: "." };
+  if(flow.selection.kind==="repair") return {root:join(config.stateDir,"repair-workspaces",flow.selection.jobId),directory:"."};
   if (flow.selection.kind === "sample")
     return { root: resolve(/* turbopackIgnore: true */ "."), directory: "examples/node-service" };
   ensure(
@@ -55,6 +58,12 @@ export async function prepareProjectFlow(
   const id = randomUUID();
   let imported = false;
   try {
+    if(selection.kind==="repair") {
+      const row=store.db.prepare("SELECT data_json,state FROM code_repair_jobs WHERE actor_id=? AND id=?").get(actorId,selection.jobId);
+      ensure(row,"REPAIR_NOT_FOUND","نسخه اصلاح‌شده در دسترس نیست.",404);
+      const record=object(JSON.parse(string(row.data_json,512*1024))),job=parseCodeRepairJob({...object(record.job),state:row.state});
+      ensure(job.state==="succeeded"&&job.artifact?.archiveHash===selection.artifactHash,"REPAIR_UNVERIFIED","فقط اصلاحی که آزمون و بسته معتبر دارد قابل انتخاب است.",409);
+    }
     if (selection.kind === "sample")
       ensure(
         selection.directory === "examples/node-service",
@@ -91,6 +100,7 @@ export async function prepareProjectFlow(
       signal,
       secrets: privateValues,
     });
+    if(selection.kind==="repair") ensure(store.getArtifact(actorId,selection.artifactHash).sourceHash===profile.sourceHash,"REPAIR_ARTIFACT_CHANGED","فایل‌های اصلاح‌شده با نسخه آزموده‌شده برابر نیستند.",409);
     const artifact =
       profile.runtime === "node" && profile.start && profile.nodeRuntime?.version
         ? await prepareArchive({

@@ -15,7 +15,7 @@ function displayFlow(config: Config, flow: ProjectFlow | null): ProjectFlow | nu
   if (!flow) return null;
   const selection = flow.selection;
   const displayName =
-    selection.kind === "github"
+    selection.kind === "repair" ? "نسخه اصلاح‌شده پروژه" : selection.kind === "github"
       ? `${selection.owner}/${selection.name}${selection.directory === "." ? "" : ` / ${selection.directory}`}`
       : selection.directory === "."
         ? config.workspaceRoot

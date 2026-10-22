@@ -136,6 +136,7 @@ export function readConfig(env: Environment = process.env) {
     enableMutations: flag(env, "LAUNCHLANE_ENABLE_MUTATIONS"),
     enableLiveModel: flag(env, "LAUNCHLANE_ENABLE_LIVE_MODEL"),
     enableLiveLiara: flag(env, "LAUNCHLANE_ENABLE_LIVE_LIARA"),
+    enableLocalRepair: flag(env, "LAUNCHLANE_ENABLE_LOCAL_REPAIR"),
     maxModelCalls: limit(env, "LAUNCHLANE_MAX_MODEL_CALLS", 8, 1, 8),
     maxToolCalls: limit(env, "LAUNCHLANE_MAX_TOOL_CALLS", 12, 1, 12),
     runTimeoutMs: limit(env, "LAUNCHLANE_RUN_TIMEOUT_MS", 120_000, 100, 120_000),
