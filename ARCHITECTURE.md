@@ -1,8 +1,18 @@
 # معماری Launchlane
 
+## برش اجرایی Agent؛ A01/A02/A03/A06
+
+`server/agent/runs.ts` حلقه هدف جدید را از diagnosis تاریخی جدا نگه می‌دارد. `toolsForAgent` یک registry نوع‌دار برای inspect/file/destination/status/releases/logs و پیشنهاد اصلاح gated است؛ همه اجراها application و policy فعلی را مصرف می‌کنند. نتیجه واقعی ابزار با call ID به پیام بعدی مدل متصل است. GET، reload و event replay هیچ مدل یا write را اجرا نمی‌کنند؛ POST معتبر، کار محدود را با `after` آغاز می‌کند. پایان این برش فقط نیاز به ورودی یا نتیجه جزئی است؛ متن مدل رسید انتشار تولید نمی‌کند.
+
+migration شماره 8، `agent_runs` و `code_repair_jobs` را به SQLite موجود اضافه می‌کند. CAS revision، actor، idempotency، snapshot پروژه/نسخه/مقصد، event و شمارنده بودجه پیش از request ذخیره می‌شوند. پیام بعدی و worker، همان سقف تجمعی مدل/tool/time را مصرف می‌کنند؛ زمان انتظار تصمیم کاربر از اجرای فعال جداست. مصرف نامشخص صفر فرض نمی‌شود. بازیابی اجرای قطع‌شده، interrupted است و request هزینه‌دار را replay نمی‌کند. مسیر تک‌ابزاری diagnosis و قرارداد قدیمی دو درخواست آن تغییر نکرده‌اند.
+
+`CodeRepairAdapter` دارای propose/start/status/cancel/run و رسید diff/test/artifact است. پیشنهاد فقط snapshot جدا می‌سازد؛ اجرای آزمون/وصله به تصمیم معتبر actor/session/revision/expiry روی همان محدوده نیاز دارد. worker یک درخواست patch با provider مجاز دارد؛ host مستقلاً base/path/command/tests را کنترل می‌کند. فعلاً فقط فایل‌های موجود و آزمون مستقیم `node --test`، بدون تغییر package/dependency/test پشتیبانی می‌شوند. آزمون اصلی باید خطا را بازتولید کند؛ همان آزمون پس از patch باید بگذرد و snapshot پس از آزمون تغییر نکرده باشد. آرشیو خصوصی immutable، دقیقاً به نسخه انتخاب‌شده `repair` متصل می‌شود؛ source اصلی جایگزین نمی‌شود. سپس مسیر انتشار موجود می‌تواند برای همان artifact تصمیم جدا بگیرد؛ انتشار از حلقه گفت‌وگو هنوز ابزار نیست.
+
+فرآیند آزمون با `process.execPath`، بدون shell، environment محدود، Node permission برای همان workspace، timeout/output cap و بدون اجازه child/worker/addon اجرا می‌شود. این روش OS sandbox یا جداسازی شبکه نیست؛ gate `LAUNCHLANE_ENABLE_LOCAL_REPAIR` پیش‌فرض false است و روی source ناشناس تضمین مهار خصمانه نمی‌دهد. build/package-manager/نصب dependency/تست تولیدی worker، runtimeهای دیگر و sandbox سیستم‌عامل هنوز پیاده نیستند. spike CLI و مرز واقعی در [گزارش اجرایی](docs/evidence/agent-first-slice.md) آمده‌اند.
+
 ## جهت معماری Agent؛ planned
 
-تصمیم محصول جدید در [مشخصات Agent](docs/agent-experience.md) تعریف شده است: وب‌اپ با Agent هدف‌محور، اتصال اجرایی Coding Agent و facade نوع MCP روی ابزارهای مشترک. مسیر تشخیص تک‌ابزاری و executor محدود فعلی پایه‌اند؛ دامنه دائمی محصول نیستند. قابلیت‌های این بخش هنوز پیاده و آزموده نشده‌اند.
+تصمیم محصول جدید در [مشخصات Agent](docs/agent-experience.md) تعریف شده است: وب‌اپ با Agent هدف‌محور، اتصال اجرایی Coding Agent و facade نوع MCP روی ابزارهای مشترک. مسیر تشخیص تک‌ابزاری و executor محدود فعلی پایه‌اند؛ دامنه دائمی محصول نیستند. جدول زیر مقصد معماری است؛ برش پیاده‌شده بالا و قابلیت‌های باز در TASKS مرجع وضعیت جاری‌اند.
 
 ساختار پیشنهادی بر همان Next.js/TypeScript/SQLite:
 
@@ -16,18 +26,19 @@
 | persistence و events | run/message/step/job/event، CAS و recovery | migration جدید append-only؛ تاریخچه و action journal موجود مرجع بماند |
 | MCP facade | همان registry و scope/approval از میزبان خارجی | transport جدید؛ نه موتور و اجازه مستقل |
 
-APIهای زیر **طرح داخلی** هستند و فرمان/route موجود محسوب نمی‌شوند؛ Agent پیاده‌ساز نام نهایی را با convention موجود تطبیق دهد:
+APIهای برش جاری در جدول زیر پیاده‌اند؛ مسیر مستقل SSE یا plan/provision API هنوز نداریم:
 
-| مسیر پیشنهادی | قرارداد |
+| مسیر جاری | قرارداد |
 | --- | --- |
 | POST /api/agent/runs | ایجاد مأموریت با goal، project reference و request idempotency key |
-| GET /api/agent/runs/{id} | بازیابی context/plan/result همان actor؛ بدون مصرف مدل یا اجرای مجدد |
-| POST /api/agent/runs/{id}/messages | پاسخ/اصلاح هدف با expected revision؛ client نقش system/tool تعیین نمی‌کند |
-| GET /api/agent/runs/{id}/events | replay ترتیبی بعد از cursor؛ SSE یا polling با قرارداد روشن، بدون progress نمایشی |
-| POST /api/agent/runs/{id}/decision | تصمیم روی plan revision و approval واقعی؛ اتصال به actionهای فعلی |
-| POST /api/agent/runs/{id}/cancel | توقف محلی/انتظار و ثبت آثار احتمالی؛ نه ادعای undo upstream |
+| GET /api/agent/runs | آخرین run همان actor؛ بدون اجرای مدل یا ابزار |
+| GET /api/agent/runs/{id} | بازیابی state/events/repair همان actor؛ بدون مصرف مدل یا اجرای مجدد |
+| GET /api/agent/runs/{id}?after=N | state کامل و eventهای بعد از cursor برای replay؛ polling، بدون progress نمایشی |
+| POST /api/agent/runs/{id}؛ operation=message | پاسخ با revision/requestKey/message؛ client نقش system/tool تعیین نمی‌کند |
+| POST /api/agent/runs/{id}؛ operation=repair-decision | تصمیم approve/reject با revision و jobId روی scope پایدار؛ این تصمیم انتشار نیست |
+| POST /api/agent/runs/{id}؛ operation=cancel | توقف محلی/انتظار و ثبت آثار احتمالی؛ نه ادعای undo upstream |
 
-CodeRepairJob، plan approval و WorkloadContract آینده در سند مرکزی تعریف شده‌اند. برای ساخت app تازه، selectors تأییدشده و ID برگشتی باید در journal به مراحل بعد متصل شوند؛ allowlist صرف نام، مجوز برنامه تازه هم‌نام نیست. برای نتیجه عمومی HTML/API، spec جدید افزوده شود؛ انتظار JSON/revision و canonicalizationهای v1 تا v6 تاریخی بازنویسی نشوند.
+CodeRepairJob محدودِ پیاده‌شده، و plan approval و WorkloadContract آینده در سند مرکزی تعریف شده‌اند. برای ساخت app تازه، selectors تأییدشده و ID برگشتی باید در journal به مراحل بعد متصل شوند؛ allowlist صرف نام، مجوز برنامه تازه هم‌نام نیست. برای نتیجه عمومی HTML/API، spec جدید افزوده شود؛ انتظار JSON/revision و canonicalizationهای v1 تا v6 تاریخی بازنویسی نشوند.
 
 رویدادهای UI و context مدل از یک منبع پایدار می‌آیند ولی داده یکسان ندارند: UI خلاصه قابل فهم، مدل context حداقلی sanitized و audit receipt فنی دریافت می‌کند. server سیاست و هزینه/مجوز را کنترل می‌کند. budget مأموریت جدید از سقف feature قدیمی تشخیص جداست و مجموع مدل، retry، tool، worker و انتظار را حساب می‌کند.
 
@@ -77,7 +88,7 @@ refresh هویت داخلی app را نیز بررسی می‌کند: app جدی
 | --- | --- | --- | --- |
 | D1 | Next.js App Router + React + TypeScript؛ Node 24.x؛ یک package | UI و API کنار هم، اشتراک قرارداد و کاهش سرویس‌های deploy | فقط Node runtime برای adapter/storage؛ ارتقای major خودسرانه ممنوع |
 | D2 | اجرای operator-local و یک scope در MVP | دسترسی به پروژه کاربر و کاهش پیچیدگی auth/cloud upload | loopback کافی برای مجوز نیست؛ session/Origin/CSRF قبل از write؛ public SaaS نیازمند طراحی جدا |
-| D3 | هدف جدید: یک Agent اصلی با registry typed و CodeRepair adapter تخصصی | انتخاب مسیر استقرار/تحقیق از نتایج واقعی ابزار؛ reuse workflowهای قطعی اجرا | planned در agent-experience؛ MCP همان policy را مصرف می‌کند؛ runtime قبلی تا migration سازگار می‌ماند |
+| D3 | یک Agent اصلی با registry typed و CodeRepair adapter تخصصی | انتخاب ابزار از نتایج واقعی و reuse workflowهای قطعی؛ علت worker محدود در [ADR 0001](docs/decisions/0001-scoped-repair-worker.md) | برش read/repair پیاده و محدود سنجیده شد؛ plan کامل و MCP باز؛ diagnosis قبلی حفظ می‌شود |
 | D4 | HTTP adapter مستقیم مبتنی بر OpenAPI؛ CLI رسمی فقط fallback مستند | کنترل timeout/خطا/آرگومان و تست قرارداد آسان‌تر | source archive/release protocol و team scope پیش از اولین write، live بررسی شود؛ endpoint نمونه غیررسمی مرجع نهایی نیست |
 | D5 | SQLite با `node:sqlite`، implemented_offline | approval و اثر نامطمئن باید restart را تحمل کند؛ DB service اضافی لازم نیست | migration/checksum، race و recovery روی Node 24.18 تست شده؛ فقط یک process؛ [ADR](docs/decisions/0001-local-workflow.md) |
 | D6 | BoxAPI؛ transport مستقیم chat-completions، بدون SDK تازه | provider با دستور مالک مشخص است؛ کنترل مقصد و بودجه ساده می‌ماند | gpt-6-luna/none یک tool/result/terminal واقعی را گذرانده؛ کیفیت diagnosis همچنان به oracle مستقل وابسته است |

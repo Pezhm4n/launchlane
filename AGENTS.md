@@ -9,11 +9,12 @@ Read this file first. Then read [project-overview.md](project-overview.md), [the
 - Product name: **Launchlane**. Keep product UI and package names consistent.
 - Approved restart requests use ActionSpec v6 and a separate durable journal. The transport, same-page readback and UI are contract-tested. A separate bounded live cycle verified one explicit-Node-22 v5 deployment and one accepted restart request; the controlled /orders page remained 500 and the action correctly failed its page check. Restart completion is still unverified. See docs/evidence/restart-live-cycle.md.
 - Product acceptance is defined in `docs/acceptance.md`. Treat planned architecture as a proposal until implemented and verified.
+- The default web tab is now the project assistant. Durable multi-tool runs and a gated scoped Node repair worker have bounded real-model evidence; the tested artifact can be selected without replacing original source. Agent-led publication, provisioning/env, general workload contracts and MCP remain open. Read `docs/evidence/agent-first-slice.md` and ADR 0001 before extending this slice.
 
 ## Active development mission: deployment and maintenance agent
 
 - The next product is an in-app agent that accepts deployment, update and maintenance goals, selects typed tools from their actual results, and verifies the requested outcome. A conversational facade over a fixed sequence or a renamed diagnosis button does not satisfy this mission.
-- docs/agent-experience.md, AC17–AC34 and A00–A19 define the new plan. They are specifications, not implemented capabilities. Reconcile every task with current source/tests before editing; preserve the existing deployment, evidence and approval services.
+- docs/agent-experience.md, AC17–AC34 and A00–A19 define the plan. A01 is reconciled; the first A02/A03/A06 slice is implemented with explicit partial acceptance. Reconcile every task with current source/tests before editing; preserve the existing deployment, evidence and approval services.
 - Executable code repair is part of the core goal: dispatch a scoped job, receive patch/test artifacts, obtain the applicable deployment approval, publish the exact artifact and recheck the original behavior. A downloadable Markdown handoff remains useful but does not complete this capability.
 - Build the web experience first and expose the same tool/application registry through MCP; do not maintain a second policy or execution engine. A specialized coding worker is justified by its code-edit/test responsibility; use the connector contract and verify its actual runtime.
 - The existing one-evidence-tool diagnosis and its two-request live allowance remain historical/feature-specific contracts. Do not silently impose them on all new agent goals or retroactively expand old live permissions. Configure an appropriate aggregate run budget for model/tools/retries/polling; make progress without repetitive user approvals for reads.
@@ -37,7 +38,7 @@ Run from the repository root with Node **24.15+ within 24.x** and npm. Dependenc
 | Bootstrap smoke | `npm test` | Requires the running dev/production server; loopback only |
 | Domain regressions | `npm run test:domain` | Node native test runner; temporary SQLite/filesystem and synthetic transports; no server/provider required |
 | HTTP boundary | `npm run test:http` | Requires a successful build; starts an isolated production server with synthetic scope and empty provider keys |
-| Browser flow | `npm run test:browser` | Requires a successful build and Playwright Chromium; starts an isolated production server; no real account |
+| Browser flow | `npm run test:browser` | Requires build and Playwright Chromium; five isolated suites for workbench/deployment/restart/domain/agent; model transport synthetic, repair Node tests actual; no real account |
 | Local operator setup | `npm run setup:local` | Preserves existing config; writes ignored operator access locally; prints no token |
 | GitHub login tool setup | `npm run setup:github` | Windows x64; checksum-verified official CLI 2.103.0 in ignored local tools; no account grant or global PATH change |
 | Model compatibility smoke | `npm run smoke:model -- --live` | Opt-in, consumes BoxAPI credit, maximum two requests; synthetic evidence through real transport; never part of automatic checks |

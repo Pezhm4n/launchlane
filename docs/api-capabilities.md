@@ -15,7 +15,7 @@
 
 registry ابزار Agent، قرارداد داخلی host است؛ مدل path/host دلخواه Liara تولید نمی‌کند. عملیات واقعی از adapter معتبر با schema و scope عبور می‌کنند. وب‌اپ و MCP، application و policy یکسان را مصرف می‌کنند.
 
-transport مدل فعلی، ابزار تک‌منظوره evidence دارد. runtime مأموریت آینده به schemaهای چندابزاری و tool-result typed نیاز دارد؛ این تغییر باید با مدل واقعی منتخب و سناریوی انتخاب ابزار تطبیق داده شود، نه صرفاً بازترکردن parser قدیمی. replay UI یا reconnect مدل را دوباره فراخوانی نکند. فرمان smoke فعلی همان آزمون محدود خود باقی می‌ماند؛ runner ارزیابی Agent پس از ساخته‌شدن مستند شود.
+transport تشخیص تاریخی، ابزار تک‌منظوره evidence را حفظ می‌کند. runtime جدید Agent، registry چندابزاری و tool-result مطابق call ID دارد و با مدل واقعی منتخب در یک مسیر read و اصلاح محدود Node آزموده شده است؛ [گزارش Agent](evidence/agent-first-slice.md) حدود آن را ثبت می‌کند. parser و سقف feature قدیمی باز نشده‌اند. replay UI یا reconnect مدل را دوباره فراخوانی نمی‌کند. فرمان smoke فعلی همان آزمون محدود است؛ `test:browser` اکنون runner مجزای Agent با مدل مصنوعی و آزمون واقعی Node نیز دارد.
 
 برای بررسی عمومی HTML/API، WorkloadContract جدید اضافه شود. شکل receipt، parser و انتظار JSON/revision مسیرهای تاریخی بازنویسی نشوند. command، env key یا endpointی که هنوز implementation ندارد، در راهنمای اجرای جاری قرار نگیرد.
 
