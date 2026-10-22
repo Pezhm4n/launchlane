@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="fa" dir="rtl">
+    <html lang="fa" dir="rtl" className="rtl-enabled">
       <body>
         <a className="skip-link" href="#main-content">
           رفتن به محتوای اصلی
