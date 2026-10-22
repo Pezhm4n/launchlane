@@ -4,6 +4,12 @@
 
 ## رفع ورود پس از HMR و یکسانی RTL؛ پایه 429db8c
 
+اصلاح runtime/RTL در `ff8c11a`، رابط و regressionهای همان برش روی آن ثبت می‌شوند. domain تازه159/159، HTTP18/18، typecheck، lint بدون warning و production build pass شدند. `node scripts/test-browser.mjs` روی سرور/DB ایزوله با providerهای خالی و gateهای خاموش، 75 حالت در12عرض قبلی را گذراند؛ marker RTL در document-start افزوده شد و errorهای hydration کنسول نیز علاوه بر pageerror بررسی شدند. صفر overflow/axe/error/external در حالت‌های سنجیده‌شده ثبت شد؛ artifact `.artifacts/ux/2026-10-22T04-18-16-306Z/`. دکمه تحلیل خاموش و علت آن نیز assertion دارند. این آزمون، افزونه واقعی مرورگر کاربر را شناسایی یا تمام رفتار آن را تأیید نمی‌کند.
+
+مرور دستی نصب اصلی، ورود با کلید ذخیره‌شده بدون نمایش آن، بازیابی پروژه و گزارش تاریخی و وضعیت غیرفعال دستیار را طی کرد؛ تصویر `.artifacts/runtime-repair/assistant-status.png` مشاهده شد. هیچ تحلیل هزینه‌دار، اتصال دوباره حساب یا درخواست خارجی از این مرور اجرا نشد. backup و DB خصوصی Git-excluded باقی ماندند.
+
+مرورگر restart نیز روی همین برش، 27 حالت در8عرض با صفر pageerror/external گذشت: `.artifacts/restart-ui/2026-10-22T04-21-15.176Z/`. پس از این run فقط شرط تکراری نمایش دکمه به متغیر محلی منتقل و JSX خواناتر شد؛ شرط و متن/دسترسی تغییر نکردند.
+
 روی dev نصب اصلی، با کلید صحیح، POST `/api/session` پاسخ 200 داد ولی GETهای workspace/project-flows/incidents پاسخ 503/INTERNAL_UNAVAILABLE دادند. بررسی readOnly نشان داد schema نصب اصلی تا 6 است و `restart_progress` وجود ندارد؛ source جدید در readهای action از آن استفاده می‌کند. runtime سراسری، Store پیش از تغییر را بدون بررسی نسخه بازاستفاده می‌کرد و migration سازنده دوباره اجرا نمی‌شد. این شاهد اشکال سرور پس از ورود است، نه کلید اشتباه.
 
 runtime اکنون کلید پایدار محاسبه‌شده از migrationها را بین route bundleها بررسی می‌کند؛ cache قدیمی یا تغییر stateDir خطای `RUNTIME_RESTART_REQUIRED` با راه بازیابی می‌دهد. HMR نه DB را مخفیانه باز می‌کند و نه recovery را دوباره اجرا می‌کند. config تازه روی اتصال معتبر مصرف می‌شود تا gate خاموش با config قدیمی فعال نماند. تست SQLite موقت، ارتقای واقعی v6 به v7، حفظ نشست/checksumها، cache قدیمی/بدون stamp، تغییر مسیر و صفر اجرای مجدد recovery را می‌سنجد. تغییر قرارداد Store بدون migration نیز همچنان نیازمند restart سرور توسعه است.

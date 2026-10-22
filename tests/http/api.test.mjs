@@ -28,6 +28,13 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
     return payload;
   }
   try {
+    await t.test("the Persian root renders the same RTL marker expected during hydration", async () => {
+      const response = await request("/");
+      assert.equal(response.status, 200);
+      const html = await response.text();
+      assert.match(html, /<html[^>]*lang="fa"[^>]*dir="rtl"[^>]*class="rtl-enabled"/);
+      assert.ok(!html.includes("suppressHydrationWarning"));
+    });
     await t.test(
       "privileged reads require a session; host and cross-origin are rejected",
       async () => {

@@ -85,6 +85,9 @@ export function IncidentWorkbench({
       current?.evidence.scope.teamId === connection?.teamId);
   const canRead = scopeReady && workspace.features.serviceReads && Boolean(sameApp),
     blocked = disabled || busy !== null || loading || restartBusy;
+  const analysisBlockedReason = !sameApp
+    ? "برای توضیح این بررسی، همان حساب و برنامه را انتخاب کنید؛ شواهد ثبت‌شده حفظ می‌شوند."
+    : `${workspace.capabilities.model.reason} فعال‌کردن این قابلیت به تنظیمات مسئول نصب نیاز دارد؛ شواهد ثبت‌شده حفظ می‌شوند.`;
   const accept = useCallback((run: IncidentRun | null, requestedKind: "live" | "sample") => {
     if (run?.kind === "sample") setSample(run);
     else if (run) {
@@ -292,8 +295,20 @@ export function IncidentWorkbench({
           <h2 id="incident-title" tabIndex={-1} ref={title}>
             {kind === "sample" ? "آشنایی با یک نمونه" : "مشکل سایت را از کجا بررسی کنیم؟"}
           </h2>
-          {kind === "sample" ? <span className="badge badge-warning">حالت آزمایشی</span> : null}
+          {kind === "sample" ? (
+            <span className="badge badge-warning">حالت آزمایشی</span>
+          ) : (
+            <span className="badge badge-quiet">
+              {workspace.features.analysis ? "توضیح هوشمند قابل درخواست" : "توضیح هوشمند غیرفعال"}
+            </span>
+          )}
         </div>
+        {kind === "live" ? (
+          <p className="hint">
+            دستیار هوشمند پس از جمع‌آوری اطلاعات همین سایت، علت احتمالی را با شواهد توضیح می‌دهد؛ تغییر حساس فقط با تأیید جداگانه شما اجرا می‌شود.{" "}
+            {workspace.features.analysis ? "ابتدا برنامه و مشکل را مشخص کنید." : workspace.capabilities.model.reason}
+          </p>
+        ) : null}
         {kind === "sample" ? (
           <>
             <p>
@@ -554,6 +569,7 @@ export function IncidentWorkbench({
             busy={blocked}
             canRead={canRead}
             canAnalyze={Boolean(sameApp && workspace.features.analysis)}
+            analysisBlockedReason={analysisBlockedReason}
             onAnalyze={() => void job("analyze", { id: current.id })}
             onRecheck={() => void job("recheck", { id: current.id })}
             onCompare={(choice) => void job("compare", { id: current.id, choice })}

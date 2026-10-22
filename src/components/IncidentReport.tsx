@@ -19,6 +19,7 @@ export function IncidentReport({
   busy,
   canRead,
   canAnalyze,
+  analysisBlockedReason,
   onRecheck,
   onAnalyze,
   onCompare,
@@ -30,6 +31,7 @@ export function IncidentReport({
   busy: boolean;
   canRead: boolean;
   canAnalyze: boolean;
+  analysisBlockedReason: string;
   onRecheck: () => void;
   onAnalyze: () => void;
   onCompare: (choice: "related" | "unrelated") => void;
@@ -54,6 +56,7 @@ export function IncidentReport({
   const comparison = hasAfter
     ? run.symptom === "slow" ? compareLatency(run.evidence, latest) : verifySameSymptom(run.evidence, latest)
     : null;
+  const showAnalysisAction = !hasAfter && (run.analysis === "ready" || run.analysis === "unavailable");
   const observed =
     run.symptom === "slow" && !(fact?.kind === "http" && (fact.status < 200 || fact.status >= 300))
       ? summarizeLatency(latest).reason
@@ -226,11 +229,14 @@ export function IncidentReport({
       ) : (
         <>
           <div className="button-row">
-            {canAnalyze &&
-            !hasAfter &&
-            (run.analysis === "ready" || run.analysis === "unavailable") ? (
-              <button type="button" disabled={busy} onClick={onAnalyze}>
-                توضیح علت با شواهد این بررسی
+            {showAnalysisAction ? (
+              <button
+                type="button"
+                disabled={busy || !canAnalyze}
+                onClick={onAnalyze}
+                aria-describedby={!canAnalyze ? "incident-analysis-help" : undefined}
+              >
+                توضیح علت با هوش مصنوعی
               </button>
             ) : null}
             <button
@@ -253,6 +259,9 @@ export function IncidentReport({
               </button>
             ) : null}
           </div>
+          {!canAnalyze && showAnalysisAction ? (
+            <p id="incident-analysis-help" className="hint">{analysisBlockedReason}</p>
+          ) : null}
           <p id="recheck-help" className="hint">
             {canRead
               ? "بررسی دوباره فقط اطلاعات را می‌خواند؛ هیچ اصلاحی اجرا نمی‌کند."

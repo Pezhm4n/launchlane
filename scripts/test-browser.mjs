@@ -21,7 +21,23 @@ const errors = [],
   external = [],
   results = [],
   providerFixtures = [];
-context.on("page", (page) => page.on("pageerror", (error) => errors.push(error.message)));
+context.on("page", (page) => {
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error" && /hydration|hydrated|server rendered HTML/i.test(message.text())) errors.push(message.text());
+  });
+});
+// Model the reported RTL marker being added before hydration, without suppressing React diagnostics.
+await context.addInitScript(() => {
+  const mark = () => {
+    if (!document.documentElement) return;
+    document.documentElement.classList.add("rtl-enabled");
+    observer.disconnect();
+  };
+  const observer = new MutationObserver(mark);
+  observer.observe(document, { childList: true, subtree: true });
+  mark();
+});
 await context.route("**/*", (route) => {
   if (new URL(route.request().url()).origin !== server.origin) {
     external.push(new URL(route.request().url()).host);
@@ -582,7 +598,8 @@ try {
   await liveReport.waitFor();
   await liveReport.getByText("صفحه بررسی‌شده خطای سرور 500 داد.", { exact: true }).waitFor();
   assert.equal(await liveReport.getByText("از حساب متصل", { exact: true }).isVisible(), true);
-  assert.equal(await liveReport.getByRole("button", { name: /توضیح علت با شواهد/ }).count(), 0);
+  assert.equal(await liveReport.getByRole("button", { name: "توضیح علت با هوش مصنوعی", exact: true }).isEnabled(), false);
+  await liveReport.getByText(/فعال‌کردن این قابلیت به تنظیمات مسئول نصب نیاز دارد/).waitFor();
   const liveId = new URL(page.url()).searchParams.get("incident");
   incidentStatus = 200;
   await liveReport.getByRole("button", { name: "بررسی دوباره همین صفحه", exact: true }).click();
