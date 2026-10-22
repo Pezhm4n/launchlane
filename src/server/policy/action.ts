@@ -9,7 +9,7 @@ import {
   string,
 } from "../../contracts/validation.ts";
 import { ensure } from "../errors.ts";
-import { parseWorkloadExpectation } from "../../contracts/deployment.ts";
+import { parseWorkloadExpectation, parseWorkloadTarget } from "../../contracts/deployment.ts";
 import { parseNodeVersion } from "../../contracts/node-runtime.ts";
 
 export function canonical(value: unknown): string {
@@ -44,9 +44,10 @@ export function parseActionSpec(value: unknown): ActionSpec {
     ...(input.version === 3 || input.version === 4 || input.version === 5 ? ["projectFlowId", "selectionHash"] : []),
     ...(input.version === 4 || input.version === 5 ? ["targetAppId", "workload"] : []),
     ...(input.version === 5 ? ["nodeVersion"] : []),
+    ...(input.version === 6 ? ["accountId", "targetAppId", "targetPlanId", "targetReleaseId", "incidentRunId", "evidenceHash", "target"] : []),
   ]);
   ensure(
-    (input.version === 1 || input.version === 2 || input.version === 3 || input.version === 4 || input.version === 5) &&
+    (input.version === 1 || input.version === 2 || input.version === 3 || input.version === 4 || input.version === 5 || input.version === 6) &&
       (input.operation === "deploy" || input.operation === "restart"),
     "INVALID_OPERATION",
     "عملیات پشتیبانی نمی‌شود.",
@@ -78,6 +79,19 @@ export function parseActionSpec(value: unknown): ActionSpec {
     sourceHash,
     args: { port, planId },
   };
+  if (input.version === 6) {
+    ensure(input.operation === "restart", "INVALID_OPERATION", "این پیشنهاد فقط برای راه‌اندازی دوباره است.");
+    const incidentRunId = string(input.incidentRunId, 36);
+    ensure(/^[a-f0-9-]{36}$/.test(incidentRunId), "INVALID_INPUT", "شناسه بررسی معتبر نیست.");
+    return {
+      ...common, version: 6, operation: "restart", sourceHash: null, args: { port: null, planId: null },
+      accountId: string(input.accountId, 128),
+      targetAppId: string(input.targetAppId, 128),
+      targetPlanId: string(input.targetPlanId, 128),
+      targetReleaseId: string(input.targetReleaseId, 128),
+      incidentRunId, evidenceHash: hash(input.evidenceHash), target: parseWorkloadTarget(input.target),
+    };
+  }
   if (input.version === 1) return { ...common, version: 1 };
   const artifactHash = input.artifactHash === null ? null : hash(input.artifactHash);
   if (input.version === 3 || input.version === 4 || input.version === 5) {

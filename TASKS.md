@@ -4,6 +4,12 @@
 
 ## وضعیت فعال
 
+### T23 — راه‌اندازی دوباره با تأیید و بازخوانی؛ in_progress_contract
+
+پایه `12805b8`؛ AC04/06/13/14/16. بازتولید: operation قدیمی restart در policy و آزمون state وجود دارد، ولی route اجرا فقط به deployment و رسید release متصل است؛ adapter و مسیر عادی رابط برای restart وجود ندارند. قرارداد OpenAPI و CLI رسمی 9.4.7 فقط پذیرش درخواست را مشخص می‌کنند و شناسه/شاهد پایان restart ندارند. پذیرش این برش: پیشنهاد مستقل متصل به actor/account/team/app داخلی، نسخه فعلی و همان بررسی مشکل؛ تأیید اتمیک و attempt پایدار پیش از یک POST بدون retry؛ لغو/timeout/پاسخ گم‌شده به uncertain و بدون replay؛ بازخوانی همان صفحه و نسخه با حفاظت SSRF و تفکیک «درخواست پذیرفته شد»، «صفحه پاسخ می‌دهد» و «پایان restart اثبات نشده». پاسخ 2xx سایت جای شاهد پایان restart نیست. تغییر حساب/برنامه/نسخه/بررسی، تأیید قبلی را باطل کند؛ نتیجه و اقدام بعد پس از reload حفظ شوند. آزمون‌های transport/SQLite/HTTP/browser ایزوله و responsive لازم‌اند. اسکیل مؤثر: competition-agent-engineer؛ برای رابط ux-ui-agent-skills و قواعد React/دسترس‌پذیری به‌صورت هدفمند استفاده می‌شوند. سهم سه release و آزمون زنده قبلی مصرف شده است؛ این برش هیچ درخواست واقعی provider یا هزینه تازه ندارد و پذیرش زنده restart باز می‌ماند.
+
+قرارداد server، route، transport بدون retry و journal مستقل پیاده شدند؛ hash/canonicalization v1–5 محفوظ‌اند. lint/typecheck/build pass؛ domain تازه 131/131 و HTTP تازه 16/16. آزمون‌ها provider مصنوعی، SQLite واقعی موقت و server production ایزوله دارند؛ UI هنوز به این operation متصل نشده و مرحله بعد همین تسک است. محدودیت پذیرش/پایان در ADR 0003 ثبت شد؛ نه release تازه‌ای ایجاد و نه مجوز واقعی بیشتری مصرف شد.
+
 ### UX67 — خوانایی پیشنهاد در تبلت؛ implemented_local
 
 پایه `69f1705`؛ AC14. در مرور واقعی با نمونه ثابت، عرض 768/client=753، ستون اصلی فقط 409.22px و کارت پیشنهاد تأییدشده 1158.61px ارتفاع داشت؛ پایین ستون کمکی فضای خالی می‌ماند. پذیرش: ستون اصلی در تبلت عرض در دسترس را بگیرد، چیدمان دسکتاپ حفظ شود، keyboard/focus و داده/اقدام تغییر نکنند؛ 360/768/1280 و مرز 959/960، متن 200٪ و سناریوهای قبلی بررسی شوند. تغییر محدود به breakpoint میز انتشار است؛ ورود و گزارش اختلال بازطراحی نمی‌شوند. اسکیل‌های مؤثر: frontend-design، ux-ui-agent-skills و web-design-guidelines؛ پالت و توکن‌های موجود حفظ می‌شوند.
@@ -120,7 +126,7 @@ P0 و مسیر مستقل P1 پیاده‌اند؛ بخش محدود P2/P3 زن�
 | T24 | smoke مدل/SDK و بودجه مستقل از اتصال Liara | دسترسی و budget مدل،T11 | AC09,13؛ tool protocol/schema، خروجی structured، terminal/error و مصرف واقعی؛ بدون fixture به‌جای live | compatibility_verified برای gpt-6-luna/none؛ سنجش diagnosis واقعی جدا در T31 ثبت شد؛ قطع واقعی پردازش provider پس از cancel تأیید نشده است |
 | T21 | انتخاب روش/پلن با منبع/قیمت فعلی و تأیید action | T12,T13,T20 | AC03,04؛ unknown price/budget سؤال/راهنمایی؛ تغییر args/source نیازمند consent تازه | partial؛ پلن موجود در approval بسته؛ نسخه Node با پیشنهاد v5 و platformConfig.version صریح، contract-tested است؛ قیمت/انتخاب پلن در محصول unknown و runtime/patch واقعی نسخه‌های دیگر unverified است |
 | T22 | upload source→release→observe→health روی app آزمایشی مجاز | T14,T21 | AC05؛ release واقعی و پاسخ workload؛ build fail/timeout/pending و unsafe path | live_verified_bounded روی v4؛ سه release روی Node 22، رسید/READY/current و status/revision دقیق بررسی شدند؛ v5 با Node صریح فعلاً contract-tested است؛ شاهد پشتیبانی همه پروژه‌ها نیست |
-| T23 | انتشار نسخه بعدی و restart کنترل‌شده | T22 | AC06؛ release قبل/بعد، deny و عدم اثر روی app دیگر؛ readback | partial_live؛ نسخه‌های بعدی نامرتبط و اصلاح‌شده با approval تازه منتشر و مقایسه شدند؛ restart transport/live هنوز انجام نشده است |
+| T23 | انتشار نسخه بعدی و restart کنترل‌شده | T22 | AC06؛ release قبل/بعد، deny و عدم اثر روی app دیگر؛ readback | partial_live؛ نسخه‌های بعدی با approval تازه زنده مقایسه شدند؛ server/transport/journal restart قراردادی آزموده‌اند؛ UI در حال اتصال و live/completion restart باز است |
 | T25 | راهنمای دامنه و تفکیک API از registrar | T22 | AC07؛ مسیر واقعی با منبع معتبر و کار بیرون دسترسی مشخص؛ بدون ادعای اجرای DNS انجام‌نشده | not_started |
 
 T20 و T24 مستقل‌اند؛ نبود مدل نباید مشاهده/آزمون provider را متوقف کند. T25 توسعه P1 است و شرط پذیرش هسته نیست. اگر endpoint یا schema با سند اختلاف داشت، ابتدا مرز adapter اصلاح و regression با پاسخ واقعی اضافه شود. شکست archive/deploy با افزودن framework/پایگاه‌داده جدید حل نمی‌شود مگر bottleneck اثبات شود.

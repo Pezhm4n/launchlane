@@ -12,7 +12,8 @@ import { ensure } from "../server/errors.ts";
 import { hash, integer, object, string } from "./validation.ts";
 import { parseArtifact } from "./source.ts";
 import { parseConnection } from "./connections.ts";
-import { parseWorkloadExpectation, parseDeploymentProgress } from "./deployment.ts";
+import { parseWorkloadExpectation, parseWorkloadTarget, parseDeploymentProgress } from "./deployment.ts";
+import { parseRestartProgress } from "./restart.ts";
 import { parseNodeRuntime, parseNodeVersion } from "./node-runtime.ts";
 
 function nullableString(value: unknown, max = 256): string | null {
@@ -58,7 +59,7 @@ export function decodeAction(value: unknown): Action {
   const state = states.find((state) => state === raw.state);
   ensure(
     state &&
-      (spec.version === 1 || spec.version === 2 || spec.version === 3 || spec.version === 4 || spec.version === 5) &&
+      (spec.version === 1 || spec.version === 2 || spec.version === 3 || spec.version === 4 || spec.version === 5 || spec.version === 6) &&
       (spec.operation === "deploy" || spec.operation === "restart"),
     "INVALID_RESPONSE",
     "ساختار اقدام معتبر نیست.",
@@ -73,7 +74,18 @@ export function decodeAction(value: unknown): Action {
     },
   };
   let parsedSpec: ActionSpec;
-  if (spec.version === 1) parsedSpec = { ...common, version: 1 };
+  if (spec.version === 6) {
+    ensure(spec.operation === "restart" && common.sourceHash === null && common.args.port === null && common.args.planId === null,
+      "INVALID_RESPONSE", "ساختار پیشنهاد راه‌اندازی دوباره معتبر نیست.");
+    parsedSpec = {
+      ...common, version: 6, operation: "restart", sourceHash: null, args: { port: null, planId: null },
+      accountId: string(spec.accountId, 128), targetAppId: string(spec.targetAppId, 128),
+      targetPlanId: string(spec.targetPlanId, 128), targetReleaseId: string(spec.targetReleaseId, 128),
+      incidentRunId: string(spec.incidentRunId, 36), evidenceHash: hash(spec.evidenceHash),
+      target: parseWorkloadTarget(spec.target),
+    };
+  }
+  else if (spec.version === 1) parsedSpec = { ...common, version: 1 };
   else if (spec.version === 4 || spec.version === 5) {
     const deployment = {
       ...common,
@@ -105,6 +117,7 @@ export function decodeAction(value: unknown): Action {
     ...(raw.deployment === undefined
       ? {}
       : { deployment: parseDeploymentProgress(raw.deployment) }),
+    ...(raw.restart === undefined ? {} : { restart: parseRestartProgress(raw.restart) }),
   };
 }
 export function decodeArtifact(value: unknown): SourceArtifact {

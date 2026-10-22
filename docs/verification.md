@@ -2,6 +2,14 @@
 
 شواهد جاری ابتدا و سابقه مراحل پیشین پایین‌تر ثبت شده‌اند. هر نتیجه به revision و شرایط خودش تعلق دارد؛ نتایج bootstrap جای قابلیت محصول و fixture جای اتصال زنده نیست.
 
+## T23 — قرارداد restart؛ پایه 12805b8 و تغییرات همین برش
+
+AC04/06/13/16؛ Node 24.18.0. ActionSpec v6 و migration append-only شماره 7، هویت حساب/برنامه، پلن، نسخه جاری و شاهد تازه همان صفحه را به approval متصل می‌کنند. یک POST پس از claim و journal پایدار انجام می‌شود؛ HTTP 200 خالی پذیرش است و release ID ساخته نمی‌شود. پذیرش و پاسخ همان صفحه جدا ثبت می‌شوند؛ پایان واقعی restart همچنان اثبات نشده است. تصمیم در ADR 0003 است.
+
+`npm run lint` (122 فایل)، `npm run typecheck` و `npm run build` pass؛ `npm run test:domain` تازه 131/131 و `npm run test:http` تازه 16/16، بدون fail/skip/cancel. 42 آزمون و زیرآزمون اختصاصی restart، deny/expiry/session/actor، دوبارکلیک، تغییر account/app/plan/release/origin/evidence، بودجه/لغو، 401/409/429/503، پاسخ گم‌شده، transport بی‌واکنش به abort، recovery پیش/پس از شروع درخواست، readback قدیمیِ هم‌زمان و fail-closed claim را پوشش می‌دهند. upgrade از migration 6 در SQLite موقت، checksumهای 1–6 و hash اقدام تاریخی را حفظ کرد. نخستین اجرای آزمون به syntax پارامتر property ناسازگار با strip-only بومی Node برخورد؛ constructor با field صریح اصلاح و مجموعه‌های تازه بالا اجرا شدند. oracle تضعیف نشد.
+
+SQLite و HTTP server واقعی محلی‌اند؛ پاسخ‌های Liara و DNS/socket در domain مصنوعی‌اند. HTTP با کلیدهای provider خالی و gateهای خاموش، auth/CSRF/validation و بسته‌بودن مسیر را سنجید. UI این operation در برش بعد متصل و مرور می‌شود؛ این نتایج شاهد UI یا حساب واقعی نیستند. هیچ درخواست واقعی Liara/مدل، write زیرساختی یا مصرف اعتبار تازه انجام نشد. سه release سهم آزمون قبلی مصرف شده و app آن حذف شده است؛ live restart به مجوز و مقصد تازه نیاز دارد.
+
 ## UX67 — خوانایی تبلت؛ پایه 69f1705
 
 تغییر محصول فقط نقطه دو ستونی `.workbench-grid` از 768 به 960 است؛ ورود، چیدمان گزارش اختلال، توکن‌ها و منطق API/state دست‌نخورده‌اند. در دو production ایزوله، با همان نمونه/متن پیشنهاد تأییدشده، اندازه viewport=768×1000 و پس از `document.fonts.ready`، client/content در هر دو 753/753 بود. عرض ستون اصلی از 409.21875 به 689 و ارتفاع همان proposal از 1158.609375 به 911.671875 پیکسل تغییر کرد. در 959، client/content=944/944 و یک ستون 880px؛ در 960، client/content=945/945 و دو ستون 527.375/329.625px دیده شدند. تصاویر و داده قبل/بعد در `.artifacts/tablet-ux/` خصوصی‌اند. این‌ها اندازه هندسی‌اند و امتیاز UX یا تأیید WCAG نیستند.

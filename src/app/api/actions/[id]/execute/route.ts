@@ -1,5 +1,6 @@
 import { string } from "../../../../../contracts/validation.ts";
 import { executeDeployment } from "../../../../../server/application/deployment.ts";
+import { executeRestart } from "../../../../../server/application/restart.ts";
 import { endpoint, reply } from "../../../../../server/http.ts";
 
 export const runtime = "nodejs";
@@ -9,7 +10,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   return endpoint(request, true, async ({ config, store, session }) => {
     const id = string((await context.params).id, 36);
     return reply({
-      action: await executeDeployment(
+      action: await (store.getAction(id, session.actorId).spec.version === 6 ? executeRestart : executeDeployment)(
         config,
         store,
         session,

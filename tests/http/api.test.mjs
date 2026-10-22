@@ -36,6 +36,7 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
         await expects(await request("/api/connections/liara"), 401, "AUTH_REQUIRED");
         await expects(await request("/api/project-flows"), 401, "AUTH_REQUIRED");
         await expects(await request("/api/incidents/runs"), 401, "AUTH_REQUIRED");
+        await expects(await request("/api/actions/restart", { incidentRunId: "a".repeat(36) }), 401, "AUTH_REQUIRED");
         await expects(
           await request(`/api/actions/${"a".repeat(36)}/observe`, {}),
           401,
@@ -121,6 +122,17 @@ test("production HTTP boundary: authentication, scope, immutable source, decisio
         assert.equal(workspace.capabilities.model.state, "unavailable");
         assert.equal(workspace.capabilities.mutations.state, "unavailable");
         assert.ok(!JSON.stringify(workspace).includes(server.token));
+      },
+    );
+    await t.test(
+      "restart is authenticated, CSRF protected, narrowly validated and disabled without contacting a real account",
+      async () => {
+        await expects(await request("/api/actions/restart", { incidentRunId: "a".repeat(36) }, { "x-csrf-token": "forged" }), 403, "CSRF_DENIED");
+        await expects(await request("/api/actions/restart", { incidentRunId: "a".repeat(36), app: "unauthorized" }), 400, "INVALID_INPUT");
+        await expects(await request("/api/actions/restart", { incidentRunId: "a".repeat(36) }), 403, "MUTATIONS_DISABLED");
+        const workspace = await expects(await request("/api/workspace"), 200);
+        assert.equal(workspace.features.deployment, false);
+        assert.equal(workspace.actions.length, 0);
       },
     );
     await t.test(

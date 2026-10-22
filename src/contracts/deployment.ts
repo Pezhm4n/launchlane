@@ -8,9 +8,11 @@ export function isDeploymentSpec(spec: ActionSpec): spec is DeploymentSpec {
 }
 
 // This is a bounded GET oracle, never a model-supplied URL or executable expression.
-export type WorkloadExpectation = Readonly<{
+export type WorkloadTarget = Readonly<{
   origin: string;
   path: string;
+}>;
+export type WorkloadExpectation = WorkloadTarget & Readonly<{
   status: number;
   revision: string;
 }>;
@@ -52,9 +54,9 @@ export function sourceReceiptId(value: unknown): string {
   return result;
 }
 
-export function parseWorkloadExpectation(value: unknown): WorkloadExpectation {
+export function parseWorkloadTarget(value: unknown): WorkloadTarget {
   const row = object(value);
-  exactKeys(row, ["origin", "path", "status", "revision"]);
+  exactKeys(row, ["origin", "path"]);
   const origin = string(row.origin, 240),
     path = string(row.path, 200);
   let url: URL;
@@ -81,9 +83,14 @@ export function parseWorkloadExpectation(value: unknown): WorkloadExpectation {
     "مسیر بررسی نسخه باید بدون query یا تغییر مقصد باشد.",
     403,
   );
+  return { origin, path };
+}
+
+export function parseWorkloadExpectation(value: unknown): WorkloadExpectation {
+  const row = object(value);
+  exactKeys(row, ["origin", "path", "status", "revision"]);
   return {
-    origin,
-    path,
+    ...parseWorkloadTarget({ origin: row.origin, path: row.path }),
     status: integer(row.status, 200, 299),
     revision: string(row.revision, 128),
   };

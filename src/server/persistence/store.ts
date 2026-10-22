@@ -14,7 +14,13 @@ import { fingerprint, parseActionSpec } from "../policy/action.ts";
 import { migrations } from "./migrations.ts";
 import { parseProjectFlow, type ProjectFlow } from "../../contracts/project-flow.ts";
 import { parseIncidentRun, type IncidentRun } from "../../contracts/incident-run.ts";
+import { inWindow } from "../../contracts/incident.ts";
 import { parseProbeOrigins } from "../policy/probe-target.ts";
+import { restartEvidenceHash } from "../policy/restart.ts";
+import {
+  canReadRestartResult, parseRestartProgress, parseRestartObservation,
+  type RestartSpec, type RestartProgress, type RestartObservation,
+} from "../../contracts/restart.ts";
 import {
   parseDeploymentProgress,
   canReadDeploymentResult,
@@ -292,6 +298,34 @@ export class Store {
     );
   }
 
+  assertRestartAction(actorId: string, spec: RestartSpec, requireEvidence = true): void {
+    const connection = this.getConnection(actorId, "liara")?.view;
+    ensure(
+      connection?.status === "connected" && connection.identityId === spec.accountId &&
+        connection.teamId === spec.scope.teamId && connection.selectedApp === spec.scope.app &&
+        connection.apps.some((app) => app.name === spec.scope.app && app.id === spec.targetAppId),
+      "RESTART_TARGET_CHANGED", "حساب یا برنامه تغییر کرده است؛ همان مقصد را انتخاب و پیشنهاد تازه دریافت کنید.", 409,
+    );
+    if (requireEvidence) {
+      const run = this.getIncidentRun(actorId, spec.incidentRunId);
+      ensure(run?.kind === "live" && run.appId === spec.targetAppId &&
+        run.evidence.scope.teamId === spec.scope.teamId && run.evidence.scope.app === spec.scope.app &&
+        run.path === spec.target.path && restartEvidenceHash(run) === spec.evidenceHash,
+      "INCIDENT_CHANGED", "نتیجه بررسی مشکل تغییر کرده است؛ پیشنهاد تازه دریافت کنید.", 409);
+      const evidence = run.after ?? run.evidence;
+      ensure(Date.now() - evidence.collectedAt <= 900_000 && evidence.collectedAt <= Date.now() &&
+        evidence.entries.some((entry) => entry.state === "observed" && inWindow(entry, evidence) &&
+          entry.fact?.kind === "http" && entry.fact.origin === spec.target.origin &&
+          entry.fact.path === spec.target.path && entry.fact.status >= 400),
+      "RESTART_EVIDENCE_REQUIRED", "ابتدا خطای همین صفحه را دوباره بررسی کنید؛ شاهد تازه و مربوط لازم است.", 409);
+    }
+  }
+
+  private assertActionContext(actorId: string, spec: ActionSpec, existingId?: string): void {
+    if (spec.version === 6) this.assertRestartAction(actorId, spec);
+    else this.assertProjectAction(actorId, spec, existingId);
+  }
+
   saveIncidentRun(actorId: string, input: IncidentRun, expectedUpdatedAt?: number): IncidentRun {
     const run = parseIncidentRun(input);
     return this.transaction(() => {
@@ -521,7 +555,7 @@ export class Store {
     ensure(ttlMs > 0 && ttlMs <= 10 * 60_000, "INVALID_INPUT", "مهلت تأیید معتبر نیست.");
     return this.transaction(() => {
       this.ensureNoConflict(spec);
-      this.assertProjectAction(actorId, spec);
+      this.assertActionContext(actorId, spec);
       if (
         (spec.version === 2 || spec.version === 3 || spec.version === 4 || spec.version === 5) &&
         spec.operation === "deploy"
@@ -546,6 +580,9 @@ export class Store {
         remoteId: null,
         errorCode: null,
       };
+      if (spec.version === 6)
+        this.db.prepare("UPDATE actions SET state='cancelled' WHERE actor_id=? AND team_id=? AND app=? AND state IN ('awaiting_approval','approved') AND json_extract(spec,'$.version')=6")
+          .run(actorId, spec.scope.teamId, spec.scope.app);
       this.db
         .prepare(
           "INSERT INTO actions(id,actor_id,spec,hash,state,team_id,app,created_at,expires_at) VALUES (?,?,?,?,?,?,?,?,?)",
@@ -580,12 +617,12 @@ export class Store {
     const progress = this.db
       .prepare("SELECT data_json FROM deployment_progress WHERE action_id=?")
       .get(id);
-    return progress
-      ? {
-          ...action,
-          deployment: parseDeploymentProgress(JSON.parse(string(progress.data_json, 4096))),
-        }
-      : action;
+    const restart = this.db.prepare("SELECT data_json FROM restart_progress WHERE action_id=?").get(id);
+    return {
+      ...action,
+      ...(progress ? { deployment: parseDeploymentProgress(JSON.parse(string(progress.data_json, 4096))) } : {}),
+      ...(restart ? { restart: parseRestartProgress(JSON.parse(string(restart.data_json, 4096))) } : {}),
+    };
   }
 
   listActions(actorId: string, now = Date.now()): Action[] {
@@ -612,7 +649,7 @@ export class Store {
   ): Action {
     return this.transaction(() => {
       const action = this.getAction(id, actorId);
-      this.assertProjectAction(actorId, action.spec, id);
+      this.assertActionContext(actorId, action.spec, id);
       ensure(
         action.hash === expectedHash,
         "STALE_ACTION",
@@ -663,7 +700,7 @@ export class Store {
     return this.transaction(() => {
       const action = this.getAction(id, actorId);
       const row = this.db.prepare("SELECT approval_session_id FROM actions WHERE id=?").get(id);
-      this.assertProjectAction(actorId, action.spec, id);
+      this.assertActionContext(actorId, action.spec, id);
       ensure(
         action.state === "approved" && !action.attemptId,
         "ACTION_CONFLICT",
@@ -700,6 +737,8 @@ export class Store {
           sourceId: null,
           observation: null,
         });
+      if (action.spec.version === 6)
+        this.writeRestartProgress(id, { stage: "claimed", acceptedAt: null, observation: null });
       this.audit(action, "claimed", now);
       return this.getAction(id, actorId);
     });
@@ -708,6 +747,7 @@ export class Store {
   receipt(id: string, actorId: string, remoteId: string, now = Date.now()): Action {
     return this.transaction(() => {
       const action = this.getAction(id, actorId);
+      ensure(action.spec.version !== 6, "RESTART_RECEIPT_REQUIRED", "راه‌اندازی دوباره رسید انتشار ندارد.", 409);
       ensure(
         action.state === "executing",
         "ACTION_CONFLICT",
@@ -738,6 +778,66 @@ export class Store {
         .run(safeId, id);
       this.db.prepare("UPDATE attempts SET remote_id=? WHERE action_id=?").run(safeId, id);
       this.audit(action, "accepted", now);
+      return this.getAction(id, actorId);
+    });
+  }
+
+  private writeRestartProgress(id: string, progress: RestartProgress): void {
+    this.db.prepare("INSERT INTO restart_progress VALUES (?,?) ON CONFLICT(action_id) DO UPDATE SET data_json=excluded.data_json")
+      .run(id, JSON.stringify(parseRestartProgress(progress)));
+  }
+
+  startRestartRequest(id: string, actorId: string): void {
+    this.transaction(() => {
+      const action = this.getAction(id, actorId);
+      ensure(action.spec.version === 6 && action.state === "executing" && action.attemptId &&
+        action.restart?.stage === "claimed", "ACTION_CONFLICT", "اجرای معتبر راه‌اندازی دوباره آغاز نشده است.", 409);
+      this.assertRestartAction(actorId, action.spec);
+      this.writeRestartProgress(id, { stage: "request_started", acceptedAt: null, observation: null });
+      this.audit(action, "restart_request_started", Date.now());
+    });
+  }
+
+  acceptRestart(id: string, actorId: string, now = Date.now()): Action {
+    return this.transaction(() => {
+      const action = this.getAction(id, actorId);
+      ensure(action.spec.version === 6 && action.state === "executing" && action.restart?.stage === "request_started",
+        "ACTION_CONFLICT", "این اقدام منتظر پذیرش درخواست نیست.", 409);
+      this.writeRestartProgress(id, { stage: "accepted", acceptedAt: now, observation: null });
+      this.db.prepare("UPDATE actions SET state='observing' WHERE id=?").run(id);
+      this.audit(action, "restart_accepted", now);
+      return this.getAction(id, actorId);
+    });
+  }
+
+  recordRestartObservation(id: string, actorId: string, input: RestartObservation, expectedCheckedAt: number | null): Action {
+    const observation = parseRestartObservation(input);
+    return this.transaction(() => {
+      const action = this.getAction(id, actorId), progress = action.restart;
+      ensure(action.spec.version === 6 && progress && canReadRestartResult(action),
+        "ACTION_CONFLICT", "این اقدام نتیجه قابل بررسی ندارد.", 409);
+      this.assertRestartAction(actorId, action.spec, false);
+      const attempt = this.db.prepare("SELECT started_at FROM attempts WHERE action_id=?").get(id);
+      ensure((progress.observation?.checkedAt ?? null) === expectedCheckedAt &&
+        observation.checkedAt >= Number(attempt?.started_at) &&
+        observation.checkedAt > (progress.observation?.checkedAt ?? 0),
+      "EVIDENCE_MISMATCH", "بررسی تازه‌تری ثبت شده است؛ نتیجه ذخیره‌شده را دوباره بخوانید.", 409);
+      if (observation.outcome === "responding" || observation.outcome === "unhealthy")
+        ensure(observation.releaseId === action.spec.targetReleaseId && observation.status !== null &&
+          (observation.outcome === "responding" ? observation.status >= 200 && observation.status < 300 : observation.status >= 300),
+        "EVIDENCE_MISMATCH", "پاسخ باید متعلق به همان صفحه و نسخه باشد.", 409);
+      if (observation.outcome === "not_started")
+        ensure(action.state === "uncertain" && progress.stage === "claimed" && progress.acceptedAt === null,
+          "EVIDENCE_MISMATCH", "درخواست شروع‌شده را نمی‌توان اجرا‌نشده فرض کرد.", 409);
+      this.writeRestartProgress(id, { ...progress, observation });
+      // Success here means accepted + same-page response, never proof of a container restart.
+      const state = observation.outcome === "not_started" ? "failed"
+        : progress.stage !== "accepted" ? action.state
+        : observation.outcome === "responding" ? "succeeded"
+        : observation.outcome === "unhealthy" || observation.outcome === "changed" ? "failed" : "observing";
+      this.db.prepare("UPDATE actions SET state=?,error_code=? WHERE id=?")
+        .run(state, state === "succeeded" ? null : observation.code, id);
+      this.audit(action, `restart_${observation.outcome}`, observation.checkedAt);
       return this.getAction(id, actorId);
     });
   }
@@ -913,6 +1013,7 @@ export class Store {
   ): Action {
     return this.transaction(() => {
       const action = this.getAction(id, actorId);
+      ensure(action.spec.version !== 6, "RESTART_OBSERVATION_REQUIRED", "این اقدام باید با بازخوانی مخصوص راه‌اندازی دوباره بررسی شود.", 409);
       ensure(
         !isDeploymentSpec(action.spec),
         "DEPLOYMENT_OBSERVATION_REQUIRED",

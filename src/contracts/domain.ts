@@ -67,6 +67,19 @@ export type ActionSpec = ActionInputs &
         workload: import("./deployment.ts").WorkloadExpectation;
         nodeVersion: import("./node-runtime.ts").NodeVersion;
       }>
+    | Readonly<{
+        version: 6;
+        operation: "restart";
+        sourceHash: null;
+        args: Readonly<{ port: null; planId: null }>;
+        accountId: string;
+        targetAppId: string;
+        targetPlanId: string;
+        targetReleaseId: string;
+        incidentRunId: string;
+        evidenceHash: string;
+        target: import("./deployment.ts").WorkloadTarget;
+      }>
   );
 
 export type ActionState =
@@ -92,6 +105,7 @@ export type Action = Readonly<{
   remoteId: string | null;
   errorCode: string | null;
   deployment?: import("./deployment.ts").DeploymentProgress;
+  restart?: import("./restart.ts").RestartProgress;
 }>;
 
 export type Session = Readonly<{

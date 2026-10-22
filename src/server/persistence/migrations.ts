@@ -83,4 +83,12 @@ CREATE TABLE deployment_progress (
 ) STRICT;
 `,
   },
+  {
+    version: 7,
+    sql: `
+CREATE TABLE restart_progress (
+  action_id TEXT PRIMARY KEY REFERENCES actions(id), data_json TEXT NOT NULL
+) STRICT;
+`,
+  },
 ] as const;

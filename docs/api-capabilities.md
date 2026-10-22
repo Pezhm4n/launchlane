@@ -27,7 +27,7 @@
 | release | `POST /v2/projects/{name}/releases` | body schema شامل `sourceID,port,type`؛ نتیجه `releaseID`؛ accepted پایان deploy نیست | live_verified پذیرش محدود؛ approval required |
 | تاریخچه release | `GET /v1/projects/{name}/releases` | `page/count`، currentRelease و BUILDING/READY روی app آزمون تطبیق داده شدند | live_verified محدود |
 | وضعیت applets | `GET /v1/projects/{name}/applets` | در app آزمون زیرساخت جدید، 500؛ سلامت استنتاج نمی‌شود | live_checked unavailable |
-| restart | `POST /v1/projects/{name}/actions/restart` | ممکن است درخواست async باشد؛ اثر با readback بررسی شود | documented / approval required |
+| restart | `POST /v1/projects/{name}/actions/restart` | HTTP 200 فقط پذیرش، بدون operation ID؛ journal مستقل v6، یک POST و readback همان app/release/page؛ پایان restart اثبات نمی‌شود | implemented_contract / approval required / not live_verified |
 | resize | `POST /v1/projects/{name}/resize` | body `planID`؛ هزینه و برگشت‌پذیری فرض نشود | documented / approval required |
 | env update | `POST /v1/projects/update-envs` | schema `project,variables:[{key,value}]`؛ merge/replace و اثر restart باید بررسی شود؛ مقادیر محرمانه log نشوند | documented / approval required |
 | logs | `GET /v2/projects/{name}/logs`؛ قرارداد CLI 9.4.7 | start از تاریخ معتبر به Unix seconds؛ tuple نانوثانیه/JSON type و _entry؛ سقف 200 خط/20 گروه؛ v1 ISO since رد شد | live_verified محدود؛ v1 pure documentary parser محفوظ |
