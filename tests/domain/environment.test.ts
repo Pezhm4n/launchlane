@@ -11,7 +11,7 @@ import { AgentRepository } from "../../src/server/agent/store.ts";
 import { sealCredential } from "../../src/server/connections/credentials.ts";
 import { LiaraEnvironmentClient } from "../../src/server/liara/environment.ts";
 import { connectedLiaraConfig } from "../../src/server/connections/liara.ts";
-import { currentEnvironment, environmentFingerprint, openEnvironmentInput, projectEnvironmentValues } from "../../src/server/environment/secrets.ts";
+import { currentEnvironment, environmentFingerprint, openEnvironmentInput, projectEnvironmentValues, saveEnvironmentInput } from "../../src/server/environment/secrets.ts";
 import { decodeAction } from "../../src/contracts/client-decode.ts";
 import { AppError } from "../../src/server/errors.ts";
 import { LiaraReadClient } from "../../src/server/liara/client.ts";
@@ -74,9 +74,10 @@ test("environment approval binds encrypted merged values and verifies readback w
     const current = f.repo.get(f.actor, f.run.id); assert.ok(current);
     const resumed = await resumePublicationMission(f.config, f.store, f.session, current.id, current.revision, randomUUID(), f.signal());
     assert.equal(resumed.run.id, f.run.id); assert.equal(resumed.run.usage.modelCalls, 3); assert.equal(resumed.run.usage.toolCalls, 6);
-    const scoped = connectedLiaraConfig(f.config, f.store, f.actor, f.app), logs = new LiaraReadClient(scoped, async () => Response.json({ data: [{ metaData: {}, values: [[String(BigInt(Date.parse("2026-10-22T12:00:00Z")) * 1000000n), JSON.stringify({ _entry: "echo " + changedValue, type: "stdout" })]] }] }));
+    const scoped = connectedLiaraConfig(f.config, f.store, f.actor, f.app), logs = new LiaraReadClient(scoped, async () => Response.json({ data: [{ metaData: {}, values: [[String(BigInt(Date.parse("2026-10-22T12:00:00Z")) * 1000000n), JSON.stringify({ _entry: "echo " + changedValue + " " + existingValue, type: "stdout" })]] }] }));
     const evidence = await logs.logs({ app: f.app, teamId: f.config.teamId }, "2026-10-22T11:00:00Z", new RunBudget(f.config), f.signal());
     assert.equal(JSON.stringify(evidence).includes(changedValue), false);
+    assert.equal(JSON.stringify(evidence).includes(existingValue), false);
   } finally { f.close(); }
 });
 
@@ -247,5 +248,30 @@ test("a fresh session can revoke unused environment consent but cannot revoke a 
       return f.client.send(url, options);
     });
     assert.equal((await executeEnvironment(f.config, f.store, f.session, next.id, f.signal(), { client })).state, "observing"); assert.equal(f.writes, 1);
+  } finally { f.close(); }
+});
+
+test("Next public variables require an explicit public declaration and historical private grants cannot execute", async () => {
+  const f = await fixture();
+  try {
+    writeFileSync(join(f.project, "public.mjs"), "export const api=process.env.NEXT_PUBLIC_WEB_API;\n");
+    const flow = await prepareProjectFlow(f.config, f.store, f.actor, { kind: "local", directory: "service" }, f.signal());
+    const run = (await createPublicationMission(f.config, f.store, f.session, randomUUID(), { projectId: flow.id, sourceHash: flow.profile.sourceHash, path: "/", expectedText: "ready" }, f.signal())).run;
+    run.state = "needs_input"; run.nextAction = "configure_env"; f.repo.save(f.actor, run);
+    const variable = { key: "NEXT_PUBLIC_WEB_API", value: "https://public.example.test" };
+    for (const visibility of [{}, { public: false }]) await assert.rejects(proposeEnvironment(f.config, f.store, f.session, run.id, randomUUID(), [{ ...variable, ...visibility }], f.signal(), { client: f.client }), code("PUBLIC_ENV_SECRET_DENIED"));
+    assert.equal(f.reads, 0); assert.equal(f.store.db.prepare("SELECT COUNT(*) n FROM environment_inputs").get()?.n, 0);
+    const action = await proposeEnvironment(f.config, f.store, f.session, run.id, randomUUID(), [{ ...variable, public: true }], f.signal(), { client: f.client });
+    assert.equal(action.spec.version, 9); if (action.spec.version !== 9) return;
+    assert.deepEqual(action.spec.secretKeys, []);
+    await assert.rejects(proposeEnvironment(f.config, f.store, f.session, run.id, randomUUID(), [{ key: variable.key, value: f.config.modelKey, public: true }], f.signal(), { client: f.client }), code("ENV_INFRASTRUCTURE_CREDENTIAL"));
+    const legacy = { ...action.spec, secretRef: randomUUID(), secretKeys: [variable.key] };
+    saveEnvironmentInput(f.store, f.config.sessionSecret, f.actor, legacy, [{ key: "EXISTING_PRIVATE", value: existingValue }, variable], Date.now() + 600000);
+    const old = f.store.createAction(f.actor, legacy); f.store.decide(old.id, f.actor, f.session.id, old.hash, "approve");
+    assert.deepEqual(parseActionSpec(legacy), legacy, "historical readability/canonicalization is preserved");
+    await assert.rejects(executeEnvironment(f.config, f.store, f.session, old.id, f.signal(), { client: f.client }), code("PUBLIC_ENV_SECRET_DENIED"));
+    assert.equal(f.writes, 0); assert.equal(f.store.db.prepare("SELECT COUNT(*) n FROM attempts").get()?.n, 0);
+    f.store.db.prepare("UPDATE actions SET state='succeeded' WHERE id=?").run(old.id);
+    assert.throws(() => currentEnvironment(f.store, f.config.sessionSecret, f.actor, flow.id), code("PUBLIC_ENV_SECRET_DENIED"));
   } finally { f.close(); }
 });

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import type { Action } from "../contracts/domain.ts";
 import { decodeAction } from "../contracts/client-decode.ts";
-import { environmentKey } from "../contracts/environment.ts";
+import { environmentKey, isPublicClientEnvironmentKey } from "../contracts/environment.ts";
 import { object, string } from "../contracts/validation.ts";
 import { api, ClientError } from "./api.ts";
 
@@ -35,6 +35,7 @@ export function ProjectEnvironment({ runId, csrf, disabled, onContinue, onLockCh
     return () => controller.abort();
   }, [load, failed]);
   const locked = busy || !!action && ["awaiting_approval", "approved", "executing", "observing", "uncertain"].includes(action.state);
+  const publicClientKeys = action?.spec.version === 9 ? action.spec.keys.filter(isPublicClientEnvironmentKey) : [];
   useEffect(() => { onLockChanged(locked); return () => onLockChanged(false); }, [locked, onLockChanged]);
   async function perform(operation: "decision" | "execute" | "observe", decision?: "approve" | "reject") {
     if (!action || busy || disabled) return;
@@ -69,13 +70,16 @@ export function ProjectEnvironment({ runId, csrf, disabled, onContinue, onLockCh
     {!loading && (!action || ["cancelled", "expired", "failed"].includes(action.state)) ? <form onSubmit={event => void submit(event)} autoComplete="off">
       {names.map(name => <div key={name}><label htmlFor={`environment-${name}`}><bdi>{name}</bdi></label>
         <input id={`environment-${name}`} type="password" autoComplete="new-password" dir="ltr" minLength={publicNames[name] ? 0 : 4} maxLength={4096} value={values[name] ?? ""}
+          aria-describedby={isPublicClientEnvironmentKey(name) ? `visibility-${name}` : undefined}
           onChange={event => setValues(current => ({ ...current, [name]: event.target.value }))} disabled={disabled || busy} />
-        <label className="radio-option"><input type="checkbox" checked={publicNames[name] === true} onChange={event => setPublicNames(current => ({ ...current, [name]: event.target.checked }))} disabled={disabled || busy} />این مقدار عمومی است؛ مثلاً روشن/خاموش</label></div>)}
+        {isPublicClientEnvironmentKey(name) ? <p className="note" id={`visibility-${name}`}>مقدار این متغیر در فایل‌های سایت برای بازدیدکنندگان قابل دیدن است؛ رمز یا کلید محرمانه وارد نکنید.</p> : null}
+        <label className="radio-option"><input type="checkbox" aria-label={`عمومی بودن ${name}`} checked={publicNames[name] === true} onChange={event => setPublicNames(current => ({ ...current, [name]: event.target.checked }))} disabled={disabled || busy} />این مقدار عمومی است؛ مثلاً روشن/خاموش</label></div>)}
       <p className="hint">مقدار محرمانه دست‌کم ۴ نویسه دارد. متغیرهای اجرایی مانند PORT توسط تنظیمات اجرا کنترل می‌شوند.</p>
-      <button type="submit" disabled={disabled || busy || !names.some(name => values[name])}>مرور تغییر اطلاعات برنامه</button>
+      <button type="submit" disabled={disabled || busy || !names.some(name => values[name]) || names.some(name => values[name] && isPublicClientEnvironmentKey(name) && !publicNames[name])}>مرور تغییر اطلاعات برنامه</button>
     </form> : null}
     {action?.spec.version === 9 ? <>
       <p>کلیدهای این تغییر: {action.spec.keys.map(name => <bdi key={name} className="environment-key"> {name} </bdi>)}. سایر کلیدهای موجود حفظ می‌شوند.</p>
+      {publicClientKeys.length ? <p className="note">این کلیدها در خروجی مرورگر عمومی خواهند بود: {publicClientKeys.map(key => <bdi key={key}> {key} </bdi>)}. مقدار محرمانه برای آن‌ها مجاز نیست.</p> : null}
       {action.state === "awaiting_approval" ? <>
         <p className="note">این تغییر ممکن است برنامهٔ مقصد را دوباره راه‌اندازی کند. اجازهٔ انتشار یا تغییر پلن ایجاد نمی‌کند؛ نتیجهٔ اجرای برنامه جدا بررسی می‌شود.</p>
         <div className="button-row"><button type="button" disabled={disabled || busy} onClick={() => void perform("decision", "approve")}>تأیید و اعمال اطلاعات برنامه</button>

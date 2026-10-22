@@ -149,7 +149,7 @@ try {
   await writeFile(join(server.workspace, "environment-service/package.json"), JSON.stringify({ name: "environment-service", version: "1.0.0", type: "module", engines: { node: "22.x" }, scripts: { build: "node build.mjs", start: "node server.mjs" } }));
   await writeFile(join(server.workspace, "environment-service/package-lock.json"), JSON.stringify({ name: "environment-service", version: "1.0.0", lockfileVersion: 3, packages: { "": { name: "environment-service", version: "1.0.0", engines: { node: "22.x" } } } }));
   await writeFile(join(server.workspace, "environment-service/build.mjs"), "console.log('build fixture');");
-  await writeFile(join(server.workspace, "environment-service/server.mjs"), "import http from 'node:http'; const ready=process.env.SERVICE_ACCESS; http.createServer((_req,res)=>res.end(ready?'ready':'missing')).listen(3000);");
+  await writeFile(join(server.workspace, "environment-service/server.mjs"), "import http from 'node:http'; const ready=process.env.SERVICE_ACCESS; const publicApi=process.env.NEXT_PUBLIC_WEB_API; http.createServer((_req,res)=>res.end(ready?'ready':'missing')).listen(3000);");
   const envFlow = await page.evaluate(async () => {
     const workspace = await (await fetch("/api/workspace")).json();
     const response = await fetch("/api/project-flows", { method: "POST", headers: { "content-type": "application/json", "x-csrf-token": workspace.session.csrfToken }, body: JSON.stringify({ operation: "prepare", selection: { kind: "local", directory: "environment-service" } }) });
@@ -170,10 +170,19 @@ try {
   const privateValue = "new-private-environment-fixture";
   await envPanel.getByLabel("SERVICE_ACCESS", { exact: true }).fill(privateValue);
   assert.equal(await envPanel.getByLabel("SERVICE_ACCESS", { exact: true }).getAttribute("type"), "password");
+  async function fillPublicEnvironment() {
+    await envPanel.getByLabel("NEXT_PUBLIC_WEB_API", { exact: true }).fill("https://public.example.test");
+    await envPanel.getByRole("checkbox", { name: "عمومی بودن NEXT_PUBLIC_WEB_API", exact: true }).check();
+  }
+  await envPanel.getByLabel("NEXT_PUBLIC_WEB_API", { exact: true }).fill("https://public.example.test");
+  assert.equal(await envPanel.getByRole("button", { name: "مرور تغییر اطلاعات برنامه", exact: true }).isDisabled(), true);
+  await layout(320, "public-client-environment-requires-declaration");
+  await fillPublicEnvironment();
   for (const width of [320, 360, 390, 768, 1280]) await layout(width, "secure-environment-form");
   await page.setViewportSize({ width: 360, height: 844 }); await page.screenshot({ path: join(output, "environment-form-360.png"), fullPage: true });
   await envPanel.getByRole("button", { name: "مرور تغییر اطلاعات برنامه", exact: true }).click();
   await envPanel.getByRole("button", { name: "تأیید و اعمال اطلاعات برنامه", exact: true }).waitFor();
+  await envPanel.getByText(/این کلیدها در خروجی مرورگر عمومی خواهند بود/).waitFor();
   assert.equal(await page.getByText(privateValue, { exact: true }).count(), 0);
   const beforeEnvReload = await modelRequests(); await page.reload();
   await envPanel.getByRole("button", { name: "تأیید و اعمال اطلاعات برنامه", exact: true }).waitFor(); assert.equal(await modelRequests(), beforeEnvReload);
@@ -186,7 +195,7 @@ try {
   await layout(320, "old-session-environment-consent");
   await envPanel.getByRole("button", { name: "لغو تصمیم و مرور دوباره", exact: true }).click();
   await envPanel.getByLabel("SERVICE_ACCESS", { exact: true }).waitFor(); assert.equal(await envPanel.getByLabel("SERVICE_ACCESS", { exact: true }).inputValue(), "");
-  await envPanel.getByLabel("SERVICE_ACCESS", { exact: true }).fill(privateValue); await envPanel.getByRole("button", { name: "مرور تغییر اطلاعات برنامه", exact: true }).click();
+  await envPanel.getByLabel("SERVICE_ACCESS", { exact: true }).fill(privateValue); await fillPublicEnvironment(); await envPanel.getByRole("button", { name: "مرور تغییر اطلاعات برنامه", exact: true }).click();
   await envPanel.getByRole("button", { name: "تأیید و اعمال اطلاعات برنامه", exact: true }).waitFor();
   const unsent = store.getAction(store.getProjectFlow(actor).actionId, actor), ownSession = store.db.prepare("SELECT id FROM sessions WHERE actor_id=?").get(actor).id;
   store.decide(unsent.id, actor, ownSession, unsent.hash, "approve"); store.claim(unsent.id, actor, ownSession, unsent.spec);
@@ -196,7 +205,7 @@ try {
   store.recoverInterrupted(); await envPanel.getByRole("button", { name: "دریافت وضعیت همین تغییر", exact: true }).click();
   await envPanel.getByRole("button", { name: "بررسی نتیجه همین تغییر", exact: true }).click();
   await envPanel.getByLabel("SERVICE_ACCESS", { exact: true }).waitFor(); assert.equal(store.getAction(unsent.id, actor).state, "failed");
-  await envPanel.getByLabel("SERVICE_ACCESS", { exact: true }).fill(privateValue); await envPanel.getByRole("button", { name: "مرور تغییر اطلاعات برنامه", exact: true }).click();
+  await envPanel.getByLabel("SERVICE_ACCESS", { exact: true }).fill(privateValue); await fillPublicEnvironment(); await envPanel.getByRole("button", { name: "مرور تغییر اطلاعات برنامه", exact: true }).click();
   await envPanel.getByRole("button", { name: "تأیید و اعمال اطلاعات برنامه", exact: true }).waitFor();
   await envPanel.getByRole("button", { name: "تأیید و اعمال اطلاعات برنامه", exact: true }).click();
   await envPanel.getByRole("button", { name: "ادامه بررسی و انتشار", exact: true }).waitFor();

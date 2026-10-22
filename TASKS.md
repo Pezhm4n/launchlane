@@ -1,5 +1,9 @@
 # برنامه اجرایی Launchlane
 
+## بستن مرز secret در env عمومی Next؛ پس ازf2df50d
+
+فرم، API، اجرای grant قدیمی و مرجع build، secretKey با پیشوند NEXT_PUBLIC_ را رد می‌کنند؛ مقدار عمومی فقط با اعلام صریح و هشدار افشا مجاز است. parser تاریخی حفظ شده و credential نصب مستقل ممنوع است. redaction مقدار موروثی با نام credential regression دارد؛ محدودیت تشخیص مستند است. build/typecheck، domain283/283، HTTP28/28 و شش suite مرورگر75/27/27/22/38/5 گذشتند؛ lint صفر error با30warning/9info. این‌ها روی snapshot مستقل و transport مصنوعی‌اند. Next/GitHub و env زنده، fail-deploy→repair→redeploy تازه، UI ترکیبی همکار و reader/موبایل فیزیکی بازند؛ مصرف و سرور زنده تغییر نکردند. [شواهد دقیق](docs/verification.md) و [تصمیم](docs/decisions/0013-project-environment.md).
+
 ## اصلاح recovery اطلاعات امن؛ پس از042cbb8
 
 تصمیم approved در نشست قدیمی با مجوز نشست جدید اجرا نمی‌شود؛ actor می‌تواند فقط grant بدون attempt را لغو و فرم خالی/nonce تازه را مرور کند. پس از claim لغو رد می‌شود. executing، پیام درست و دکمه دریافت همان وضعیت دارد؛ recovery claimed پیش از write با readback به not_started می‌رسد. AUTH_REQUIRED از فرم به ورود برنامه برمی‌گردد. regression domain و مرورگر شامل نشست قبلی، لغو، in-flight فقط‌خواندنی و recovery بدون POST دوم است؛ نتیجه نهایی در verification ثبت می‌شود.

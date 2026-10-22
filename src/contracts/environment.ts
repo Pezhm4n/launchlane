@@ -29,6 +29,10 @@ export function environmentKey(value: unknown): string {
 export function isApplicationEnvironmentKey(key: string): boolean {
   return !/^(?:PATH|HOME|TMPDIR|NODE_OPTIONS|NODE_ENV|PORT|CI|NEXT_TELEMETRY_DISABLED|npm_config_.*)$/i.test(key);
 }
+export function isPublicClientEnvironmentKey(key: string): boolean { return key.startsWith("NEXT_PUBLIC_"); }
+export function validateEnvironmentVisibility(secretKeys: readonly string[]): void {
+  ensure(!secretKeys.some(isPublicClientEnvironmentKey), "PUBLIC_ENV_SECRET_DENIED", "متغیر NEXT_PUBLIC در کد مرورگر قرار می‌گیرد؛ فقط مقدار عمومیِ صریح برای آن مجاز است.", 409);
+}
 export function environmentVariables(value: unknown, max = 128): EnvironmentVariable[] {
   ensure(Array.isArray(value) && value.length <= max, "INVALID_ENV_INPUT", "تعداد متغیرها بیشتر از سقف مجاز است.");
   const seen = new Set<string>();

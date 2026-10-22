@@ -1,5 +1,5 @@
 import type { Action, Session } from "../../contracts/domain.ts";
-import { environmentVariables, isApplicationEnvironmentKey, type EnvironmentSpec } from "../../contracts/environment.ts";
+import { environmentVariables, isApplicationEnvironmentKey, validateEnvironmentVisibility, type EnvironmentSpec } from "../../contracts/environment.ts";
 import type { Config } from "../config.ts";
 import { connectedLiaraConfig } from "../connections/liara.ts";
 import { ensure } from "../errors.ts";
@@ -54,6 +54,7 @@ export async function proposeEnvironment(config: Config, store: Store, session: 
   }), 32), { run, flow, target, scoped } = environmentContext(config, store, session.actorId, runId);
   ensure(changes.length > 0 && changes.every(({ key, value }) => (publicKeys.has(key) || value.length >= 4) && flow.profile.envNames.includes(key) && isApplicationEnvironmentKey(key)),
     "ENV_SCOPE_DENIED", "فقط اطلاعات لازمِ شناسایی‌شده در همین پروژه قابل تکمیل است؛ تنظیمات اجرای محیط جدا بررسی می‌شوند.", 409);
+  validateEnvironmentVisibility(changes.filter(row => !publicKeys.has(row.key)).map(row => row.key));
   const infrastructureSecrets = [scoped.liaraToken, config.modelKey, config.operatorToken, config.sessionSecret].filter(Boolean);
   ensure(changes.every(row => infrastructureSecrets.every(secret => !row.value.includes(secret))), "ENV_INFRASTRUCTURE_CREDENTIAL", "کلیدهای نصب یا زیرساخت را به برنامه مشتری منتقل نکنید.", 409);
   const previous = store.db.prepare("SELECT action_id FROM environment_inputs WHERE actor_id=? AND id=?").get(session.actorId, requestKey);
@@ -85,6 +86,7 @@ export async function executeEnvironment(config: Config, store: Store, session: 
   const action = store.getAction(id, session.actorId);
   ensure(action.spec.version === 9 && action.state === "approved" && !action.attemptId && action.expiresAt > Date.now(), "ACTION_CONFLICT", "تصمیم قابل مصرف برای این تغییر وجود ندارد.", 409);
   const spec = action.spec, { scoped } = environmentContext(config, store, session.actorId, spec.agentRunId);
+  validateEnvironmentVisibility(spec.secretKeys);
   ensure(scoped.enableLiveLiara && scoped.enableMutations, "MUTATIONS_DISABLED", "تغییر واقعی اطلاعات برنامه خاموش است.", 403);
   await validateProjectAction(config, store, session.actorId, spec, signal);
   return withBudget(config, store, session.actorId, spec.agentRunId, async budget => {

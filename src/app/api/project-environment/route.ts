@@ -4,7 +4,7 @@ import { openEnvironmentInput } from "../../../server/environment/secrets.ts";
 import { endpoint, jsonBody, reply } from "../../../server/http.ts";
 import { ensure } from "../../../server/errors.ts";
 import { exactKeys, hash, object, string } from "../../../contracts/validation.ts";
-import { isApplicationEnvironmentKey } from "../../../contracts/environment.ts";
+import { isApplicationEnvironmentKey, validateEnvironmentVisibility } from "../../../contracts/environment.ts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,6 +34,7 @@ export async function POST(request: Request) {
     if (input.operation === "decision") {
       ensure(input.decision === "approve" || input.decision === "reject", "INVALID_INPUT", "تصمیم معتبر نیست.");
       if (input.decision === "approve") {
+        validateEnvironmentVisibility(action.spec.secretKeys);
         await validateProjectAction(config, store, session.actorId, action.spec, request.signal);
         openEnvironmentInput(store, config.sessionSecret, session.actorId, action.spec);
       }

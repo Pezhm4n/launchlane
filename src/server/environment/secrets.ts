@@ -1,6 +1,6 @@
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from "node:crypto";
 import type { EnvironmentSpec, EnvironmentVariable, EnvironmentReference } from "../../contracts/environment.ts";
-import { environmentVariables, isApplicationEnvironmentKey } from "../../contracts/environment.ts";
+import { environmentVariables, isApplicationEnvironmentKey, isPublicClientEnvironmentKey, validateEnvironmentVisibility } from "../../contracts/environment.ts";
 import { object, string } from "../../contracts/validation.ts";
 import { parseEnvironmentSpec } from "../../contracts/environment.ts";
 import { AppError, ensure } from "../errors.ts";
@@ -38,6 +38,7 @@ export function currentEnvironment(store: Store, secret: string, actorId: string
   for (const row of rows) {
     const action = store.getAction(string(row.id, 36), actorId), spec = action.spec;
     if (spec.version !== 9 || !projects.has(spec.projectFlowId) || spec.accountId !== connection.identityId || spec.scope.teamId !== connection.teamId || spec.targetAppId !== target.id || spec.scope.app !== target.name) continue;
+    validateEnvironmentVisibility(spec.secretKeys);
     const values = openEnvironmentInput(store, secret, actorId, spec, true), names = store.getProjectFlow(actorId, projectId)?.profile.envNames ?? [];
     return { actionId: action.id, fingerprint: spec.effectiveFingerprint, keys: values.map(row => row.key).filter(key => names.includes(key) && isApplicationEnvironmentKey(key)) };
   }
@@ -54,7 +55,11 @@ export function projectSecretValues(store: Store, secret: string, actorId: strin
   const rows = store.db.prepare("SELECT spec FROM actions WHERE actor_id=? AND json_extract(spec,'$.version')=9 ORDER BY rowid DESC LIMIT 128").all(actorId);
   return [...new Set(rows.flatMap(row => {
     const spec = parseEnvironmentSpec(JSON.parse(string(row.spec, 16384)));
-    return openEnvironmentInput(store, secret, actorId, spec, true).filter(value => spec.secretKeys.includes(value.key)).map(row => row.value).filter(value => value.length >= 4);
+    const publicKeys = new Set(spec.keys.filter(key => !spec.secretKeys.includes(key)));
+    // Merging a new key must not leave inherited credential-like values exposed in later evidence.
+    return openEnvironmentInput(store, secret, actorId, spec, true).filter(value => spec.secretKeys.includes(value.key) ||
+      (!publicKeys.has(value.key) && !isPublicClientEnvironmentKey(value.key) && value.value.length >= 8 && /(?:^|_)(?:PRIVATE|TOKEN|SECRET|PASSWORD|API_KEY|ACCESS|AUTH|CREDENTIALS?)(?:_|$)/i.test(value.key)))
+      .map(row => row.value).filter(value => value.length >= 4);
   }))];
 }
 export function saveEnvironmentInput(store: Store, secret: string, actorId: string, spec: EnvironmentSpec,

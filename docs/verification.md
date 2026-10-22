@@ -1,5 +1,13 @@
 # شواهد اعتبارسنجی Launchlane
 
+## مرز env عمومی Next؛ candidate مستقل بر پایهf2df50d
+
+نام NEXT_PUBLIC_ طبق مستند نصب‌شدهٔ Next16.4.2، در build وارد کد مرورگر می‌شود. فرم هشدار و اعلام عمومی‌بودن دارد؛ مقدار پُرشدهٔ طبقه‌بندی‌نشده/محرمانه پیش از هر provider read یا ذخیره input رد می‌شود. تأیید و اجرای grant تاریخیِ ناسازگار و استفاده از مرجع آن در build هم بسته‌اند؛ parser تاریخی خواندنی مانده است. credential نصب حتی با اعلام عمومی پذیرفته نیست. redaction مقدار موروثیِ credentialمانند نیز regression دارد؛ محدودیت heuristic در ADR0013 ثبت است.
+
+روی code tree 02645eef7ea914d8c8a18a209307644c47b73cd2، build، typecheck، domain283/283 و HTTP28/28 با0fail/skip گذشتند. lint صفر error،30warning و9info موجود داشت. شش suite مرورگر به‌ترتیب75/27/27/22/38/5 گذشتند؛ case تازه، دکمهٔ disabled پیش از اعلام عمومی و هشدار form/review را در همان جریان recovery/یک env write مصنوعی می‌سنجد. همه مدل/providerها مصنوعی، سرورها disposable با port مستقل و درخواست خارجی صفر بودند. این gateها روی index بدون hunkهای UI همکار انجام شدند.
+
+این اصلاح runner Docker را تغییر نداد؛ شاهد واقعی install/build/test/start/GET در Node22 به042cbb8 و بخش env/build زیر مربوط است. env واقعی، Next/GitHub دارای build، چرخه تازه fail-deploy→repair→redeploy، UI ترکیبیِ ثبت‌نشدهٔ همکار و screen reader/موبایل فیزیکی همچنان UNCONFIRMED هستند. guard بودجه زندهٔ گزارش همکار دور زده یا تمدید نشد؛ primary server، اتصال‌ها و VPN تغییر نکردند. قدم پذیرش بعدی، اجرای این caseهای باز توسط مالک تست زنده پس از تعیین تکلیف سقف مجاز است؛ هیچ مصرف تازه‌ای از این گزارش مجوز نمی‌گیرد.
+
 ## recovery نشست و env؛ candidate مستقل بر پایه042cbb8
 
 actor در نشست تازه می‌تواند approval محیطیِ مصرف‌نشده را با hash همان پیشنهاد لغو کند؛ grant قبلی را اجرا نمی‌کند. پس از claim، revocation رد می‌شود و اثر احتمالی پس گرفته‌شده نمایش داده نمی‌شود. executing، پیام درحال اجرا و دکمهٔ GET وضعیت دارد؛ recovery مرحله claimed بدون request_started با همان observe به not_started می‌رسد. AUTH_REQUIRED فرم به ورود برنامه وصل و nonce پس از رد/شکست تازه می‌شود؛ مقدار قبلی در فرم بازنمایی نمی‌شود.
