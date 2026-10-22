@@ -73,9 +73,20 @@ async function layout(width, label) {
     controls.every((control) => control.width >= 44 && control.height >= 44),
     `${label}: small target`,
   );
+  const scrollY = await page.evaluate(() => window.scrollY);
+  // The durable composer is sticky; scan after moving a disclosure out from behind it.
+  await page.evaluate(() => {
+    const composer = document.querySelector(".agent-composer");
+    const summary = document.querySelector(".agent-panel > details > summary");
+    if (!composer || !summary) return;
+    const gap =
+      summary.getBoundingClientRect().bottom - composer.getBoundingClientRect().top + 24;
+    if (gap > 0) window.scrollBy(0, gap);
+  });
   const axe = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
     .analyze();
+  await page.evaluate((previous) => window.scrollTo(0, previous), scrollY);
   assert.deepEqual(
     axe.violations.map((row) => ({ id: row.id, nodes: row.nodes.map((node) => node.target) })),
     [],
@@ -121,7 +132,7 @@ try {
     false,
   );
   assert.equal(await page.getByLabel("پورت برنامه", { exact: true }).isVisible(), false);
-  for (const width of [360, 768, 1280]) {
+  for (const width of [320, 360, 768, 1280]) {
     await layout(width, "default-agent-tab");
     await page.screenshot({ path: join(output, `agent-empty-${width}.png`), fullPage: true });
   }
@@ -143,7 +154,7 @@ try {
   await picker.click();
   await folder.getByRole("button", { name: /invoice-service/ }).click();
   await folder.getByRole("button", { name: "انتخاب همین پوشه", exact: true }).click();
-  await panel.locator(".agent-project-name").filter({ hasText: "invoice-service" }).waitFor();
+  await page.locator("h1").filter({ hasText: "invoice-service" }).waitFor();
   assert.equal(new URL(page.url()).searchParams.get("view"), "agent");
   assert.equal(await page.locator(".project-choice:visible").count(), 0);
   assert.equal(await goal.inputValue(), "متن ناتمام من برای پروژه");
@@ -198,9 +209,9 @@ try {
   assert.equal(run.usage.modelCalls, 6);
   assert.equal(run.usage.toolCalls, 6);
   assert.equal(await readFile(join(project, "invoice.mjs"), "utf8"), repairBrokenSource);
-  await panel.locator(".agent-project-name").filter({ hasText: "نسخه اصلاح‌شده پروژه" }).waitFor();
+  await page.locator("h1").filter({ hasText: "نسخه اصلاح‌شده پروژه" }).waitFor();
   assert.equal(new URL(page.url()).searchParams.get("project"), run.projectId);
-  for (const width of [360, 768, 1280]) {
+  for (const width of [320, 360, 768, 1280]) {
     await layout(width, "verified-local-repair");
     await page.screenshot({ path: join(output, `agent-repair-${width}.png`), fullPage: true });
   }
@@ -211,7 +222,7 @@ try {
   await folder.getByRole("button", { name: /examples/ }).click();
   await folder.getByRole("button", { name: /node-service/ }).click();
   await folder.getByRole("button", { name: "انتخاب همین پوشه", exact: true }).click();
-  await panel.locator(".agent-project-name").filter({ hasText: "node-service" }).waitFor();
+  await page.locator("h1").filter({ hasText: "node-service" }).waitFor();
   await page.waitForFunction(
     () => document.title.includes("دستیار پروژه") && document.title.includes("node-service"),
   );
@@ -220,7 +231,7 @@ try {
   await page.reload();
   await panel.getByText(/این گفت‌وگو برای پروژه قبلی است/).waitFor();
   assert.equal(new URL(page.url()).searchParams.get("project"), explicitlySelected);
-  assert.ok((await panel.locator(".agent-project-name").textContent()).includes("node-service"));
+  assert.ok((await page.locator("h1").textContent()).includes("node-service"));
   assert.equal(await modelRequests(), callsBeforeProjectReload);
   await layout(360, "explicit-project-change-survives-repair-replay");
   await fresh();
@@ -317,7 +328,7 @@ try {
     1,
   );
   const approvePublication = panel.getByRole("button", { name: "تأیید و انتشار این نسخه", exact: true });
-  for (const width of [360, 768, 1280]) {
+  for (const width of [320, 360, 768, 1280]) {
     await layout(width, "publication-decision");
     await page.screenshot({ path: join(output, `agent-publication-${width}.png`), fullPage: true });
   }
@@ -384,7 +395,7 @@ try {
   console.log(
     JSON.stringify({
       states: results.length,
-      widths: [360, 768, 1280],
+      widths: [320, 360, 768, 1280],
       model: "synthetic",
       nodeTests: "actual",
       output,

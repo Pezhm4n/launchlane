@@ -34,6 +34,11 @@ const modeNames: Record<WorkbenchMode, string> = {
   source: "انتشار پروژه",
   incident: "بررسی مشکل سایت",
 };
+const modeShortNames: Record<WorkbenchMode, string> = {
+  agent: "دستیار",
+  source: "انتشار",
+  incident: "مشکل سایت",
+};
 const journeySteps = [
   "انتخاب و بررسی پروژه",
   "حساب و برنامه مقصد",
@@ -906,6 +911,7 @@ export function Workbench() {
                   key={item}
                   className="app-nav-link"
                   href={modeHref(item)}
+                  aria-label={modeNames[item]}
                   aria-current={mode === item ? "page" : undefined}
                   aria-disabled={busy !== null || undefined}
                   onClick={(event) => {
@@ -913,14 +919,18 @@ export function Workbench() {
                     navigate(item);
                   }}
                 >
-                  {modeNames[item]}
+                  <span className="nav-label-full">{modeNames[item]}</span>
+                  <span className="nav-label-short">{modeShortNames[item]}</span>
                 </a>
               ))}
             </nav>
           </>
         ) : null}
       </header>
-      <main id="main-content" className="app-main task-main">
+      <main
+        id="main-content"
+        className={`app-main task-main${workspace && mode === "agent" ? " agent-workspace" : ""}`}
+      >
         <div className={`page-intro ${workspace ? "page-intro-compact" : ""}`}>
           <h1>
             {workspace ? (

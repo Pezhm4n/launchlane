@@ -466,7 +466,7 @@ export function AgentPanel({
   return (
     <section className="panel agent-panel" aria-labelledby="agent-title" aria-busy={busy || active}>
       <div className="section-heading">
-        <h2 id="agent-title">چه کاری برای پروژه‌تان انجام بدهم؟</h2>
+        <h2 id="agent-title">چه کاری انجام بدهم؟</h2>
         {run ? <span className="badge badge-quiet">{stateLabels[run.state]}</span> : null}
       </div>
       {run && !active && run.state !== "needs_approval" ? (
@@ -493,15 +493,6 @@ export function AgentPanel({
           </span>
         </div>
       ) : null}
-      <p className="hint agent-project-name">
-        {projectName ? (
-          <>
-            پروژه: <bdi>{projectName}</bdi>
-          </>
-        ) : (
-          "پروژه را انتخاب کنید و بگویید چه کاری لازم دارید."
-        )}
-      </p>
       <div className="button-row agent-project-actions">
         <button
           type="button"
@@ -790,7 +781,7 @@ export function AgentPanel({
           ) : null}
         </div>
       ) : null}
-      {enabled ? (
+      {enabled && run?.state !== "needs_approval" ? (
         <form className="agent-composer" onSubmit={(event) => void submit(event)}>
           <label htmlFor="agent-goal">{run && sameProject ? "پیام بعدی" : "هدف شما"}</label>
           <textarea
@@ -817,11 +808,10 @@ export function AgentPanel({
               event.preventDefault();
               event.currentTarget.form?.requestSubmit();
             }}
-            disabled={disabled || busy || run?.state === "needs_approval"}
+            disabled={disabled || busy}
             aria-describedby={[
               "agent-help",
               active ? "agent-active-help" : "",
-              run?.state === "needs_approval" ? "agent-approval-help" : "",
               error ? "agent-error" : "",
             ]
               .filter(Boolean)
@@ -829,25 +819,17 @@ export function AgentPanel({
             aria-invalid={error?.code === "EMPTY_GOAL" || undefined}
           />
           <p id="agent-help" className="hint">
-            رمز یا کلید دسترسی وارد نکنید. Enter ارسال و Shift+Enter خط تازه است؛ تصمیم انتشار جدا
-            گرفته می‌شود.
+            رمز یا کلید وارد نکنید · Enter ارسال · Shift+Enter خط تازه
           </p>
           {active ? (
             <p id="agent-active-help" className="hint">
               بررسی در حال اجراست؛ نوشتن آزاد است و ارسال پس از پایان ممکن می‌شود.
             </p>
           ) : null}
-          {run?.state === "needs_approval" ? (
-            <p id="agent-approval-help" className="hint">
-              ابتدا تصمیم خواسته‌شده در بالای گفت‌وگو را ثبت کنید.
-            </p>
-          ) : null}
           <div className="button-row">
             <button
               type="submit"
-              disabled={
-                disabled || busy || restoring || active || run?.state === "needs_approval"
-              }
+              disabled={disabled || busy || restoring || active}
               aria-describedby={active ? "agent-active-help" : undefined}
             >
               {busy ? "در حال ثبت…" : "ارسال درخواست"}

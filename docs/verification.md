@@ -2,6 +2,10 @@
 
 شواهد جاری ابتدا و سابقه مراحل پیشین پایین‌تر ثبت شده‌اند. هر نتیجه به revision و شرایط خودش تعلق دارد؛ نتایج bootstrap جای قابلیت محصول و fixture جای اتصال زنده نیست.
 
+## بازبینی تناسب و خوانایی UI؛ working tree پس از bb06e41
+
+مرور اندازه و تناسب کامپوننت/دکمه/فونت در 320/360/768/1280 روی build همین تغییرات: مقیاس `clamp` عنوان و متن، برچسب کوتاه nav زیر 560px، composer چسبان هم‌تراز با پدینگ پنل، ردیف label/value کارت مقصد در موبایل و reserve اسکرول focus. شش suite مرورگر 75/27/27/22/23/5 حالت، domain 220/220 و HTTP 21/21 را گذراندند؛ صفر overflow/axe violation/pageerror/external request در حالت‌های سنجیده‌شده. پس از اصلاح یک selector focus، typecheck و build تولیدی و 23 حالت Agent (شامل 320px) روی worktree ایزولهٔ HEAD+همین پنج فایل دوباره pass شدند؛ artifact `.artifacts/agent-ui/2026-10-22T11-24-59.751Z/`. typecheck شاخه مشترک موقتاً به‌دلیل `src/server/workspace/ports.ts` در حال ویرایش هم‌کار مسدود بود؛ پس از رفع آن، typecheck و build تولیدی Turbopack روی main نیز pass شدند. reader تازه، screen reader و تأیید کامل WCAG همچنان UNCONFIRMED هستند؛ هیچ gate زنده یا درخواست provider اجرا نشد.
+
 ## A07؛ برنامه محدود start/port برای Node
 
 [گزارش آماده‌سازی](evidence/project-preparation.md): برنامه NodePreparation به همان CodeRepair و consent متصل شد؛ فقط فرمان start دقیق، entry موجود و پورت موجود در config می‌توانند تغییر کنند. پنج regression با transport مصنوعی و اجرای واقعی Node/HTTP محلی، دو ورودی متفاوت و leaf monorepo را گذراندند؛ تغییر scripts/deps/engine/test یا config نامرتبط و گسترش اختیار قرارداد قدیمی رد شدند. domain220/220، lint/typecheck و build در export مستقل گذشتند. مدل/وب تازه و target runtime هنوز برای این مسیر جدید سنجیده نشده‌اند؛ build/dependency عمومی، فایل تازه و ورودی بدون تست بازند. Docker/Node22 فقط spike واقعی runtime دارد و هنوز executor محصول نیست.
