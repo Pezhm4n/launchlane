@@ -64,11 +64,11 @@ CodeRepairJob محدودِ پیاده‌شده، و plan approval و WorkloadCon
 
 ## خواندن محدود و هویت گزارش incident
 
-در مسیر اصلی `incident/runs.ts`، reader شناسه داخلی app انتخاب‌شده را از اتصال actor-bound می‌گیرد. collector پیش از خواندن log/workload و دوباره پیش از تحویل snapshot، همان شناسه را با پاسخ تازه project تطبیق می‌دهد؛ تغییر app هم‌نام کل snapshot را رد می‌کند. پاسخ project اولیه برای نام envها استفاده می‌شود. این مسیر یک خواندن اضافه دارد: هشت tool call در حالت کامل، همگی در همان budget و بدون retry. endpoint قدیمی evidence فقط قرارداد team/app name را دارد و گزارش ماندگار این مسیر محسوب نمی‌شود.
+در مسیر اصلی `incident/runs.ts`، reader شناسه داخلی app انتخاب‌شده را از اتصال actor-bound می‌گیرد. collector پیش از خواندن log/workload و دوباره پیش از تحویل snapshot، همان شناسه را با پاسخ تازه project تطبیق می‌دهد؛ تغییر app هم‌نام کل snapshot را رد می‌کند. پاسخ project اولیه برای نام envها استفاده می‌شود. این مسیر یک خواندن اضافه دارد: هشت tool call در حالت کاملِ بدون خطای انتقال؛ retry محدود اتصال نیز از همان budget مصرف می‌کند. endpoint قدیمی evidence فقط قرارداد team/app name را دارد و گزارش ماندگار این مسیر محسوب نمی‌شود.
 
 پنجره خودکار از پنج دقیقه پیش از شروع تا deadline بودجه است و هنگام پایان به زمان جمع‌آوری واقعی محدود می‌شود. timestamp هر مشاهده محلی در زمان دریافت ثبت می‌شود. پنجره تاریخی صریح به اکنون گسترش نمی‌یابد. logs v2 با قرارداد CLI، زمان نانوثانیه را به میلی‌ثانیه تبدیل می‌کند؛ زمان عددی parser مستند v1، event و metric از آن واحد نمی‌گیرند. app identity fence قفل upstream نیست و release مربوط به هر log را اثبات نمی‌کند.
 
-خواندن provider و اعتبارسنجی اتصال، انتظار برای header و body را با abort/deadline محدود می‌کنند، حتی اگر transport به signal واکنش ندهد. درخواست تکرار نمی‌شود و پاسخ دیررس اتصال تازه‌ای ذخیره نمی‌کند؛ پایان انتظار client اثبات توقف پردازش upstream نیست. شکل‌های محدود حساب/project/release/logs تطبیق داده شده‌اند؛ واحد metric و زمان event هنوز unverified هستند.
+خواندن provider و اعتبارسنجی اتصال، انتظار برای header و body را با abort/deadline محدود می‌کنند، حتی اگر transport به signal واکنش ندهد. فقط GET دو client حساب/شواهد و فقط UND_ERR_CONNECT_TIMEOUT یک تلاش مجدد پس از250ms دارد؛ همان signal و بودجه نگه داشته می‌شوند. HTTP failure یا داده نامعتبر و همه writeها retry خودکار ندارند. پیش از claim، allowance لازم برای ادامه writeها دوباره کنترل می‌شود؛ [ADR 0008](docs/decisions/0008-bounded-read-recovery.md). پاسخ دیررس اتصال تازه‌ای ذخیره نمی‌کند؛ پایان انتظار client اثبات توقف پردازش upstream نیست. شکل‌های محدود حساب/project/release/logs تطبیق داده شده‌اند؛ واحد metric و زمان event هنوز unverified هستند.
 
 ## جریان پروژه و حساب‌ها؛ backend پیاده‌شده
 

@@ -4,6 +4,8 @@
 
 ## A09 و رفع timeout اتصال؛ پس از8d5abf2
 
+در83d961d، هر شش suite مرورگر75/27/27/22/20/5 با provider/model مصنوعی و Node tests واقعی گذشتند. تلاش زنده بعدی پیش از پیشنهاد و تکرار بعد از تصمیم ساخت، هر دو با خطای انتقال GET و صفر write متوقف شدند؛ دومی UND_ERR_CONNECT_TIMEOUT واقعی پس از10.491s داشت. [ADR 0008](decisions/0008-bounded-read-recovery.md) retry واحد GET همین خطا با همان بودجه/deadline و کنترل allowance write پیش از claim را ثبت می‌کند. هشت regression تازه و domain244/244، lint/typecheck/build و HTTP21/21 export ثابت گذشتند؛ آرگومان/scope و payload همچنان پس از retry اعتبارسنجی می‌شوند. این شاهد قراردادی رفع است؛ سناریوی تازه وب/PaaS پس از fix هنوز لازم است.
+
 [گزارش تحقیق](evidence/agent-investigation.md) خواندن workload/metrics و بازه لاگ، هفت regression و دو ارزیابی مدل واقعی با provider مصنوعی را ثبت می‌کند. ۱۹ درخواست مدل، پاسخ200 همراه لاگ500 را از پاسخ500 همراه READY تفکیک کردند؛ منابع unknown ماندند. این ارزیابی، شاهد PaaS واقعی نیست.
 
 دو تلاش تازه وب قبل از مدل و write با LIARA_TIMEOUT متوقف شدند. سه GET مستقل اتصال پشت سر هم از deadline مشترک15s استفاده می‌کردند؛ اندازه‌گیری واقعی همزمان سه200 در8.935s و جمع زمان‌های جدا بیش از25s، علت را مشخص کرد. اجرای همزمان با همان deadline و لغو siblingها اضافه شد؛ هیچ retry یا write تازه‌ای ندارد. application واقعی در9.292s با سه200 متصل شد. domain236/236، lint/typecheck/build export مستقل با UI ثابت پیش از4cee36d گذشتند؛ آزمون جدید وب/PaaS در ادامه لازم است. وضعیت حساب یا کل مأموریت از این شاهد محدود تعمیم نمی‌یابد.

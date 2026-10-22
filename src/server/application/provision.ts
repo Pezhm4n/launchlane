@@ -86,7 +86,12 @@ export async function executeDestination(config: Config, store: Store, session: 
     client = dependencies.read ?? new LiaraAccountClient(scoped, spec.accountId), writer = dependencies.write ?? new LiaraProvisionClient(scoped);
   ensure(budget.maxToolCalls - budget.toolCalls >= 4, "BUDGET_EXHAUSTED", "بودجه برای پیش‌نیازها و ساخت مقصد کافی نیست.", 409);
   return executeApproved({ config: scoped, store, session, id, currentSpec: spec, signal: budget.signal(signal), adapter: {
-    async preflight(bounded) { await checkInputs(client, spec, budget, bounded); assertAccount(config, store, session.actorId, spec); },
+    async preflight(bounded) {
+      await checkInputs(client, spec, budget, bounded);
+      // Read recovery must not consume the create allowance before an attempt is claimed.
+      ensure(budget.maxToolCalls - budget.toolCalls >= 1, "BUDGET_EXHAUSTED", "بودجه ارسال ساخت مقصد کافی نیست.", 409);
+      assertAccount(config, store, session.actorId, spec);
+    },
     async execute(claimed, bounded) {
       assertAccount(config, store, session.actorId, spec);
       store.provisionStep(claimed.id, session.actorId, "request_started");

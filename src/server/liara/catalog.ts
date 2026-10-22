@@ -3,7 +3,7 @@ import { AppError, ensure } from "../errors.ts";
 import { identifier, object, string } from "../../contracts/validation.ts";
 import type { RunBudget } from "../policy/budget.ts";
 import { fingerprint } from "../policy/action.ts";
-import { abortable, boundedJson, httpFailure, transport, type Transport } from "../providers/http.ts";
+import { abortable, boundedJson, httpFailure, sendRead, transport, type Transport } from "../providers/http.ts";
 import { providerObjectId, type ProvisionReadback } from "../../contracts/provision.ts";
 import { containsCredential } from "../policy/redaction.ts";
 
@@ -105,13 +105,12 @@ export class LiaraAccountClient {
     ensure(this.config.enableLiveLiara, "LIVE_LIARA_DISABLED", "خواندن واقعی لیارا در این نصب خاموش است.", 403);
     ensure(this.config.liaraToken && this.config.teamId && this.config.liaraBaseUrl === "https://api.liara.ir",
       "LIARA_UNCONFIGURED", "حساب و تیم مجاز مشخص نیستند.", 403);
-    budget.take("tool", signal);
     const bounded = budget.signal(signal), url = new URL(path, this.config.liaraBaseUrl);
     url.searchParams.set("teamID", this.config.teamId);
     try {
       return await abortable(async () => {
-        const response = await this.send(url.href, { method: "GET", redirect: "error", cache: "no-store", signal: bounded,
-          headers: { Authorization: `Bearer ${this.config.liaraToken}`, Accept: "application/json" } });
+        const response = await sendRead(this.send, url.href, { method: "GET", redirect: "error", cache: "no-store", signal: bounded,
+          headers: { Authorization: `Bearer ${this.config.liaraToken}`, Accept: "application/json" } }, budget, bounded);
         if (response.status === 404 && missing) { await response.body?.cancel(); return parse(null); }
         if (!response.ok) { await response.body?.cancel(); throw httpFailure(response.status); }
         const result = parse(await boundedJson(response, 1024 * 1024));

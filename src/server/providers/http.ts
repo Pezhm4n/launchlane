@@ -1,7 +1,33 @@
 import { AppError, ensure } from "../errors.ts";
+import { setTimeout as delay } from "node:timers/promises";
+import type { RunBudget } from "../policy/budget.ts";
 
 export type Transport = (url: string, init: RequestInit) => Promise<Response>;
 export const transport: Transport = (url, init) => fetch(url, init);
+
+export async function sendRead(
+  send: Transport,
+  url: string,
+  init: RequestInit,
+  budget: RunBudget,
+  bounded: AbortSignal,
+): Promise<Response> {
+  ensure(init.method === "GET", "READ_METHOD_REQUIRED", "تکرار محدود فقط برای خواندن مجاز است.", 500);
+  // Reuse the body's deadline signal so a sibling timeout cannot be mistaken for user cancellation.
+  for (let attempt = 0; ; attempt++) {
+    budget.take("tool", bounded);
+    try {
+      return await abortable(() => send(url, { ...init, signal: bounded }), bounded);
+    } catch (error) {
+      const cause = error instanceof TypeError ? error.cause : null;
+      // A connect timeout has no HTTP response; one idempotent retry tolerates transient network loss.
+      // HTTP failures, invalid payloads and possibly committed writes never enter this retry path.
+      if (attempt !== 0 || bounded.aborted || typeof cause !== "object" || cause === null ||
+        !("code" in cause) || cause.code !== "UND_ERR_CONNECT_TIMEOUT") throw error;
+      await delay(250, undefined, { signal: bounded });
+    }
+  }
+}
 
 export async function abortable<T>(task: () => Promise<T>, signal: AbortSignal): Promise<T> {
   ensure(!signal.aborted, "CANCELLED", "مهلت درخواست پایان یافته است.", 409);

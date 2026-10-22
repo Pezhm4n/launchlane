@@ -8,6 +8,7 @@ import {
   abortable,
   boundedJson,
   httpFailure,
+  sendRead,
   type Transport,
   transport,
 } from "../providers/http.ts";
@@ -65,12 +66,11 @@ export class LiaraReadClient {
     );
     url.searchParams.set("teamID", scope.teamId);
     for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value);
-    budget.take("tool", signal);
     const boundedSignal = budget.signal(signal);
     try {
       // Bound both headers and body independently of a transport's abort implementation.
       const result = await abortable(async () => {
-        const response = await this.send(url.toString(), {
+        const response = await sendRead(this.send, url.toString(), {
           method: "GET",
           redirect: "error",
           cache: "no-store",
@@ -79,7 +79,7 @@ export class LiaraReadClient {
             Authorization: `Bearer ${this.config.liaraToken}`,
             Accept: "application/json",
           },
-        });
+        }, budget, boundedSignal);
         if (!response.ok) {
           await response.body?.cancel();
           throw httpFailure(response.status);

@@ -11,6 +11,7 @@ import {
 import { AppError } from "../../src/server/errors.ts";
 import { migrations } from "../../src/server/persistence/migrations.ts";
 import { LiaraRestartClient } from "../../src/server/liara/restart.ts";
+import { LiaraReadClient } from "../../src/server/liara/client.ts";
 import { WorkloadProbe } from "../../src/server/liara/probe.ts";
 import { RunBudget } from "../../src/server/policy/budget.ts";
 import { parseActionSpec } from "../../src/server/policy/action.ts";
@@ -135,6 +136,25 @@ test("restart gates, cancellation, insufficient budget, actor, session, denial a
         f.cleanup();
       }
     });
+});
+
+test("restart preflight retry exhaustion stops before claiming or sending the approved write", async () => {
+  const f = restartFixture();
+  try {
+    const action = await approved(f);
+    let attempts = 0;
+    const send = f.deps.read.send, read = new LiaraReadClient(f.config, async (url, init) => {
+      if (++attempts === 1)
+        throw new TypeError("connect failed", { cause: { code: "UND_ERR_CONNECT_TIMEOUT" } });
+      return send(url, init);
+    });
+    await assert.rejects(executeRestart({ ...f.config, maxToolCalls: 3 }, f.store, session, action.id, signal(),
+      { ...f.deps, read }), code("BUDGET_EXHAUSTED"));
+    assert.equal(attempts, 3);
+    assert.equal(f.counts.writes, 0);
+    assert.equal(f.store.getAction(action.id, session.actorId).attemptId, null);
+    assert.equal(f.store.getAction(action.id, session.actorId).state, "approved");
+  } finally { f.cleanup(); }
 });
 
 test("changed account, same-name app, plan, release, origin or incident cannot inherit restart approval", async (t) => {

@@ -206,6 +206,7 @@ export async function executeRestart(
           "نسخه برنامه تغییر کرده است؛ پیشنهاد تازه دریافت کنید.",
           409,
         );
+        ensure(budget.maxToolCalls - budget.toolCalls >= 1, "BUDGET_EXHAUSTED", "بودجه ارسال درخواست کافی نیست.", 409);
         validateRestartAction(config, store, session.actorId, spec);
       },
       async execute(claimed, bounded) {

@@ -23,6 +23,7 @@ import { WorkloadProbe } from "../../src/server/liara/probe.ts";
 import { Store } from "../../src/server/persistence/store.ts";
 import { parseActionSpec, fingerprint } from "../../src/server/policy/action.ts";
 import type { Transport } from "../../src/server/providers/http.ts";
+import { RunBudget } from "../../src/server/policy/budget.ts";
 
 const scope = { teamId: "a".repeat(24), app: "test-node" };
 const session: Session = {
@@ -369,6 +370,34 @@ test("rejection, expiry, changed source, app identity, plan, host and disabled g
     } finally {
       await f.cleanup();
     }
+  }
+});
+
+test("publication reserves a counted retry for the identity read between its two writes", async () => {
+  for (const maxToolCalls of [4, 5]) {
+    const f = await fixture();
+    try {
+      f.approve();
+      let reads = 0;
+      const send = f.deps.read.send, budget = new RunBudget({ ...f.config, maxToolCalls });
+      const read = new LiaraReadClient(f.config, async (url, init) => {
+        if (++reads === 2)
+          throw new TypeError("connect failed", { cause: { code: "UND_ERR_CONNECT_TIMEOUT" } });
+        return send(url, init);
+      });
+      const operation = executeDeployment(f.config, f.store, session, f.action.id, signal(), { ...f.deps, read, budget });
+      if (maxToolCalls === 4) {
+        await assert.rejects(operation, code("BUDGET_EXHAUSTED"));
+        assert.equal(reads, 1);
+        assert.equal(f.writes, 0);
+        assert.equal(f.store.getAction(f.action.id, session.actorId).attemptId, null);
+      } else {
+        assert.equal((await operation).state, "observing");
+        assert.equal(reads, 3);
+        assert.equal(f.writes, 2);
+        assert.equal(budget.toolCalls, 5);
+      }
+    } finally { await f.cleanup(); }
   }
 });
 

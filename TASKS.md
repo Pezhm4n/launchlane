@@ -41,6 +41,8 @@
 
 ادامه A09 پس از8d5abf2: دو آزمون وب پیش از model/write با timeout اتصال متوقف شدند؛ سه خواندن مستقل به‌صورت متوالی deadline15s را مصرف می‌کردند. اجرای همزمان با همان deadline، لغو sibling و عدم ثبت پاسخ ناقص اضافه شد. دو regression تازه، domain236/236، lint/typecheck/build و HTTP21/21 روی export با UI ثابت گذشتند؛ اتصال واقعی application با سه200 در9.292s تأیید شد. تلاش‌های شکست‌خورده حفظ شدند. قدم بعد، انتشار کنترل‌شده و تحقیق واقعی دو مسیر200/500 از وب است؛ A09 همچنان partial است.
 
+ادامه پس از83d961d: شش browser suite ثابت75/27/27/22/20/5 گذشتند. دو اجرای زنده پیش از create با GET transport failure متوقف شدند؛ در دومی، خطای UND_ERR_CONNECT_TIMEOUT ثبت شد. retry واحد فقط برای همین خطای GET، هزینه هر ارسال در budget و allowance write قبل از claim اضافه شد؛ POST، HTTP errors و schema error تکرار نمی‌شوند. هشت regression تازه، domain244/244، lint/typecheck/build و HTTP21/21 export ثابت گذشتند. قدم بعد تکرار SRE واقعی با همان مصرف تجمعی و حفظ failureهاست؛ A09 partial مانده است.
+
 ## وضعیت ثبت‌شده پایه و کارهای هم‌زمان
 
 ### بررسی کامل انتخاب GitHub و آماده‌سازی پیش از مرحله Agent — bounded_live_verified

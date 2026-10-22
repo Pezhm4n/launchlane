@@ -215,6 +215,8 @@ export async function executeDeployment(
     adapter: {
       async preflight(bounded) {
         await checkProject(client, spec, budget, bounded);
+        // Leave room for both writes and the second identity read, including its one connect retry.
+        ensure(budget.maxToolCalls - budget.toolCalls >= 4, "BUDGET_EXHAUSTED", "بودجه ادامه انتشار و بررسی مقصد کافی نیست.", 409);
         authorize(scoped, store, session.actorId, spec, id);
       },
       async execute(claimed, bounded, source) {

@@ -14,6 +14,7 @@ import { decodeAction } from "../../src/contracts/client-decode.ts";
 import { fingerprint, parseActionSpec } from "../../src/server/policy/action.ts";
 import { LiaraReadClient } from "../../src/server/liara/client.ts";
 import { proposeWorkloadDeployment } from "../../src/server/application/deployment.ts";
+import { RunBudget } from "../../src/server/policy/budget.ts";
 
 const team = "a".repeat(24), account = "b".repeat(24), network = "c".repeat(24), createdId = "d".repeat(24), app = "new-agent-app";
 const signal = () => AbortSignal.timeout(3000);
@@ -46,7 +47,9 @@ async function fixture() {
     assert.deepEqual(JSON.parse(String(init.body)), { name: app, planID: "starter", bundlePlanID: "basic", platform: "node", network, readOnlyRootFilesystem: true });
     exists = true;
     afterSend?.();
-    if (lost) throw new Error("lost response with private text must not escape");
+    if (lost) throw new TypeError("lost response with private text must not escape", {
+      cause: Object.assign(new Error("private connect details"), { code: "UND_ERR_CONNECT_TIMEOUT" }),
+    });
     return Response.json({ projectID: returnedId });
   });
   const deps = { read, write }, action = await proposeDestination(config, store, f.session.actorId,
@@ -103,6 +106,28 @@ test("changed price/network, existing name, expiry, disabled writes and changed 
       assert.equal(f.writes, 0, kind); assert.equal(f.store.getAction(f.action.id, f.session.actorId).attemptId, null, kind);
     } finally { f.close(); }
   }
+});
+
+test("a preflight read retry cannot consume the create allowance and claim an unsendable attempt", async () => {
+  const f = await fixture();
+  try {
+    f.approve();
+    let retried = false;
+    const send = f.deps.read.send, budget = new RunBudget({ ...f.config, maxToolCalls: 4 });
+    const read = new LiaraAccountClient(f.config, account, async (url, init) => {
+      if (!retried && new URL(url).pathname === "/v1/networks") {
+        retried = true;
+        throw new TypeError("connect failed", { cause: { code: "UND_ERR_CONNECT_TIMEOUT" } });
+      }
+      return send(url, init);
+    });
+    await assert.rejects(executeDestination(f.config, f.store, f.session, f.action.id, signal(), { ...f.deps, read, budget }), code("BUDGET_EXHAUSTED"));
+    assert.equal(retried, true);
+    assert.equal(budget.toolCalls, 4);
+    assert.equal(f.writes, 0);
+    assert.equal(f.store.getAction(f.action.id, f.session.actorId).attemptId, null);
+    assert.equal(f.store.getAction(f.action.id, f.session.actorId).state, "approved");
+  } finally { f.close(); }
 });
 
 test("publication after creation binds the returned app ID and the same approved source artifact", async () => {
