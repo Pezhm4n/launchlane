@@ -4,9 +4,10 @@ import { cp, mkdtemp, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { setTimeout as pause } from "node:timers/promises";
+import { pathToFileURL } from "node:url";
 import { freeHttpTestPort } from "../tests/helpers/http-port.ts";
 
-export async function startTestServer({ browserHost = "127.0.0.1" } = {}) {
+export async function startTestServer({ browserHost = "127.0.0.1", agentFixture = false } = {}) {
   if (!["127.0.0.1", "localhost"].includes(browserHost)) throw new Error("Unsupported loopback test host");
   const directory = await mkdtemp(join(tmpdir(), "launchlane-http-"));
   const workspace = join(directory, "workspace");
@@ -30,6 +31,7 @@ export async function startTestServer({ browserHost = "127.0.0.1" } = {}) {
     LAUNCHLANE_WORKSPACE_ROOT: workspace,
     LAUNCHLANE_ENABLE_MUTATIONS: "false",
     LAUNCHLANE_ENABLE_LIVE_MODEL: "false",
+    LAUNCHLANE_ENABLE_LOCAL_REPAIR: "false",
     LAUNCHLANE_ENABLE_LIVE_LIARA: "false",
     LAUNCHLANE_PROBE_ORIGINS: "",
     LAUNCHLANE_APP_ALLOWLIST: app,
@@ -39,6 +41,13 @@ export async function startTestServer({ browserHost = "127.0.0.1" } = {}) {
     MODEL_BASE_URL: "https://ai.boxapi.ir/ai/v1",
     MODEL_API_KEY: "",
     MODEL_ID: "",
+    NODE_OPTIONS: "",
+    ...(agentFixture?{
+      LAUNCHLANE_ENABLE_LIVE_MODEL:"true",LAUNCHLANE_ENABLE_LOCAL_REPAIR:"true",
+      MODEL_ID:"gpt-6-luna",MODEL_API_KEY:"synthetic-model-key-for-isolated-test-only",
+      LAUNCHLANE_AGENT_FIXTURE_LOG:join(directory,"model.jsonl"),
+      NODE_OPTIONS:`--import=${pathToFileURL(resolve("tests/helpers/agent-model-hook.mjs")).href}`,
+    }:{}),
   };
   const child = spawn(
     process.execPath,
@@ -82,6 +91,7 @@ export async function startTestServer({ browserHost = "127.0.0.1" } = {}) {
           workspace,
           stateDir: env.LAUNCHLANE_STATE_DIR,
           sessionSecret: env.LAUNCHLANE_SESSION_SECRET,
+          modelLog:agentFixture?env.LAUNCHLANE_AGENT_FIXTURE_LOG:null,
           close,
         };
     } catch {

@@ -104,7 +104,7 @@ function saveConnection(changes = {}) {
   });
 }
 try {
-  await page.goto(server.origin);
+  await page.goto(`${server.origin}/?view=publish`);
   await page.getByLabel("کلید ورود محلی", { exact: true }).fill(server.token);
   await page.getByRole("button", { name: "ورود به میز کار", exact: true }).click();
   await page.getByRole("button", { name: "امتحان با پروژه نمونه", exact: true }).click();

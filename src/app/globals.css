@@ -1020,7 +1020,7 @@ button[aria-busy="true"] {
   margin-block-end: var(--space-4);
 }
 .task-switch button {
-  flex: 1;
+  flex: 1 1 auto;
 }
 .task-main .page-intro-compact {
   margin-block-end: var(--space-3);
@@ -1235,3 +1235,36 @@ button[aria-busy="true"] {
     grid-template-columns: minmax(var(--column-min), 2fr) minmax(var(--column-min), 1fr);
   }
 }
+
+.agent-panel {
+  margin-block-end: var(--space-5);
+  max-inline-size: var(--measure-text);
+  margin-inline: auto;
+}
+.agent-project-actions { margin-block-end: var(--space-5); }
+.agent-repair {
+  padding: var(--space-4);
+  margin-block: var(--space-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.agent-transcript {
+  max-block-size: var(--agent-transcript-height);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-2);
+  margin-block: var(--space-3);
+  overflow-wrap: anywhere;
+}
+.agent-transcript article {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  margin-block-end: var(--space-3);
+}
+.agent-user { background: var(--color-paper); }
+.agent-answer { border: var(--border-width) solid var(--color-border); }
+.agent-transcript h3 { font-size: var(--text-sm); color: var(--color-muted); }
+.agent-transcript p { white-space: pre-wrap; }
+.agent-effect { font-size: var(--text-sm); color: var(--color-warning); }
+.agent-events { padding-inline-start: var(--space-6); }
+.agent-events li p { margin-block: var(--space-2); }

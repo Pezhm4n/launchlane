@@ -116,7 +116,7 @@ async function closeDialog(name) {
 
 try {
   await page.setViewportSize({ width: 360, height: 844 });
-  await page.goto(server.origin);
+  await page.goto(`${server.origin}/?view=publish`);
   await page.getByRole("heading", { name: "وارد میز کار محلی شوید", exact: true }).waitFor();
   await page.keyboard.press("Tab");
   assert.equal(await page.locator(":focus").textContent(), "رفتن به محتوای اصلی");
@@ -578,10 +578,10 @@ try {
   });
   controlledReads = true;
   await page.getByRole("button", { name: "بازخوانی وضعیت دسترسی", exact: true }).click();
-  await page.waitForFunction(() => {
-    const button = document.querySelector("form button[type=submit]");
-    return button instanceof HTMLButtonElement && !button.disabled;
-  });
+  await page.waitForFunction(
+    (button) => button instanceof HTMLButtonElement && !button.disabled,
+    await collectButton.elementHandle(),
+  );
   await page.getByLabel("کند شده است", { exact: true }).check();
   await page.getByText(/برای بررسی کندی، حداکثر سه درخواست کوتاه و متوالی/).waitFor();
   for (const width of [360, 768, 1280]) {
