@@ -28,6 +28,20 @@ function decodeFlow(value: unknown): FlowResult {
   };
 }
 const number = (value: number) => new Intl.NumberFormat("fa-IR").format(value);
+const workbenchModes: WorkbenchMode[] = ["agent", "source", "incident"];
+const modeNames: Record<WorkbenchMode, string> = {
+  agent: "دستیار پروژه",
+  source: "انتشار پروژه",
+  incident: "بررسی مشکل سایت",
+};
+const journeySteps = [
+  "انتخاب و بررسی پروژه",
+  "حساب و برنامه مقصد",
+  "پیشنهاد قابل بررسی",
+  "تصمیم شما",
+  "اجرای انتشار",
+  "بررسی نتیجه سایت",
+];
 const stateNames: Record<ActionState, string> = {
   awaiting_approval: "منتظر تصمیم شما",
   approved: "تأیید ثبت شد؛ اجرا نشده",
@@ -766,6 +780,12 @@ export function Workbench() {
     setNotice("");
     writeLocation(next, flow?.id ?? null);
   }
+  function modeHref(next: WorkbenchMode) {
+    const params = new URLSearchParams();
+    params.set("view", next === "source" ? "publish" : next);
+    if (flow?.id) params.set("project", flow.id);
+    return `?${params.toString()}`;
+  }
   function openAccounts() {
     accountReturnTarget.current = null;
     setAccountsOpen(true);
@@ -780,6 +800,19 @@ export function Workbench() {
     action.expiresAt <= clock
       ? "expired"
       : action?.state;
+  const journeyHint =
+    effectiveState === "uncertain"
+      ? "نتیجه نامعلوم است؛ اجرای تازه بسته می‌ماند."
+      : action?.spec.version === 4 &&
+          (effectiveState === "awaiting_approval" || effectiveState === "approved")
+        ? "این پیشنهاد به نسخه Node مشخص متصل نیست؛ پیشنهاد تازه دریافت کنید."
+        : effectiveState === "approved"
+          ? action?.spec.version === 5 && workspace?.features.deployment
+            ? "تأیید ثبت شده است؛ می‌توانید انتشار همین نسخه را آغاز کنید."
+            : "تأیید ثبت شده است؛ مسیر اجرای این پیشنهاد فعلاً بسته است."
+          : !connected
+            ? "بررسی محلی کامل است؛ اتصال حساب مرحله مستقل بعدی است."
+            : "هر مرحله فقط با نتیجه واقعی همان پروژه جلو می‌رود.";
   const step = !flow
     ? 0
     : flow.status !== "ready"
@@ -796,72 +829,92 @@ export function Workbench() {
               : 5;
   return (
     <>
-      <header className="app-header">
-        <a className="brand" href="/">
-          <span className="brand-symbol" aria-hidden="true">
-            <span />
-            <span />
-            <span />
-          </span>
-          <span dir="ltr">
-            Launchlane
-            <span className="brand-subtitle">از پروژه تا انتشار، با تصمیم شما</span>
-            <span className="sr-only">، صفحه اصلی</span>
-          </span>
-        </a>
+      <header className="app-top">
+        <div className="app-header">
+          <a className="brand" href="/">
+            <span className="brand-symbol" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </span>
+            <span dir="ltr">
+              Launchlane
+              <span className="brand-subtitle">از پروژه تا انتشار، با تصمیم شما</span>
+              <span className="sr-only">، صفحه اصلی</span>
+            </span>
+          </a>
+          {workspace ? (
+            <div className="header-actions">
+              <button
+                type="button"
+                className="button-quiet"
+                ref={accountsTrigger}
+                disabled={disabled}
+                onClick={openAccounts}
+              >
+                حساب‌ها
+              </button>
+              <button
+                type="button"
+                className="button-quiet header-signout"
+                disabled={busy !== null}
+                onClick={() => void signOut()}
+              >
+                خروج
+              </button>
+            </div>
+          ) : null}
+        </div>
         {workspace ? (
-          <div className="header-actions">
-            <button
-              type="button"
-              className="button-quiet"
-              ref={accountsTrigger}
-              disabled={disabled}
-              onClick={openAccounts}
-            >
-              حساب‌ها
-            </button>
-            <button
-              type="button"
-              className="button-quiet"
-              disabled={busy !== null}
-              onClick={() => void signOut()}
-            >
-              خروج
-            </button>
-          </div>
+          <>
+            <p className="app-context">
+              <span className="app-context-mode">{modeNames[mode]}</span>
+              <span aria-hidden="true">·</span>
+              {flow ? (
+                <bdi className="app-context-project">{projectName(flow)}</bdi>
+              ) : (
+                <span className="app-context-project">بدون پروژه انتخاب‌شده</span>
+              )}
+              {flow ? (
+                <span className="app-context-state">
+                  {flow.status === "ready"
+                    ? "آماده"
+                    : flow.status === "incomplete"
+                      ? "نیازمند تکمیل"
+                      : "نیازمند بررسی دوباره"}
+                </span>
+              ) : null}
+            </p>
+            <nav className="workbench-switch task-switch app-nav" aria-label="بخش‌های میز کار">
+              {workbenchModes.map((item) => (
+                <a
+                  key={item}
+                  className="app-nav-link"
+                  href={modeHref(item)}
+                  aria-current={mode === item ? "page" : undefined}
+                  aria-disabled={busy !== null || undefined}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    navigate(item);
+                  }}
+                >
+                  {modeNames[item]}
+                </a>
+              ))}
+            </nav>
+          </>
         ) : null}
       </header>
       <main id="main-content" className="app-main task-main">
-        {workspace ? (
-          <nav className="workbench-switch task-switch" aria-label="کار اصلی">
-            <button type="button" className="button-secondary" aria-pressed={mode==="agent"} disabled={busy!==null} onClick={()=>navigate("agent")}>دستیار پروژه</button>
-            <button
-              type="button"
-              className="button-secondary"
-              aria-pressed={mode === "source"}
-              disabled={busy !== null}
-              onClick={() => navigate("source")}
-            >
-              انتشار پروژه
-            </button>
-            <button
-              type="button"
-              className="button-secondary"
-              aria-pressed={mode === "incident"}
-              disabled={busy !== null}
-              onClick={() => navigate("incident")}
-            >
-              بررسی مشکل سایت
-            </button>
-          </nav>
-        ) : null}
         <div className={`page-intro ${workspace ? "page-intro-compact" : ""}`}>
           <h1>
             {workspace ? (
-              mode === "agent" ? "دستیار پروژه" : mode === "source" ? (
-                "انتشار پروژه"
+              flow ? (
+                <>
+                  پروژه: <bdi>{projectName(flow)}</bdi>
+                </>
               ) : (
-                "بررسی مشکل سایت"
+                "میز کار پروژه"
               )
             ) : (
               <>
@@ -1126,6 +1179,23 @@ export function Workbench() {
               {flow && profile ? (
                 <div className="workbench-grid project-review">
                   <div className="primary-column">
+                    <section className="journey-strip" aria-label="مراحل انتشار">
+                      <p className="journey-strip-current">
+                        <span>
+                          قدم {number(step + 1)} از {number(journeySteps.length)}
+                        </span>
+                        <strong>{journeySteps[step] ?? journeySteps[0]}</strong>
+                      </p>
+                      <ol className="journey-strip-dots" aria-hidden="true">
+                        {journeySteps.map((label, index) => (
+                          <li
+                            key={label}
+                            className={index === step ? "current" : index < step ? "visited" : ""}
+                          />
+                        ))}
+                      </ol>
+                      <p className="hint journey-strip-hint">{journeyHint}</p>
+                    </section>
                     <section className="panel" aria-labelledby="profile-title">
                       <div className="section-heading">
                         <h2 id="profile-title" tabIndex={-1} ref={resultHeading}>
@@ -1364,17 +1434,10 @@ export function Workbench() {
                     ) : null}
                   </div>
                   <aside className="context-column">
-                    <section className="panel" aria-labelledby="journey-title">
+                    <section className="panel journey-panel" aria-labelledby="journey-title">
                       <h2 id="journey-title">قدم بعدی</h2>
                       <ol className="task-progress">
-                        {[
-                          "انتخاب و بررسی پروژه",
-                          "حساب و برنامه مقصد",
-                          "پیشنهاد قابل بررسی",
-                          "تصمیم شما",
-                          "اجرای انتشار",
-                          "بررسی نتیجه سایت",
-                        ].map((label, index) => (
+                        {journeySteps.map((label, index) => (
                           <li
                             key={label}
                             aria-current={index === step ? "step" : undefined}
@@ -1387,19 +1450,7 @@ export function Workbench() {
                           </li>
                         ))}
                       </ol>
-                      <p className="hint">
-                        {effectiveState === "uncertain"
-                          ? "نتیجه نامعلوم است؛ اجرای تازه بسته می‌ماند."
-                          : action?.spec.version === 4 && (effectiveState === "awaiting_approval" || effectiveState === "approved")
-                            ? "این پیشنهاد به نسخه Node مشخص متصل نیست؛ پیشنهاد تازه دریافت کنید."
-                          : effectiveState === "approved"
-                            ? action?.spec.version === 5 && workspace.features.deployment
-                              ? "تأیید ثبت شده است؛ می‌توانید انتشار همین نسخه را آغاز کنید."
-                              : "تأیید ثبت شده است؛ مسیر اجرای این پیشنهاد فعلاً بسته است."
-                            : !connected
-                              ? "بررسی محلی کامل است؛ اتصال حساب مرحله مستقل بعدی است."
-                              : "هر مرحله فقط با نتیجه واقعی همان پروژه جلو می‌رود."}
-                      </p>
+                      <p className="hint">{journeyHint}</p>
                     </section>
                     <section className="panel">
                       <h2>مقصد انتشار</h2>
@@ -1482,6 +1533,7 @@ export function Workbench() {
                   setAccountsOpen(false);
                   restoreFocus.current = "accounts";
                 }}
+                onSignOut={() => void signOut()}
                 onSessionExpired={onSessionExpired}
               />
             ) : null}

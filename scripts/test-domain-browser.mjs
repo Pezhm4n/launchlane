@@ -120,6 +120,7 @@ try {
     "true",
   );
   assert.equal(await page.locator(":focus").getAttribute("name"), "domain");
+  await page.evaluate(() => window.scrollTo({ top: 0 }));
   await layout(360, "inline-name-error");
   await prepare("Shop.Example.IR.");
   assert.match(await heading().textContent(), /shop\.example\.ir/);
@@ -194,8 +195,8 @@ try {
   assert.match(await region.textContent(), /ایرنیک/);
   assert.match(await region.textContent(), /نیم‌سرورهایی را که همان صفحه نشان می‌دهد/);
   await layout(360, "international-domain-liara-dns");
-  await page.getByRole("button", { name: "بررسی مشکل سایت", exact: true }).click();
-  await page.getByRole("button", { name: "انتشار پروژه", exact: true }).click();
+  await page.getByRole("link", { name: "بررسی مشکل سایت", exact: true }).click();
+  await page.getByRole("link", { name: "انتشار پروژه", exact: true }).click();
   assert.equal(await heading().count(), 1);
 
   saveConnection();

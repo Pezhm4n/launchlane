@@ -575,6 +575,7 @@ export function IncidentWorkbench({
             onCompare={(choice) => void job("compare", { id: current.id, choice })}
             onRestore={() => void retrieve()}
             operationEvidence={operationEvidence}
+            staleApp={current.kind === "live" && !sameApp ? current.evidence.scope.app : null}
             onSessionExpired={onSessionExpired}
           />
           {current.kind === "live" ? <RestartPanel key={`restart-${current.id}`} run={current} workspace={workspace}

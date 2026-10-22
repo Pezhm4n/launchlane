@@ -108,6 +108,7 @@ async function sample() {
   await page.waitForURL((url) => url.href !== previous);
   await heading().waitFor();
   await page.getByText("فایل‌ها آماده‌اند", { exact: true }).waitFor();
+  await page.evaluate(() => window.scrollTo({ top: 0 }));
 }
 async function closeDialog(name) {
   await page.getByRole("dialog", { name, exact: true }).press("Escape");
@@ -153,6 +154,43 @@ try {
   await folders.getByRole("button", { name: "انتخاب همین پوشه", exact: true }).click();
   await heading().waitFor();
   assert.ok((await page.locator(".selected-project").textContent()).includes("node-service"));
+  const navLinks = page.locator(".app-nav .app-nav-link");
+  assert.equal(await navLinks.count(), 3);
+  assert.equal(
+    await navLinks.filter({ hasText: "انتشار پروژه" }).getAttribute("aria-current"),
+    "page",
+  );
+  const navTops = await navLinks.evaluateAll((nodes) =>
+    nodes.map((node) => Math.round(node.getBoundingClientRect().top)),
+  );
+  assert.equal(new Set(navTops).size, 1, "workbench navigation must stay on one row");
+  const shell = await page.evaluate(() => {
+    const height = (selector) =>
+      Math.round(document.querySelector(selector)?.getBoundingClientRect().height ?? 0);
+    return {
+      top: height(".app-top"),
+      header: height(".app-header"),
+      brand: height(".brand"),
+      actions: height(".header-actions"),
+      context: height(".app-context"),
+      nav: height(".app-nav"),
+      link: height(".app-nav-link"),
+    };
+  });
+  assert.ok(shell.top <= 150, `mobile shell must stay compact: ${JSON.stringify(shell)}`);
+  const strip = page.locator(".journey-strip");
+  await strip.waitFor();
+  assert.ok((await page.locator(".app-context").textContent()).includes("node-service"));
+  assert.match(await strip.locator(".journey-strip-current").textContent(), /حساب و برنامه مقصد/);
+  assert.equal(await strip.locator(".journey-strip-dots .current").count(), 1);
+  await page.evaluate(() => window.scrollTo(0, 600));
+  assert.equal(
+    await page.locator(".app-top").evaluate((node) => Math.round(node.getBoundingClientRect().top)),
+    0,
+    "mobile shell must stay visible while scrolling",
+  );
+  assert.equal(await page.locator(".app-context").isVisible(), true);
+  await page.evaluate(() => window.scrollTo(0, 0));
   assert.equal(await page.getByRole("button", { name: /ساخت بسته/ }).count(), 0);
   assert.equal(await page.getByLabel("پورت برنامه", { exact: true }).count(), 0);
   assert.equal(await heading().evaluate((element) => element === document.activeElement), true);
@@ -171,11 +209,11 @@ try {
   await heading().waitFor();
   assert.equal(page.url(), firstUrl);
   await layout(360, "local-project-restored-and-cancel-preserved");
-  await page.getByRole("button", { name: "بررسی مشکل سایت", exact: true }).click();
+  await page.getByRole("link", { name: "بررسی مشکل سایت", exact: true }).click();
   await page
     .getByRole("heading", { name: "مشکل سایت را از کجا بررسی کنیم؟", exact: true })
     .waitFor();
-  await page.getByRole("button", { name: "انتشار پروژه", exact: true }).click();
+  await page.getByRole("link", { name: "انتشار پروژه", exact: true }).click();
   await heading().waitFor();
   assert.equal(
     new URL(page.url()).searchParams.get("project"),
@@ -237,6 +275,16 @@ try {
   await page.getByRole("button", { name: "حساب‌ها", exact: true }).click();
   const accounts = page.getByRole("dialog", { name: "حساب‌ها و دسترسی", exact: true });
   await accounts.getByLabel("کلید دسترسی لیارا", { exact: true }).waitFor();
+  assert.equal(
+    await accounts.getByRole("button", { name: "خروج از میز کار", exact: true }).isVisible(),
+    true,
+    "mobile users must reach sign-out from the account dialog",
+  );
+  assert.equal(
+    await page.evaluate(() => getComputedStyle(document.documentElement).overflow),
+    "hidden",
+    "background page must not scroll behind a dialog",
+  );
   await layout(360, "liara-connection-form");
   await accounts.getByLabel("کلید دسترسی لیارا", { exact: true }).fill("short");
   await accounts.getByRole("button", { name: "اتصال حساب لیارا", exact: true }).click();
@@ -258,17 +306,18 @@ try {
       exact: true,
     })
     .waitFor();
+  assert.equal(await accounts.locator(".app-selection-feedback").isVisible(), true);
   await layout(360, "connected-account-and-narrow-app-selection-fixture");
   await accounts.locator(".site-address summary").click();
-  await accounts.getByLabel("نام سایت", { exact: true }).fill("http://127.0.0.1");
+  await accounts.getByLabel("نشانی سایت", { exact: true }).fill("http://127.0.0.1");
   await accounts.getByRole("button", { name: "ذخیره نشانی برای بررسی", exact: true }).click();
   await accounts.getByRole("alert", { name: "اتصال حساب کامل نشد" }).waitFor();
   assert.equal(
-    await accounts.getByLabel("نام سایت", { exact: true }).getAttribute("aria-invalid"),
+    await accounts.getByLabel("نشانی سایت", { exact: true }).getAttribute("aria-invalid"),
     "true",
   );
   await layout(360, "site-origin-rejects-internal-address");
-  await accounts.getByLabel("نام سایت", { exact: true }).fill("sample.example.com");
+  await accounts.getByLabel("نشانی سایت", { exact: true }).fill("sample.example.com");
   await accounts.getByRole("button", { name: "ذخیره نشانی برای بررسی", exact: true }).click();
   await accounts
     .getByText("نشانی برای بررسی ذخیره شد؛ هنوز درخواستی به سایت ارسال نشده است.", { exact: true })
@@ -278,6 +327,11 @@ try {
     "https://sample.example.com",
   );
   await closeDialog("حساب‌ها و دسترسی");
+  assert.notEqual(
+    await page.evaluate(() => getComputedStyle(document.documentElement).overflow),
+    "hidden",
+    "page scrolling must return after the dialog closes",
+  );
   await page.getByRole("button", { name: "دریافت پیشنهاد انتشار", exact: true }).click();
   await page.getByRole("heading", { name: "پیشنهاد انتشار", exact: true }).waitFor();
   await layout(360, "proposal-with-cost-unknown");
@@ -327,7 +381,7 @@ try {
   await page.getByText("نیاز به بررسی دوباره", { exact: true }).waitFor();
   await layout(360, "stale-source-invalidates-proposal");
 
-  await page.getByRole("button", { name: "بررسی مشکل سایت", exact: true }).click();
+  await page.getByRole("link", { name: "بررسی مشکل سایت", exact: true }).click();
   const incidentTitle = page.getByRole("heading", {
     name: "مشکل سایت را از کجا بررسی کنیم؟",
     exact: true,
@@ -440,9 +494,9 @@ try {
   assert.equal(new URL(page.url()).searchParams.get("incident"), incidentId);
   assert.equal(await handoffPanel.getByRole("link", { name: "دریافت فایل گزارش", exact: true }).count(), 0);
   await layout(360, "handoff-session-expiry-preserves-incident-and-clears-preview");
-  await page.getByRole("button", { name: "انتشار پروژه", exact: true }).click();
+  await page.getByRole("link", { name: "انتشار پروژه", exact: true }).click();
   await heading().waitFor();
-  await page.getByRole("button", { name: "بررسی مشکل سایت", exact: true }).click();
+  await page.getByRole("link", { name: "بررسی مشکل سایت", exact: true }).click();
   await incidentReport.waitFor();
   assert.equal(new URL(page.url()).searchParams.get("incident"), incidentId);
   await page.reload();
@@ -640,7 +694,7 @@ try {
   await liveReport.waitFor();
   assert.equal(new URL(page.url()).searchParams.get("incident"), liveId);
   controlledReads = false;
-  await page.getByRole("button", { name: "انتشار پروژه", exact: true }).click();
+  await page.getByRole("link", { name: "انتشار پروژه", exact: true }).click();
   await heading().waitFor();
 
   let githubLogin = null,

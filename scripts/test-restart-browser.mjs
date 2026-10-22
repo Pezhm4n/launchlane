@@ -120,8 +120,8 @@ try {
   await panel.getByText("تأیید ثبت شد؛ اجرا نشده", { exact: true }).waitFor(); assert.equal(sends, 0);
   await page.reload(); await panel.getByText("تأیید ثبت شد؛ اجرا نشده", { exact: true }).waitFor();
   for (const width of [280, 360, 559, 560, 768, 959, 960, 1280]) await state("approved-restored-no-send", width);
-  await page.getByRole("button", { name: "انتشار پروژه", exact: true }).click();
-  await page.getByRole("button", { name: "بررسی مشکل سایت", exact: true }).click();
+  await page.getByRole("link", { name: "انتشار پروژه", exact: true }).click();
+  await page.getByRole("link", { name: "بررسی مشکل سایت", exact: true }).click();
   await panel.getByText("تأیید ثبت شد؛ اجرا نشده", { exact: true }).waitFor();
   await page.goBack(); await page.goForward();
   await panel.getByText("تأیید ثبت شد؛ اجرا نشده", { exact: true }).waitFor();

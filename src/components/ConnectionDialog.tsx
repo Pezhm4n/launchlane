@@ -11,6 +11,7 @@ export function ConnectionDialog({
   onRefresh,
   onGitHub,
   onClose,
+  onSignOut,
   onSessionExpired,
 }: {
   workspace: WorkspaceView;
@@ -18,6 +19,7 @@ export function ConnectionDialog({
   onRefresh: () => Promise<unknown>;
   onGitHub: () => void;
   onClose: () => void;
+  onSignOut: () => void;
   onSessionExpired: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null),
@@ -29,6 +31,9 @@ export function ConnectionDialog({
     [busy, setBusy] = useState<string | null>(null),
     [error, setError] = useState<ClientError | null>(null),
     [notice, setNotice] = useState(""),
+    [lastAction, setLastAction] = useState<
+      "connect" | "refresh" | "select" | "disconnect" | "site" | null
+    >(null),
     [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const [metadata, setMetadata] = useState<{
     configuredKey: boolean;
@@ -87,6 +92,7 @@ export function ConnectionDialog({
     setBusy(operation);
     setError(null);
     setNotice("");
+    setLastAction(null);
     try {
       if (operation === "disconnect")
         await api("/api/connections/liara", () => true, {
@@ -116,6 +122,7 @@ export function ConnectionDialog({
               ? "برنامه مقصد انتخاب شد. هر تغییر حساس همچنان به تأیید شما نیاز دارد."
               : "حساب و تیم بررسی و اتصال ثبت شد. اکنون برنامه مقصد را انتخاب کنید.",
       );
+      setLastAction(operation);
       setEnterKey(false);
     } catch (error) {
       if (controller.signal.aborted) return;
@@ -227,6 +234,11 @@ export function ConnectionDialog({
                 </p>
               )}
             </fieldset>
+            {lastAction === "select" && notice ? (
+              <p className="hint app-selection-feedback" role="status">
+                {notice}
+              </p>
+            ) : null}
             {liara.selectedApp ? (
               <details
                 className="site-address"
@@ -252,14 +264,16 @@ export function ConnectionDialog({
                     void act("site");
                   }}
                 >
-                  <label htmlFor="site-origin">نام سایت</label>
+                  <label htmlFor="site-origin">نشانی سایت</label>
                   <input
                     id="site-origin"
                     dir="ltr"
                     type="text"
                     inputMode="url"
+                    autoCapitalize="none"
+                    spellCheck={false}
                     value={site}
-                    placeholder="example.com"
+                    placeholder="example.com یا https://example.com"
                     onChange={(event) => setSite(event.target.value)}
                     required
                     maxLength={512}
@@ -272,8 +286,8 @@ export function ConnectionDialog({
                     aria-invalid={error?.code.startsWith("SITE_") || undefined}
                   />
                   <p id="site-origin-help" className="hint">
-                    نام سایت را بدون مسیر صفحه وارد کنید. اتصال امن لازم است؛ نشانی داخلی و محلی
-                    قابل بررسی نیست.
+                    نشانی کامل یا دامنه را بدون مسیر صفحه وارد کنید؛ مثلاً example.com. اتصال امن
+                    https لازم است و نشانی داخلی یا محلی قابل بررسی نیست.
                   </p>
                   <button
                     type="submit"
@@ -406,7 +420,7 @@ export function ConnectionDialog({
         )}
       </section>
       <div role="status" aria-live="polite" className="hint">
-        {notice}
+        {lastAction === "select" ? "" : notice}
       </div>
       {error ? (
         <div
@@ -453,6 +467,22 @@ export function ConnectionDialog({
           {github?.status === "connected"
             ? "مخزن‌ها و مدیریت اتصال GitHub"
             : "اتصال به GitHub و انتخاب مخزن"}
+        </button>
+      </section>
+      <section className="account-secondary session-actions" aria-labelledby="session-title">
+        <div className="section-heading">
+          <h3 id="session-title">نشست این مرورگر</h3>
+        </div>
+        <p className="hint">
+          اگر روی رایانه مشترک کار می‌کنید، در پایان خارج شوید. پیشرفت ذخیره‌شده از بین نمی‌رود.
+        </p>
+        <button
+          type="button"
+          className="button-secondary"
+          disabled={busy !== null}
+          onClick={onSignOut}
+        >
+          خروج از میز کار
         </button>
       </section>
     </dialog>

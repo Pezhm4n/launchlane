@@ -25,6 +25,7 @@ export function IncidentReport({
   onCompare,
   onRestore,
   operationEvidence,
+  staleApp,
   onSessionExpired,
 }: {
   run: IncidentRun;
@@ -37,6 +38,7 @@ export function IncidentReport({
   onCompare: (choice: "related" | "unrelated") => void;
   onRestore: () => void;
   operationEvidence?: EvidenceBundle | null;
+  staleApp?: string | null;
   onSessionExpired: () => void;
 }) {
   const [evidenceOpen, setEvidenceOpen] = useState(false),
@@ -96,8 +98,18 @@ export function IncidentReport({
         <h2 id="incident-report-title" tabIndex={-1} ref={title}>
           نتیجه بررسی {run.kind === "sample" ? "نمونه" : <bdi>{run.evidence.scope.app}</bdi>}
         </h2>
-        <span className={`badge ${run.kind === "sample" ? "badge-warning" : "badge-quiet"}`}>
-          {run.kind === "sample" ? "داده و تحلیل نمونه" : "از حساب متصل"}
+        <span
+          className={`badge ${run.kind === "sample" || staleApp ? "badge-warning" : "badge-quiet"}`}
+        >
+          {run.kind === "sample" ? (
+            "داده و تحلیل نمونه"
+          ) : staleApp ? (
+            <>
+              گزارش قبلی · برنامه <bdi>{staleApp}</bdi>
+            </>
+          ) : (
+            "از حساب متصل"
+          )}
         </span>
       </div>
       {run.kind === "sample" ? (

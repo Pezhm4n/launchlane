@@ -113,7 +113,7 @@ try {
   await page.goto(server.origin);
   await page.getByLabel("کلید ورود محلی", { exact: true }).fill(server.token);
   await page.getByRole("button", { name: "ورود به میز کار", exact: true }).click();
-  await page.getByRole("heading", { name: "دستیار پروژه", level: 1, exact: true }).waitFor();
+  await page.getByRole("heading", { name: "میز کار پروژه", level: 1, exact: true }).waitFor();
   await panel.getByText("در حال بازیابی گفت‌وگو…", { exact: true }).waitFor({ state: "hidden" });
   assert.equal(await page.locator(".project-choice:visible").count(), 0);
   assert.equal(
@@ -126,7 +126,7 @@ try {
     await page.screenshot({ path: join(output, `agent-empty-${width}.png`), fullPage: true });
   }
   await goal.fill("متن ناتمام من برای پروژه");
-  await page.getByRole("button", { name: "انتشار پروژه", exact: true }).click();
+  await page.getByRole("link", { name: "انتشار پروژه", exact: true }).click();
   await page.getByRole("heading", { name: "پروژه‌تان را انتخاب کنید", exact: true }).waitFor();
   assert.equal(await panel.isVisible(), false);
   await page.goBack();
