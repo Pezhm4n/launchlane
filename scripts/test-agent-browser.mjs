@@ -225,12 +225,18 @@ try {
   const deadline = Date.now() + 5000;
   while ((await modelRequests()) === countBeforeCancel && Date.now() < deadline) await pause(50);
   assert.ok((await modelRequests()) > countBeforeCancel);
+  assert.equal(await goal.isEnabled(), true, "the composer must accept a draft during an active run");
   await panel.getByRole("button", { name: "توقف بررسی", exact: true }).click();
   await badge("بررسی متوقف شد");
   const cancelledCount = await modelRequests();
   await page.reload();
   await badge("بررسی متوقف شد");
   assert.equal(await modelRequests(), cancelledCount);
+  assert.equal(
+    await panel.getByRole("button", { name: /پیام تازه/ }).count(),
+    0,
+    "restoring a finished run must not claim that an unread message arrived",
+  );
   await layout(360, "cancel-and-reload-without-replay");
   assert.equal(store.db.prepare("SELECT COUNT(*) AS count FROM attempts").get().count, 0);
   // Seed only the proposal boundary; the server keeps its mutation gate off throughout this UI test.

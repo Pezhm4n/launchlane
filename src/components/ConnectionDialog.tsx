@@ -22,11 +22,14 @@ export function ConnectionDialog({
 }) {
   const dialog = useRef<HTMLDialogElement>(null),
     errorBox = useRef<HTMLDivElement>(null),
+    disconnectTrigger = useRef<HTMLButtonElement>(null),
+    disconnectConfirm = useRef<HTMLButtonElement>(null),
     pending = useRef<AbortController | null>(null);
   const [key, setKey] = useState(""),
     [busy, setBusy] = useState<string | null>(null),
     [error, setError] = useState<ClientError | null>(null),
-    [notice, setNotice] = useState("");
+    [notice, setNotice] = useState(""),
+    [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const [metadata, setMetadata] = useState<{
     configuredKey: boolean;
     teamConfigured: boolean;
@@ -70,6 +73,9 @@ export function ConnectionDialog({
   useEffect(() => {
     if (error) errorBox.current?.focus();
   }, [error]);
+  useEffect(() => {
+    if (confirmDisconnect) disconnectConfirm.current?.focus();
+  }, [confirmDisconnect]);
   async function act(
     operation: "connect" | "refresh" | "select" | "disconnect" | "site",
     app?: string,
@@ -291,12 +297,48 @@ export function ConnectionDialog({
               <button
                 type="button"
                 className="button-danger"
+                ref={disconnectTrigger}
                 disabled={busy !== null}
-                onClick={() => void act("disconnect")}
+                aria-expanded={confirmDisconnect}
+                onClick={() => setConfirmDisconnect(true)}
               >
                 قطع اتصال لیارا
               </button>
             </div>
+            {confirmDisconnect ? (
+              <fieldset className="note note-danger" aria-labelledby="liara-disconnect-title">
+                <legend id="liara-disconnect-title">اتصال لیارا از این میز کار قطع شود؟</legend>
+                <p>
+                  دسترسی این نصب و انتخاب برنامه فعلی از میز کار پاک می‌شود. برنامه‌ها و انتشارهای
+                  شما در لیارا تغییری نمی‌کنند و کلید API شما معتبر می‌ماند.
+                </p>
+                <div className="button-row">
+                  <button
+                    type="button"
+                    className="button-danger"
+                    ref={disconnectConfirm}
+                    disabled={busy !== null}
+                    onClick={() => {
+                      setConfirmDisconnect(false);
+                      void act("disconnect");
+                    }}
+                  >
+                    بله، اتصال را قطع کن
+                  </button>
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    disabled={busy !== null}
+                    onClick={() => {
+                      setConfirmDisconnect(false);
+                      disconnectTrigger.current?.focus();
+                    }}
+                  >
+                    انصراف
+                  </button>
+                </div>
+              </fieldset>
+            ) : null}
           </>
         ) : metadata === null ? (
           <p role="status">در حال بررسی تنظیمات اتصال…</p>

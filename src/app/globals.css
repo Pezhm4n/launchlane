@@ -15,6 +15,7 @@ html {
   color: var(--color-ink);
   font-family: var(--font-body);
   line-height: var(--leading-body);
+  scroll-padding-block: var(--space-8);
 }
 body {
   margin: var(--space-0);
@@ -81,13 +82,14 @@ button:disabled {
 .button-quiet {
   background: var(--color-surface);
   color: var(--color-primary);
+  border-color: var(--color-control-border);
 }
 .button-secondary:hover:not(:disabled),
 .button-quiet:hover:not(:disabled) {
   background: var(--color-primary-soft);
+  border-color: var(--color-primary);
 }
 .button-quiet {
-  border-color: var(--color-border);
   padding-inline: var(--space-3);
 }
 :focus-visible {
@@ -1242,6 +1244,11 @@ button[aria-busy="true"] {
   margin-inline: auto;
 }
 .agent-project-actions { margin-block-end: var(--space-5); }
+.agent-unavailable h3 {
+  margin-block-end: var(--space-2);
+  color: var(--color-ink);
+}
+.agent-unavailable p:last-of-type { margin-block-end: var(--space-3); }
 .agent-repair {
   padding: var(--space-4);
   margin-block: var(--space-4);

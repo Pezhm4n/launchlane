@@ -37,6 +37,8 @@ export function GitHubProjectPicker({
   const dialog = useRef<HTMLDialogElement>(null),
     heading = useRef<HTMLHeadingElement>(null),
     errorBox = useRef<HTMLDivElement>(null),
+    disconnectTrigger = useRef<HTMLButtonElement>(null),
+    disconnectConfirm = useRef<HTMLButtonElement>(null),
     pending = useRef<AbortController | null>(null);
   const importControl = useRef<HTMLButtonElement>(null),
     cancelledImport = useRef(false);
@@ -45,7 +47,8 @@ export function GitHubProjectPicker({
     [login, setLogin] = useState<GitHubLoginView | null>(null);
   const [busy, setBusy] = useState<string | null>(null),
     [error, setError] = useState<ClientError | null>(null),
-    [notice, setNotice] = useState("");
+    [notice, setNotice] = useState(""),
+    [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const [query, setQuery] = useState(""),
     [appliedQuery, setAppliedQuery] = useState(""),
     [repos, setRepos] = useState<GitHubRepository[]>([]),
@@ -104,6 +107,9 @@ export function GitHubProjectPicker({
   useEffect(() => {
     if (error) errorBox.current?.focus();
   }, [error]);
+  useEffect(() => {
+    if (confirmDisconnect) disconnectConfirm.current?.focus();
+  }, [confirmDisconnect]);
   useEffect(() => {
     if (repo) heading.current?.focus();
   }, [repo]);
@@ -453,15 +459,55 @@ export function GitHubProjectPicker({
                   <bdi>{connection.login}</bdi>
                 </strong>
               </p>
-              <button
-                type="button"
-                className="button-danger"
-                disabled={busy !== null}
-                onClick={() => void disconnect()}
-              >
-                قطع اتصال GitHub
-              </button>
+              {!confirmDisconnect ? (
+                <button
+                  type="button"
+                  className="button-danger"
+                  ref={disconnectTrigger}
+                  disabled={busy !== null}
+                  onClick={() => setConfirmDisconnect(true)}
+                >
+                  قطع اتصال GitHub
+                </button>
+              ) : null}
             </div>
+            {confirmDisconnect ? (
+              <fieldset
+                className="note note-danger"
+                aria-labelledby="github-disconnect-title"
+              >
+                <legend id="github-disconnect-title">ورود GitHub از این میز کار قطع شود؟</legend>
+                <p>
+                  دسترسی Launchlane به مخزن‌ها از این میز کار پاک می‌شود. فایل‌ها و مخزن‌های شما در
+                  GitHub تغییری نمی‌کنند و دسترسی ابزار رسمی نیز خودکار ابطال نمی‌شود.
+                </p>
+                <div className="button-row">
+                  <button
+                    type="button"
+                    className="button-danger"
+                    ref={disconnectConfirm}
+                    disabled={busy !== null}
+                    onClick={() => {
+                      setConfirmDisconnect(false);
+                      void disconnect();
+                    }}
+                  >
+                    بله، اتصال را قطع کن
+                  </button>
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    disabled={busy !== null}
+                    onClick={() => {
+                      setConfirmDisconnect(false);
+                      requestAnimationFrame(() => disconnectTrigger.current?.focus());
+                    }}
+                  >
+                    انصراف
+                  </button>
+                </div>
+              </fieldset>
+            ) : null}
             {!repo ? (
               <>
                 <form onSubmit={search}>

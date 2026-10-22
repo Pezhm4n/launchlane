@@ -10,6 +10,10 @@ function decodeRun(value: unknown): AgentView | null {
   const row = object(value);
   return row.run === null ? null : parseAgentView(row.run);
 }
+function summarize(message: string) {
+  const clean = message.replace(/\s+/g, " ").trim();
+  return clean.length <= 420 ? clean : `${clean.slice(0, 420)}… ادامه پاسخ در گفتگو آماده است.`;
+}
 const stateLabels: Readonly<Record<AgentView["state"], string>> = {
   queued: "درخواست ثبت شد",
   working: "در حال بررسی",
@@ -33,6 +37,7 @@ export function AgentPanel({
   onChooseProject,
   onGitHub,
   onReview,
+  onManualPublish,
   onExpired,
   onProjectChanged,
 }: {
@@ -46,6 +51,7 @@ export function AgentPanel({
   onChooseProject: (trigger: HTMLButtonElement) => void;
   onGitHub: (trigger: HTMLButtonElement) => void;
   onReview: () => void;
+  onManualPublish: () => void;
   onExpired: () => void;
   onProjectChanged: (projectId: string) => Promise<void>;
 }) {
@@ -54,12 +60,19 @@ export function AgentPanel({
     [busy, setBusy] = useState(false),
     [error, setError] = useState<ClientError | null>(null),
     [restoring, setRestoring] = useState(true),
-    [hasNew, setHasNew] = useState(false);
+    [newCount, setNewCount] = useState(0),
+    [announcement, setAnnouncement] = useState(""),
+    [retryable, setRetryable] = useState<{ message: string; projectId: string | null } | null>(
+      null,
+    );
   const input = useRef<HTMLTextAreaElement>(null),
     transcript = useRef<HTMLElement>(null),
     latest = useRef<AgentView | null>(null),
     pending = useRef<AbortController | null>(null),
-    submission = useRef<{ key: string; message: string; runId: string | null } | null>(null);
+    submission = useRef<{ key: string; message: string; runId: string | null } | null>(null),
+    following = useRef(true),
+    seen = useRef({ runId: null as string | null, messages: 0 }),
+    wasActive = useRef(false);
   const syncedProject = useRef<string | null>(null);
   const active = run?.state === "queued" || run?.state === "working",
     sameProject = !run || run.projectId === projectId;
@@ -67,7 +80,6 @@ export function AgentPanel({
   const accept = useCallback((value: AgentView | null) => {
     if (value && latest.current?.id === value.id && value.revision < latest.current.revision)
       return;
-    if (value && value.events.length > (latest.current?.events.length ?? 0)) setHasNew(true);
     latest.current = value;
     setRun(value);
   }, []);
@@ -123,6 +135,38 @@ export function AgentPanel({
   }, [runId, active, activeView, accept, failed]);
   useEffect(() => () => pending.current?.abort(), []);
   useEffect(() => {
+    const node = transcript.current;
+    if (!node || !run) return;
+    const messagesNow = run.events.filter(
+      (event) => event.kind === "user" || event.kind === "assistant",
+    ).length;
+    if (seen.current.runId !== run.id) {
+      seen.current = { runId: run.id, messages: messagesNow };
+      following.current = true;
+      setNewCount(0);
+      node.scrollTop = node.scrollHeight;
+      return;
+    }
+    const added = Math.max(0, messagesNow - seen.current.messages);
+    seen.current = { runId: run.id, messages: messagesNow };
+    if (following.current) {
+      setNewCount(0);
+      node.scrollTop = node.scrollHeight;
+    } else if (added > 0) {
+      setNewCount((count) => count + added);
+    }
+  }, [run]);
+  useEffect(() => {
+    const isActive = run?.state === "queued" || run?.state === "working";
+    if (isActive && !wasActive.current) setAnnouncement("");
+    if (wasActive.current && !isActive && run) {
+      const answer = run.events.filter((event) => event.kind === "assistant").at(-1)?.message;
+      const message = run.state === "needs_input" && run.question ? run.question : answer;
+      setAnnouncement(message ? summarize(message) : stateLabels[run.state]);
+    }
+    wasActive.current = isActive;
+  }, [run]);
+  useEffect(() => {
     // A restored receipt must not override a project the user selected after that repair.
     if (
       run?.repair?.state !== "succeeded" ||
@@ -146,6 +190,9 @@ export function AgentPanel({
       input.current?.focus();
       return;
     }
+    await send(message);
+  }
+  async function send(message: string) {
     if (busy || active || restoring || disabled || !enabled || run?.state === "needs_approval")
       return;
     const continueRun =
@@ -158,6 +205,7 @@ export function AgentPanel({
         ? previous
         : { key: crypto.randomUUID(), message, runId: continueRun?.id ?? null };
     submission.current = request;
+    setRetryable(null);
     setBusy(true);
     setError(null);
     const controller = new AbortController();
@@ -183,22 +231,32 @@ export function AgentPanel({
       setDraft("");
       submission.current = null;
     } catch (cause) {
-      if (!controller.signal.aborted) failed(cause);
+      if (!controller.signal.aborted) {
+        const expired = cause instanceof ClientError && cause.code === "AUTH_REQUIRED";
+        // Only the initial idempotent registration may be replayed automatically. Continuing a run
+        // or deciding a publication requires a status read or a new explicit decision.
+        if (!continueRun && !expired) setRetryable({ message, projectId });
+        failed(cause);
+      }
     } finally {
       setBusy(false);
       pending.current = null;
     }
   }
   async function refresh() {
+    setRetryable(null);
     setError(null);
     try {
-      accept(await api(run ? `/api/agent/runs/${run.id}` : "/api/agent/runs", decodeRun));
+      const value = await api(run ? `/api/agent/runs/${run.id}` : "/api/agent/runs", decodeRun);
+      accept(value);
+      if (value) submission.current = null;
     } catch (cause) {
       failed(cause);
     }
   }
   async function cancel() {
     if (!run || busy) return;
+    setRetryable(null);
     setBusy(true);
     setError(null);
     try {
@@ -230,6 +288,7 @@ export function AgentPanel({
   }
   async function decideRepair(decision: "approve" | "reject") {
     if (!run?.repair || busy || disabled) return;
+    setRetryable(null);
     setBusy(true);
     setError(null);
     try {
@@ -252,6 +311,7 @@ export function AgentPanel({
   }
   async function publicationRequest(decision?: "approve" | "reject") {
     if (!run?.publication || busy || disabled) return;
+    setRetryable(null);
     setBusy(true);
     setError(null);
     try {
@@ -261,6 +321,20 @@ export function AgentPanel({
       }));
     } catch (cause) { failed(cause); }
     finally { setBusy(false); }
+  }
+  function follow() {
+    const node = transcript.current;
+    if (!node) return;
+    following.current = node.scrollHeight - node.scrollTop - node.clientHeight <= 48;
+    if (following.current) setNewCount(0);
+  }
+  function goToLatest() {
+    const node = transcript.current;
+    if (!node) return;
+    node.scrollTop = node.scrollHeight;
+    following.current = true;
+    setNewCount(0);
+    node.focus({ preventScroll: true });
   }
   const messages =
     run?.events.filter((event) => event.kind === "user" || event.kind === "assistant") ?? [];
@@ -272,19 +346,28 @@ export function AgentPanel({
         {run ? <span className="badge badge-quiet">{stateLabels[run.state]}</span> : null}
       </div>
       {run && !active && run.state !== "needs_approval" ? (
-        <button
-          type="button"
-          className="button-quiet"
-          disabled={disabled || busy}
-          onClick={() => {
-            accept(null);
-            setError(null);
-            submission.current = null;
-            input.current?.focus();
-          }}
-        >
-          گفت‌وگوی تازه
-        </button>
+        <>
+          <button
+            type="button"
+            className="button-quiet"
+            disabled={disabled || busy}
+            aria-describedby="agent-new-conversation-help"
+            onClick={() => {
+              accept(null);
+              setError(null);
+              setRetryable(null);
+              submission.current = null;
+              seen.current = { runId: null, messages: 0 };
+              setNewCount(0);
+              input.current?.focus();
+            }}
+          >
+            گفت‌وگوی تازه
+          </button>
+          <span id="agent-new-conversation-help" className="sr-only">
+            نمای گفت‌وگوی فعلی بسته می‌شود؛ سابقه قبلی حذف نمی‌شود.
+          </span>
+        </>
       ) : null}
       <p className="hint agent-project-name">
         {projectName ? (
@@ -314,6 +397,24 @@ export function AgentPanel({
         </button>
       </div>
       {restoring ? <p role="status">در حال بازیابی گفت‌وگو…</p> : null}
+      {!enabled ? (
+        <section className="note agent-unavailable" aria-labelledby="agent-unavailable-title">
+          <h3 id="agent-unavailable-title">دستیار در این نصب خاموش است</h3>
+          <p>
+            این وضعیت عمدی است. برای محافظت از حساب و هزینه، دستیار و عملیات واقعی به‌صورت خودکار
+            روشن نمی‌شوند و این صفحه تنها وضعیت نصب را نشان می‌دهد.
+          </p>
+          <p>
+            می‌توانید همین حالا پروژه را دستی بررسی کنید. انتشار همچنان پیشنهاد، تأیید و بررسی نتیجه
+            جداگانه دارد.
+          </p>
+          <div className="button-row">
+            <button type="button" onClick={onManualPublish} disabled={disabled || busy}>
+              ادامه با انتشار دستی
+            </button>
+          </div>
+        </section>
+      ) : null}
       {run ? (
         <>
           <p className="agent-effect">{run.effect === "remote_changes_verified" ? "نسخه منتشرشده و پاسخ مورد انتظار بررسی شدند."
@@ -329,6 +430,7 @@ export function AgentPanel({
             ref={transcript}
             className="agent-transcript"
             aria-label="گفت‌وگوی پروژه"
+            onScroll={follow}
             // biome-ignore lint/a11y/noNoninteractiveTabindex: Keyboard users must reach this independently scrolling transcript.
             tabIndex={0}
           >
@@ -342,28 +444,20 @@ export function AgentPanel({
               </article>
             ))}
           </section>
-          {hasNew ? (
-            <button
-              type="button"
-              className="button-quiet"
-              onClick={() => {
-                transcript.current?.scrollTo({
-                  top: transcript.current.scrollHeight,
-                  behavior: "instant",
-                });
-                transcript.current?.focus({ preventScroll: true });
-                setHasNew(false);
-              }}
-            >
-              رفتن به پیام تازه
+          {newCount > 0 ? (
+            <button type="button" className="button-quiet" onClick={goToLatest}>
+              {new Intl.NumberFormat("fa-IR").format(newCount)} پیام تازه
             </button>
           ) : null}
-          <p role="status" aria-live="polite" aria-atomic="true">
-            {active
-              ? run.events
-                  .filter((event) => event.kind === "activity" || event.kind === "tool")
-                  .at(-1)?.message
-              : stateLabels[run.state]}
+          {active ? (
+            <p role="status" aria-live="polite" aria-atomic="true" className="hint">
+              {run.events
+                .filter((event) => event.kind === "activity" || event.kind === "tool")
+                .at(-1)?.message}
+            </p>
+          ) : null}
+          <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+            {announcement}
           </p>
           {run.question && sameProject ? <p className="note">{run.question}</p> : null}
           {run.repair ? (
@@ -491,60 +585,96 @@ export function AgentPanel({
         </>
       ) : null}
       {error ? (
-        <div role="alert" className="note note-danger">
+        <div id="agent-error" role="alert" className="note note-danger">
           <p>{error.message}</p>
-          <button type="button" className="button-quiet" onClick={() => void refresh()}>
-            دریافت وضعیت ثبت‌شده
-          </button>
+          <div className="button-row">
+            {retryable && retryable.projectId === projectId && !active ? (
+              <button
+                type="button"
+                disabled={busy || disabled}
+                onClick={() => {
+                  setDraft(retryable.message);
+                  void send(retryable.message);
+                }}
+              >
+                تلاش دوباره برای همین درخواست
+              </button>
+            ) : null}
+            {error.code !== "EMPTY_GOAL" ? (
+              <button
+                type="button"
+                className="button-quiet"
+                disabled={busy}
+                onClick={() => void refresh()}
+              >
+                دریافت وضعیت ثبت‌شده
+              </button>
+            ) : null}
+          </div>
         </div>
       ) : null}
-      <form onSubmit={(event) => void submit(event)}>
-        <label htmlFor="agent-goal">{run && sameProject ? "پیام بعدی" : "هدف شما"}</label>
-        <textarea
-          ref={input}
-          id="agent-goal"
-          name="goal"
-          autoComplete="off"
-          dir="auto"
-          maxLength={2000}
-          placeholder="مثلاً این پروژه را برای انتشار بررسی کن…"
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          disabled={disabled || busy || active || run?.state === "needs_approval" || !enabled}
-          aria-describedby="agent-help"
-          aria-invalid={error?.code === "EMPTY_GOAL" || undefined}
-        />
-        <p id="agent-help" className="hint">
-          مقدار محرمانه را در پیام ننویسید. این بررسی فایل‌ها و وضعیت مجاز را می‌خواند؛ تصمیم انتشار
-          در مرحله جدا دریافت می‌شود.
-        </p>
-        <div className="button-row">
-          <button
-            type="submit"
-            disabled={
-              disabled || busy || restoring || active || run?.state === "needs_approval" || !enabled
-            }
-          >
-            {busy ? "در حال ثبت…" : "ارسال درخواست"}
-          </button>
-          {active ? (
-            <button
-              type="button"
-              className="button-secondary"
-              disabled={busy || disabled}
-              onClick={() => void cancel()}
-            >
-              توقف بررسی
-            </button>
-          ) : null}
-        </div>
-        {!enabled ? (
-          <p className="note">
-            دستیار در این نصب فعال نیست. مسئول نصب می‌تواند دسترسی آن را تنظیم کند؛ انتخاب پروژه و تب
-            انتشار دستی در دسترس‌اند.
+      {enabled ? (
+        <form onSubmit={(event) => void submit(event)}>
+          <label htmlFor="agent-goal">{run && sameProject ? "پیام بعدی" : "هدف شما"}</label>
+          <textarea
+            ref={input}
+            id="agent-goal"
+            name="goal"
+            autoComplete="off"
+            dir="auto"
+            maxLength={2000}
+            placeholder="مثلاً این پروژه را برای انتشار بررسی کن…"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            disabled={disabled || busy || run?.state === "needs_approval"}
+            aria-describedby={[
+              "agent-help",
+              active ? "agent-active-help" : "",
+              run?.state === "needs_approval" ? "agent-approval-help" : "",
+              error ? "agent-error" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            aria-invalid={error?.code === "EMPTY_GOAL" || undefined}
+          />
+          <p id="agent-help" className="hint">
+            مقدار محرمانه را در پیام ننویسید. این بررسی فایل‌ها و وضعیت مجاز را می‌خواند؛ تصمیم انتشار
+            در مرحله جدا دریافت می‌شود.
           </p>
-        ) : null}
-      </form>
+          {active ? (
+            <p id="agent-active-help" className="hint">
+              بررسی در حال اجراست. می‌توانید پیام بعدی را بنویسید؛ ارسال تا پایان بررسی ممکن نیست.
+              برای توقف از «توقف بررسی» استفاده کنید.
+            </p>
+          ) : null}
+          {run?.state === "needs_approval" ? (
+            <p id="agent-approval-help" className="hint">
+              پیش از ادامه، تصمیم خواسته‌شده در بالای گفت‌وگو را ثبت کنید.
+            </p>
+          ) : null}
+          <div className="button-row">
+            <button
+              type="submit"
+              disabled={
+                disabled || busy || restoring || active || run?.state === "needs_approval"
+              }
+              aria-describedby={active ? "agent-active-help" : undefined}
+            >
+              {busy ? "در حال ثبت…" : "ارسال درخواست"}
+            </button>
+            {active ? (
+              <button
+                type="button"
+                className="button-secondary"
+                disabled={busy || disabled}
+                onClick={() => void cancel()}
+              >
+                توقف بررسی
+              </button>
+            ) : null}
+          </div>
+        </form>
+      ) : null}
     </section>
   );
 }

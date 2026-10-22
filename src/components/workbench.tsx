@@ -326,6 +326,7 @@ export function Workbench() {
   const accountReturnTarget = useRef<HTMLButtonElement | null>(null);
   const projectReturnTarget=useRef<HTMLButtonElement|null>(null);
   const resultHeading = useRef<HTMLHeadingElement>(null),
+    chooseProjectHeading = useRef<HTMLHeadingElement>(null),
     errorBox = useRef<HTMLDivElement>(null),
     projectErrorBox = useRef<HTMLDivElement>(null),
     proposalHeading = useRef<HTMLDivElement>(null),
@@ -796,7 +797,7 @@ export function Workbench() {
   return (
     <>
       <header className="app-header">
-        <a className="brand" href="/" aria-label="Launchlane، صفحه اصلی">
+        <a className="brand" href="/">
           <span className="brand-symbol" aria-hidden="true">
             <span />
             <span />
@@ -805,6 +806,7 @@ export function Workbench() {
           <span dir="ltr">
             Launchlane
             <span className="brand-subtitle">از پروژه تا انتشار، با تصمیم شما</span>
+            <span className="sr-only">، صفحه اصلی</span>
           </span>
         </a>
         {workspace ? (
@@ -982,6 +984,7 @@ export function Workbench() {
                 onChooseProject={(trigger)=>{projectReturnTarget.current=trigger;restoreFocus.current="folder";setFolderOpen(true);}}
                 onGitHub={(trigger)=>{projectReturnTarget.current=trigger;restoreFocus.current="github";setGitHubOpen(true);}}
                 onReview={() => {navigate("source");requestAnimationFrame(()=>resultHeading.current?.focus());}}
+                onManualPublish={() => {navigate("source");requestAnimationFrame(()=>chooseProjectHeading.current?.focus());}}
                 onExpired={onSessionExpired}
                 onProjectChanged={syncAgentProject}
               />
@@ -993,7 +996,7 @@ export function Workbench() {
                 aria-busy={busy === "prepare"}
               >
                 <div className="section-heading">
-                  <h2 id="choose-project-title">
+                  <h2 id="choose-project-title" tabIndex={-1} ref={chooseProjectHeading}>
                     {flow ? "پروژه انتخاب‌شده" : "پروژه‌تان را انتخاب کنید"}
                   </h2>
                   {flow?.selection.kind === "sample" ? (

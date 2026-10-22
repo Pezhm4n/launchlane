@@ -865,6 +865,7 @@ try {
   await page.getByRole("button", { name: "تغییر انتخاب GitHub", exact: true }).click();
   await github.getByRole("button", { name: new RegExp(longName) }).waitFor();
   await github.getByRole("button", { name: "قطع اتصال GitHub", exact: true }).click();
+  await github.getByRole("button", { name: "بله، اتصال را قطع کن", exact: true }).click();
   await github.getByRole("button", { name: "اتصال به GitHub", exact: true }).waitFor();
   await closeDialog("انتخاب پروژه از GitHub");
   await page.setViewportSize({ width: 768, height: 1000 });
