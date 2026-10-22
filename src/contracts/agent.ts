@@ -42,17 +42,21 @@ export type AgentView = {
   question: string | null;
   updatedAt: number;
   // A host-owned statement. Model prose is never an execution receipt.
-  effect: "no_remote_changes" | "remote_changes_unverified" | "remote_changes_verified";
+  effect: "no_remote_changes" | "destination_created" | "remote_changes_unverified" | "remote_changes_verified";
   repair: CodeRepairJob | null;
   publication: Action | null;
+  destination: Action | null;
+  destinationContinued: boolean;
 };
 export function parseAgentView(value: unknown): AgentView {
   const row = object(value);
+  ensure(row.destinationContinued === undefined || typeof row.destinationContinued === "boolean",
+    "INVALID_RESPONSE", "رسید ادامه ساخت معتبر نیست.");
   const state = agentStates.find((state) => state === row.state);
   const nextAction =
     row.nextAction === null ? null : nextActions.find((action) => action === row.nextAction);
   ensure(
-    state && nextAction !== undefined && (row.effect === "no_remote_changes" || row.effect === "remote_changes_unverified" || row.effect === "remote_changes_verified"),
+    state && nextAction !== undefined && (row.effect === "no_remote_changes" || row.effect === "destination_created" || row.effect === "remote_changes_unverified" || row.effect === "remote_changes_verified"),
     "INVALID_RESPONSE",
     "وضعیت دستیار معتبر نیست.",
   );
@@ -87,6 +91,8 @@ export function parseAgentView(value: unknown): AgentView {
       ...(event.callId === undefined ? {} : { callId: string(event.callId, 80) }),
     };
   });
+  const destination = row.destination === null || row.destination === undefined ? null : decodeAction(row.destination);
+  ensure(!destination || destination.spec.version === 8, "INVALID_RESPONSE", "رسید مقصد با قرارداد ساخت تطبیق ندارد.");
   return {
     id: string(row.id, 36),
     revision: integer(row.revision, 1, 10000),
@@ -99,5 +105,7 @@ export function parseAgentView(value: unknown): AgentView {
     effect: row.effect,
     repair: row.repair === null || row.repair === undefined ? null : parseCodeRepairJob(row.repair),
     publication: row.publication === null || row.publication === undefined ? null : decodeAction(row.publication),
+    destination,
+    destinationContinued: row.destinationContinued === true,
   };
 }

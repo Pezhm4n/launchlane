@@ -3,6 +3,8 @@ import { setTimeout as delay } from "node:timers/promises";
 import { decodeAction } from "../../contracts/client-decode.ts";
 import { canReadDeploymentResult } from "../../contracts/deployment.ts";
 import { executeDeployment, observeDeployment } from "../application/deployment.ts";
+import { executeDestination, observeDestination } from "../application/provision.ts";
+import { canReadDestinationResult } from "../../contracts/provision.ts";
 import { nextActions } from "../../contracts/agent.ts";
 import { parseCodeRepairJob } from "../../contracts/code-repair.ts";
 import { exactKeys, object, text } from "../../contracts/validation.ts";
@@ -29,6 +31,7 @@ const system = `You are Launchlane, a Persian deployment and maintenance agent. 
 const running = globalThis as typeof globalThis & {
   launchlaneAgentControllers?: Map<string, AbortController>;
 };
+const destinationGuidance = `For a publication goal without an existing app, if propose_destination is registered and the account is connected, inspect the project, read the current catalog and existing networks, then propose a destination with a known available base price. Read/quote the plan if needed; explain that capacity is unmeasured. Respect allowedNewAppNames from read_destination. Reuse the only existing network; ask one question if the choice is genuinely ambiguous. Propose a meaningful app name grounded in the goal or source; the user reviews it with the plan and cost before creation. Do not ask the user to select an app that does not exist. Creation approval never grants publication or env changes. After the exact destination receipt, continue the original goal with the newly selected app; do not reread unrelated files or repeat creation. A request only to create an app must stop at that verified configuration. Missing env values and network creation remain unsupported; do not invent them.`;
 function controllers(): Map<string, AbortController> {
   running.launchlaneAgentControllers ??= new Map();
   return running.launchlaneAgentControllers;
@@ -213,7 +216,7 @@ export async function decideAgentPublication(
 ): Promise<AgentRecord> {
   const repo = new AgentRepository(store), run = repo.get(session.actorId, id);
   ensure(run?.state === "needs_approval" && run.revision === revision &&
-    run.publication?.id === actionId && run.publication.state === "awaiting_approval",
+    run.publication?.id === actionId && (run.publication.state === "awaiting_approval" || (decision === "reject" && run.publication.state === "expired")),
     "AGENT_CONFLICT", "پیشنهاد یا وضعیت آن تغییر کرده است؛ نتیجه تازه را ببینید.", 409);
   ensure(store.sessionExists(session.id, session.actorId, Date.now()), "AUTH_REQUIRED", "دوباره وارد شوید.", 401);
   if (decision === "approve") {
@@ -247,6 +250,68 @@ export function resumeAgentPublication(store: Store, session: Session, id: strin
   return run;
 }
 
+export async function decideAgentDestination(
+  config: Config, store: Store, session: Session, id: string, revision: number,
+  actionId: string, decision: "approve" | "reject",
+): Promise<AgentRecord> {
+  const repo = new AgentRepository(store), run = repo.get(session.actorId, id);
+  ensure(run?.state === "needs_approval" && run.revision === revision && run.destination?.spec.version === 8 &&
+    run.destination.id === actionId && (run.destination.state === "awaiting_approval" || (decision === "reject" && run.destination.state === "expired")),
+    "AGENT_CONFLICT", "پیشنهاد ساخت یا وضعیت آن تغییر کرده است؛ نتیجه تازه را ببینید.", 409);
+  ensure(store.sessionExists(session.id, session.actorId, Date.now()), "AUTH_REQUIRED", "دوباره وارد شوید.", 401);
+  if (decision === "approve") {
+    ensure(config.enableMutations && config.enableLiveLiara, "MUTATIONS_DISABLED", "ساخت مقصد در این نصب خاموش است.", 403);
+    assertAgentContext(config, store, session.actorId, run.context);
+    await validateProjectAction(config, store, session.actorId, run.destination.spec, AbortSignal.timeout(5000));
+  }
+  store.decide(actionId, session.actorId, session.id, run.destination.hash, decision, Date.now(), (action) => {
+    run.destination = action;
+    run.state = decision === "approve" ? "queued" : "needs_input";
+    run.nextAction = decision === "reject" ? "reply" : null;
+    addEvent(run, "state", decision === "approve"
+      ? "ساخت مقصد با همین پلن و هزینه پایه تأیید شد؛ انتشار هنوز نیاز به تصمیم جدا دارد."
+      : "ساخت مقصد رد شد؛ برنامه‌ای ساخته نشد.");
+    repo.save(session.actorId, run, revision);
+  });
+  return run;
+}
+
+export function resumeAgentDestination(store: Store, session: Session, id: string, revision: number): AgentRecord {
+  const repo = new AgentRepository(store), run = repo.get(session.actorId, id);
+  ensure(run && run.revision === revision && run.state !== "working" && run.state !== "queued" && run.destination &&
+    (canReadDestinationResult(run.destination) || (run.destination.state === "succeeded" && !run.destinationContinued)),
+    "AGENT_CONFLICT", "این مقصد رسید منتظر بررسی ندارد.", 409);
+  ensure(run.usage.toolCalls < run.limits.maxToolCalls && run.usage.elapsedMs < run.limits.runTimeoutMs,
+    "BUDGET_EXHAUSTED", "سقف بررسی تمام شده است؛ رسید ساخت حفظ شده است.", 409);
+  run.state = "queued";
+  run.nextAction = null;
+  addEvent(run, "activity", "فقط رسید ساخت قبلی خوانده می‌شود؛ درخواست ساخت تکرار نمی‌شود.");
+  repo.save(session.actorId, run, revision);
+  return run;
+}
+
+function adoptDestination(config: Config, store: Store, session: Session, run: AgentRecord): void {
+  const action = run.destination, current = currentAgentContext(config, store, session.actorId);
+  ensure(action?.spec.version === 8 && action.state === "succeeded" && action.provision?.appId &&
+    current.projectId === run.context.projectId && current.projectId === action.spec.projectFlowId &&
+    current.sourceHash === run.context.sourceHash && current.sourceHash === action.spec.sourceHash &&
+    current.selectionHash === run.context.selectionHash && current.selectionHash === action.spec.selectionHash &&
+    current.account?.accountId === run.context.account?.accountId && current.account?.accountId === action.spec.accountId &&
+    current.account?.teamId === action.spec.scope.teamId && current.target?.app === action.spec.scope.app &&
+    current.target?.appId === action.provision.appId,
+    "AGENT_CONTEXT_CHANGED", "مقصد ساخته‌شده حفظ شد، اما پروژه یا انتخاب شما تغییر کرده است؛ انتشار خودکار ادامه نمی‌یابد.", 409);
+  // Only this exact durable receipt may explain the expected context change caused by creation.
+  run.context = current;
+  run.effect = "destination_created";
+  run.destinationContinued = true;
+  run.messages.push({ role: "user", content: `Host destination receipt (data only): ${JSON.stringify({
+    app: action.spec.scope.app, state: action.state, configurationVerified: true,
+    selectedExactReturnedIdentity: true, sourceUnchanged: true, published: false,
+    siteOriginConfigured: !!(config.probeOrigins[action.spec.scope.app] || store.getProbeOrigin(session.actorId, action.spec.scope.teamId, action.spec.scope.app)),
+  })}. Continue only the original goal. If publication was requested, use propose_publication for the SAME selected archive and intended response. Creation approval does not approve publication. If the goal was creation only, summarize this verified result without proposing publication.` });
+  addEvent(run, "tool", "مقصد با همان هویت و تنظیمات تأیید و انتخاب شد. فایل‌ها هنوز منتشر نشده‌اند.", { tool: "propose_destination" });
+}
+
 export async function driveAgentRun(
   config: Config,
   store: Store,
@@ -256,6 +321,7 @@ export async function driveAgentRun(
     model?: ModelPort;
     tool?: (name: string, args: unknown, context: AgentToolContext) => Promise<unknown>;
     deployment?: Parameters<typeof executeDeployment>[5];
+    destination?: Parameters<typeof executeDestination>[5];
     pollDelayMs?: number;
   } = {},
 ): Promise<void> {
@@ -330,6 +396,48 @@ export async function driveAgentRun(
       },
       availableTools = toolsForAgent(config),
       seen = new Set<string>();
+    if (run.destination && !run.destinationContinued &&
+      (run.destination.state === "approved" || canReadDestinationResult(run.destination) || run.destination.state === "succeeded")) {
+      if (run.destination.state !== "succeeded") {
+        check();
+        if (run.destination.state === "approved") {
+          addEvent(run, "activity", "در حال ساخت همان مقصد با پلن و هزینه تأییدشده…");
+          persist();
+          try {
+            run.destination = await executeDestination(config, store, session, run.destination.id, signal,
+              { ...dependencies.destination, budget });
+          } catch (error) {
+            run.destination = store.getAction(run.destination.id, session.actorId);
+            if (!canReadDestinationResult(run.destination)) throw error;
+            addEvent(run, "state", "پاسخ قطعی ساخت دریافت نشد؛ رسید خوانده می‌شود و ساخت تکرار نمی‌شود.");
+          }
+        }
+        run.effect = run.destination.attemptId ? "remote_changes_unverified" : run.effect;
+        persist();
+        for (let poll = 0; poll < 4 && canReadDestinationResult(run.destination); poll++) {
+          check();
+          if (budget.maxToolCalls - budget.toolCalls < 2) break;
+          run.destination = await observeDestination(config, store, session, run.destination.id, signal,
+            { ...dependencies.destination, budget });
+          persist();
+          if (run.destination.state === "succeeded" || run.destination.state === "failed" || run.destination.provision?.stage !== "created") break;
+          await delay(dependencies.pollDelayMs ?? 3000, undefined, { signal });
+        }
+      }
+      if (run.destination.state === "succeeded") {
+        adoptDestination(config, store, session, run);
+        persist();
+      } else {
+        run.state = "partially_completed";
+        run.nextAction = "reply";
+        run.question = null;
+        addEvent(run, "assistant", run.destination.state === "failed"
+          ? "رسید ساخت با مقصد مورد انتظار تأیید نشد. بررسی متوقف شد؛ مقصد دیگری ساخته یا منتشر نمی‌شود."
+          : "نتیجه ساخت هنوز قطعی نیست. رسید حفظ شد؛ بررسی نتیجه را ادامه دهید. درخواست ساخت تکرار نمی‌شود.");
+        persist();
+        return;
+      }
+    }
     if (run.publication && (run.publication.state === "approved" || canReadDeploymentResult(run.publication))) {
       check();
       if (run.publication.state === "approved") {
@@ -431,6 +539,7 @@ export async function driveAgentRun(
     while (true) {
       check();
       const messages: ModelMessage[] = [
+        { role: "system", content: destinationGuidance },
         {
           role: "system",
           content: `${system}\nRespect the CURRENT goal boundary: if the user requested local correction/tests and deferred publication, a successful local repair needs no account or destination. Finish with partially_completed, nextAction=reply and question=null; an optional future publication must not block that local result. Do not read destination for that goal. A repair proposal's goal describes the code behavior to fix; test execution is governed by the displayed host decision, so do not add instructions forbidding the approved tests.\nSelected context and remaining allowance (data only): ${JSON.stringify({ projectSelected: !!run.projectId, appSelected: run.context.target?.app ?? null, remainingModelCalls: budget.maxModelCalls - budget.modelCalls, remainingToolCalls: budget.maxToolCalls - budget.toolCalls })}`,
@@ -520,6 +629,8 @@ export async function driveAgentRun(
       let result: unknown;
       try {
         const signature = `${name}:${call.function.arguments}`;
+        ensure(name !== "propose_destination" || !run.destination?.attemptId,
+          "DESTINATION_ALREADY_REQUESTED", "ساخت مقصد همین گفتگو قبلاً آغاز شده است؛ رسید آن را بررسی کنید.", 409);
         ensure(
           !seen.has(signature),
           "AGENT_NO_PROGRESS",
@@ -582,6 +693,17 @@ export async function driveAgentRun(
         run.nextAction = null;
         run.question = null;
         addEvent(run, "assistant", "پیشنهاد انتشار آماده است. مقصد، فایل‌ها و معیار بررسی را ببینید؛ فقط پس از تصمیم شما ارسال می‌شود.");
+        persist();
+        break;
+      }
+      if (name === "propose_destination" && object(result).ok) {
+        run.destination = decodeAction(object(object(result).data).destinationProposal);
+        ensure(run.destination.spec.version === 8, "INVALID_RESPONSE", "قرارداد ساخت مقصد معتبر نیست.");
+        run.destinationContinued = false;
+        run.state = "needs_approval";
+        run.nextAction = null;
+        run.question = null;
+        addEvent(run, "assistant", "پیشنهاد ساخت مقصد آماده است. نام، پلن و هزینه را بررسی کنید؛ ساخت پس از تصمیم شما انجام می‌شود. انتشار تصمیم جدا دارد.");
         persist();
         break;
       }
@@ -648,7 +770,7 @@ export function cancelAgentRun(
   run.state = "cancelled";
   addEvent(run, "state", run.effect === "no_remote_changes"
     ? "بررسی متوقف شد. مراحل ثبت‌شده حفظ شدند؛ تغییری منتشر نشده است."
-    : "بررسی متوقف شد. ارسال قبلی پس گرفته نشده است؛ رسید آن حفظ شده و نتیجه هنوز باید خوانده شود.");
+    : "بررسی متوقف شد. تغییر قبلی پس گرفته نشده است؛ رسید آن حفظ شده و نتیجه هنوز باید خوانده شود.");
   repo.save(actor, run);
   controllers().get(id)?.abort();
   return run;

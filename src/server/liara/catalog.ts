@@ -160,7 +160,8 @@ export class LiaraAccountClient {
       "UPSTREAM_INVALID", "هویت یا تنظیمات مقصد قابل تأیید نیست.", 502);
     return { scope: { teamId: this.config.teamId, app }, id: providerObjectId(row._id), platform: string(row.type, 64),
       planId: identifier(row.planID), bundleId: identifier(row.bundlePlanID), networkId: providerObjectId(object(row.network)._id),
-      readOnlyRootFilesystem: row.readOnlyRootFilesystem, observedAt: Date.now() };
+      readOnlyRootFilesystem: row.readOnlyRootFilesystem, observedAt: Date.now(),
+      ...(typeof row.defaultSubdomain === "boolean" ? { defaultSubdomain: row.defaultSubdomain } : {}) };
     }, true);
   }
 }

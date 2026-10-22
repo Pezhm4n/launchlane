@@ -2,9 +2,13 @@
 
 شواهد جاری ابتدا و سابقه مراحل پیشین پایین‌تر ثبت شده‌اند. هر نتیجه به revision و شرایط خودش تعلق دارد؛ نتایج bootstrap جای قابلیت محصول و fixture جای اتصال زنده نیست.
 
-## ساخت مقصد؛ application v8 در checkout جدا
+## ساخت مقصد از گفت‌وگو؛ ادامه پس از 2c335e6
 
-[شاهد ساخت مقصد](evidence/destination-provisioning.md) پاسخ واقعی projectID و چرخه خود application با approval، یک create، receipt پایدار، تطبیق ID/config و انتخاب app را ثبت می‌کند. replay صفر write تازه داشت. منبع source اجرا یا upload نشد؛ مدل، env write و deployment صفر بودند. app آزمایشی فقط پس از تطبیق ID حذف و نبود آن با 404 تأیید شد. migration9 با حفظ checksumهای1–8 و session/AgentRun تاریخی آزموده شد. domain208 و HTTP20، lint/typecheck/build گذشتند؛ regression ثبات fingerprint سپس اضافه شد. این برش هنوز اتصال جدید Agent/UI را پیاده نکرده و با mainِ در حال تغییر UI ادغام نشده است.
+registry، کارت تصمیم ساخت، ادامه فقط با ID/config تأییدشده و approval جدا برای انتشار پیاده شدند. domain تازه main215/215، lint/typecheck گذشتند. snapshot مستقل working tree شامل رابط جاری build و HTTP21/21 را گذراند؛ تست جدید مرورگر پنج حالت در 360/768/1280 را با proposal مصنوعی و writeهای خاموش گذراند. این گزارش، هیچ تغییر UI ایجنت موازی را به این بخش نسبت نمی‌دهد. چرخه جدید واقعی ساخت→انتشار از وب هنوز لازم است؛ [گزارش مرزها](evidence/destination-provisioning.md).
+
+## ساخت مقصد؛ application v8 در 2c335e6 روی main
+
+[شاهد ساخت مقصد](evidence/destination-provisioning.md) پاسخ واقعی projectID و چرخه خود application با approval، یک create، receipt پایدار، تطبیق ID/config و انتخاب app را ثبت می‌کند. replay صفر write تازه داشت. source اجرا یا upload نشد؛ مدل، env write و deployment صفر بودند. app آزمایشی فقط پس از تطبیق ID حذف و نبود آن با 404 تأیید شد. migration9 با حفظ checksumهای1–8 و session/AgentRun تاریخی آزموده شد. domain208 و HTTP20، lint/typecheck/build گذشتند. این شاهد مربوط به مرحله application است؛ اتصال گفت‌وگو شواهد جدا در بخش بالاتر دارد.
 
 ## Catalog واقعی پیش از app؛ ادامه A04
 

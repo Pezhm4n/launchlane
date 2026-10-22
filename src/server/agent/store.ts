@@ -169,6 +169,8 @@ export function agentView(run: AgentRecord): AgentView {
     effect: run.effect,
     repair: run.repair,
     publication: run.publication,
+    destination: run.destination,
+    destinationContinued: run.destinationContinued,
   };
 }
 
@@ -191,8 +193,15 @@ export class AgentRepository {
     const run = parseRecord(JSON.parse(string(row.data_json, 512 * 1024)));
     if (run.publication) {
       run.publication = this.store.getAction(run.publication.id, actorId);
-      run.effect = run.publication.state === "succeeded" ? "remote_changes_verified"
-        : run.publication.attemptId ? "remote_changes_unverified" : "no_remote_changes";
+      if (run.publication.state === "succeeded") run.effect = "remote_changes_verified";
+      else if (run.publication.attemptId) run.effect = "remote_changes_unverified";
+    }
+    if (run.destination) {
+      run.destination = this.store.getAction(run.destination.id, actorId);
+      if (!run.publication?.attemptId) {
+        if (run.destination.state === "succeeded") run.effect = "destination_created";
+        else if (run.destination.attemptId) run.effect = "remote_changes_unverified";
+      }
     }
     if (run.repair) {
       const job = this.store.db
@@ -256,6 +265,8 @@ export class AgentRepository {
         effect: "no_remote_changes",
         repair: null,
         publication: null,
+        destination: null,
+        destinationContinued: false,
         repairDecision: null,
         messages: [{ role: "user", content: goal }],
         usage: {
@@ -330,14 +341,17 @@ export class AgentRepository {
       const actor = string(row.actor_id),
         run = this.get(actor, string(row.id));
       if (!run) continue;
-      if (run.publication?.state === "approved" && !run.publication.attemptId) {
-        // A queued approval must not become an unattended write after a process restart.
-        this.store.db.prepare("UPDATE actions SET state='cancelled' WHERE id=? AND actor_id=? AND state='approved' AND attempt_id IS NULL")
-          .run(run.publication.id, actor);
-        this.store.db.prepare("INSERT INTO audit_events(action_id,actor_id,event,at) VALUES (?,?,?,?)")
-          .run(run.publication.id, actor, "agent_process_interrupted", Date.now());
-        run.publication = this.store.getAction(run.publication.id, actor);
+      for (const action of [run.publication, run.destination]) {
+        if (action?.state === "approved" && !action.attemptId) {
+          // A queued approval must not become an unattended write after a process restart.
+          this.store.db.prepare("UPDATE actions SET state='cancelled' WHERE id=? AND actor_id=? AND state='approved' AND attempt_id IS NULL")
+            .run(action.id, actor);
+          this.store.db.prepare("INSERT INTO audit_events(action_id,actor_id,event,at) VALUES (?,?,?,?)")
+            .run(action.id, actor, "agent_process_interrupted", Date.now());
+        }
       }
+      if (run.publication) run.publication = this.store.getAction(run.publication.id, actor);
+      if (run.destination) run.destination = this.store.getAction(run.destination.id, actor);
       run.state = "interrupted";
       run.errorCode = "PROCESS_INTERRUPTED";
       run.nextAction = "reply";

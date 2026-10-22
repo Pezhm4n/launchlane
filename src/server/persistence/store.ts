@@ -668,21 +668,19 @@ export class Store {
   ): Action {
     return this.transaction(() => {
       const action = this.getAction(id, actorId);
-      this.assertActionContext(actorId, action.spec, id);
       ensure(
         action.hash === expectedHash,
         "STALE_ACTION",
         "پیشنهاد تغییر کرده است؛ دوباره بررسی کنید.",
         409,
       );
+      // Dismissing obsolete consent removes authority; stale context or expiry must not trap the conversation.
+      if (decision === "approve") {
+        this.assertActionContext(actorId, action.spec, id);
+        ensure(action.expiresAt > now, "APPROVAL_EXPIRED", "مهلت تأیید گذشته است؛ پیشنهاد تازه بسازید.", 409);
+      }
       ensure(
-        action.expiresAt > now,
-        "APPROVAL_EXPIRED",
-        "مهلت تأیید گذشته است؛ پیشنهاد تازه بسازید.",
-        409,
-      );
-      ensure(
-        action.state === "awaiting_approval",
+        action.state === "awaiting_approval" || (decision === "reject" && action.state === "expired"),
         "ACTION_CONFLICT",
         "این پیشنهاد قبلاً پاسخ گرفته است.",
         409,
@@ -862,6 +860,10 @@ export class Store {
         this.saveConnection(actorId, { ...connection, view: { ...connection.view, checkedAt: Date.now(),
           apps: [...connection.view.apps.filter((app) => app.name !== spec.scope.app), { name: spec.scope.app, id: proof.id, platform: "node" }],
           selectedApp: select ? spec.scope.app : connection.view.selectedApp } });
+        if (select && proof.defaultSubdomain === true && !this.getProbeOrigin(actorId, spec.scope.teamId, spec.scope.app)) {
+          // Only an enabled provider-owned subdomain on the exact returned app may supply the first probe target.
+          this.setProbeOrigin(actorId, spec.scope, `https://${spec.scope.app}.liara.run`);
+        }
       }
       this.audit(action, `provision_${observation.outcome}`, observation.checkedAt);
       return this.getAction(id, actorId);

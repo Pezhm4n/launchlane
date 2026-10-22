@@ -5,6 +5,7 @@ import { parseAgentView, type AgentView } from "../contracts/agent.ts";
 import { object } from "../contracts/validation.ts";
 import { api, ClientError } from "./api.ts";
 import { AgentPublication } from "./AgentPublication.tsx";
+import { AgentDestination } from "./AgentDestination.tsx";
 import { RichText } from "./RichText.tsx";
 
 function decodeRun(value: unknown): AgentView | null {
@@ -428,6 +429,19 @@ export function AgentPanel({
     } catch (cause) { failed(cause); }
     finally { setBusy(false); }
   }
+  async function destinationRequest(decision?: "approve" | "reject") {
+    if (!run?.destination || busy || disabled) return;
+    setRetryable(null);
+    setBusy(true);
+    setError(null);
+    try {
+      accept(await api(`/api/agent/runs/${run.id}`, decodeRun, { csrf,
+        body: decision ? { operation: "destination-decision", revision: run.revision, actionId: run.destination.id, decision }
+          : { operation: "destination-observe", revision: run.revision },
+      }));
+    } catch (cause) { failed(cause); }
+    finally { setBusy(false); }
+  }
   function follow() {
     const node = transcript.current;
     if (!node) return;
@@ -535,6 +549,7 @@ export function AgentPanel({
       {run ? (
         <>
           <p className="agent-effect">{run.effect === "remote_changes_verified" ? "نسخه منتشرشده و پاسخ مورد انتظار بررسی شدند."
+            : run.effect === "destination_created" ? "مقصد ساخته و تنظیمات آن تأیید شد؛ انتشار هنوز جداگانه بررسی می‌شود."
             : run.effect === "remote_changes_unverified" ? "ارسال به سرویس آغاز شده است؛ نتیجه نهایی هنوز تأیید نشده است."
             : "تغییری در سایت منتشر نشده است."}</p>
           {run.state === "failed" ? (
@@ -694,6 +709,11 @@ export function AgentPanel({
               ) : null}
             </section>
           ) : null}
+          {run.destination ? <AgentDestination action={run.destination} waiting={run.state === "needs_approval" && (run.destination.state === "awaiting_approval" || run.destination.state === "expired")}
+            disabled={disabled || busy || active || !sameProject}
+            resumable={run.destination.state === "succeeded" && !run.destinationContinued}
+            onDecision={(decision) => void destinationRequest(decision)}
+            onObserve={() => void destinationRequest()} /> : null}
           {run.publication ? <AgentPublication action={run.publication} waiting={run.state === "needs_approval"}
             disabled={disabled || busy || active || !sameProject}
             onDecision={(decision) => void publicationRequest(decision)}

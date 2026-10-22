@@ -35,7 +35,12 @@ export type ProvisionProgress = Readonly<{
 export type ProvisionReadback = Readonly<{
   scope: Scope; id: string; platform: string; planId: string; bundleId: string;
   networkId: string; readOnlyRootFilesystem: boolean; observedAt: number;
+  defaultSubdomain?: boolean;
 }>;
+export function canReadDestinationResult(action: import("./domain.ts").Action): boolean {
+  return action.spec.version === 8 && !!action.provision &&
+    (action.state === "observing" || action.state === "uncertain");
+}
 export function providerObjectId(value: unknown): string {
   const id = string(value, 24);
   ensure(/^[a-f0-9]{24}$/.test(id), "INVALID_INPUT", "شناسه داخلی سرویس معتبر نیست.");

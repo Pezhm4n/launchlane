@@ -1,6 +1,6 @@
 # ساخت مقصد با receipt داخلی
 
-تاریخ: ۲۰۲۶-۱۰-۲۲. این برش روی branch جدا از بازآرایی رابط توسعه یافت. دامنه فعلی: پروژه Node آماده، پلن ایران و شبکه موجود همان تیم. ساخت شبکه، env و استقرار بعدی از همین API جزو این برش نیستند.
+تاریخ: ۲۰۲۶-۱۰-۲۲. بخش application در `2c335e6` روی main ثبت شد. دامنه فعلی: پروژه Node آماده، پلن ایران و شبکه موجود همان تیم. ساخت شبکه و env هنوز پشتیبانی نمی‌شوند. انتشار از همان application موجود و با تصمیم جدا استفاده می‌کند.
 
 ## اجرا و مجوز
 
@@ -16,7 +16,17 @@ ActionSpec v8، عملیات `create_app` را به actor/session، حساب/ت�
 
 سپس خود application محصول، نه فقط harness مستقیم، با API واقعی اجرا شد: options حساب، پیشنهاد v8، تصمیم صریح روی hash، claim، یک POST create، ذخیره ID، readback تنظیمات و انتخاب همان ID در اتصال. یازده tool call در همان budget مشترک مصرف شد. تلاش اجرای مجدد هیچ write تازه‌ای نساخت. app پس از تطبیق ID توسط harness پاک و GET 404 آن تأیید شد. source script، env write، model call و deployment در این چرخه صفر بودند. gateهای نصب اصلی تغییر نکردند.
 
-هشت regression اولیه شامل مهاجرت، price/network/credit/source تغییرکرده، نام موجود، response گم‌شده، شکست SQLite پس از receipt، same-name replacement، تغییر انتخاب و race بودند. مجموعه کامل domain در این مرحله 208/208 و HTTP20/20، lint/typecheck/build گذشتند. سپس regression ترتیب کلیدهای catalog برای ثبات fingerprint افزوده شد. شواهد خام و هزینه حساب فقط در محل ignored آزمون نگهداری می‌شوند.
+regressionهای application شامل مهاجرت، price/network/credit/source تغییرکرده، نام موجود، response گم‌شده، شکست SQLite پس از receipt، same-name replacement، تغییر انتخاب و race هستند. ثبات fingerprint با تغییر ترتیب کلیدهای catalog هم آزموده شد. مجموعه کامل domain در مرحله application برابر 208/208 و HTTP20/20 بود؛ lint/typecheck/build گذشتند. شواهد خام و هزینه حساب فقط در محل ignored آزمون نگهداری می‌شوند.
+
+## اتصال گفت‌وگو
+
+registry مشترک اکنون `read_networks` و `propose_destination` دارد. ابزار نخست خودکار و read-only است؛ دومی فقط proposal v8 می‌سازد. کارت در همان گفت‌وگو نام، موقعیت، نرخ پایه تومان در ساعت، هزینه‌های محاسبه‌نشده و ظرفیت اندازه‌گیری‌نشده را نشان می‌دهد. decision و queued شدن run در همان transaction ثبت می‌شوند. قطع پیش از claim، approval صف‌شده را لغو می‌کند. قطع پس از create فقط receipt را می‌خواند و write را تکرار نمی‌کند.
+
+host فقط از receipt موفق و ID دقیق، تغییر context ناشی از ساخت را می‌پذیرد. تغییر مستقل source/account/selection باعث توقف ادامه می‌شود. اثر `destination_created` از انتشار موفق جداست. برای هدف انتشار، مدل پس از این receipt ابزار بعدی را انتخاب می‌کند و proposal v7 باید همان archive و ID تازه را bind کند. ساخت به‌تنهایی run را completed نمی‌کند. رد پیشنهاد منقضی یا context عوض‌شده فقط authority را حذف می‌کند و مجوز تازه‌ای نمی‌سازد.
+
+اگر readback همان app، `defaultSubdomain: true` برگرداند، host نشانی اولیه `https://<app>.liara.run` را محلی ثبت می‌کند. این قالب با [راهنمای رسمی ساخت Node لیارا](https://github.com/liara-cloud/docs/blob/master/src/pages/paas/nodejs/how-tos/create-app.mdx) تطبیق داده شد. flag غایب/false، نشانی مدل یا یک app هم‌نام برای این کار کافی نیست. مقصد probe در approval انتشار جداگانه bind می‌شود و حفاظت DNS/SSRF همان probe موجود پابرجاست.
+
+هفت regression Agent، زنجیره ساخت→proposal انتشار→تصمیم جدا→بررسی workload را با transport مصنوعی، atomic decision، انقضا/تغییر context، پاسخ گم‌شده، قطع میان receipt و adoption، انتخاب همزمان کاربر و gateهای خاموش می‌سنجند. مجموعه کامل تازه domain215/215 روی main و lint/typecheck گذشتند. build و HTTP21/21 روی snapshot مستقل working tree سنجیده شدند. تست جدید مرورگر پنج حالت در 360/768/1280 را بدون overflow یا violation ثبت‌شده axe گذراند و تصویرها بازبینی شدند؛ proposal مصنوعی و تمام writeهای provider خاموش بودند. artifact: `.artifacts/destination-ui/2026-10-22T10-00-24.404Z` داخل export محلی. این شواهد هنوز چرخه جدید create→publication از وب با مدل/provider واقعی نیستند.
 
 ## API و کار باز
 
@@ -25,4 +35,4 @@ ActionSpec v8، عملیات `create_app` را به actor/session، حساب/ت�
 - `GET /api/destinations/[id]` فقط state پایدار را می‌خواند.
 - POST همان ID با decision/hash، execute یا observe، به‌ترتیب تصمیم، یک اجرای claim‌شده یا readback همان receipt را انجام می‌دهد. هیچ spec دلخواه یا نقش model از client پذیرفته نمی‌شود.
 
-این شاهد هنوز مسیر جدید Agent/کارت تصمیم مرورگر را نمی‌پذیرد؛ اتصال registry و رابط، و سپس create→publication واقعی در ادامه لازم‌اند. app در این مرحله source دریافت نمی‌کند. بودجه برآورد پایه، invoice یا پوشش هزینه‌های جانبی نیست. ظرفیت پروژه benchmark نشده است. pull این migration به نصب در حال اجرا restart واقعی می‌خواهد؛ HMR قرارداد Store را خودکار باز نمی‌کند.
+چرخه زنده جدید create→publication از گفت‌وگو، env و ساخت شبکه همچنان بازند. بودجه برآورد پایه، invoice یا پوشش هزینه‌های جانبی نیست. ظرفیت پروژه benchmark نشده است. انتقال migration به نصب در حال اجرا restart واقعی خواست؛ guard HMR ابتدا RUNTIME_RESTART_REQUIRED داد و سرور main با حفظ state بازراه‌اندازی شد. HMR قرارداد Store را خودکار باز نمی‌کند.

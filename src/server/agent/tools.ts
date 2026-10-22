@@ -14,6 +14,7 @@ import type { ToolDefinition } from "./model.ts";
 import { CodeRepairAdapter } from "./code-repair.ts";
 import { proposeWorkloadDeployment } from "../application/deployment.ts";
 import { LiaraAccountClient, quotePaaSOffer } from "../liara/catalog.ts";
+import { proposeDestination } from "../application/provision.ts";
 
 export function privateValues(c: Config): string[] {
   return [c.liaraToken, c.modelKey, c.operatorToken, c.sessionSecret].filter(Boolean);
@@ -148,9 +149,13 @@ const repairTool: ToolDefinition = {
 export function toolsForAgent(config: Config): readonly ToolDefinition[] {
   return [...agentTools, ...(config.enableLocalRepair ? [repairTool] : []),
     ...(config.enableLiveLiara ? catalogTools : []),
-    ...(config.enableMutations && config.enableLiveLiara ? [publicationTool] : [])];
+    ...(config.enableMutations && config.enableLiveLiara ? [publicationTool, destinationTool] : [])];
 }
 const catalogTools: readonly ToolDefinition[] = [
+  { type: "function", function: {
+    name: "read_networks", description: "Read existing private networks in the connected account/team before proposing a new destination. A single existing network can be reused; ask only when several materially different choices need the user's input. Does not create a network. No app selection is required.",
+    parameters: { type: "object", additionalProperties: false, required: [], properties: {} },
+  } },
   { type: "function", function: {
     name: "read_catalog", description: "Read the selected account/team's fresh available PaaS plan/bundle combinations and base hourly prices in toman. Works before app selection. Prices exclude tax/traffic/storage extras, are not an invoice; raw capacity amounts have unverified units and never prove project requirements. Cheapest 20 combinations and truncation count are returned. No create or resize occurs.",
     parameters: { type: "object", additionalProperties: false, required: [], properties: {} },
@@ -161,6 +166,14 @@ const catalogTools: readonly ToolDefinition[] = [
       properties: { planId: { type: "string", maxLength: 63 }, bundleId: { type: "string", maxLength: 63 } } },
   } },
 ];
+const destinationTool: ToolDefinition = { type: "function", function: {
+  name: "propose_destination",
+  description: "Propose a new Node application for the selected ready project. Supply a unique app name, an available plan/bundle from the actual catalog and an existing team network from read_networks. The host binds the immutable source, account, expiring base hourly quote and selected network. User approval is mandatory before any create. Creation does not publish, resize, set env or prove workload health. For a publication goal with no app, propose this step instead of sending the user to select a nonexistent app. Capacity is unmeasured; do not promise a plan will meet load. Only Iran-region plans and existing networks are implemented.",
+  parameters: { type: "object", additionalProperties: false, required: ["app", "planId", "bundleId", "networkId"], properties: {
+    app: { type: "string", maxLength: 63 }, planId: { type: "string", maxLength: 63 },
+    bundleId: { type: "string", maxLength: 63 }, networkId: { type: "string", maxLength: 24 },
+  } },
+} };
 const publicationTool: ToolDefinition = {
   type: "function",
   function: {
@@ -190,6 +203,8 @@ export const toolLabels: Readonly<Record<string, string>> = {
   propose_publication: "آماده‌کردن پیشنهاد انتشار و بررسی پاسخ سایت",
   read_catalog: "خواندن پلن‌ها و قیمت‌های تازه حساب",
   quote_resource_plan: "بررسی هزینه پایه و گزینه‌های پلن",
+  read_networks: "بررسی شبکه‌های موجود همین حساب",
+  propose_destination: "آماده‌کردن مقصد تازه و هزینه پایه آن",
 };
 export type AgentToolContext = {
   config: Config;
@@ -217,6 +232,13 @@ export async function executeAgentTool(
     "ورودی ابزار کامل نیست.",
   );
   assertAgentContext(c.config, c.store, c.actorId, c.context);
+  if (name === "read_networks") {
+    ensure(c.context.account, "LIARA_AUTH_REQUIRED", "ابتدا حساب مقصد را متصل کنید.", 409);
+    const scoped = connectedLiaraAccountConfig(c.config, c.store, c.actorId),
+      networks = await (c.account ?? new LiaraAccountClient(scoped, c.context.account.accountId)).networks(c.budget, c.signal);
+    assertAgentContext(c.config, c.store, c.actorId, c.context);
+    return { networks, networkCreationAvailable: false, remoteChanges: false };
+  }
   if (name === "read_catalog" || name === "quote_resource_plan") {
     ensure(c.context.account, "LIARA_AUTH_REQUIRED", "ابتدا حساب مقصد را متصل کنید؛ انتخاب برنامه برای دیدن پلن‌ها لازم نیست.", 409);
     const scoped = connectedLiaraAccountConfig(c.config, c.store, c.actorId),
@@ -239,6 +261,15 @@ export async function executeAgentTool(
       c.signal, { budget: c.budget, ...(c.read ? { read: c.read } : {}) });
     assertAgentContext(c.config, c.store, c.actorId, c.context);
     return { publicationProposal: action };
+  }
+  if (name === "propose_destination") {
+    ensure(c.context.projectId && c.context.account, "AGENT_PROJECT_REQUIRED", "پروژه و حساب مقصد لازم است؛ انتخاب app قبلی لازم نیست.", 409);
+    const action = await proposeDestination(c.config, c.store, c.actorId,
+      { flowId: c.context.projectId, app: string(args.app, 63), planId: string(args.planId, 63),
+        bundleId: string(args.bundleId, 63), networkId: string(args.networkId, 24) },
+      c.signal, { budget: c.budget, ...(c.account ? { read: c.account } : {}) });
+    assertAgentContext(c.config, c.store, c.actorId, c.context);
+    return { destinationProposal: action };
   }
   if (name === "propose_code_repair") {
     c.budget.take("tool", c.signal);
@@ -287,11 +318,13 @@ export async function executeAgentTool(
           : [],
       serviceReadsEnabled: c.config.enableLiveLiara,
       mutationsEnabled: c.config.enableMutations,
+      creationAvailable: c.config.enableMutations && c.config.enableLiveLiara,
+      allowedNewAppNames: c.config.apps.length ? c.config.apps : null,
       pricing: "unknown",
       siteOriginConfigured: !!(c.context.target && (c.config.probeOrigins[c.context.target.app] ||
         c.store.getProbeOrigin(c.actorId, c.context.target.teamId, c.context.target.app))),
       limitation:
-        "Publication to an existing Node app requires a separate exact-artifact decision. Creating applications or changing env is not available in this slice. No remote changes were made by this read.",
+        "Publication requires a separate exact-artifact decision. New Node destinations can be proposed with the actual catalog and an existing team network when creationAvailable is true. Env changes and network creation are unavailable. No remote changes were made by this read.",
     };
   }
   if (name === "inspect_project" || name === "read_project_file") {
