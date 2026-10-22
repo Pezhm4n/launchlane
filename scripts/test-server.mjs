@@ -1,10 +1,10 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { cp, mkdtemp, mkdir, rm } from "node:fs/promises";
-import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { setTimeout as pause } from "node:timers/promises";
+import { freeHttpTestPort } from "../tests/helpers/http-port.ts";
 
 export async function startTestServer({ browserHost = "127.0.0.1" } = {}) {
   if (!["127.0.0.1", "localhost"].includes(browserHost)) throw new Error("Unsupported loopback test host");
@@ -14,10 +14,7 @@ export async function startTestServer({ browserHost = "127.0.0.1" } = {}) {
   await cp(resolve("examples/node-service"), join(workspace, "examples/node-service"), {
     recursive: true,
   });
-  const probe = createServer();
-  await new Promise((done) => probe.listen(0, "127.0.0.1", done));
-  const port = probe.address().port;
-  await new Promise((done) => probe.close(done));
+  const port = await freeHttpTestPort();
   const origin = `http://${browserHost}:${port}`,
     token = randomBytes(32).toString("base64url");
   const teamId = "a".repeat(24),

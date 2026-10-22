@@ -1,23 +1,11 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { createServer } from "node:net";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-
-async function freePort(): Promise<number> {
-  const server = createServer();
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const address = server.address();
-  assert.ok(address && typeof address === "object");
-  const port = address.port;
-  await new Promise<void>((resolve, reject) =>
-    server.close((error) => (error ? reject(error) : resolve())),
-  );
-  return port;
-}
+import { freeHttpTestPort, isHttpTestPort } from "../helpers/http-port.ts";
 
 async function sample(message: string | undefined) {
-  const port = await freePort();
+  const port = await freeHttpTestPort();
   const env: NodeJS.ProcessEnv = { ...process.env, PORT: String(port) };
   delete env.WELCOME_MESSAGE;
   if (message !== undefined) env.WELCOME_MESSAGE = message;
@@ -54,6 +42,12 @@ async function sample(message: string | undefined) {
     },
   };
 }
+
+test("local HTTP oracles reject Fetch-blocked ports without rejecting safe neighbouring ports", () => {
+  for (const port of [0, 6000, 6667, 10080, -1, 65_536, 3000.5])
+    assert.equal(isHttpTestPort(port), false);
+  for (const port of [3000, 6001, 10081, 49_152, 65_535]) assert.equal(isHttpTestPort(port), true);
+});
 
 test("controlled incident oracle checks the same workload: liveness 200 is insufficient, wrong fix stays 500, correct config yields 200", async () => {
   for (const [message, expected] of [
