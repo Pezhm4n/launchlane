@@ -49,7 +49,8 @@ async function chatGeometry() {
       composerGap: contentBox.bottom - parseFloat(getComputedStyle(content).paddingBottom) - formBox.bottom,
       panelOverflow: node.scrollWidth > node.clientWidth, formOverflow: form.scrollWidth > form.clientWidth };
   });
-  assert.ok(geometry.left >= 19 && geometry.top >= 15 && geometry.right <= geometry.width - 19 && geometry.bottom <= geometry.height - 15, JSON.stringify(geometry));
+  if (geometry.width < 768) assert.ok(Math.abs(geometry.left) < 1 && Math.abs(geometry.top) < 1 && Math.abs(geometry.right - geometry.width) < 1 && Math.abs(geometry.bottom - geometry.height) < 1, JSON.stringify(geometry));
+  else assert.ok(geometry.left >= 19 && geometry.top >= 15 && geometry.right <= geometry.width - 19 && geometry.bottom <= geometry.height - 15, JSON.stringify(geometry));
   assert.ok(Math.abs(geometry.composerGap) < 2, `the composer belongs at the bottom: ${JSON.stringify(geometry)}`);
   assert.equal(geometry.panelOverflow || geometry.formOverflow, false, "the panel and composer fit horizontally");
   const transcript = chat.locator(".agent-transcript");

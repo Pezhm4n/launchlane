@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 
-export type WorkspaceGlyphName = "cloud" | "code" | "branch" | "arrow" | "spark" | "shield" | "message" | "close" | "send" | "check" | "search";
+export type WorkspaceGlyphName = "cloud" | "code" | "branch" | "arrow" | "spark" | "shield" | "message" | "close" | "send" | "check" | "search" | "expand" | "collapse" | "copy" | "stop" | "down";
 
 const paths: Record<WorkspaceGlyphName, string[]> = {
   cloud: ["M7 18a5 5 0 1 1 .7-9.95A6 6 0 0 1 19 10a4 4 0 0 1-1 8", "M12 20V11m-3 3 3-3 3 3"],
@@ -14,6 +14,11 @@ const paths: Record<WorkspaceGlyphName, string[]> = {
   send: ["m21 3-6.5 18-4-7.5L3 9.5 21 3Z", "M10.5 13.5 21 3"],
   check: ["m5 12 4 4L19 6"],
   search: ["M16 10a6 6 0 1 1-12 0 6 6 0 0 1 12 0Zm-1 5 6 6"],
+  expand: ["M8 3H3v5m13-5h5v5M3 16v5h5m8 0h5v-5"],
+  collapse: ["M3 8h5V3m8 0v5h5M3 16h5v5m8 0v-5h5"],
+  copy: ["M8 8h12v13H8V8ZM16 4V2H3v14h2"],
+  stop: ["M6 6h12v12H6V6Z"],
+  down: ["M12 4v16m-6-6 6 6 6-6"],
 };
 
 export function WorkspaceGlyph({ name, className = "", style }: {

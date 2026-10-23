@@ -120,4 +120,8 @@
   --mobile-header-height: 3.5rem;
   --mobile-panel-inset: 0.875rem;
   --mobile-nav-space: 0px;
+  --chat-reading-font: 1rem;
+  --chat-input-font: 1rem;
+  --chat-meta-font: 0.6875rem;
+  --chat-input-max: 7.5rem;
 }

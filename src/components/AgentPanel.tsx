@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { parseAgentView, type AgentView } from "../contracts/agent.ts";
 import { object } from "../contracts/validation.ts";
 import { api, ClientError } from "./api.ts";
@@ -39,9 +39,11 @@ function CopyMessage({ text }: { text: string }) {
     <button
       type="button"
       className="button-quiet agent-message-copy"
+      aria-label={state === "copied" ? "کپی شد" : state === "failed" ? "کپی نشد" : "کپی پاسخ"}
       onClick={() => void copy()}
     >
-      {state === "copied" ? "کپی شد" : state === "failed" ? "کپی نشد" : "کپی پاسخ"}
+      <WorkspaceGlyph name={state === "copied" ? "check" : "copy"} />
+      <span className="sr-only" role="status">{state === "copied" ? "کپی شد" : state === "failed" ? "کپی نشد" : "کپی پاسخ"}</span>
     </button>
   );
 }
@@ -136,6 +138,7 @@ export function AgentPanel({
     [error, setError] = useState<ClientError | null>(null),
     [restoring, setRestoring] = useState(true),
     [newCount, setNewCount] = useState(0),
+    [awayFromEnd, setAwayFromEnd] = useState(false),
     [announcement, setAnnouncement] = useState(""),
     [now, setNow] = useState(() => Date.now()),
     [retryable, setRetryable] = useState<{ message: string; projectId: string | null } | null>(
@@ -158,6 +161,28 @@ export function AgentPanel({
     draftValue = useRef("");
   const syncedProject = useRef<string | null>(null);
   const previousProject = useRef(projectId);
+  const resizeComposer = useCallback((value: string) => {
+    const node = input.current;
+    if (!node?.clientWidth || node.value !== value) return;
+    const style = getComputedStyle(node);
+    // A hidden dialog has no usable width; ResizeObserver fits it once it becomes visible.
+    node.style.height = "0px";
+    const border = Number.parseFloat(style.borderTopWidth) + Number.parseFloat(style.borderBottomWidth);
+    node.style.height = `${Math.max(Number.parseFloat(style.minHeight), Math.min(node.scrollHeight + border, Number.parseFloat(style.maxHeight)))}px`;
+  }, []);
+  useLayoutEffect(() => { if (!guided) resizeComposer(draft); }, [draft, guided, resizeComposer]);
+  useEffect(() => {
+    const node = input.current;
+    if (guided || !enabled || run?.state === "needs_approval" || !node) return;
+    let width = -1;
+    const observer = new ResizeObserver(entries => {
+      const next = entries[0]?.contentRect.width;
+      if (next !== width) { width = next ?? -1; resizeComposer(node.value); }
+    });
+    observer.observe(node);
+    resizeComposer(node.value);
+    return () => observer.disconnect();
+  }, [guided, enabled, run?.state, resizeComposer]);
   useEffect(() => {
     if (guided && activeView && projectId && previousProject.current !== projectId) document.getElementById("publication-agent-title")?.focus();
     previousProject.current = projectId;
@@ -238,6 +263,7 @@ export function AgentPanel({
     if (seen.current.runId !== run.id) {
       seen.current = { runId: run.id, messages: messagesNow };
       following.current = true;
+      setAwayFromEnd(false);
       setNewCount(0);
       node.scrollTop = node.scrollHeight;
       return;
@@ -293,13 +319,6 @@ export function AgentPanel({
       // Draft persistence is a convenience; the form still works without storage.
     }
   }, [draft, draftKey]);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the measured field height changes with its value and disabled state.
-  useEffect(() => {
-    const node = input.current;
-    if (!node) return;
-    node.style.height = "auto";
-    node.style.height = `${Math.min(node.scrollHeight, 160)}px`;
-  }, [draft, enabled]);
   useEffect(() => {
     if (!active) return;
     setNow(Date.now());
@@ -504,6 +523,7 @@ export function AgentPanel({
     const node = transcript.current;
     if (!node) return;
     following.current = node.scrollHeight - node.scrollTop - node.clientHeight <= 48;
+    setAwayFromEnd(!following.current);
     if (following.current) setNewCount(0);
   }
   function goToLatest() {
@@ -511,6 +531,7 @@ export function AgentPanel({
     if (!node) return;
     node.scrollTop = node.scrollHeight;
     following.current = true;
+    setAwayFromEnd(false);
     setNewCount(0);
     node.focus({ preventScroll: true });
   }
@@ -529,7 +550,58 @@ export function AgentPanel({
   const runSteps = run ? <details><summary>مراحل بررسی</summary><ol className="agent-events">
     {run.events.filter(event => event.kind !== "user" && event.kind !== "assistant").map(event => <li key={event.sequence}><p>{event.message}</p></li>)}
   </ol></details> : null;
-  const conversation = run && sameProject ? <>
+  const errorNotice = error ? (
+        <div id="agent-error" role="alert" className="note note-danger">
+          <p>{error.message}</p>
+          <div className="button-row">
+            {retryable && retryable.projectId === projectId && !active ? (
+              <button
+                type="button"
+                disabled={busy || disabled}
+                aria-describedby="agent-retry-help"
+                onClick={() => {
+                  setDraft(retryable.message);
+                  void send(retryable.message);
+                }}
+              >
+                ثبت دوباره همین درخواست
+              </button>
+            ) : null}
+            {error.code !== "EMPTY_GOAL" ? (
+              <button
+                type="button"
+                className="button-quiet"
+                disabled={busy}
+                onClick={() => void refresh()}
+              >
+                دریافت وضعیت ثبت‌شده
+              </button>
+            ) : null}
+          </div>
+          {retryable && retryable.projectId === projectId && !active ? (
+            <p id="agent-retry-help" className="hint">
+              همان شناسه درخواست قبلی دوباره فرستاده می‌شود؛ اگر درخواست ثبت شده باشد، اجرای تکراری
+              ساخته نمی‌شود.
+            </p>
+          ) : null}
+        </div>
+      ) : null;
+  const progressIndicator = active ? (
+            <div className="agent-progress">
+              <p role="status" aria-live="polite" aria-atomic="true" className="hint">
+                <span className="agent-activity" aria-hidden="true">
+                  <span className="agent-dot" />
+                  <span className="agent-dot" />
+                  <span className="agent-dot" />
+                </span>
+                {progress ?? "در حال بررسی درخواست…"}
+              </p>
+              <span className="hint agent-elapsed" aria-hidden="true">
+                {formatElapsed(now - startedAt)} از شروع بررسی
+              </span>
+            </div>
+          ) : null;
+  const conversation = run && sameProject ? <div className="chat-transcript-region">
           <section
             ref={transcript}
             className="agent-transcript"
@@ -573,27 +645,30 @@ export function AgentPanel({
               })
             )}
             {chatOnly ? <div className="chat-run-context">{runEffect}{runSteps}</div> : null}
+            {chatOnly && run.state === "failed" ? <p className="note">پاسخ کامل نشد؛ نتیجه‌های پیشین حفظ شده‌اند. <button type="button" className="button-quiet" disabled={busy} onClick={() => void refresh()}>دریافت وضعیت ثبت‌شده</button></p> : null}
+            {chatOnly ? errorNotice : null}
+            {chatOnly ? progressIndicator : null}
           </section>
-          {newCount > 0 ? (
-            <button type="button" className="button-quiet" onClick={goToLatest}>
-              {new Intl.NumberFormat("fa-IR").format(newCount)} پیام تازه
+          {awayFromEnd ? (
+            <button type="button" className="button-quiet chat-latest" aria-label={newCount ? `${new Intl.NumberFormat("fa-IR").format(newCount)} پیام تازه؛ آخرین پیام` : "آخرین پیام"} onClick={goToLatest}>
+              آخرین پیام <WorkspaceGlyph name="down" />
             </button>
           ) : null}
-
-</> : null;
+</div> : null;
   const composer = enabled && run?.state !== "needs_approval" ? (
         <form className="agent-composer" onSubmit={(event) => void submit(event)}>
-          <label htmlFor="agent-goal">{run && sameProject ? "پیام بعدی" : "سؤال شما"}</label>
+          <label className="sr-only" htmlFor="agent-goal">{run && sameProject ? "پیام بعدی" : "سؤال شما"}</label>
+          <div className="composer-input-row">
           <textarea
             ref={input}
             id="agent-goal"
             name="goal"
             autoComplete="off"
             dir="auto"
-            rows={2}
+            rows={1}
             enterKeyHint="send"
             maxLength={2000}
-            placeholder="دربارهٔ پروژه‌تان بپرسید…"
+            placeholder="پیام شما…"
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
@@ -619,14 +694,10 @@ export function AgentPanel({
             aria-invalid={error?.code === "EMPTY_GOAL" || undefined}
           />
           {active ? (
-            <p id="agent-active-help" className="hint">
+            <p id="agent-active-help" className="sr-only">
               بررسی در حال اجراست؛ نوشتن آزاد است و ارسال پس از پایان ممکن می‌شود.
             </p>
           ) : null}
-          <div className="composer-toolbar">
-          <p id="agent-help" className="hint">
-            رمز یا کلید وارد نکنید.<span className="chat-key-hint"> Enter ارسال · Shift+Enter خط تازه</span>
-          </p>
           <div className="button-row">
             <button
               type="submit"
@@ -634,20 +705,24 @@ export function AgentPanel({
               disabled={disabled || busy || restoring || active || !draft.trim()}
               aria-describedby={active ? "agent-active-help" : undefined}
             >
-              {busy ? "در حال ثبت…" : <><span>ارسال</span><WorkspaceGlyph name="send" /></>}
+              {busy ? <span className="agent-dot" aria-hidden="true" /> : <WorkspaceGlyph name="send" />}
             </button>
             {active ? (
               <button
                 type="button"
                 className="button-secondary"
+                aria-label="توقف بررسی"
                 disabled={busy || disabled}
                 onClick={() => void cancel()}
               >
-                توقف بررسی
+                <WorkspaceGlyph name="stop" />
               </button>
             ) : null}
           </div>
           </div>
+          <p id="agent-help" className="hint composer-toolbar">
+            <span>رمز یا کلید وارد نکنید.</span><span className="chat-key-hint">Enter ارسال · Shift+Enter خط تازه</span>
+          </p>
         </form>
       ) : null;
   return (<>
@@ -655,7 +730,6 @@ export function AgentPanel({
       <div className="section-heading">
         <h2 id={guided ? "publication-agent-title" : "agent-title"} tabIndex={-1}>{guided ? "آماده‌سازی و انتشار پروژه" : "گفت‌وگوی پروژه"}</h2>
         {run ? <span className="badge badge-quiet">{stateLabels[run.state]}</span> : null}
-      </div>
       {!guided && run && !active && run.state !== "needs_approval" ? (
         <div className="agent-new-conversation">
           <button
@@ -680,6 +754,7 @@ export function AgentPanel({
           </span>
         </div>
       ) : null}
+      </div>
       <div className="button-row agent-project-actions" hidden={guided || chatOnly}>
         <button
           type="button"
@@ -698,7 +773,7 @@ export function AgentPanel({
           انتخاب از GitHub
         </button>
       </div>
-      {!guided && !run && !restoring && enabled ? (
+      {!guided && !run && !error && !restoring && enabled ? (
         <ChatWelcome projectName={projectName} disabled={disabled || busy || active} onPick={question => { setDraft(question); input.current?.focus(); }} />
       ) : null}
       {restoring ? <p role="status">در حال بازیابی وضعیت…</p> : null}
@@ -742,7 +817,7 @@ export function AgentPanel({
           {!guided ? conversation : null}
           {guided && !active && run.events.filter(event => event.kind === "assistant").at(-1)?.message ? <div className="mission-summary"><RichText text={run.events.filter(event => event.kind === "assistant").at(-1)?.message ?? ""} /></div> : null}
           {!chatOnly ? runEffect : null}
-          {run.state === "failed" ? (
+          {!chatOnly && run.state === "failed" ? (
             <p className="note">
               این مرحله کامل نشد. رسیدها و نتیجه‌های مراحل پیشین حفظ شده‌اند؛ برای ادامه،
               خطای ثبت‌شده را در مراحل بررسی ببینید و وضعیت را دوباره دریافت کنید. هیچ عملیات ابری خودکار تکرار نمی‌شود.
@@ -754,21 +829,7 @@ export function AgentPanel({
               می‌کند.
             </p>
           ) : null}
-          {active ? (
-            <div className="agent-progress">
-              <p role="status" aria-live="polite" aria-atomic="true" className="hint">
-                <span className="agent-activity" aria-hidden="true">
-                  <span className="agent-dot" />
-                  <span className="agent-dot" />
-                  <span className="agent-dot" />
-                </span>
-                {progress ?? "در حال بررسی درخواست…"}
-              </p>
-              <span className="hint agent-elapsed" aria-hidden="true">
-                {formatElapsed(now - startedAt)} از شروع بررسی
-              </span>
-            </div>
-          ) : null}
+          {!chatOnly ? progressIndicator : null}
           <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
             {announcement}
           </p>
@@ -900,42 +961,7 @@ export function AgentPanel({
           {!chatOnly ? runSteps : null}
         </>
       ) : null}
-      {error ? (
-        <div id="agent-error" role="alert" className="note note-danger">
-          <p>{error.message}</p>
-          <div className="button-row">
-            {retryable && retryable.projectId === projectId && !active ? (
-              <button
-                type="button"
-                disabled={busy || disabled}
-                aria-describedby="agent-retry-help"
-                onClick={() => {
-                  setDraft(retryable.message);
-                  void send(retryable.message);
-                }}
-              >
-                ثبت دوباره همین درخواست
-              </button>
-            ) : null}
-            {error.code !== "EMPTY_GOAL" ? (
-              <button
-                type="button"
-                className="button-quiet"
-                disabled={busy}
-                onClick={() => void refresh()}
-              >
-                دریافت وضعیت ثبت‌شده
-              </button>
-            ) : null}
-          </div>
-          {retryable && retryable.projectId === projectId && !active ? (
-            <p id="agent-retry-help" className="hint">
-              همان شناسه درخواست قبلی دوباره فرستاده می‌شود؛ اگر درخواست ثبت شده باشد، اجرای تکراری
-              ساخته نمی‌شود.
-            </p>
-          ) : null}
-        </div>
-      ) : null}
+      {!chatOnly || !run || !sameProject ? errorNotice : null}
       {!guided ? composer : null}
     </section>
     {guided ? <FloatingAssistant blocked={blocked || environmentLocked || run?.nextAction === "configure_env" || run?.state === "needs_approval"} projectName={projectName}>

@@ -56,7 +56,8 @@ try {
               panelY: panel ? new DOMMatrixReadOnly(getComputedStyle(panel).transform).m42 : 0,
               viewX: view ? new DOMMatrixReadOnly(getComputedStyle(view).transform).m41 : 0,
             });
-            if (performance.now() - start < 400) requestAnimationFrame(sample);
+            // Use the recorded clock so collector and waiter cannot straddle the deadline.
+            if (window.motionSamples.at(-1).t < 400) requestAnimationFrame(sample);
           }
           requestAnimationFrame(sample);
         }, { once: true });
@@ -103,7 +104,7 @@ try {
         function sample() {
           const style = getComputedStyle(node, "::details-content");
           window.closingSamples.push({ at: performance.now() - started, opacity: Number(style.opacity), visibility: style.contentVisibility, height: Number.parseFloat(style.blockSize) });
-          if (performance.now() - started < 400) requestAnimationFrame(sample);
+          if (window.closingSamples.at(-1).at < 400) requestAnimationFrame(sample);
         }
         requestAnimationFrame(sample);
       }, { once: true });
@@ -130,7 +131,7 @@ try {
         const start = performance.now();
         function sample() {
           window.dialogSamples.push({ at: performance.now() - start, connected: node.isConnected, opacity: Number(getComputedStyle(node).opacity), open: node.open });
-          if (performance.now() - start < 400) requestAnimationFrame(sample);
+          if (window.dialogSamples.at(-1).at < 400) requestAnimationFrame(sample);
         }
         requestAnimationFrame(sample);
       }, { once: true });
