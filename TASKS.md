@@ -1,5 +1,9 @@
 # برنامه اجرایی Launchlane
 
+## ورود سورس خام ترب؛ A07/A11 / ۲۰۲۶-۱۰-۲۳
+
+روی96a38011 ترب، capture ریشه بدون تغییر source اکنون234فایل/2533177بایت را با hash `8f7b99351417f35048cc7265a99df631824f018eb67f95e56858a157527092a2` می‌خواند. variable reference و placeholder صریح تست از credential واقعی جدا شدند؛ تست‌ها حذف/ویرایش نشدند و exact installed secret همچنان رد است. هفت regression scanner پاس؛ این شاهد فقط ورود source است، نه آمادگی start/build/data/publication. start/port و build ترکیبی، دیسک و انتقال SQLite مرزهای بازند. [شاهد](docs/evidence/raw-torob-source.md).
+
 ## خطاهای قابل اقدام سرویس؛ A06/A08/A18 / ۲۰۲۶-۱۰-۲۳
 
 402/409/413 اکنون اعتبار/پرداخت، تعارض وضعیت و حجم درخواست را جدا گزارش می‌کنند؛ احراز هویت، rate limit و شبکه اقدام بعدی فارسی دارند و به تغییر بی‌دلیل کد راهنمایی نمی‌شوند. ۱۸ آزمون هدفمند و lint سه فایل پاس شدند؛ مدل/provider مصنوعی و write زنده صفر. claimed write همچنان uncertain و نیازمند journal/readback است؛ این تغییر مجوز retry نیست. [شاهد](docs/evidence/provider-failures.md).

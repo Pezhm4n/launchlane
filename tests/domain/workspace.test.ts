@@ -120,12 +120,35 @@ test("source vocabulary is accepted while credential assignments and exact insta
 });
 
 test("JavaScript environment/member references are source expressions while literal defaults, typed credentials and known installed values remain blocked", () => {
-  for (const source of ["const env = {TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,};", "const token = config.TELEGRAM_BOT_TOKEN?.trim();"])
+  for (const source of ["const env = {TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,};", "const token = config.TELEGRAM_BOT_TOKEN?.trim();", "dispatch({ type: 'beginProductResults', token: expectedResultsRequest });", "const token = pendingRequestId;"])
     assert.equal(containsSourceCredential(source, [], "app/actions.ts"), false);
   for (const source of ["const token = process.env.TOKEN || 'do-not-publish';", "const token = process.env.TOKEN\n ?? 'do-not-publish';", "const SERVICE_TOKEN: string = 'do-not-publish';", '{"token":"process.env.TOKEN"}'])
     assert.equal(containsSourceCredential(source, [], "app/actions.ts"), true);
   assert.equal(containsSourceCredential("const token = config.TELEGRAM_BOT_TOKEN;", ["TELEGRAM_BOT_TOKEN"], "app/actions.ts"), true);
   assert.equal(containsSourceCredential("token: process.env.TOKEN", [], "settings.json"), true);
+  assert.equal(containsSourceCredential("dispatch({ token: expectedResultsRequest });", ["expectedResultsRequest"], "hooks.ts"), true);
+  for (const value of ["page2", "new-search", "request-123", "stale-result", "assistant-first", "manual-later"]) {
+    const source = `dispatch({ type: 'beginResults', token: '${value}' });`;
+    assert.equal(containsSourceCredential(source, [], "unit/pagination.test.mjs"), false);
+    assert.equal(containsSourceCredential(source, [], "src/service.js"), true);
+    assert.equal(containsSourceCredential(source, [value], "unit/pagination.test.mjs"), true);
+    assert.equal(containsSourceCredential(`const authToken = '${value}';`, [], "unit/auth.test.mjs"), true);
+  }
+  assert.equal(containsSourceCredential("const token='do-not-publish';", [], "unit/auth.test.mjs"), true);
+  const example = "const rejectedInput = 'https://user:password@example.com/path';";
+  assert.equal(containsSourceCredential(example, [], "unit/input.test.mjs"), false);
+  assert.equal(containsSourceCredential(example, [], "src/service.js"), true);
+  assert.equal(containsSourceCredential(example, ["password"], "unit/input.test.mjs"), true);
+  assert.equal(containsSourceCredential("const input='https://name:private-value@example.com';", [], "unit/input.test.mjs"), true);
+  assert.equal(containsSourceCredential("const input='https://user:password@actual-service.com';", [], "unit/input.test.mjs"), true);
+  assert.notEqual(redact(example), example);
+  for (const value of ["fake-voice-key-should-not-leak", "bad key"]) {
+    const source = `with patch.dict('os.environ', {'SERVICE_API_KEY': '${value}'}): pass`;
+    assert.equal(containsSourceCredential(source, [], "tests/test_voice.py"), false);
+    assert.equal(containsSourceCredential(source, [], "service.py"), true);
+    assert.equal(containsSourceCredential(source, [value], "tests/test_voice.py"), true);
+  }
+  assert.equal(containsSourceCredential("env={'SERVICE_API_KEY': 'sample-123abc-private'}", [], "tests/test_voice.py"), true);
 });
 
 test("a bounded data asset and normal lockfile/design vocabulary survive inspection; config stays smaller", async () => {
