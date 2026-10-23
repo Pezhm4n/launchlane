@@ -1,5 +1,9 @@
 # برنامه اجرایی Launchlane
 
+## اتصال MCP از نشست ورود لیارا؛ AC28 / ۲۰۲۶-۱۰-۲۳
+
+script قدیمی setup فقط operator-token می‌پذیرفت و با ورود لیارا کار نمی‌کرد. رابط حساب‌ها اکنون grant همان actor/CSRF را یک‌بار صادر و فایل خصوصی آن را دانلود می‌کند؛ CLI با `--from-file`، origin محلی/expiry/scope را validate و `launchlane_context` واقعی را پیش از ذخیره بررسی می‌کند. مسیر operator حفظ شد؛ grant نمی‌تواند scope بیشتری بسازد و token در DOM/log قرار نمی‌گیرد. unit۳/۳، lint مرتبط و typecheck پاس شدند؛ آزمون مرورگر و اتصال همین actor پس از فعال‌سازی candidate53 هنوز بازند. MCP عمومی از این تغییر نتیجه نمی‌شود.
+
 ## ورود source دموی جدید؛ AC19/AC22 / ۲۰۲۶-۱۰-۲۳
 
 بررسی فقط‌خواندنی واقعی Login تازه، ternary استاندارد autocomplete را با SENSITIVE_SOURCE رد کرد. regression پیش از اصلاح شکست خورد؛ فقط دو برچسب عمومی در ternary کامل پذیرفته شدند و assignment واقعی، object map، literal دیگر، operator/default، JSON و exact secret همچنان رد می‌شوند. workspace/archive۱۴/۱۴ و inspect واقعی sourceHash `41badd06ce0ca2e804df8583b1a47f3a16298bff1e79bd55cc3402feed898f8f`،۵فایل/۹۰۹۹۵بایت، static80 و missing خالی پاس شدند؛ تشخیص source به معنی انتشار نیست. انتشار خود Launchlane بنا بر دستور تازهٔ مالک، اولویت بعدی و نیازمند backend، دسترسی عمومی، state پایدار و execution واقعی است.

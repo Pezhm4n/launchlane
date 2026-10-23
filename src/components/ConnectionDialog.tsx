@@ -5,6 +5,7 @@ import { parseConnection } from "../contracts/connections.ts";
 import { object } from "../contracts/validation.ts";
 import { api, ClientError } from "./api.ts";
 import { useDialogExit } from "./useDialogExit.ts";
+import { McpConnectionDialog } from "./McpConnectionDialog.tsx";
 
 export function ConnectionDialog({
   workspace,
@@ -40,6 +41,8 @@ export function ConnectionDialog({
     [confirmDisconnect, setConfirmDisconnect] = useState(false),
     [confirmGitHubDisconnect, setConfirmGitHubDisconnect] = useState(false);
   const exit = useDialogExit(dialog);
+  const [mcpOpen, setMcpOpen] = useState(false);
+  const mcpTrigger = useRef<HTMLButtonElement>(null);
   const dismiss = () => { pending.current?.abort(); exit(onClose); };
   const [metadata, setMetadata] = useState<{
     configuredKey: boolean;
@@ -568,6 +571,13 @@ export function ConnectionDialog({
           </button>
         )}
       </section>
+      <section className="account-secondary" aria-labelledby="mcp-account-title">
+        <h3 id="mcp-account-title">اتصال ابزار کدنویسی</h3>
+        <p className="hint">از ابزار کدنویسی خود، پروژه و مأموریت همین حساب را در Launchlane دنبال کنید.</p>
+        <button type="button" className="button-secondary" ref={mcpTrigger} disabled={busy !== null} onClick={() => setMcpOpen(true)}>اتصال MCP</button>
+      </section>
+      {mcpOpen ? <McpConnectionDialog csrf={workspace.session.csrfToken} onSessionExpired={onSessionExpired}
+        onClose={() => { setMcpOpen(false); requestAnimationFrame(() => mcpTrigger.current?.focus()); }} /> : null}
       <section className="account-secondary session-actions" aria-labelledby="session-title">
         <div className="section-heading">
           <h3 id="session-title">نشست این مرورگر</h3>
