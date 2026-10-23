@@ -148,6 +148,8 @@ function repairSourceFiles(files: readonly import("../workspace/inspect.ts").Sou
   const source = files.filter(file => allowed.includes(file.path) || tests.includes(file.path) || file.path === "package.json");
   ensure(source.every(file => file.content.length <= 24 * 1024) && source.reduce((sum, file) => sum + file.content.length, 0) <= 48 * 1024,
     "REPAIR_SOURCE_LIMIT", "محدوده source برای یک اصلاح کوچک بیش از حد است؛ فایل‌های مرتبط کمتری انتخاب کنید.", 413);
+  ensure(source.every(file => !file.content.includes(0) && Buffer.from(file.content.toString("utf8")).equals(file.content)),
+    "REPAIR_SOURCE_TEXT_REQUIRED", "این worker فقط متن UTF-8 را اصلاح می‌کند؛ فایل باینری وارد مدل نمی‌شود.", 409);
   return source;
 }
 function nodeTestsPassed(output: string, testFiles: readonly string[], workspace: string): boolean {

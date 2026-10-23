@@ -56,5 +56,10 @@ test("an unworkable source scope is rejected before asking for local-work approv
       projectId: flow.id, goal: "Fix quantity", allowedPaths: ["invoice.mjs"], testFiles: ["invoice.test.mjs"], expectedSourceHash: flow.profile.sourceHash,
     }, AbortSignal.timeout(5000)), { code: "REPAIR_SOURCE_LIMIT" });
     assert.equal(f.store.db.prepare("SELECT COUNT(*) n FROM code_repair_jobs").get()?.n, 0);
+    writeFileSync(join(f.project, "binary.txt"), Buffer.from([0, 255]));
+    const binaryFlow = await prepareProjectFlow(f.config, f.store, f.session.actorId, { kind: "local", directory: "service" }, AbortSignal.timeout(5000));
+    await assert.rejects(new CodeRepairAdapter(f.config, f.store).propose(f.session.actorId, {
+      projectId: binaryFlow.id, goal: "Change binary", allowedPaths: ["binary.txt"], testFiles: ["invoice.test.mjs"], expectedSourceHash: binaryFlow.profile.sourceHash,
+    }, AbortSignal.timeout(5000)), { code: "REPAIR_SOURCE_TEXT_REQUIRED" });
   } finally { f.close(); }
 });
