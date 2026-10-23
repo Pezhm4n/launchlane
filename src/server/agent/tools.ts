@@ -513,7 +513,7 @@ export async function executeAgentTool(
     const file = captured.files.find((file) => file.path === path);
     ensure(
       file &&
-        file.content.length <= 12 * 1024 &&
+        file.content.length <= 20 * 1024 &&
         Buffer.from(file.content.toString("utf8")).equals(file.content) &&
         !file.content.includes(0),
       "SOURCE_FILE_LIMIT",

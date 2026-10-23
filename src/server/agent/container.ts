@@ -109,7 +109,8 @@ export async function runContainerBuild(workspace: string, tarballs: string, val
     const created = await docker(["create", "--interactive", "--log-driver", "none", "--pull=never", "--name", `launchlane-build-${randomUUID()}`, "--label", "ir.launchlane.worker=locked-build-v1",
       "--network", "none", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--user", "1000:1000",
       "--cpus", "1", "--memory", "2g", "--memory-swap", "2g", "--pids-limit", "128",
-      "--tmpfs", "/work:rw,nosuid,nodev,size=1073741824,uid=1000,gid=1000,mode=0700",
+      // npm build tools and native modules must execute inside the otherwise isolated tmpfs.
+      "--tmpfs", "/work:rw,exec,nosuid,nodev,size=1073741824,uid=1000,gid=1000,mode=0700",
       "--mount", `type=bind,source=${workspace},target=/source,readonly`, "--mount", `type=bind,source=${tarballs},target=/tarballs,readonly`,
       node22Image, "node", "-e", buildProgram, "--", JSON.stringify(plan)], signal, 4096);
     ensure(created.exitCode === 0 && /^[a-f0-9]{64}$/.test(created.output.trim()), "SANDBOX_UNAVAILABLE", "محیط build محدود ایجاد نشد؛ script روی میزبان اجرا نشده است.", 503);
