@@ -4,28 +4,38 @@ import { environmentVariables, isApplicationEnvironmentKey, type EnvironmentVari
 import { ensure } from "../errors.ts";
 import { docker, containerState, type CommandResult } from "./container.ts";
 
-const program = String.raw`import os,sys,json,shutil,subprocess,threading,time,urllib.request,hashlib,unittest
+const program = `import os,sys,json,shutil,subprocess,threading,time,urllib.request,hashlib,unittest,re
 plan=json.loads(sys.argv[1]); tests=json.loads(sys.argv[2]); stage='cache'
 threading.Timer(110,lambda:os._exit(124)).start()
+started=time.monotonic()
+def progress(): print('Launchlane Python stage:',stage,round((time.monotonic()-started)*1000),'ms',flush=True)
 env={'PATH':'/usr/local/bin:/usr/bin:/bin','HOME':'/work','TMPDIR':'/work','PYTHONDONTWRITEBYTECODE':'1','PYTHONUNBUFFERED':'1','PORT':str(plan['port']),'PYTHONPATH':'/work/site:/work/project'}
 for row in json.load(sys.stdin): env[row['key']]=row['value']
 shutil.copytree('/source','/work/project');os.chdir('/work/project')
 try:
+ progress();os.mkdir('/work/wheels')
  for row in json.load(open('/wheels/manifest.json')):
+  if not re.fullmatch(r'[A-Za-z0-9_.+-]+[.]whl',row['filename']): raise RuntimeError('invalid wheel path')
   data=open('/wheels/'+row['filename'],'rb').read()
-  if hashlib.sha256(data).hexdigest()!=row['sha256']: raise RuntimeError('wheel checksum changed')
+  if len(data)!=row['size'] or hashlib.sha256(data).hexdigest()!=row['sha256']: raise RuntimeError('wheel checksum changed')
+  with open('/work/wheels/'+row['filename'],'wb') as copied: copied.write(data)
+ shutil.copyfile('/wheels/requirements.txt','/work/wheels/requirements.txt')
  stage='install'
- subprocess.run(['/usr/local/bin/python3','-m','pip','install','--disable-pip-version-check','--no-index','--no-deps','--only-binary=:all:','--require-hashes','--find-links=/wheels','--target=/work/site','-r','/wheels/requirements.txt'],env=env,check=True,timeout=45)
+ progress()
+ subprocess.run(['/usr/local/bin/python3','-m','pip','install','--disable-pip-version-check','--no-compile','--no-index','--no-deps','--only-binary=:all:','--require-hashes','--find-links=/work/wheels','--target=/work/site','-r','/work/wheels/requirements.txt'],env=env,check=True,timeout=45)
  subprocess.run(['/usr/local/bin/python3','-m','pip','check'],env=env,check=True,timeout=10)
  stage='build'
+ progress()
  subprocess.run(['/usr/local/bin/python3','-m','compileall','-q','.'],env=env,check=True,timeout=15)
  stage='test'
+ progress()
  if tests:
   os.environ.clear();os.environ.update(env);sys.path[:0]=['/work/site','/work/project']
   suite=unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromName(path[:-3].replace('/','.')) for path in tests)
   result=unittest.TextTestRunner(verbosity=2).run(suite)
   if result.testsRun<1 or not result.wasSuccessful() or result.skipped: raise RuntimeError('unchanged acceptance tests did not pass')
  stage='workload'
+ progress()
  child=subprocess.Popen(plan['runtime']['command'],env=env,stdin=subprocess.DEVNULL)
  try:
   deadline=time.monotonic()+20; matched=False
