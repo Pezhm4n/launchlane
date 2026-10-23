@@ -94,6 +94,10 @@ export function FolderPicker({
       aria-describedby="folder-picker-help"
       onCancel={(event) => {
         event.preventDefault();
+        if (event.target !== event.currentTarget) {
+          event.stopPropagation();
+          return;
+        }
         dismiss();
       }}
     >

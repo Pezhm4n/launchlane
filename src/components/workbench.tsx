@@ -173,9 +173,9 @@ function Proposal({
         <p className="hint">
           معیار نتیجه: پاسخ <bdi>{action.spec.workload.status}</bdi> از{" "}
           <bdi>{action.spec.workload.path}</bdi>
-          {(action.spec.version === 7 || action.spec.version === 10 || action.spec.version === 11 || action.spec.version === 15)
+          {(action.spec.version === 7 || action.spec.version === 10 || action.spec.version === 11 || action.spec.version === 15 || action.spec.version === 17)
             ? <> با {action.spec.workload.assertion.kind === "text" ? "متن" : "مقدار API"} مورد انتظار در پیشنهاد دستیار.</>
-            : <> با نسخه <bdi>{action.spec.workload.revision}</bdi>.</>}
+            : <> با نسخه <bdi>{"revision" in action.spec.workload ? action.spec.workload.revision : ""}</bdi>.</>}
           آماده‌شدن release به‌تنهایی نتیجه موفق نیست.
         </p>
       ) : null}
@@ -435,7 +435,7 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
     setPort(data.flow?.profile.port === null || !data.flow ? "" : String(data.flow.profile.port));
     if (data.action && isDeploymentSpec(data.action.spec)) {
       setWorkloadPath(data.action.spec.workload.path);
-      setExpectedRevision(data.action.spec.version === 7 || data.action.spec.version === 10 || data.action.spec.version === 11 || data.action.spec.version === 15 ? "" : data.action.spec.workload.revision);
+      setExpectedRevision(data.action.spec.version === 7 || data.action.spec.version === 10 || data.action.spec.version === 11 || data.action.spec.version === 15 || data.action.spec.version === 17 ? "" : ("revision" in data.action.spec.workload ? data.action.spec.workload.revision : ""));
     } else if (changed) {
       setWorkloadPath("/");
       setExpectedRevision("");
@@ -1082,13 +1082,36 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
               </div>
             ) : null}
             <WorkbenchView active={mode === "source"} kind="source">
-              {flow && !editingProject ? <section className="panel project-summary" aria-label="پروژه انتخاب‌شده">
-                <div className="section-heading"><div><span className="hint">پروژه انتخاب‌شده</span><p><strong><bdi>{projectName(flow)}</bdi></strong></p><PlatformBadge runtime={flow.profile.runtime} version={flow.profile.pythonRuntime?.version} /></div>
-                <button type="button" className="button-quiet" disabled={disabled} onClick={() => setEditingProject(true)}>تغییر پروژه</button></div>
-                <p className="hint">{flow.selection.kind === "github" ? "از GitHub؛ نسخه انتخاب‌شده ثبت شده" : flow.selection.kind === "repair" ? "نسخه اصلاح‌شده و آزموده‌شده" : flow.selection.kind === "upload" ? "کپی واردشده از رایانه؛ فایل اصلی شما تغییر نمی‌کند" : "از پوشه‌های مجاز همین رایانه"}</p>
-                {flow.selection.kind === "sample" ? <span className="badge badge-warning">پروژه نمونه</span> : null}
-              </section> : null}
-              <section hidden={Boolean(flow && !editingProject)}
+              {flow && !editingProject && !folderOpen && !githubOpen ? (
+                <section className="panel project-summary" aria-label="پروژه انتخاب‌شده">
+                  <div className="section-heading project-summary-heading">
+                    <div className="project-summary-details">
+                      <div className="project-summary-meta">
+                        <span className="badge badge-quiet">پروژه انتخاب‌شده</span>
+                        <PlatformBadge runtime={flow.profile.runtime} version={flow.profile.pythonRuntime?.version} />
+                        {flow.selection.kind === "sample" ? <span className="badge badge-warning">پروژه نمونه</span> : null}
+                      </div>
+                      <p className="project-summary-name">
+                        <FolderIcon />
+                        <strong><bdi>{projectName(flow)}</bdi></strong>
+                      </p>
+                      <p className="hint project-summary-source">
+                        {flow.selection.kind === "github" ? "از GitHub؛ نسخه انتخاب‌شده ثبت شده" : flow.selection.kind === "repair" ? "نسخه اصلاح‌شده و آزموده‌شده" : flow.selection.kind === "upload" ? "کپی واردشده از رایانه؛ فایل اصلی شما تغییر نمی‌کند" : "از پوشه‌های مجاز همین رایانه"}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="button-secondary project-change-btn"
+                      disabled={disabled}
+                      onClick={() => setEditingProject(true)}
+                    >
+                      <WorkspaceGlyph name="branch" />
+                      تغییر پروژه
+                    </button>
+                  </div>
+                </section>
+              ) : null}
+              <section hidden={Boolean(flow && !editingProject && !folderOpen && !githubOpen)}
                 className="panel project-choice"
                 aria-labelledby="choose-project-title"
                 aria-busy={busy === "prepare"}
@@ -1121,6 +1144,7 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
                     aria-describedby={projectError ? "project-error" : "project-choice-help"}
                     onClick={() => {
                       restoreFocus.current = "folder";
+                      setEditingProject(true);
                       setFolderOpen(true);
                     }}
                   >
@@ -1136,6 +1160,7 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
                     disabled={disabled}
                     onClick={() => {
                       restoreFocus.current = "github";
+                      setEditingProject(true);
                       setGitHubOpen(true);
                     }}
                   >
@@ -1158,6 +1183,16 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
                   </button>
                 ) : (
                   <div className="choice-secondary">
+                    {flow && editingProject ? (
+                      <button
+                        type="button"
+                        className="button-quiet"
+                        disabled={disabled}
+                        onClick={() => setEditingProject(false)}
+                      >
+                        انصراف و بازگشت به پروژه فعلی
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       className="button-quiet"
@@ -1307,9 +1342,13 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
                         <summary>تنظیمات شناسایی‌شده</summary>
                         <dl>
                           <div>
-                            <dt>نسخه Node</dt>
+                            <dt>نسخه Node.js</dt>
                             <dd>
-                              <bdi>{profile.nodeVersion || "در پروژه مشخص نشده"}</bdi>
+                              {profile.nodeVersion ? (
+                                <code dir="ltr" className="ltr-code"><bdo dir="ltr">{profile.nodeVersion}</bdo></code>
+                              ) : (
+                                "در پروژه مشخص نشده"
+                              )}
                             </dd>
                           </div>
                           <div>
@@ -1561,8 +1600,8 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
                 disabled={busy !== null || expired}
                 activeView={mode === "source"}
                 onAccounts={(trigger)=>{accountReturnTarget.current=trigger;setAccountsOpen(true);restoreFocus.current="accounts";}}
-                onChooseProject={(trigger)=>{projectReturnTarget.current=trigger;restoreFocus.current="folder";setFolderOpen(true);}}
-                onGitHub={(trigger)=>{projectReturnTarget.current=trigger;restoreFocus.current="github";setGitHubOpen(true);}}
+                onChooseProject={(trigger)=>{projectReturnTarget.current=trigger;restoreFocus.current="folder";setEditingProject(true);setFolderOpen(true);}}
+                onGitHub={(trigger)=>{projectReturnTarget.current=trigger;restoreFocus.current="github";setEditingProject(true);setGitHubOpen(true);}}
                 onReview={() => {navigate("source");requestAnimationFrame(()=>resultHeading.current?.focus());}}
                 onManualPublish={() => {navigate("source");requestAnimationFrame(()=>{const details=document.querySelector<HTMLDetailsElement>(".project-technical");if(details){details.open=true;resultHeading.current?.focus();}else chooseProjectHeading.current?.focus();});}}
                 onExpired={onSessionExpired}
@@ -1606,6 +1645,7 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
                 onCancel={() => {
                   restoreFocus.current = "folder";
                   setFolderOpen(false);
+                  setEditingProject(true);
                 }}
               />
             ) : null}
@@ -1649,6 +1689,7 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
                 onSelect={(selection, signal) => prepare(selection, "github", signal)}
                 onClose={(selected) => {
                   setGitHubOpen(false);
+                  if (!selected) setEditingProject(true);
                   restoreFocus.current = accountReturnTarget.current ? "accounts" : selected ? null : "github";
                 }}
                 onSessionExpired={onSessionExpired}

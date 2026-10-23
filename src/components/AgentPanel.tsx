@@ -1032,8 +1032,29 @@ export function AgentPanel({
     {guided ? <FloatingAssistant blocked={blocked || !publicationInAssistant && (environmentLocked || run?.nextAction === "configure_env")} projectName={projectName} onOpenChanged={setAssistantOpen}>
       <div className={assistantStyles.shell}>
       <div className={assistantStyles.navigation}>
-        <button type="button" className="button-secondary" aria-label="گفت‌وگو و راهنمایی" aria-pressed={!assistantPublication} onClick={() => setAssistantPublication(false)}>گفت‌وگو</button>
-        <button type="button" aria-label={run?.mission ? "پیگیری انتشار و انتخاب پلن" : "انتشار همین پروژه"} aria-pressed={assistantPublication} disabled={!projectId} onClick={() => setAssistantPublication(true)}>انتشار</button>
+        <button
+          type="button"
+          className={assistantStyles.tabButton}
+          aria-label="گفت‌وگو و راهنمایی"
+          aria-pressed={!assistantPublication}
+          data-active={!assistantPublication}
+          onClick={() => setAssistantPublication(false)}
+        >
+          {!assistantPublication ? <span className={assistantStyles.activeDot} aria-hidden="true" /> : null}
+          <span>گفت‌وگو و راهنمایی</span>
+        </button>
+        <button
+          type="button"
+          className={assistantStyles.tabButton}
+          aria-label={run?.mission ? "پیگیری انتشار و انتخاب پلن" : "انتشار همین پروژه"}
+          aria-pressed={assistantPublication}
+          data-active={assistantPublication}
+          disabled={!projectId}
+          onClick={() => setAssistantPublication(true)}
+        >
+          {assistantPublication ? <span className={assistantStyles.activeDot} aria-hidden="true" /> : null}
+          <span>{run?.mission ? "پیگیری انتشار و انتخاب پلن" : "انتشار همین پروژه"}</span>
+        </button>
       </div>
       {assistantPublication ? <p className={assistantStyles.hint}>همان مأموریت صفحهٔ انتشار، با همان تصمیم‌ها و پیشرفت.</p> : null}
       <div ref={assistantPublicationHost} className={assistantStyles.publication} />
