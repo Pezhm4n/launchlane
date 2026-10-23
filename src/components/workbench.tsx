@@ -11,6 +11,8 @@ import {
 } from "../contracts/project-flow.ts";
 import { object } from "../contracts/validation.ts";
 import { api, ClientError } from "./api.ts";
+import { WorkspaceIntro } from "./WorkspaceIntro.tsx";
+import { WorkspaceGlyph } from "./WorkspaceGlyph.tsx";
 import { FolderIcon, FolderPicker } from "./FolderPicker.tsx";
 import { ConnectionDialog } from "./ConnectionDialog.tsx";
 import { GitHubProjectPicker } from "./GitHubProjectPicker.tsx";
@@ -916,29 +918,7 @@ export function Workbench() {
         id="main-content"
         className="app-main task-main"
       >
-        <div className={`page-intro ${workspace ? "page-intro-compact" : ""}`}>
-          <h1>
-            {workspace ? (
-              flow ? (
-                <>
-                  پروژه: <bdi>{projectName(flow)}</bdi>
-                </>
-              ) : (
-                "میز کار پروژه"
-              )
-            ) : (
-              <>
-                پروژه‌تان را با <span>اطمینان منتشر کنید.</span>
-              </>
-            )}
-          </h1>
-          {!workspace ? (
-            <p>
-              Launchlane فایل‌های پروژه را روی همین رایانه بررسی می‌کند، پیشنهاد انتشار و معیار
-              موفقیت را نشان می‌دهد و فقط با تأیید شما روی حساب میزبانی منتشر می‌کند.
-            </p>
-          ) : null}
-        </div>
+        <WorkspaceIntro authenticated={Boolean(workspace)} projectName={flow ? projectName(flow) : null} mode={mode} />
         <div
           className="live-message compact-status"
           role="status"
@@ -1076,6 +1056,7 @@ export function Workbench() {
                 <div className="project-picker-actions">
                   <button
                     type="button"
+                    className="studio-source-button"
                     ref={folderTrigger}
                     disabled={disabled || workspace.capabilities.workspace.state !== "available"}
                     aria-describedby={projectError ? "project-error" : "project-choice-help"}
@@ -1091,7 +1072,7 @@ export function Workbench() {
                   </button>
                   <button
                     type="button"
-                    className="button-secondary"
+                    className="button-secondary studio-source-button"
                     ref={githubTrigger}
                     disabled={disabled}
                     onClick={() => {
@@ -1099,6 +1080,7 @@ export function Workbench() {
                       setGitHubOpen(true);
                     }}
                   >
+                    <WorkspaceGlyph name="branch" />
                     {flow?.selection.kind === "github" ? "تغییر انتخاب GitHub" : "انتخاب از GitHub"}
                   </button>
                 </div>

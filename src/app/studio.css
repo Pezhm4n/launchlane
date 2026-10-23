@@ -1,0 +1,217 @@
+.studio-glyph {
+  inline-size: var(--studio-glyph);
+  block-size: var(--studio-glyph);
+  flex: 0 0 auto;
+}
+button { transition-timing-function: var(--ease-standard); }
+html {
+  background-image: radial-gradient(ellipse at 85% 0%, var(--color-sheen), transparent 55%);
+  background-attachment: fixed;
+}
+.app-top {
+  background: color-mix(in srgb, var(--color-paper) 96%, transparent);
+  border-block-end: var(--border-width) solid var(--color-border);
+}
+.app-header {
+  max-inline-size: var(--layout-header);
+  min-block-size: var(--studio-header-height);
+  gap: var(--space-3);
+}
+.brand { gap: var(--space-3); }
+.brand-symbol {
+  padding: var(--space-2);
+  box-sizing: content-box;
+  border-radius: var(--radius-md);
+  background: var(--color-primary-soft);
+}
+.brand-subtitle { color: var(--color-muted); font-size: var(--text-xs); }
+.header-actions { gap: var(--space-1); }
+.header-actions .button-quiet { color: var(--color-muted); }
+.app-context { max-inline-size: var(--layout-header); }
+.app-nav {
+  max-inline-size: var(--layout-header);
+  gap: var(--space-2);
+  padding-block-end: var(--space-3);
+}
+.app-nav .app-nav-link {
+  min-block-size: var(--control-height);
+  border-radius: var(--radius-control);
+  padding: var(--space-3) var(--space-4);
+}
+.app-nav-link[aria-current="page"] { box-shadow: none; }
+.app-main.task-main { max-inline-size: var(--layout-studio); padding-block-start: var(--space-8); }
+.studio-intro {
+  position: relative;
+  display: grid;
+  gap: var(--space-4);
+  align-items: center;
+  max-inline-size: none;
+  margin-block-end: var(--space-8);
+}
+.studio-eyebrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-primary);
+  font-size: var(--text-sm);
+  margin-block-end: var(--space-3);
+}
+.studio-intro h1 {
+  font-size: var(--studio-title);
+  line-height: 1.45;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  max-inline-size: 22ch;
+  margin-block-end: var(--space-4);
+}
+.studio-intro h1 span { color: var(--color-primary); }
+.studio-intro-welcome h1 span { display: block; }
+.studio-description {
+  max-inline-size: 55ch;
+  color: var(--color-muted);
+  font-size: var(--text-md);
+  margin-block-end: var(--space-4);
+}
+.studio-assurance {
+  display: flex;
+  align-items: start;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+  margin-block-end: 0;
+}
+.studio-assurance svg { color: var(--color-primary); }
+.studio-intro-project { grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
+.studio-intro-copy { min-inline-size: 0; }
+.studio-intro-project .studio-intro-copy { grid-column: 1; grid-row: 1; }
+.studio-intro-project .studio-eyebrow { margin-block-end: var(--space-2); }
+.studio-intro-project h1 {
+  font-size: var(--studio-project-title);
+  max-inline-size: none;
+  overflow-wrap: anywhere;
+  margin-block-end: var(--space-2);
+}
+.studio-intro-project .studio-description { margin-block-end: 0; }
+.studio-context-mark {
+  grid-column: 1;
+  grid-row: 1;
+  display: none;
+  place-items: center;
+  inline-size: var(--studio-motif);
+  block-size: var(--studio-motif);
+  color: var(--color-primary);
+  border-radius: var(--radius-lg);
+  background: var(--color-primary-soft);
+}
+.studio-launch-art {
+  display: none;
+  position: relative;
+  inline-size: min(100%, var(--studio-art-mobile));
+  justify-self: center;
+  color: var(--color-primary);
+}
+.studio-artboard { inline-size: 100%; overflow: visible; }
+.studio-orbit { stroke: var(--color-border); stroke-dasharray: 3 8; }
+.studio-art-surface { fill: var(--color-elevated); stroke: var(--color-border); }
+.studio-cloud-surface { fill: var(--color-primary-soft); stroke: var(--color-primary); }
+.studio-art-line { stroke: var(--color-control-border); stroke-linecap: round; }
+.studio-art-grid { stroke: var(--color-grid); stroke-width: 0.5; }
+.studio-source-surface { fill: var(--color-elevated); stroke: var(--color-control-border); }
+.studio-cloud-side { fill: var(--color-field); stroke: var(--color-primary); }
+.studio-source-tile, .studio-cloud-tile { transition: transform var(--studio-enter) var(--ease-standard); }
+.studio-wire { stroke: var(--color-primary); stroke-width: 2; stroke-linecap: round; }
+.studio-wire-secondary { stroke: var(--color-border); }
+.studio-code-lines { stroke: var(--color-primary); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.studio-cloud-lines { stroke: var(--color-primary); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.studio-art-dot, .studio-art-star { fill: var(--color-primary); }
+.studio-art-dot-muted { fill: var(--color-control-border); }
+.studio-art-label { position: absolute; font-size: var(--text-xs); color: var(--color-muted); }
+.studio-art-label-source { left: 10%; inset-block-start: 90%; }
+.studio-art-label-cloud { left: 68%; inset-block-start: 65%; color: var(--color-primary); }
+.publication-start > p { max-inline-size: 65ch; color: var(--color-muted); }
+.task-main .panel { border-radius: var(--radius-lg); box-shadow: none; }
+.task-main :is(.project-choice, .publication-journey) {
+  background: linear-gradient(135deg, var(--color-elevated), var(--color-surface) 55%);
+  box-shadow: var(--shadow-panel);
+}
+.task-main :is(.publication-journey, .project-summary, .project-choice, .project-technical) { max-inline-size: none; }
+.task-main .project-summary {
+  background: transparent;
+  padding: var(--space-1) 0 var(--space-4);
+  border: 0;
+  border-radius: 0;
+}
+.project-summary .section-heading { margin-block-end: var(--space-1); }
+.project-summary .section-heading > div { display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; }
+.project-summary .section-heading p { margin: 0; }
+.project-summary > .hint { font-size: var(--text-xs); }
+.task-main .project-technical { margin-block: var(--space-3) var(--space-5); }
+.project-technical > summary { font-size: var(--text-sm); }
+.task-main .publication-journey { margin-block-start: var(--space-4); }
+.task-main .section-heading h2 { font-size: var(--text-xl); }
+.project-choice .section-heading { margin-block-end: var(--space-5); }
+.project-choice .project-picker-actions { display: grid; gap: var(--space-3); }
+.project-picker-actions .studio-source-button {
+  justify-content: start;
+  gap: var(--space-3);
+  min-block-size: var(--studio-control-large);
+  inline-size: 100%;
+  padding-inline: var(--space-5);
+  border-radius: var(--radius-md);
+  font-size: var(--text-md);
+}
+.studio-source-button :is(svg, .studio-glyph) { inline-size: var(--space-6); block-size: var(--space-6); }
+.project-choice .choice-secondary { padding-block-start: var(--space-2); }
+.publication-start { gap: var(--space-5); grid-template-columns: minmax(0, 1fr); }
+.publication-start > :is(p, details, button) { min-inline-size: 0; overflow-wrap: anywhere; }
+.publication-start details { background: var(--color-field); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); }
+.publication-start > button { inline-size: 100%; padding-inline: var(--space-6); }
+.task-main .publication-steps { gap: var(--space-2); }
+.task-main .publication-steps li { background: var(--color-field); border-radius: var(--radius-md); }
+.task-main .publication-steps .is-current { background: var(--color-primary-soft); }
+.task-main .agent-repair { background: var(--color-field); }
+.task-main .note { border-radius: var(--radius-md); }
+.task-main :is(input:not([type="radio"], [type="checkbox"]), textarea) { border-color: var(--color-control-border); }
+.task-main .incident-summary > div { border-radius: var(--radius-md); }
+.task-main .app-footer { margin-block: var(--space-10) var(--space-6); color: var(--color-muted); font-size: var(--text-xs); }
+@media (hover: hover) {
+  button:hover:not(:disabled) { transform: translateY(calc(var(--border-width) * -1)); }
+  button:not(.button-secondary, .button-quiet, .button-danger):hover:not(:disabled) { box-shadow: var(--shadow-action-hover); }
+  .studio-source-button:hover:not(:disabled) .studio-glyph { transform: translateX(calc(var(--space-1) * -1)); }
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .studio-launch-art:hover .studio-source-tile { transform: translateY(calc(var(--space-2) * -1)); }
+  .studio-launch-art:hover .studio-cloud-tile { transform: translateY(calc(var(--space-4) * -1)); }
+}
+button:active:not(:disabled) { transform: translateY(var(--border-width)); }
+.studio-glyph { transition: transform var(--motion-feedback) var(--ease-standard); }
+@media (min-width: 560px) {
+  .project-choice .project-picker-actions { grid-template-columns: 1fr 1fr; }
+  .publication-start > button { inline-size: auto; }
+}
+@media (min-width: 768px) {
+  .app-header { padding-block: var(--space-4); }
+  .app-main.task-main { padding-block-start: var(--space-10); }
+  .studio-intro-welcome { grid-template-columns: 1.2fr 1fr; gap: var(--space-8); }
+  .studio-intro-project { grid-template-columns: auto minmax(0, 1fr); }
+  .studio-intro-project .studio-intro-copy { grid-column: 2; }
+  .studio-context-mark { display: grid; }
+  .studio-launch-art { display: block; inline-size: min(100%, var(--studio-art-width)); }
+  .studio-intro { margin-block-end: var(--space-10); }
+  .task-main :is(.project-choice, .publication-journey) { padding: var(--space-8); }
+  .studio-intro-project { margin-block-end: var(--space-6); }
+  .project-choice { margin-block-end: var(--space-8); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .studio-intro-copy { animation: studio-arrive var(--studio-enter) var(--ease-standard) both; }
+  .studio-artboard { animation: studio-art-arrive var(--studio-art-enter) var(--ease-standard) both; }
+  .studio-wire { animation: studio-connect var(--studio-draw) var(--ease-standard) both; }
+}
+@keyframes studio-arrive { from { opacity: 0; transform: translateY(var(--space-3)); } to { opacity: 1; transform: none; } }
+@keyframes studio-art-arrive { from { opacity: 0; transform: translateY(var(--space-5)) rotate(-3deg); } to { opacity: 1; transform: none; } }
+@keyframes studio-connect { from { stroke-dasharray: 1; stroke-dashoffset: 1; } to { stroke-dasharray: 1; stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .studio-intro *, button:hover:not(:disabled), button:active:not(:disabled) { animation: none; transform: none; }
+  .studio-glyph { transition: none; }
+}

@@ -1,5 +1,9 @@
 # برنامه اجرایی Launchlane
 
+## بازطراحی قاب انتشار؛ verified_local / ۲۰۲۶-۱۰-۲۳
+
+هویت سرمه‌ای/نعنایی، معرفی با SVG ایزومتریک اختصاصی، انتخاب منبع خوانا و خلاصهٔ کم‌ارتفاع پروژه پیاده شد. build با TypeScript، lint بدون error و دو browser suite75/38 روی index مستقل گذشتند. اصل/شاهد synthetic و دو failure متن بزرگ در verification ثبت‌اند. تغییرات هم‌زمان Python در main حفظ و hunkهای UI ثبت‌نشده همکار کنار گذاشته شدند. تکمیل دستیار شناور، پیشنهادهای چت و اعتبارسنجی نهایی کار بعدی است؛ هیچ provider/model زنده مصرف نشد.
+
 ## بستن مرز secret در env عمومی Next؛ پس ازf2df50d
 
 فرم، API، اجرای grant قدیمی و مرجع build، secretKey با پیشوند NEXT_PUBLIC_ را رد می‌کنند؛ مقدار عمومی فقط با اعلام صریح و هشدار افشا مجاز است. parser تاریخی حفظ شده و credential نصب مستقل ممنوع است. redaction مقدار موروثی با نام credential regression دارد؛ محدودیت تشخیص مستند است. build/typecheck، domain283/283، HTTP28/28 و شش suite مرورگر75/27/27/22/38/5 گذشتند؛ lint صفر error با30warning/9info. این‌ها روی snapshot مستقل و transport مصنوعی‌اند. Next/GitHub و env زنده، fail-deploy→repair→redeploy تازه، UI ترکیبی همکار و reader/موبایل فیزیکی بازند؛ مصرف و سرور زنده تغییر نکردند. [شواهد دقیق](docs/verification.md) و [تصمیم](docs/decisions/0013-project-environment.md).
