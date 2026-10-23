@@ -25,6 +25,8 @@ import { workbenchLocation } from "../contracts/navigation.ts";
 import { WorkbenchNavigation } from "./WorkbenchNavigation.tsx";
 import { WorkbenchView } from "./WorkbenchView.tsx";
 import { PlatformBadge } from "./PlatformBadge.tsx";
+import { AccordionMotion } from "./AccordionMotion.tsx";
+import { SignOutDialog } from "./SignOutDialog.tsx";
 
 type FlowResult = { flow: ProjectFlow | null; action: Action | null };
 type WorkbenchMode="source"|"incident";
@@ -333,6 +335,7 @@ export function Workbench() {
   const [mode, setMode] = useState<WorkbenchMode>("source"),
     [flow, setFlow] = useState<ProjectFlow | null>(null),
     [action, setAction] = useState<Action | null>(null);
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
   const [token, setToken] = useState(""),
     [manualDirectory, setManualDirectory] = useState(""),
     [port, setPort] = useState("");
@@ -369,6 +372,10 @@ export function Workbench() {
     disabled = busy !== null || expired || agentLocked || chatLocked;
   const onSessionExpired = useCallback(() => {
     sessionNotice.current = "expired";
+    try {
+      sessionStorage.removeItem("launchlane_cached_project");
+      sessionStorage.removeItem("launchlane_cached_auth");
+    } catch {}
     pending.current?.abort();
     setWorkspace(null);
     setAccountsOpen(false);
@@ -409,6 +416,15 @@ export function Workbench() {
   const applyFlow = useCallback((data: FlowResult) => {
     const changed = activeFlow.current !== (data.flow?.id ?? null);
     setFlow(data.flow);
+    if (typeof window !== "undefined") {
+      try {
+        if (data.flow) {
+          sessionStorage.setItem("launchlane_cached_project", projectName(data.flow));
+        } else {
+          sessionStorage.removeItem("launchlane_cached_project");
+        }
+      } catch {}
+    }
     setAction(data.action?.spec.version === 9 ? null : data.action);
     setPort(data.flow?.profile.port === null || !data.flow ? "" : String(data.flow.profile.port));
     if (data.action && isDeploymentSpec(data.action.spec)) {
@@ -562,6 +578,7 @@ export function Workbench() {
         api(`/api/project-flows${state.project ? `?id=${state.project}` : ""}`, decodeFlow),
       ]);
       setWorkspace(data);
+      try { sessionStorage.setItem("launchlane_cached_auth", "true"); } catch {}
       applyFlow(saved);
       writeLocation(mode, saved.flow?.id ?? null, true);
       setNotice(
@@ -586,6 +603,10 @@ export function Workbench() {
       });
       setWorkspace(null);
       setFlow(null);
+      try {
+        sessionStorage.removeItem("launchlane_cached_project");
+        sessionStorage.removeItem("launchlane_cached_auth");
+      } catch {}
       setAction(null);
       setNotice("از این نصب خارج شدید. برای ادامه دوباره وارد شوید.");
       writeLocation("source", null, true);
@@ -885,7 +906,7 @@ export function Workbench() {
                 type="button"
                 className="button-quiet header-signout"
                 disabled={busy !== null}
-                onClick={() => void signOut()}
+                onClick={() => setConfirmSignOut(true)}
               >
                 خروج
               </button>
@@ -942,7 +963,7 @@ export function Workbench() {
         id="main-content"
         className="app-main task-main"
       >
-        <WorkspaceIntro authenticated={Boolean(workspace)} projectName={flow ? projectName(flow) : null} mode={mode} />
+        <WorkspaceIntro authenticated={Boolean(workspace)} projectName={flow ? projectName(flow) : null} mode={mode} loading={loading} />
         <div
           className="live-message compact-status"
           role="status"
@@ -1577,10 +1598,24 @@ export function Workbench() {
                   setAccountsOpen(false);
                   restoreFocus.current = "accounts";
                 }}
-                onSignOut={() => void signOut()}
+                onSignOut={() => {
+                  setAccountsOpen(false);
+                  setConfirmSignOut(true);
+                }}
                 onSessionExpired={onSessionExpired}
               />
             ) : null}
+            {confirmSignOut ? (
+              <SignOutDialog
+                open={confirmSignOut}
+                onConfirm={() => {
+                  setConfirmSignOut(false);
+                  void signOut();
+                }}
+                onCancel={() => setConfirmSignOut(false)}
+              />
+            ) : null}
+            <AccordionMotion />
             {githubOpen ? (
               <GitHubProjectPicker
                 csrf={workspace.session.csrfToken}

@@ -171,18 +171,18 @@ export function IncidentWorkbench({
     };
   }, [restore, fail]);
   useEffect(() => {
-    if (active) title.current?.focus();
+    if (active) title.current?.focus({ preventScroll: true });
   }, [active]);
   useEffect(() => {
-    if (error) errorBox.current?.focus();
+    if (error) errorBox.current?.focus({ preventScroll: true });
   }, [error]);
   useEffect(() => {
     if (busy === null && returnFocus.current) {
       returnFocus.current = false;
       if (returnTarget.current?.isConnected && !returnTarget.current.hasAttribute("disabled"))
-        returnTarget.current.focus();
-      else if (!primary.current?.disabled) primary.current?.focus();
-      else sampleTrigger.current?.focus();
+        returnTarget.current.focus({ preventScroll: true });
+      else if (!primary.current?.disabled) primary.current?.focus({ preventScroll: true });
+      else sampleTrigger.current?.focus({ preventScroll: true });
     }
   }, [busy]);
   useEffect(() => {
@@ -277,6 +277,9 @@ export function IncidentWorkbench({
     setError(null);
     setNotice("");
     writeLocation("live", live?.id ?? null);
+    requestAnimationFrame(() => {
+      sampleTrigger.current?.focus({ preventScroll: true });
+    });
   }
   async function retrieve() {
     if (!current) return;

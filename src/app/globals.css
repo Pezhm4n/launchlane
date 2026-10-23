@@ -74,19 +74,20 @@ button {
   box-shadow: var(--shadow-primary);
   cursor: pointer;
   transition:
-    background var(--motion-feedback),
-    border-color var(--motion-feedback),
-    color var(--motion-feedback),
-    box-shadow var(--motion-feedback),
-    transform var(--motion-feedback);
+    background var(--motion-feedback) var(--ease-standard),
+    border-color var(--motion-feedback) var(--ease-standard),
+    color var(--motion-feedback) var(--ease-standard),
+    box-shadow var(--motion-feedback) var(--ease-standard),
+    transform var(--motion-feedback) var(--ease-spring);
   text-align: center;
 }
 button:hover:not(:disabled) {
   background: var(--color-primary-hover);
 }
 button:active:not(:disabled) {
-  transform: translateY(var(--border-width));
+  transform: scale(0.975) translateY(1.5px);
   box-shadow: none;
+  transition-duration: 80ms;
 }
 button:disabled {
   background: var(--color-disabled);
@@ -284,10 +285,15 @@ summary::before {
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M10.5 3.5 5.5 8l5 4.5' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   mask: center / contain no-repeat
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M10.5 3.5 5.5 8l5 4.5' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  transition: transform var(--motion-feedback) var(--ease-standard);
+  transition: transform var(--motion-accordion-exit, 240ms) var(--ease-accordion-exit, cubic-bezier(0.25, 0.1, 0.25, 1));
 }
 details[open] > summary::before {
   transform: rotate(-90deg);
+  transition: transform var(--motion-accordion-enter, 280ms) var(--ease-accordion-enter, cubic-bezier(0.2, 0.8, 0.2, 1));
+}
+details[data-closing] > summary::before {
+  transform: rotate(0deg) !important;
+  transition: transform var(--motion-accordion-exit, 240ms) var(--ease-accordion-exit, cubic-bezier(0.25, 0.1, 0.25, 1));
 }
 @media (hover: hover) {
   summary:hover {
@@ -1214,18 +1220,18 @@ html:has(dialog:modal) {
 dialog {
   overscroll-behavior: contain;
   opacity: 0;
-  transform: translateY(var(--space-2)) scale(0.985);
+  transform: translateY(var(--space-4)) scale(0.95);
   transition:
-    opacity var(--motion-exit) var(--ease-exit),
-    transform var(--motion-exit) var(--ease-exit),
-    display var(--motion-exit) allow-discrete,
-    overlay var(--motion-exit) allow-discrete;
+    opacity var(--motion-panel-exit) var(--ease-exit),
+    transform var(--motion-panel-exit) var(--ease-exit),
+    display var(--motion-panel-exit) allow-discrete,
+    overlay var(--motion-panel-exit) allow-discrete;
 }
 dialog[open] {
   opacity: 1;
   transform: none;
-  transition-duration: var(--motion-enter);
-  transition-timing-function: var(--ease-standard);
+  transition-duration: var(--motion-panel-enter);
+  transition-timing-function: var(--ease-panel-enter);
 }
 dialog:not([open]) {
   pointer-events: none;
@@ -1233,20 +1239,20 @@ dialog:not([open]) {
 @starting-style {
   dialog[open] {
     opacity: 0;
-    transform: translateY(var(--space-2)) scale(0.985);
+    transform: translateY(var(--space-4)) scale(0.95);
   }
 }
 dialog::backdrop {
   opacity: 0;
   transition:
-    opacity var(--motion-exit) var(--ease-exit),
-    display var(--motion-exit) allow-discrete,
-    overlay var(--motion-exit) allow-discrete;
+    opacity var(--motion-panel-exit) var(--ease-exit),
+    display var(--motion-panel-exit) allow-discrete,
+    overlay var(--motion-panel-exit) allow-discrete;
 }
 dialog[open]::backdrop {
   opacity: 1;
-  transition-duration: var(--motion-enter);
-  transition-timing-function: var(--ease-standard);
+  transition-duration: var(--motion-panel-enter);
+  transition-timing-function: var(--ease-panel-enter);
 }
 @starting-style {
   dialog[open]::backdrop {
@@ -1263,7 +1269,22 @@ dialog[open]::backdrop {
   background: var(--color-surface);
   color: var(--color-ink);
 }
-.folder-dialog::backdrop {
+.confirm-dialog {
+  inline-size: min(30rem, calc(100% - var(--space-8)));
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-surface);
+  border: var(--border-width) solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-ink);
+}
+.confirm-dialog .section-heading h2 {
+  font-size: var(--text-lg);
+  margin: 0;
+}
+.account-dialog::backdrop,
+.folder-dialog::backdrop,
+.confirm-dialog::backdrop {
   background: var(--color-overlay);
 }
 .folder-list {
@@ -2198,11 +2219,13 @@ dialog[open]::backdrop {
   dialog,
   dialog[open],
   dialog::backdrop,
-  dialog[open]::backdrop,
+  dialog[open]::backdrop {
+    transition: opacity var(--motion-panel-enter) ease;
+  }
   button,
   input:not([type="radio"]),
   textarea,
   select {
-    transition: none;
+    transition: background var(--motion-feedback), border-color var(--motion-feedback), opacity var(--motion-feedback);
   }
 }

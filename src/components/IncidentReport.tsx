@@ -80,11 +80,10 @@ export function IncidentReport({
   const [analysisExpanded, setAnalysisExpanded] = useState(!hasAfter);
   const lastAnalysis = useRef(run.analysis);
   useEffect(() => {
-    title.current?.focus();
-    title.current?.scrollIntoView({ block: "start" });
+    title.current?.focus({ preventScroll: true });
   }, []);
   useEffect(() => {
-    if (run.after) outcome.current?.focus();
+    if (run.after) outcome.current?.focus({ preventScroll: true });
   }, [run.after]);
   useEffect(() => {
     if (hasAfter) setAnalysisExpanded(false);
@@ -92,13 +91,13 @@ export function IncidentReport({
   useEffect(() => {
     if (lastAnalysis.current !== run.analysis && (run.analysis === "model" || run.analysis === "failed")) {
       setAnalysisExpanded(true);
-      cause.current?.focus();
+      cause.current?.focus({ preventScroll: true });
     }
     lastAnalysis.current = run.analysis;
   }, [run.analysis]);
   useEffect(() => {
     if (evidenceOpen && focusEvidence) {
-      document.getElementById(`incident-evidence-${focusEvidence}`)?.focus();
+      document.getElementById(`incident-evidence-${focusEvidence}`)?.focus({ preventScroll: true });
       setFocusEvidence(null);
     }
   }, [evidenceOpen, focusEvidence]);

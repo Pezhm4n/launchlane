@@ -53,31 +53,164 @@
     animation: workbench-panel-in var(--motion-panel-enter) var(--ease-panel-enter) both;
   }
   :root dialog {
-    transform: translateY(var(--space-4)) scale(0.97);
-    transition-duration: var(--motion-panel-exit);
+    opacity: 0;
+    transform: translateY(var(--space-4)) scale(0.95);
+    transition:
+      opacity var(--motion-panel-exit) var(--ease-exit),
+      transform var(--motion-panel-exit) var(--ease-exit),
+      display var(--motion-panel-exit) allow-discrete,
+      overlay var(--motion-panel-exit) allow-discrete;
   }
   :root dialog[open] {
+    opacity: 1;
     transform: none;
     transition-duration: var(--motion-panel-enter);
     transition-timing-function: var(--ease-panel-enter);
   }
-  :root dialog[open][data-closing] { opacity: 0; transform: translateY(var(--space-4)) scale(0.97); pointer-events: none; transition-duration: var(--motion-panel-exit); }
-  :root dialog[open][data-closing]::backdrop { opacity: 0; transition-duration: var(--motion-panel-exit); }
+  :root dialog[open][data-closing] {
+    opacity: 0;
+    transform: translateY(var(--space-4)) scale(0.95);
+    pointer-events: none;
+    transition-duration: var(--motion-panel-exit);
+  }
+  :root dialog[open][data-closing]::backdrop {
+    opacity: 0;
+    transition-duration: var(--motion-panel-exit);
+  }
   @starting-style {
     :root dialog[open] {
-      opacity: 0.55;
-      transform: translateY(var(--space-4)) scale(0.97);
+      opacity: 0;
+      transform: translateY(var(--space-4)) scale(0.95);
     }
+  }
+
+  /* Floating Assistant animations */
+  .assistant-float[open] {
+    transition:
+      opacity var(--motion-panel-enter) var(--ease-panel-enter),
+      transform var(--motion-panel-enter) var(--ease-panel-enter),
+      inline-size var(--motion-panel-enter) var(--ease-panel-enter),
+      max-inline-size var(--motion-panel-enter) var(--ease-panel-enter),
+      block-size var(--motion-panel-enter) var(--ease-panel-enter),
+      max-block-size var(--motion-panel-enter) var(--ease-panel-enter),
+      left var(--motion-panel-enter) var(--ease-panel-enter),
+      top var(--motion-panel-enter) var(--ease-panel-enter);
+  }
+  .assistant-float[open][data-closing] {
+    opacity: 0;
+    transform: translateY(var(--space-4)) scale(0.95);
+    pointer-events: none;
+    transition:
+      opacity var(--motion-panel-exit) var(--ease-exit),
+      transform var(--motion-panel-exit) var(--ease-exit);
+  }
+  @starting-style {
+    .assistant-float[open] {
+      opacity: 0;
+      transform: translateY(var(--space-4)) scale(0.95);
+    }
+  }
+
+  /* Staggered card entrance */
+  .project-picker-actions .studio-source-button:first-child {
+    animation: card-arrive var(--motion-card-enter) var(--ease-panel-enter) both;
+  }
+  .project-picker-actions .studio-source-button:nth-child(2) {
+    animation: card-arrive var(--motion-card-enter) var(--ease-panel-enter) var(--motion-stagger-step) both;
+  }
+  .task-main .project-summary {
+    animation: card-arrive var(--motion-card-enter) var(--ease-panel-enter) both;
+  }
+  .publication-steps li {
+    animation: step-arrive var(--motion-card-enter) var(--ease-panel-enter) both;
+  }
+  .publication-steps li:nth-child(1) { animation-delay: 0ms; }
+  .publication-steps li:nth-child(2) { animation-delay: calc(var(--motion-stagger-step) * 1); }
+  .publication-steps li:nth-child(3) { animation-delay: calc(var(--motion-stagger-step) * 2); }
+  .publication-steps li:nth-child(4) { animation-delay: calc(var(--motion-stagger-step) * 3); }
+
+  .incident-observation {
+    animation: card-arrive var(--motion-card-enter) var(--ease-panel-enter) both;
+  }
+  .incident-guidance {
+    animation: card-arrive var(--motion-card-enter) var(--ease-panel-enter) 60ms both;
+  }
+  .incident-report > details {
+    animation: card-arrive var(--motion-card-enter) var(--ease-panel-enter) 120ms both;
+  }
+
+  /* Chat messages arrival */
+  .assistant-float .agent-transcript article {
+    animation: message-arrive 260ms var(--ease-out) both;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  :root dialog { transform: none; transition: none; }
-  main .panel { animation: none; }
+  :root dialog {
+    transform: none;
+    transition: opacity var(--motion-panel-exit) ease;
+  }
+  :root dialog[open] {
+    transform: none;
+    transition: opacity var(--motion-panel-enter) ease;
+  }
+  main .panel,
+  .project-picker-actions .studio-source-button,
+  .task-main .project-summary,
+  .publication-steps li,
+  .incident-observation,
+  .incident-guidance,
+  .incident-report > details,
+  .assistant-float .agent-transcript article {
+    animation: gentle-fade-in var(--motion-enter) ease both;
+    transform: none;
+  }
+  .assistant-float[open] {
+    transform: none;
+    transition: opacity var(--motion-panel-enter) ease;
+  }
+  button:active:not(:disabled) {
+    transform: none;
+    opacity: 0.88;
+  }
+}
+@keyframes gentle-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 @keyframes workbench-panel-in {
   from {
-    opacity: 0.65;
+    opacity: 0.1;
     transform: translateY(var(--motion-panel-travel));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes card-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes step-arrive {
+  from {
+    opacity: 0;
+    transform: translateX(0.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes message-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
   }
   to {
     opacity: 1;
@@ -86,38 +219,45 @@
 }
 
 @supports selector(details::details-content) {
+  :root {
+    interpolate-size: allow-keywords;
+  }
   details::details-content {
+    block-size: 0;
     opacity: 0;
-    transform: translateY(calc(var(--space-2) * -1));
+    overflow: clip;
     transition:
-      opacity var(--motion-panel-exit) var(--ease-exit),
-      transform var(--motion-panel-exit) var(--ease-exit),
-      content-visibility var(--motion-panel-exit) allow-discrete;
+      block-size var(--motion-accordion-exit, 240ms) var(--ease-accordion-exit, cubic-bezier(0.25, 0.1, 0.25, 1)),
+      opacity var(--motion-accordion-exit, 240ms) ease,
+      content-visibility var(--motion-accordion-exit, 240ms) allow-discrete;
   }
   details[open]::details-content {
+    block-size: auto;
     opacity: 1;
-    transform: none;
-    transition-duration: var(--motion-panel-enter);
-    transition-timing-function: var(--ease-panel-enter);
+    transition:
+      block-size var(--motion-accordion-enter, 280ms) var(--ease-accordion-enter, cubic-bezier(0.2, 0.8, 0.2, 1)),
+      opacity var(--motion-accordion-enter, 280ms) var(--ease-accordion-enter, cubic-bezier(0.2, 0.8, 0.2, 1)),
+      content-visibility var(--motion-accordion-enter, 280ms) allow-discrete;
   }
   details[open] > :not(summary) {
     animation: none;
   }
   @starting-style {
     details[open]::details-content {
+      block-size: 0;
       opacity: 0;
-      transform: translateY(calc(var(--space-2) * -1));
     }
   }
   @media (prefers-reduced-motion: reduce) {
     details::details-content {
-      transform: none;
+      block-size: 0;
+      opacity: 0;
+      transition: none;
+    }
+    details[open]::details-content {
+      block-size: auto;
+      opacity: 1;
       transition: none;
     }
   }
-}
-@supports (interpolate-size: allow-keywords) {
-  details::details-content { interpolate-size: allow-keywords; block-size: 0; overflow: clip; transition-property: opacity, transform, content-visibility, block-size; }
-  details[open]::details-content { block-size: auto; }
-  @media (prefers-reduced-motion: reduce) { details::details-content { transition: none; } }
 }

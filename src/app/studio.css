@@ -199,6 +199,12 @@ html {
 .incident-guidance dt { color: var(--color-primary); font-size: var(--text-sm); }
 .incident-guidance dd { font-size: var(--text-md); max-inline-size: 70ch; }
 .incident-report > details { margin-block: 0; padding-block: var(--space-3); border-block-start: var(--border-width) solid var(--color-border); }
+.incident-workbench details summary,
+.incident-report details summary { padding-block: var(--space-2); border-radius: var(--radius-sm); }
+@media (hover: hover) {
+  .incident-workbench details summary:hover,
+  .incident-report details summary:hover { color: var(--color-primary-hover); }
+}
 .incident-report .incident-analysis summary { flex-wrap: wrap; }
 .incident-section-hint { margin-inline-start: auto; color: var(--color-muted); font-size: var(--text-xs); font-weight: 400; }
 .incident-analysis dl { margin: 0; padding: var(--space-3) var(--space-4); border-inline-start: var(--focus-width) solid var(--color-border); }
@@ -212,15 +218,16 @@ html {
 .footer-principle svg { color: var(--color-primary); inline-size: var(--space-4); block-size: var(--space-4); }
 .app-footer .studio-provider { justify-self: end; }
 @media (hover: hover) {
-  button:hover:not(:disabled) { transform: translateY(calc(var(--border-width) * -1)); }
+  button:hover:not(:disabled) { transform: translateY(-2px); }
   button:not(.button-secondary, .button-quiet, .button-danger):hover:not(:disabled) { box-shadow: var(--shadow-action-hover); }
-  .studio-source-button:hover:not(:disabled) .studio-glyph { transform: translateX(calc(var(--space-1) * -1)); }
+  .studio-source-button:hover:not(:disabled) .studio-glyph { transform: translateX(calc(var(--space-1) * -1)) scale(1.08); }
 }
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
   .studio-launch-art:hover .studio-source-tile { transform: translateY(calc(var(--space-2) * -1)); }
   .studio-launch-art:hover .studio-cloud-tile { transform: translateY(calc(var(--space-4) * -1)); }
 }
-button:active:not(:disabled) { transform: translateY(var(--border-width)); }
+button:active:not(:disabled) { transform: scale(0.975) translateY(1.5px); box-shadow: none; transition-duration: 80ms; }
+.studio-source-button:active:not(:disabled) { transform: scale(0.98) translateY(2px); transition-duration: 80ms; }
 .studio-glyph { transition: transform var(--motion-feedback) var(--ease-standard); }
 @media (max-width: 559px) {
   .app-nav { display: flex; flex-wrap: wrap; }

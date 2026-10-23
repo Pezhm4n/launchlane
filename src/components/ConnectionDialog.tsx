@@ -27,6 +27,8 @@ export function ConnectionDialog({
     errorBox = useRef<HTMLDivElement>(null),
     disconnectTrigger = useRef<HTMLButtonElement>(null),
     disconnectConfirm = useRef<HTMLButtonElement>(null),
+    githubDisconnectTrigger = useRef<HTMLButtonElement>(null),
+    githubDisconnectConfirm = useRef<HTMLButtonElement>(null),
     pending = useRef<AbortController | null>(null);
   const [key, setKey] = useState(""),
     [busy, setBusy] = useState<string | null>(null),
@@ -35,7 +37,8 @@ export function ConnectionDialog({
     [lastAction, setLastAction] = useState<
       "connect" | "refresh" | "select" | "disconnect" | "site" | null
     >(null),
-    [confirmDisconnect, setConfirmDisconnect] = useState(false);
+    [confirmDisconnect, setConfirmDisconnect] = useState(false),
+    [confirmGitHubDisconnect, setConfirmGitHubDisconnect] = useState(false);
   const exit = useDialogExit(dialog);
   const dismiss = () => { pending.current?.abort(); exit(onClose); };
   const [metadata, setMetadata] = useState<{
@@ -84,6 +87,40 @@ export function ConnectionDialog({
   useEffect(() => {
     if (confirmDisconnect) disconnectConfirm.current?.focus();
   }, [confirmDisconnect]);
+  useEffect(() => {
+    if (confirmGitHubDisconnect) githubDisconnectConfirm.current?.focus();
+  }, [confirmGitHubDisconnect]);
+  async function disconnectGitHub() {
+    if (busy || pending.current) return;
+    const controller = new AbortController();
+    pending.current = controller;
+    setBusy("disconnect");
+    setError(null);
+    setNotice("");
+    try {
+      await api("/api/connections/github", () => true, {
+        method: "DELETE",
+        csrf: workspace.session.csrfToken,
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) return;
+      await onRefresh();
+      setNotice("اتصال GitHub از Launchlane حذف شد. دسترسی قبلی پاک شد.");
+    } catch (error) {
+      if (error instanceof ClientError && error.code === "AUTH_REQUIRED") onSessionExpired();
+      else
+        setError(
+          error instanceof ClientError
+            ? error
+            : new ClientError("GITHUB_DISCONNECT_FAILED", "قطع اتصال GitHub کامل نشد."),
+        );
+    } finally {
+      if (pending.current === controller) {
+        pending.current = null;
+        setBusy(null);
+      }
+    }
+  }
   async function act(
     operation: "connect" | "refresh" | "select" | "disconnect" | "site",
     app?: string,
@@ -123,7 +160,7 @@ export function ConnectionDialog({
             ? "نشانی برای بررسی ذخیره شد؛ هنوز درخواستی به سایت ارسال نشده است."
             : operation === "select"
               ? "برنامه مقصد انتخاب شد. هر تغییر حساس همچنان به تأیید شما نیاز دارد."
-              : "حساب و تیم بررسی و اتصال ثبت شد. اکنون برنامه مقصد را انتخاب کنید.",
+              : "حساب و تیم متصل شدند. در مسیر انتشار، مقصد تازه و پلن پیشنهادی پروژه را همین‌جا بررسی می‌کنید؛ اگر مقصدی دارید، از فهرست انتخاب کنید.",
       );
       setLastAction(operation);
       setEnterKey(false);
@@ -211,7 +248,7 @@ export function ConnectionDialog({
         {liara?.status === "connected" ? (
           <>
             <fieldset disabled={busy !== null}>
-              <legend>برنامه‌ای که اجازه بررسی و آماده‌سازی انتشار آن را می‌دهید</legend>
+              <legend>مقصدهای موجود در همین تیم</legend>
               {liara.apps.length ? (
                 <div className="app-options">
                   {liara.apps.map((app) => (
@@ -231,10 +268,11 @@ export function ConnectionDialog({
                   ))}
                 </div>
               ) : (
-                <p className="note">
-                  هنوز برنامه مجازی در این تیم پیدا نشد. اگر برنامه را تازه ساخته‌اید، فهرست را
-                  دوباره بررسی کنید. Launchlane در این مرحله برنامه جدید ایجاد نمی‌کند.
-                </p>
+                <div className="note">
+                  <h4>اولین مقصد پروژه را در Launchlane بسازید</h4>
+                  <p>این تیم هنوز برنامه‌ای ندارد. در مسیر انتشار، Launchlane بر اساس پروژهٔ انتخاب‌شده پلن و هزینه را پیشنهاد می‌دهد و پس از تصمیم شما، مقصد لازم را می‌سازد. نیازی به بازکردن کنسول لیارا نیست.</p>
+                  <button type="button" disabled={busy !== null} onClick={dismiss}>ادامه با پیشنهاد مقصد و پلن</button>
+                </div>
               )}
             </fieldset>
             {lastAction === "select" && notice ? (
@@ -461,16 +499,74 @@ export function ConnectionDialog({
             "اگر کد پروژه در GitHub است، حساب را متصل و مخزن را انتخاب کنید."
           )}
         </p>
-        <button
-          type="button"
-          className="button-secondary"
-          disabled={busy !== null}
-          onClick={() => exit(onGitHub)}
-        >
-          {github?.status === "connected"
-            ? "مخزن‌ها و مدیریت اتصال GitHub"
-            : "اتصال به GitHub و انتخاب مخزن"}
-        </button>
+        {github?.status === "connected" ? (
+          <>
+            {!confirmGitHubDisconnect ? (
+              <div className="button-row">
+                <button
+                  type="button"
+                  className="button-secondary"
+                  disabled={busy !== null}
+                  onClick={() => exit(onGitHub)}
+                >
+                  مخزن‌ها و انتخاب پروژه
+                </button>
+                <button
+                  type="button"
+                  className="button-danger"
+                  ref={githubDisconnectTrigger}
+                  disabled={busy !== null}
+                  aria-expanded={confirmGitHubDisconnect}
+                  onClick={() => setConfirmGitHubDisconnect(true)}
+                >
+                  قطع اتصال GitHub
+                </button>
+              </div>
+            ) : (
+              <fieldset className="note note-danger" aria-labelledby="github-disconnect-title">
+                <legend id="github-disconnect-title">اتصال GitHub از این میز کار قطع شود؟</legend>
+                <p>
+                  اطلاعات ورود و دسترسی این نصب به مخازن GitHub پاک می‌شود. مخازن و کدهای شما در GitHub
+                  هیچ تغییری نمی‌کنند.
+                </p>
+                <div className="button-row">
+                  <button
+                    type="button"
+                    className="button-danger"
+                    ref={githubDisconnectConfirm}
+                    disabled={busy !== null}
+                    onClick={() => {
+                      setConfirmGitHubDisconnect(false);
+                      void disconnectGitHub();
+                    }}
+                  >
+                    بله، اتصال را قطع کن
+                  </button>
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    disabled={busy !== null}
+                    onClick={() => {
+                      setConfirmGitHubDisconnect(false);
+                      githubDisconnectTrigger.current?.focus();
+                    }}
+                  >
+                    انصراف
+                  </button>
+                </div>
+              </fieldset>
+            )}
+          </>
+        ) : (
+          <button
+            type="button"
+            className="button-secondary"
+            disabled={busy !== null}
+            onClick={() => exit(onGitHub)}
+          >
+            {github ? "نیاز به اتصال دوباره به GitHub" : "اتصال به GitHub و انتخاب مخزن"}
+          </button>
+        )}
       </section>
       <section className="account-secondary session-actions" aria-labelledby="session-title">
         <div className="section-heading">
