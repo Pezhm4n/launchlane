@@ -23,6 +23,7 @@ import { DomainGuidePanel } from "./DomainGuidePanel.tsx";
 import { AgentPanel } from "./AgentPanel.tsx";
 import { workbenchLocation } from "../contracts/navigation.ts";
 import { WorkbenchNavigation } from "./WorkbenchNavigation.tsx";
+import { WorkbenchView } from "./WorkbenchView.tsx";
 
 type FlowResult = { flow: ProjectFlow | null; action: Action | null };
 type WorkbenchMode="source"|"incident";
@@ -1044,7 +1045,7 @@ export function Workbench() {
                 {projectError.requestId ? <details><summary>شناسه پیگیری</summary><code>{projectError.requestId}</code></details> : null}
               </div>
             ) : null}
-            <div hidden={mode !== "source"}>
+            <WorkbenchView active={mode === "source"} kind="source">
               {flow && !editingProject ? <section className="panel project-summary" aria-label="پروژه انتخاب‌شده">
                 <div className="section-heading"><div><span className="hint">پروژه انتخاب‌شده</span><p><strong><bdi>{projectName(flow)}</bdi></strong></p></div>
                 <button type="button" className="button-quiet" disabled={disabled} onClick={() => setEditingProject(true)}>تغییر پروژه</button></div>
@@ -1508,7 +1509,7 @@ export function Workbench() {
                 </div>
                 </details>
               ) : null}
-            </div>
+            </WorkbenchView>
               <AgentPanel
                 guided
                 accountReady={connected}
@@ -1531,8 +1532,7 @@ export function Workbench() {
                 onExpired={onSessionExpired}
                 onProjectChanged={syncAgentProject}
               />
-
-            <div hidden={mode !== "incident"}>
+            <WorkbenchView active={mode === "incident"} kind="incident">
               <IncidentWorkbench
                 workspace={workspace}
                 onAction={acceptIncidentAction}
@@ -1542,7 +1542,7 @@ export function Workbench() {
                 disabled={expired}
                 onSessionExpired={onSessionExpired}
               />
-            </div>
+            </WorkbenchView>
             {folderOpen ? (
               <FolderPicker
                 csrf={workspace.session.csrfToken}

@@ -19,6 +19,7 @@ export function WorkbenchNavigation({ activeKey, children }: {
     const pill = indicator.current;
     const selected = nav?.querySelector<HTMLElement>('[aria-current="page"]');
     if (!nav || !pill || !selected) return;
+    document.documentElement.style.setProperty("--app-nav-height", `${nav.getBoundingClientRect().height}px`);
     const header = nav.closest(".app-top");
     if (header) document.documentElement.style.setProperty("--app-header-height", `${header.getBoundingClientRect().height}px`);
     const parent = nav.getBoundingClientRect();
@@ -73,6 +74,7 @@ export function WorkbenchNavigation({ activeKey, children }: {
       reduced.removeEventListener("change", cancelMotion);
       animation.current?.cancel();
       document.documentElement.style.removeProperty("--app-header-height");
+      document.documentElement.style.removeProperty("--app-nav-height");
     };
   }, [position]);
 

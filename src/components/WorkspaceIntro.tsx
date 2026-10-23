@@ -41,7 +41,7 @@ export function WorkspaceIntro({ authenticated, projectName, mode }: {
   return <div className={`page-intro studio-intro ${welcome ? "studio-intro-welcome" : "studio-intro-project"}`}>
     <div className="studio-intro-copy">
       <p className="studio-eyebrow"><WorkspaceGlyph name={mode === "source" ? "cloud" : "search"} />{authenticated ? mode === "source" ? "از پروژه تا اولین بازدید" : "یک نگاه دقیق به سایت شما" : "خوش آمدید به لانچ‌لین"}</p>
-      <h1 tabIndex={-1}>{projectName ? <>پروژه: <bdi>{projectName}</bdi></> : mode === "incident" ? <>مشکل سایت را <span>روشن‌تر ببینید.</span></> : <>پروژه‌تان را <span>به وب برسانید.</span></>}</h1>
+      <h1 tabIndex={-1}>{projectName ? <><span className="studio-project-label">پروژهٔ شما</span><bdi className="studio-project-name" dir="auto">{projectName}</bdi></> : mode === "incident" ? <>مشکل سایت را <span>روشن‌تر ببینید.</span></> : <>پروژه‌تان را <span>به وب برسانید.</span></>}</h1>
       {!projectName || mode === "incident" ? <p className="studio-description">{mode === "incident" ? "سایت را انتخاب کنید؛ وضعیت و نشانه‌های مشکل را قدم‌به‌قدم بررسی می‌کنیم."
         : authenticated ? "از انتخاب فایل‌ها شروع کنید. قدم بعد را ما روشن می‌کنیم؛ تصمیم‌های مهم با شماست."
         : "پروژه را بررسی کنید، تغییرات را ببینید و با تصمیم خودتان منتشر کنید."}</p> : null}

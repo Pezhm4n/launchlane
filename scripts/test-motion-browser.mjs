@@ -29,7 +29,7 @@ try {
     const indicator = page.locator(".nav-active-indicator");
     assert.equal(await indicator.count(), 1, "One persistent indicator must slide between active tabs");
     assert.equal(await indicator.getAttribute("aria-hidden"), "true");
-    for (const width of [280, 360, 559, 560, 768, 1280]) {
+    for (const width of [280, 360, 559, 560, 768, 1024, 1280]) {
       await page.setViewportSize({ width, height: 900 });
       await page.evaluate(async () => document.fonts.ready);
       await page.waitForFunction(() => {
@@ -49,10 +49,12 @@ try {
           function sample() {
             const pill = document.querySelector(".nav-active-indicator");
             const panel = [...document.querySelectorAll("main .panel")].find((e) => e.getBoundingClientRect().height > 0);
+            const view = document.querySelector('.workbench-view:not([hidden])');
             window.motionSamples.push({
               t: performance.now() - start, x: pill.getBoundingClientRect().x,
               moving: pill.getAnimations().some((a) => a.playState === "running"),
               panelY: panel ? new DOMMatrixReadOnly(getComputedStyle(panel).transform).m42 : 0,
+              viewX: view ? new DOMMatrixReadOnly(getComputedStyle(view).transform).m41 : 0,
             });
             if (performance.now() - start < 400) requestAnimationFrame(sample);
           }
@@ -67,8 +69,9 @@ try {
         assert.ok(samples.some((s) => s.moving), `No sliding indicator at ${width}`);
         assert.ok(Math.max(...samples.map((s) => s.x)) - Math.min(...samples.map((s) => s.x)) > 20, `Indicator did not travel at ${width}`);
         assert.ok(samples.some((s) => s.panelY > 6), `Tab content entrance is imperceptible at ${width}`);
+        assert.ok(samples.some((s) => Math.abs(s.viewX) > 6), `The view itself must move when switching tabs at ${width}`);
       } else {
-        assert.ok(samples.every((s) => !s.moving && Math.abs(s.panelY) < 0.1), `Reduced motion not respected at ${width}`);
+        assert.ok(samples.every((s) => !s.moving && Math.abs(s.panelY) < 0.1 && Math.abs(s.viewX) < 0.1), `Reduced motion not respected at ${width}`);
       }
       assert.deepEqual(await page.locator(".app-nav-link").evaluateAll((links) => links.map((link) => {
         const r = link.getBoundingClientRect();

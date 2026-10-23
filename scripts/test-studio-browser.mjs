@@ -76,7 +76,8 @@ try {
     const box = await launcher.boundingBox();
     assert.ok(box.x >= (width < 768 ? 20 : 32) - 1 && box.y + box.height <= 844 - (width < 768 ? 24 : 32) + 1);
     assert.ok(box.height >= 44);
-    assert.equal(await launcher.innerText(), "دستیار هوشمند");
+    assert.equal(await launcher.innerText(), width < 768 ? "" : "دستیار هوشمند");
+    assert.equal(await launcher.getAttribute("aria-label"), "باز کردن دستیار هوشمند");
     const logo = await page.locator('.studio-provider img[alt="لیارا"]').evaluate(async node => {
       await node.decode(); const box = node.getBoundingClientRect();
       return { loaded: node.naturalWidth > 0, width: box.width, height: box.height };

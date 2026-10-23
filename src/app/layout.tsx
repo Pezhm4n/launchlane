@@ -5,6 +5,7 @@ import "./studio.css";
 import "./assistant-studio.css";
 import "./source-picker.css";
 import "./motion.css";
+import "./mobile.css";
 
 export const metadata: Metadata = {
   title: "Launchlane",

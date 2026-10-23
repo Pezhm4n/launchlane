@@ -19,7 +19,8 @@
   --color-danger-soft: #3c2331;
   --color-disabled: #2b374b;
   --color-focus: #69e2c0;
-  --font-body: IRANYekan, Tahoma, Arial, sans-serif;
+  --font-latin: Geist, "Segoe UI", Arial, sans-serif;
+  --font-body: Geist, IRANYekan, Tahoma, Arial, sans-serif;
   --font-brand: Bahnschrift, "Segoe UI", Arial, sans-serif;
   --font-code: Consolas, "Cascadia Code", monospace;
   --text-xs: 0.75rem;
@@ -112,4 +113,11 @@
   --motion-launcher-shine: 7s;
   --ease-tab-slide: cubic-bezier(0.2, 0.65, 0.3, 1);
   --ease-panel-enter: cubic-bezier(0.16, 0.6, 0.25, 1);
+  --motion-view-enter: 420ms;
+  --motion-view-travel: 1.25rem;
+  --motion-launcher-offset: -4s;
+  --mobile-tab-height: 4rem;
+  --mobile-header-height: 3.5rem;
+  --mobile-panel-inset: 0.875rem;
+  --mobile-nav-space: 0px;
 }

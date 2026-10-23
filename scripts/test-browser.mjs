@@ -188,7 +188,7 @@ try {
       link: height(".app-nav-link"),
     };
   });
-  assert.ok(shell.top <= 150, `mobile shell must stay compact: ${JSON.stringify(shell)}`);
+  assert.ok(shell.top <= 64, `mobile shell must stay compact: ${JSON.stringify(shell)}`);
   const strip = page.locator(".journey-strip");
   await strip.waitFor();
   assert.ok((await page.locator(".app-context").textContent()).includes("node-service"));
@@ -200,7 +200,7 @@ try {
     0,
     "mobile shell must stay visible while scrolling",
   );
-  assert.equal(await page.locator(".app-context").isVisible(), true);
+  assert.equal(await page.locator(".app-context").isVisible(), false);
   await page.locator(".project-review details summary").last().evaluate((element) => {
     element.scrollIntoView({ block: "start" });
     element.focus();

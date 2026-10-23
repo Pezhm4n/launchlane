@@ -15,7 +15,7 @@
   isolation: isolate;
   overflow: hidden;
 }
-.assistant-launcher::after { content: ""; pointer-events: none; position: absolute; inset: -70% -50%; z-index: -1; background: linear-gradient(110deg, transparent 35%, var(--color-sheen) 46%, var(--color-primary-soft) 50%, transparent 62%); transform: translateX(-85%) rotate(-12deg); }
+.assistant-launcher::after { content: ""; pointer-events: none; position: absolute; inset: -70% -50%; z-index: -1; background: linear-gradient(110deg, transparent 35%, var(--color-sheen) 46%, color-mix(in srgb, var(--color-primary) 35%, transparent) 50%, transparent 62%); transform: translateX(-85%) rotate(-12deg); }
 .assistant-launcher .assistant-launcher-mark {
   display: grid;
   place-items: center;
@@ -176,7 +176,7 @@
   .assistant-float .assistant-float-content { padding: var(--space-4); }
 }
 @media (prefers-reduced-motion: no-preference) {
-  .assistant-launcher::after { animation: assistant-shine var(--motion-launcher-shine) var(--ease-standard) infinite; }
+  .assistant-launcher::after { animation: assistant-shine var(--motion-launcher-shine) var(--ease-standard) var(--motion-launcher-offset) infinite; }
   .chat-starter:hover:not(:disabled) svg { transform: translateX(calc(var(--space-1) * -1)); }
 }
 @keyframes assistant-shine { 0%, 64% { transform: translateX(-85%) rotate(-12deg); } 86%, 100% { transform: translateX(85%) rotate(-12deg); } }

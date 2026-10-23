@@ -1,6 +1,14 @@
 @import "./tokens.css";
 @import "./publication.css";
 @font-face {
+  font-family: Geist;
+  src: url("/fonts/geist-latin.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-024F;
+}
+@font-face {
   font-family: IRANYekan;
   src: url("/fonts/iranyekanwebregular.woff2") format("woff2");
   font-weight: 400;

@@ -95,6 +95,9 @@ html {
   overflow-wrap: anywhere;
   margin-block-end: var(--space-2);
 }
+.studio-intro .studio-project-label { display: block; font-size: var(--text-sm); font-weight: 400; color: var(--color-muted); margin-block-end: var(--space-2); letter-spacing: normal; }
+/* Keep the identifier under its Persian label while dir=auto orders the identifier itself. */
+.studio-project-name { display: block; text-align: right; line-height: 1.5; font-weight: 650; letter-spacing: normal; }
 .studio-intro-project .studio-description { margin-block-end: 0; }
 .studio-context-mark {
   grid-column: 1;
@@ -145,8 +148,8 @@ html {
   border-radius: 0;
 }
 .project-summary .section-heading { margin-block-end: var(--space-1); }
-.project-summary .section-heading > div { display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; }
-.project-summary .section-heading p { margin: 0; }
+.project-summary .section-heading > div { display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; min-inline-size: 0; max-inline-size: 100%; }
+.project-summary .section-heading p { margin: 0; min-inline-size: 0; max-inline-size: 100%; overflow-wrap: anywhere; }
 .project-summary > .hint { font-size: var(--text-xs); }
 .task-main .project-technical { margin-block: var(--space-3) var(--space-5); }
 .project-technical > summary { font-size: var(--text-sm); }
