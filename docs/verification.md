@@ -1,5 +1,13 @@
 # شواهد اعتبارسنجی Launchlane
 
+## نسخهٔ فعال و تثبیت نهایی؛ candidate49 / ۲۰۲۶-۱۰-۲۳
+
+کد فعال `e170930` با tree `8ca1526603660f0936474e45c4fc6463556922ec` و digest۳۸۲فایل `1bdb38f71b79d5d7bd68bedfe50cbe9dce14a626bc9685531936dea7ac2b6467` است؛ اختلاف snapshot با ایندکس صفر. build/typecheck موفق، lint0error/43warning/13info، domain۴۴۱/۴۴۱، HTTP۳۹/۳۹ و۱۰host/VM check پاس شدند. مرورگر همان build: expiry۴، ورود۸/دوکاربر، پلن۱۴ و platform۱۲ حالت؛ این چهار suite جای aggregate کامل یا Docker واقعی نیستند.
+
+سرور اصلی در۱۸:۴۰:۱۳UTC از candidate46 به49 منتقل شد؛ backup consistent، نبود کار فعال/uncertain، برابری همهٔ ردیف‌های۲۸جدول و hash تنظیمات بررسی شدند.۹asset سرو‌شده با فایل49 برابر است؛ Chromium مستقل۳۶۰/۱۲۸۰ نیز۶JS واقعاً loadشده/marker تازه و صفر pageerror/axe/overflow را تأیید کرد. state واقعی seed و رمز واقعی ارسال نشد؛ مسیر expiry+API در همان محصول با state موقت بررسی شد. مدل/لیارای تازه صفر، ledger/reserve و allowance قبلی محفوظ‌اند. [گزارش کامل تغییرها، فرمان‌ها، شکست‌های اولیه و حدود](evidence/stabilization-candidate49.md).
+
+candidate47 full pass نداشت؛۴۰۹/۴۱۰ تاریخی با pass جدید49 جایگزینِ تاریخی نمی‌شود. Docker frontend/export تازه پیش از assertion/export timeout داشت و علت latency نامعلوم است. export به artifact نهایی، داده/دیسک و انتشار کامل ترب فعلی و AC28/همه۱۴خانواده هنوز بازند. عنوان‌های بعدی snapshotهای تاریخی‌اند؛ وضعیت سرور جاری از این بخش خوانده شود.
+
 ## Next بومی؛ candidate46 / ۲۰۲۶-۱۰-۲۳
 
 پایه14b18b9، tree `3025e5f343ac031119e14ff6aa6952f908961c14`، digest358فایل `f894d85719235e178e8467c544004c314c9e739952b3839ba7b6ee720b107c32`، صفر اختلاف export ایندکس. domain390/390، HTTP39/39، typecheck و build پاس؛ lint0error/43warning/12info. مرورگر واقعی همان candidate،12حالت platform و8حالت ورود/دوکاربر/جداسازی source را با صفر pageerror گذراند؛ profileهای Python/unknown و provider ورود مصنوعی‌اند. کارت‌های17/18 نیز همان تصمیم ساخت/انتشار و برچسب Next را در domain رندر می‌کنند. این مجموعه پذیرش زندهٔ Next یا full aggregate تمام runtimeها نیست.

@@ -1,5 +1,11 @@
 # برنامه اجرایی Launchlane
 
+## تحویل نسخهٔ تثبیت‌شده؛ candidate49 / ۲۰۲۶-۱۰-۲۳
+
+برش‌های frontend/env، خلاصه و هزینه، context مدل، بستن پیشنهاد منقضی و foundation خروجی در هفت Conventional Commit موضوعی ثبت شدند؛ [گزارش تحویل](docs/evidence/stabilization-candidate49.md). روی snapshot نهایی: build/typecheck موفق، lint صفرerror/43warning/13info، domain۴۴۱/۴۴۱، HTTP۳۹/۳۹، host/VM۱۰/۱۰ و مرورگر expiry۴/login۸/plans۱۴/platform۱۲ پاس شدند. candidate49/`e170930` روی سرور اصلی فعال و exact assetها، مرورگر۳۶۰/۱۲۸۰، حفظ۲۸جدول/تنظیمات و ledger/reserve تأیید شدند؛ درخواست زندهٔ تازه صفر. این وضعیت، جمله‌های «candidate تازه در حال بررسی است» در برش‌های زیر را برای همین مجموعه جایگزین می‌کند.
+
+A02/A03/A04/A17/A18 در مرزهای گزارش‌شده verified_local هستند؛ A07/A08/A11 و AC19/22/23/27/28 کامل نشده‌اند. Docker frontend/export تازه پیش از assertion/export timeout داشت؛ host pass جای آن نیست. نخستین کار لازم بعدی: pin دوباره تربِ مستقلاً تغییرکرده، اتصال export واقعی به artifact و startup فعلی در خود محصول، دیسک/انتقال consistent داده و usage ledger، انتشار و readback نسخه/رفتار/persistence؛ سپس بقیهٔ ماتریس۱۴خانواده. MCP و connector اجرایی جدا ارزیابی می‌شوند. هیچ allowance تازه یا preparation دستی بیرون محصول مجاز فرض نشده است.
+
 ## پایهٔ آماده‌سازی ترکیبی؛ A07/A08/A11 / ۲۰۲۶-۱۰-۲۳
 
 descriptor محدود ASGI/Vite، اعتبارسنجی مستقل manifest/بایت خروجی و مولد entry بدون تداخل root با۱۸آزمون domain و۱آزمون قرارداد bootstrap ثبت شدند. همهٔ این‌ها هنوز foundation مستقل‌اند و descriptor صریحاً `publishable:false` است؛ به application یا اختیار انتشار متصل نشده‌اند. [شواهد و مرز باز](docs/evidence/composite-preparation.md). ترب فعلی root mount و readiness خودش را دارد؛ bootstrap جایگزین آن نمی‌شود. اتصال export واقعی، artifact نهایی، منابع/داده و انتشار کامل در همان Aها باز می‌ماند.
