@@ -1,5 +1,10 @@
 # شواهد اعتبارسنجی Launchlane
 
+## MCP مشترک؛ برش مستقل ۲۰۲۶-۱۰-۲۳
+
+[گزارش MCP](evidence/mcp-shared-application.md): روی export پایه6ae5c38، SDK2.3.1/HTTP/stdio و application مشترک پیاده و domain310 با concurrency2، HTTP37، build/typecheck و هفت browser75/27/27/22/38/5/39 گذشتند. Codex0.163.0-alpha.11 discovery و۳tool call واقعی بدون turn/model داشت؛ worker بیرونی تأیید نشده است. شکست domain موازی308/310 و failureهای harness/cleanup حفظ‌اند. مدل و cloud write این برش صفر و حساب فقط با دو GET واقعی خوانده شد. رابط ثبت‌نشده همکار، برنامه چندمرحله‌ای و سایر runtimeها از این برش پذیرش نمی‌گیرند.
+
+
 ## تعامل، حرکت و خوانایی رابط؛ verified_local / ۲۰۲۶-۱۰-۲۳
 
 AC32 با حفظ AC23/AC24: تب‌های گروه‌شده با آیکون/نشان لغزان و هدف۴۴px، نام فارسی، composer با textarea مستقل، گزارش با آخرین مشاهده و فرضیهٔ قبلی بازشدنی، footer سه‌گروهی و caption متصل به SVG پیاده شدند. تصویر شناوری آرام و launcher درخشش دوره‌ای دارد؛ ورود/خروج پنل و dialog و ارتفاع disclosure واقعاً animate می‌شوند. dialog تا پایان خروج mounted و inert می‌ماند؛ سپس focus برمی‌گردد. reduced motion، draft و حالت فرم حفظ می‌شوند.

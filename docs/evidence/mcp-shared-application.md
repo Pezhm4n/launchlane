@@ -1,0 +1,45 @@
+# MCP و application مشترک؛ ۲۰۲۶-۱۰-۲۳
+
+وضعیت A16/AC31: partial. این برش یک مسیر واقعی HTTP و stdio را به application موجود متصل می‌کند؛ پذیرش کل MCP، connector اجرایی یا مأموریت کامل Launchlane نیست.
+
+## revision و configuration
+
+پایه6ae5c383f536b6c839c034281997b7d83baaa9e4، Node24.18.0، Next16.4.2 و SDK رسمی client/server2.3.1. کپی ثابت زیر `.local/mcp-mission/candidate-01` از Git export شد؛ فقط backend/route/تست/bridge این برش و lockfile افزوده شدند. UI، source picker و فایل‌های هم‌زمان همکار وارد آن نشدند. build و server اصلی، credential/config، VPN و SQLite نصب اصلی تغییر نکردند. بررسی حساب اصلی فقط با SQLite readOnly و دو GET محدود انجام شد؛ Store/recovery آن نصب فراخوانی نشد.
+
+## oracle پیش از اجرا
+
+از همان پروژه انتخاب‌شده، inspect واقعی برگردد؛ secret یا مسیر بیرون manifest رد شود. یک publication از MCP در وب همان ID، source، معیار، state و receipt را داشته باشد. duplicate، disconnect و reconnect مدل/write تازه نسازند. grant خواندن نتواند mission، repair یا approval ایجاد کند. actor دیگر، Host/Origin نامعتبر، token خراب/منقضی/لغوشده و protocol ناسازگار رد شوند. stdio فقط protocol بنویسد و process آن Store مستقل باز نکند. برای Codex، discovery تنها کافی نیست: tool call واقعی و رد scope به application مشترک لازم است. هیچ turn مدل، cloud write یا worker dispatch در این oracle نیست.
+
+## نتایج
+
+| اجرا | نتیجه و مرز |
+| --- | --- |
+| build | تولیدی Turbopack موفق؛ مسیرهای `/api/mcp` و `/api/mcp/access` ساخته شدند؛ warning انتخاب workspace root در export تو‌در‌تو ثبت شد |
+| typecheck | فرمان واقعی `npm run typecheck` روی همان کپی موفق؛ root `tsc --noEmit --incremental false` نیز موفق بود |
+| lint | فایل‌های جدید9/9 بدون خطا؛ lint کل tree ترکیبی صفر error،34warning و9info داشت که شامل CSS هم‌زمان است؛ این نتیجه امتیاز UI نیست |
+| domain اول | با هم‌زمانی پیش‌فرض308/310؛ دو deadline در caseهای قبلی optional chat/project-build تمام شدند؛ failure محفوظ است |
+| domain کنترل‌شده | همان310تست با `node --test --test-concurrency=2 tests/domain/*.test.ts`،310/310 و صفر fail/skip؛ oracle یا deadline محصول تغییر نکرد |
+| HTTP نهایی | `node --test tests/http/*.test.mjs`،37/37 و صفر fail/skip روی همان build؛ مدل/provider مصنوعی، HTTP و SQLite واقعی |
+| MCP اختصاصی |8/8؛ HTTP+stdio واقعی SDK، request/result ID، header نسخه ناسازگار400، body بزرگ413، خواندن source، deny، mission مشترک، reconnect بدون مدل تازه، revoke و logout |
+| browser | فرمان کامل هفت suite روی همان UI ثابت:75/27/27/22/38/5/39حالت؛ صفر pageerror و درخواست خارجی گزارش‌شده. مدل/cloud مصنوعی‌اند و طراحی ثبت‌نشده همکار از این اعداد پذیرش نمی‌گیرد |
+| Codex واقعی |CLI0.163.0-alpha.11، app-server با home جدید و session ephemeral؛۱۰tool کشف و۳call واقعی context/denied publication/mission replay اجرا شدند. application مشترک و رد scope سنجیده شد؛ model0/cloud-write0؛ cleanup اجرای نهایی تأیید شد |
+| حساب Liara |هویت/تیم و فهرست app واقعاً200؛ تیم مجاز تطبیق داشت و app count0 بود. این خواندن availability همه runtimeها، قیمت نهایی یا provisioning نیست |
+
+سه regression domain به‌طور مشخص امضای audience، parent/child session و scope؛ دسترسی source/deny بدون side effect؛ و join/CAS/budget را می‌سنجند. قالب toolها از registry اصلی می‌آید؛ مسیر MCP نه اجرای shell دارد و نه مسیر approve/execute. token اپراتور یا provider در payloadهای عمومی نیست.
+
+برای تکرار مرز میزبان، `npm run smoke:mcp:codex` ساخته شده است؛ فقط executable نصب‌شده را اجرا می‌کند، config/user home موجود را نمی‌خواند و هیچ `turn/start` نمی‌فرستد. خروجی `executableRepairTested:false` صریح است. CLIهای Claude Code و OpenCode در PATH و مسیرهای معمول بررسی‌شده یافت نشدند؛ این مشاهده به معنی اثبات نبودن آن‌ها در تمام دیسک نیست و اتصال زنده‌شان UNCONFIRMED است.
+
+## شکست‌های حفظ‌شده
+
+- HTTP نخست5/7 بود؛ harness مسیر fixture را `directory` فرض کرده بود، در حالی که runner واقعی `workspace` عرضه می‌کند. assertion reconnect حذف نشد؛ مسیر با API واقعی runner اصلاح و سپس stdio گذشت.
+- assertion تازه raw HTTP ابتدا پاسخ SSE را JSON فرض کرد. MCP هر دو framing را مجاز می‌داند؛ decoder تست content-type و data frame واقعی را می‌خواند و همان request ID را بررسی می‌کند. SDK client پیش‌تر SSE را درست می‌خواند؛ این شکستِ harness بود.
+- Codex در دو spike نخست، discovery و calls را گذراند ولی cleanup Windows یک بار EBUSY و بار دیگر انتظار دوباره برای exit فرایندِ ازقبل‌بسته داشت. smoke نهایی EOF/exit/signal و cleanup همان fixture را اصلاح کرد و exit0 شد. پاک‌سازی دستی دو پوشهٔ قدیمی با `blocked by policy` رد شد؛ روش دیگری برای حذف همان‌ها اجرا نشد و آن دو مسیر در گزارش خصوصی باقی‌اند.
+- دو خطای توسعهٔ نوع/لینت، تطبیق schema SDK و throw داخل finally بودند؛ schema با interface رسمی Standard Schema validate و cleanup در تابع خودش قرار گرفت. هیچ assertion/type برای دورزدن validation اضافه نشد.
+
+logها در `.local/mcp-mission/`، با نام‌های `build-01.log`، `domain-01.log`، `domain-02.log`، `http-mcp-01.log` تا `05`، `http-all-final.log`، `typecheck-final.log`، `browser-final.log` و `codex-smoke-01.log` نگه‌داری می‌شوند؛ credential یا fixture خصوصی وارد Git نشده است. دفتر مصرف قبلی readOnly بررسی شد؛ سقف قبلی و allowance فاز پیشین reset نشدند. این برش مدل0، cloud-write0 و صرفاً دو GET واقعی حساب داشته است.
+
+## اولین مرزهای باز
+
+مأموریت طولانی به همان run/event/cursor متصل است، اما چرخه استقرار cloud از خود میزبان، decision continuation میان نشست‌های MCP/وب، انتخاب منبع از MCP، incident goal مستقل، notifications/tasks اختیاری و دو میزبان دیگر هنوز پذیرش جدا می‌خواهند. repair پیشنهادیِ نشست دیگری از همان مسیر review امن موجود عبور می‌کند؛ authority نشست گذشته به میزبان منتقل نمی‌شود.
+
+چهار انتخاب Coding Agent، dispatch واقعی Codex/Claude/OpenCode، pairing سرویس اجرایی، reconciliation job نامعلوم و fallback broker هنوز implementation جدا می‌خواهند. worker داخلی Node/Python همان شواهد قبلی خودش را دارد؛ این تست‌ها شاهد اجرای تازهٔ آن یا fallback بیرونی نیستند. برنامه چندمرحله‌ای و پوشش همه runtimeها نیز از MCP نتیجه نمی‌شوند. [ماتریس capability](../platform-support.md)، [راهنمای تکرار](../mcp.md) و [ADR0017](../decisions/0017-shared-mcp-facade.md) این حدود را حفظ می‌کنند.

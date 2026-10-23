@@ -1,5 +1,11 @@
 # معماری Launchlane
 
+## MCP مشترک؛ برش A16 در ۲۰۲۶-۱۰-۲۳
+
+`/api/mcp` از SDK رسمی2.3.1 و `getRuntime` همان وب استفاده می‌کند. schema و اجرای read از registry موجود و lifecycle مأموریت از application/AgentRepository می‌آیند؛ Store، budget یا journal موازی ندارد. `scripts/mcp-stdio.mjs` فقط client/server bridge به HTTP است و SQLite را باز نمی‌کند. grant امضاشده با audience مستقل، actor، نشست والد/فرزند، expiry و scope خواندن یا مأموریت به همان جدول sessions متصل است. Host/Origin و auth قبل از SDK enforce می‌شوند؛ loopback به‌تنهایی مجوز نیست. token در فایل ignored و خصوصی است و مقدار آن در tool result نیست.
+
+مأموریت طولانی با ID/cursor/revision خوانده می‌شود؛ reconnect/replay کار تازه‌ای نمی‌سازد. تصمیم زیرساختی فعلاً در review URL وب است؛ MCP ابزار approve/execute/secret ندارد. این برش HTTP/stdio و discovery/سه فراخوانی واقعی Codex را سنجیده؛ worker بیرونی، Claude/OpenCode، source selection و incident goal مستقل هنوز پیاده/پذیرفته نیستند. [ADR0017](docs/decisions/0017-shared-mcp-facade.md)، [راه‌اندازی](docs/mcp.md) و [ماتریس پلتفرم](docs/platform-support.md) وضعیت فعلی را بر عبارت‌های تاریخی «MCP هنوز پیاده نیست» در ادامه مقدم می‌کنند.
+
 اطلاعات محیطی از فرم همان انتشار به application/environment، reference رمز‌شده و ActionSpec v9 می‌روند؛ مدل فقط نام/وضعیت می‌بیند. همان Store مالک تصمیم، claim و قفل scope است؛ journal جدا مراحل env را ثبت می‌کند. input با actor/spec در AES-GCM بسته و snapshot ادغام‌شده با HMAC متصل است. برنامه build همان reference را با تصمیم استفاده محلی، stdin و container بدون log پایدار می‌گیرد. انتشار وابسته، v10 و readback configuration در دو سوی workload دارد؛ v1–v9 تاریخی محفوظ‌اند. خواندن و نوشتن سهمیه همان mission را مصرف می‌کنند. readback پیکربندی، restart یا سلامت برنامه نیست؛ پذیرش زنده و Next/GitHub همچنان بازند. [ADR0013](docs/decisions/0013-project-environment.md) و [ADR0014](docs/decisions/0014-build-environment-binding.md).
 
 ## مسیر اصلی مرحله‌ای؛ تصمیم جاری
