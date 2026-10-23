@@ -43,3 +43,25 @@ logها در `.local/mcp-mission/`، با نام‌های `build-01.log`، `doma
 مأموریت طولانی به همان run/event/cursor متصل است، اما چرخه استقرار cloud از خود میزبان، decision continuation میان نشست‌های MCP/وب، انتخاب منبع از MCP، incident goal مستقل، notifications/tasks اختیاری و دو میزبان دیگر هنوز پذیرش جدا می‌خواهند. repair پیشنهادیِ نشست دیگری از همان مسیر review امن موجود عبور می‌کند؛ authority نشست گذشته به میزبان منتقل نمی‌شود.
 
 چهار انتخاب Coding Agent، dispatch واقعی Codex/Claude/OpenCode، pairing سرویس اجرایی، reconciliation job نامعلوم و fallback broker هنوز implementation جدا می‌خواهند. worker داخلی Node/Python همان شواهد قبلی خودش را دارد؛ این تست‌ها شاهد اجرای تازهٔ آن یا fallback بیرونی نیستند. برنامه چندمرحله‌ای و پوشش همه runtimeها نیز از MCP نتیجه نمی‌شوند. [ماتریس capability](../platform-support.md)، [راهنمای تکرار](../mcp.md) و [ADR0017](../decisions/0017-shared-mcp-facade.md) این حدود را حفظ می‌کنند.
+
+## تثبیت روی candidate ترکیبی پس از b59eef9
+
+candidate تازه از b59eef9 ساخته شد؛ UI ثبت‌شده در6e54988 و parser مشترک publication را دارد. فقط fix زیر در server و regression آن افزوده شد. همه نتایج این بخش روی همین source ثابت‌اند؛ خروجی پایه قبلی با آن جمع نشده است.
+
+بازبینی یک نقص بودجه یافت: read مستقیم MCP در هر درخواست RunBudget تازه می‌ساخت و allowance مأموریت متوقف‌شده را مصرف نمی‌کرد. اکنون مالک queued/working جلوی read موازی را می‌گیرد؛ مأموریت انتشار متوقف‌شده، شمارنده و زمان همان run را با reserve پیش از ابزار و CAS حفظ می‌کند. خواندن state/events مجانی و بدون مدل باقی است. regression نخست مسابقه دو read با یک سهم،0/1 شد: درخواست بازنده پس از شکست reserve نیز revision را تغییر می‌داد و نتیجه رقیب معتبر را نامعتبر می‌کرد. persist فقط پس از reserve موفق، علت را رفع کرد؛ دو read اکنون دقیقاً یک موفق و یک BUDGET_EXHAUSTED دارند، model allowance تمدید نمی‌شود و attempts صفر است. failure قبل از fix نگه‌داری شد.
+
+اختلاف schema publication نیز جدا درb59eef9 رفع شد: همان schema قرارداد وب حد۲۴۰نویسه را عرضه می‌کند؛۲۴۰پذیرفته و۲۴۱بدون ساخت run رد می‌شود. تست یا deadline محصول برای پاس‌شدن تضعیف نشد. فرمان رسمی domain با `--test-concurrency=2` زمان‌بندی ثابت دارد؛ دو timeout با هم‌زمانی پیش‌فرضِ اجرای قبلی محفوظ‌اند. گذر همان تست‌ها با هم‌زمانی۲ با contention سازگار است، اما علت دقیق سخت‌افزاری اندازه‌گیری نشده است.
+
+| بررسی تازه | نتیجه و حدود |
+| --- | --- |
+| نصب مستقل | `npm ci --offline --no-audit --no-fund` در export مستقل با node_modules واقعی،۶۱package نصب و exit0؛ lock همان commit است. این فقط نصب dependency است، نه پذیرش کل محصول از نصب تازه |
+| build/typecheck/lint | فرمان‌های واقعی build و typecheck موفق؛ lint کل candidate صفرerror،۳۴warning و۹info. warningهای موجود UI حفظ‌اند |
+| domain | فرمان واقعی `npm run test:domain`،۳۱۱/۳۱۱،صفرfail/skip؛ چهار regression اختصاصی MCP نیز۴/۴ |
+| HTTP | `npm run test:http`،۳۷/۳۷،صفرfail/skip؛ transport/SQLite واقعی، مدل و cloud مصنوعی |
+| browser | فرمان کامل `npm run test:browser`: هفت suite اصلی۷۵/۲۷/۲۷/۲۲/۳۸/۵/۴۳؛ سپس دو case انتخاب بومی پوشه در۳۶۰/۱۲۸۰ و۱۲case حرکت/تعامل. صفرpageerror و درخواست خارجی گزارش‌شده؛ بدون ادعای امتیاز UX یا کاربر تازه |
+| sandbox | `npm run test:sandbox`: baseline fail→fix با Node22 واقعی،۵بررسی isolation و حذف۲container؛ سپس۹/۹شامل رد patch غلط، env محدود، build بومی tmpfs و Python آفلاین/رد wheel خراب/asset ناقص. مدل مصنوعی و cloud-write0 |
+| locked build | `npm run test:build-sandbox`: دو case سالم/شکسته، npm ci/build/test/start/GET واقعی آفلاین با content cache معتبر؛ source اصلی محفوظ و artifact آزموده‌شده انتخاب شد. case env نیز۱/۱؛ هیچ image/package از شبکه دریافت نشد |
+| setup | bootstrap۲/۲ و setup واقعی grant خواندن/مأموریت، رد overwrite و مسیر بیرون `.local`، token معتبر HTTP و نبودن token در stdout؛ config میزبان کاربر تغییر نکرد |
+| Codex | `npm run smoke:mcp:codex` روی build تازه: discovery۱۰tool و۳call واقعی، scopeDenied/sharedApplication درست، model0/cloud-write0/executableRepairTested=false، cleanup verified |
+
+logهای این candidate در `.local/mcp-mission/` با نام‌های `budget-final-build.log`، `budget-final-typecheck.log`، `combined-lint.log`، `domain-command-final.log`، `budget-final-http.log`، `combined-browser-final.log`، `final-sandbox.log`، `locked-build-final.log`، `final-codex-smoke.log` و `clean-install.log` هستند. `budget-race-before.log` شکست اولیه را حفظ می‌کند. این برش استقرار تازه لیارا یا اصلاح با مدل واقعی ندارد؛ شواهد تاریخی Node/Python همچنان محدود به همان اجراها هستند.

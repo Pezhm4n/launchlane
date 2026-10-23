@@ -6,7 +6,7 @@ import { capabilities } from "../application/capabilities.ts";
 import { createPublicationMission, resumePublicationMission } from "../application/publication-mission.ts";
 import { cancelAgentRun, driveAgentRun } from "../agent/runs.ts";
 import { AgentRepository, agentView } from "../agent/store.ts";
-import { currentAgentContext, executeAgentTool, toolsForAgent } from "../agent/tools.ts";
+import { assertAgentContext, currentAgentContext, executeAgentTool, toolsForAgent } from "../agent/tools.ts";
 import type { Config } from "../config.ts";
 import { projectSecretValues } from "../environment/secrets.ts";
 import { AppError, ensure } from "../errors.ts";
@@ -73,8 +73,28 @@ export async function callMcpTool(c: Context, name: string, value: unknown, sign
       result = view(c, cancelAgentRun(store, session.actorId, uuid(args.id), integer(args.revision, 1, 10000)));
     } else {
       const scoped = { ...config, projectSecretValues: projectSecretValues(store, config.sessionSecret, session.actorId) };
-      const budget = new RunBudget({ maxModelCalls: 0, maxToolCalls: config.maxToolCalls, runTimeoutMs: config.runTimeoutMs });
-      result = await executeAgentTool(name, args, { config: scoped, store, actorId: session.actorId, context: currentAgentContext(config, store, session.actorId), createdAt: Date.now(), budget, signal: budget.signal(signal) });
+      // A second transport must not add parallel reads or renew a paused mission's allowance.
+      store.assertAgentIdle(session.actorId, null, true);
+      const repo = new AgentRepository(store), context = currentAgentContext(config, store, session.actorId);
+      const previous = repo.forProject(session.actorId, context.projectId, "publication");
+      const mission = previous && previous.state !== "completed" && previous.state !== "cancelled" ? previous : null;
+      if (mission) assertAgentContext(config, store, session.actorId, mission.context);
+      const started = Date.now(), priorMs = mission?.usage.elapsedMs ?? 0;
+      const budget = new RunBudget(mission ? { ...mission.limits, runTimeoutMs: Math.max(1, mission.limits.runTimeoutMs - priorMs) }
+        : { maxModelCalls: 0, maxToolCalls: config.maxToolCalls, runTimeoutMs: config.runTimeoutMs });
+      if (mission) { budget.modelCalls = mission.usage.modelCalls; budget.toolCalls = mission.usage.toolCalls; }
+      const reserve = budget.take.bind(budget);
+      let reserved = false;
+      const persist = () => {
+        if (!mission) return;
+        mission.usage.toolCalls = budget.toolCalls;
+        mission.usage.elapsedMs = priorMs + Date.now() - started;
+        repo.save(session.actorId, mission);
+      };
+      budget.take = (kind, parent) => { reserve(kind, parent); reserved = true; persist(); };
+      try {
+        result = await executeAgentTool(name, args, { config: scoped, store, actorId: session.actorId, context, createdAt: mission?.createdAt ?? started, budget, signal: budget.signal(signal) });
+      } finally { if (reserved) persist(); }
     }
     return { content: [{ type: "text", text: JSON.stringify({ requestId, data: result }) }] };
   } catch (error) {

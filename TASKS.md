@@ -12,6 +12,10 @@ A01 دوباره با HEAD/source تطبیق شد: graph نسل2026-10-21T19:24:
 
 اولین برش A16/AC31 در8aa5a9d ثبت شد: SDK رسمی2.3.1، token محدود/عمرمحدود وابسته به نشست اپراتور، registry خواندن مشترک، lifecycle همان مأموریت، HTTP در process وب و stdio bridge بدون Store دوم. domain310 با concurrency2، HTTP نهایی37، build/typecheck و هفت browser75/27/27/22/38/5/39 روی export ثابت پایه6ae5c38 گذشتند؛ Codex0.163.0-alpha.11 discovery و۳call واقعی با cleanup تأییدشده داشت. دو timeout اجرای موازی308/310 و failureهای harness حفظ‌اند. مدل/cloud-write0؛ فقط دو GET واقعی حساب. [ماتریس۱۴خانواده و شکاف‌ها](docs/platform-support.md)، [شاهد MCP](docs/evidence/mcp-shared-application.md) و [setup](docs/mcp.md) مرزها را ثبت می‌کنند. UI همکار در6e54988 جدا commit شد و شاهد export قبلی، پذیرش ترکیب نهایی آن نیست. اختیار چندمرحله‌ای، connector اجرایی و runtimeهای missing همچنان بازند.
 
+## تثبیت مرز بودجه MCP؛ verified_local / ۲۰۲۶-۱۰-۲۳
+
+A16/AC23/AC24: schema publication با parser وب مشترک شد؛ read مستقیم، allowance و زمان همان مأموریت متوقف‌شده را با reserve/CAS مصرف می‌کند و مالک فعال جلوی read موازی را می‌گیرد. regression مسابقهٔ یک سهم/دو درخواست و عدم تمدید مدل گذشت؛ شکست نخست حفظ شد. فرمان domain هم‌زمانی۲ دارد، بدون تغییر oracle/deadline. روی candidate ثابت پس ازb59eef9، build/typecheck،۳۱۱domain،۳۷HTTP، فرمان کامل browser (هفت suite۷۵/۲۷/۲۷/۲۲/۳۸/۵/۴۳، انتخاب پوشه۲ و motion۱۲)، sandbox۹ و locked build واقعی Node22/env۱ گذشتند. npm ci مستقل آفلاین و setup/Codex۳call واقعی نیز گذشتند؛ مدل/cloud-write0. [شاهد تفکیکی](docs/evidence/mcp-shared-application.md) حدود و failureها را نگه می‌دارد. A16 همچنان partial؛ اختیار چندمرحله‌ای، connector اجرایی و پوشش خانواده‌های دیگر بعدی‌اند.
+
 ## انتخاب پوشهٔ دلخواه؛ verified_local / ۲۰۲۶-۱۰-۲۳
 
 AC32: انتخاب بومی پوشه با پیش‌نمایش، پالایش مشترک و کپی خصوصی، بدون وابستگی به workspaceRoot پیاده شد. build/type/lint،۲۹HTTP،۷۵حالت میزکار و انتخاب واقعی پوشه در دو عرض گذشتند. Domain موازی یک timeout داشت؛ همان۳۰۷تست با هم‌زمانی۲ گذشتند. ADR0016 و verification مرزها و failure اولیه را نگه می‌دارند. اقدام بعد: تکمیل خوانایی گزارش، تب‌ها، composer و حرکت واقعی رابط. انتشار و مدل زنده در این برش اجرا نشده‌اند.

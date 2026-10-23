@@ -14,7 +14,7 @@
     "lint": "biome lint .",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "node --test tests/bootstrap.test.mjs",
-    "test:domain": "node --test tests/domain/*.test.ts",
+    "test:domain": "node --test --test-concurrency=2 tests/domain/*.test.ts",
     "test:sandbox": "node scripts/test-sandbox.mjs && node --test tests/sandbox/*.test.ts",
     "test:build-sandbox": "node scripts/test-build-sandbox.mjs && node --test tests/sandbox/environment-build.test.ts",
     "test:http": "node --test tests/http/*.test.mjs",

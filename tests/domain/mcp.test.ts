@@ -89,3 +89,24 @@ test("MCP joins the web mission, replays authoritative receipts and cancels with
     assert.equal(queued.length, 1); assert.equal(f.store.db.prepare("SELECT COUNT(*) n FROM attempts").get()?.n, 0);
   } finally { f.close(); }
 });
+
+test("raw MCP reads cannot run in parallel with the owner or renew a paused publication budget", async () => {
+  const f = await agentFixture();
+  try {
+    const c = { config: f.config, store: f.store, access: { session: f.session, missions: true }, schedule: () => {} }, signal = AbortSignal.timeout(5000);
+    const input = { requestKey: randomUUID(), publication: { projectId: f.flow.id, sourceHash: f.flow.profile.sourceHash, path: "/", expectedText: "invoice service" } };
+    const initial = object(object(data(await callMcpTool(c, "launchlane_publish", input, signal)).data).run);
+    assert.equal(object(data(await callMcpTool(c, "inspect_project", {}, signal)).error).code, "AGENT_BUSY");
+    const repo = new AgentRepository(f.store), run = repo.get(f.session.actorId, String(initial.id)); assert.ok(run);
+    run.state = "needs_input"; run.nextAction = "reply"; run.usage.toolCalls = run.limits.maxToolCalls - 1; run.usage.modelCalls = 2;
+    repo.save(f.session.actorId, run);
+    const reads = await Promise.all([callMcpTool(c, "inspect_project", {}, signal), callMcpTool(c, "inspect_project", {}, signal)]);
+    assert.equal(reads.filter(result => !result.isError).length, 1);
+    const rejected = reads.find(result => result.isError); assert.ok(rejected);
+    assert.equal(object(data(rejected).error).code, "BUDGET_EXHAUSTED");
+    const stored = repo.get(f.session.actorId, run.id); assert.equal(stored?.usage.toolCalls, run.limits.maxToolCalls); assert.equal(stored?.usage.modelCalls, 2);
+    assert.equal(object(data(await callMcpTool(c, "inspect_project", {}, signal)).error).code, "BUDGET_EXHAUSTED");
+    assert.equal((await callMcpTool(c, "launchlane_mission", { id: run.id }, signal)).isError, undefined);
+    assert.equal(f.store.db.prepare("SELECT COUNT(*) n FROM attempts").get()?.n, 0);
+  } finally { f.close(); }
+});

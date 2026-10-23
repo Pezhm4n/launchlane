@@ -60,6 +60,8 @@ OpenCode، entry در `mcp` پیکربندی موجود:
 
 سه ابزار آخر فقط با grant مأموریت عرضه می‌شوند. schema و خطای دارای code/message/retryable/requestId از application می‌آیند. تصمیم لازم با `reviewUrl` در خود Launchlane انجام می‌شود؛ هیچ ابزار approve/execute از MCP عرضه نشده است. خواندن progress، بستن میزبان یا reconnect، کار تازه ایجاد نمی‌کند. مأموریت طولانی را با ID و cursor بخوانید؛ بستن transport، لغو مأموریت نیست. notification/task اختیاری میزبان پیش‌شرط این مسیر نیست.
 
+وقتی مالک مأموریت درحال اجراست، read مستقیم registry با AGENT_BUSY رد می‌شود؛ progress را از `launchlane_mission` بخوانید. در مأموریت انتشار متوقف‌شده، read واقعی همان source از allowance پایدار همان run کم می‌کند و transport تازه بودجه را تمدید نمی‌کند. reserve پیش از provider/read ثبت می‌شود؛ دو درخواست هم‌زمان با یک سهم، فقط یک خواندن معتبر دارند. خواندن state/events مدل یا tool allowance مصرف نمی‌کند. schema ورودی publication و حد۲۴۰نویسهٔ نشانه از همان قرارداد وب می‌آیند.
+
 ## آزمون و رفع اشکال
 
 پس از build، `node --test tests/http/mcp.test.mjs`، SDK رسمی HTTP/stdio، replay مشترک، deny، revocation، version/body limit و request ID را با وب‌اپ/SQLite واقعی و مدل مصنوعی می‌سنجد. `node --test tests/domain/mcp.test.ts` مرز امضای دسترسی، actor، انقضا و CAS را بررسی می‌کند.
