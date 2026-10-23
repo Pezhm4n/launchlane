@@ -1,5 +1,9 @@
 # قرارداد و وضعیت API لیارا
 
+## پروژه‌های من و تنظیمات پوشه؛ ۲۰۲۶-۱۰-۲۳
+
+این‌ها API داخلی Launchlane هستند: `GET /api/projects/library?offset=…` فهرست بیست نسخهٔ متعلق به actor را می‌دهد؛ `POST /api/projects/library {id}` پس از احراز هویت/CSRF، source/archive و مقصد را بررسی و انتخاب/ابطال اختیار را اتمیک ثبت می‌کند. هیچ model/cloud write روی listing/open/reload انجام نمی‌شود. `POST /api/projects/upload` فایل‌های `.env` شناخته‌شدهٔ ریشه را در multipart جدا از source می‌گیرد؛ مقادیر فقط در vault رمزگذاری‌شده می‌مانند. `GET /api/project-environment?run=…` نام‌های `available/needsReview/publicKeys` را بازمی‌گرداند؛ `POST` با `operation=propose-import` مقدارها را در سمت سرور باز می‌کند و به همان ActionSpec v9 می‌دهد. approve/claim/update/observe و مرجع build قبلی مشترک‌اند. [ADR0022](decisions/0022-project-library-and-private-environment-import.md) و [شاهد candidate27](evidence/project-library-and-environment-import.md) شرایط و مرز مصنوعی/واقعی را ثبت می‌کنند؛ این endpointها قابلیت تازه‌ای برای API لیارا فرض نمی‌کنند.
+
 مسیر مرحله‌ای جدید از همان API محلی Agent استفاده می‌کند: POST /api/agent/runs با operation=publish، requestKey و publication {projectId,sourceHash,path,expectedText}. host context، ابزار و approval را مالک است. GET همان مسیر با project و kind=publication|conversation فقط replay scoped است؛ operation=question فقط read tools دارد. این‌ها endpoint لیارا نیستند. canonicalizationهای ActionSpec تاریخی و transport cloud تغییر نکرده‌اند. worker container محدود Node22 به معنی install/build عمومی یا env write نیست.
 
 ## توسعه Agent؛ وضعیت جاری و قراردادهای باز

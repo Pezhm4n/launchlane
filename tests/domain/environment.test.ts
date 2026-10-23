@@ -21,6 +21,8 @@ import { proposeWorkloadDeployment, executeDeployment, observeDeployment } from 
 import { fingerprint, parseActionSpec } from "../../src/server/policy/action.ts";
 import { LiaraDeployClient } from "../../src/server/liara/deploy.ts";
 import { WorkloadProbe } from "../../src/server/liara/probe.ts";
+import { proposeImportedEnvironment } from "../../src/server/application/environment.ts";
+import { saveImportedEnvironment, importedEnvironmentReview } from "../../src/server/environment/import.ts";
 
 const changedValue = "synthetic-new-private-environment", existingValue = "synthetic-existing-private-value";
 const code = (name: string) => (error: unknown) => error instanceof AppError && error.code === name;
@@ -50,6 +52,37 @@ async function fixture() {
     changeRemote: () => { variables.push({ key: "CONCURRENT_KEY", value: "another-new-value" }); }, signal: () => AbortSignal.timeout(5000),
     propose: (key = randomUUID()) => proposeEnvironment(config, f.store, f.session, run.id, key, [{ key: "SERVICE_ACCESS", value: changedValue }], AbortSignal.timeout(5000), { client }) };
 }
+
+test("folder environment reaches the existing approved merge, readback and build reference without user copying values", async () => {
+  const f = await fixture();
+  try {
+    saveImportedEnvironment(f.config, f.store, f.actor, f.flow, [{ key: "SERVICE_ACCESS", value: changedValue }, { key: "PORT", value: "9999" }, { key: "UNUSED_PRIVATE", value: "unused-fixture-value" }]);
+    assert.deepEqual(importedEnvironmentReview(f.config, f.store, f.actor, f.flow), { available: ["SERVICE_ACCESS"], needsReview: [], publicKeys: [] });
+    const requestKey = randomUUID(), action = await proposeImportedEnvironment(f.config, f.store, f.session, f.run.id, requestKey, [], f.signal(), { client: f.client });
+    assert.equal(JSON.stringify(action).includes(changedValue), false); assert.equal(f.writes, 0);
+    assert.equal((await proposeImportedEnvironment(f.config, f.store, f.session, f.run.id, requestKey, [], f.signal(), { client: f.client })).id, action.id);
+    f.store.decide(action.id, f.actor, f.session.id, action.hash, "approve");
+    await executeEnvironment(f.config, f.store, f.session, action.id, f.signal(), { client: f.client });
+    await observeEnvironment(f.config, f.store, f.session, action.id, f.signal(), { client: f.client });
+    assert.equal(f.writes, 1);
+    assert.deepEqual(f.bodies[0], { project: f.app, variables: [{ key: "EXISTING_PRIVATE", value: existingValue }, { key: "SERVICE_ACCESS", value: changedValue }] });
+    const reference = currentEnvironment(f.store, f.config.sessionSecret, f.actor, f.flow.id);
+    assert.deepEqual(projectEnvironmentValues(f.store, f.config.sessionSecret, f.actor, f.flow.id, reference), [{ key: "SERVICE_ACCESS", value: changedValue }]);
+    assert.equal(JSON.stringify(f.repo.get(f.actor, f.run.id)).includes(changedValue), false);
+    assert.equal(f.repo.get(f.actor, f.run.id)?.usage.modelCalls, 3);
+  } finally { f.close(); }
+});
+test("local addresses and unresolved substitutions cannot be silently applied from an imported environment", async () => {
+  for (const value of ["postgres://user:password@localhost/db", "${DATABASE_URL}", "$(read-secret)"]) {
+    const f = await fixture();
+    try {
+      saveImportedEnvironment(f.config, f.store, f.actor, f.flow, [{ key: "SERVICE_ACCESS", value }]);
+      assert.deepEqual(importedEnvironmentReview(f.config, f.store, f.actor, f.flow).needsReview, ["SERVICE_ACCESS"]);
+      await assert.rejects(proposeImportedEnvironment(f.config, f.store, f.session, f.run.id, randomUUID(), [], f.signal(), { client: f.client }), code("ENV_REVIEW_REQUIRED"));
+      assert.equal(f.writes, 0); assert.equal(f.reads, 0);
+    } finally { f.close(); }
+  }
+});
 
 test("environment approval binds encrypted merged values and verifies readback without leaking values or resetting mission allowance", async () => {
   const f = await fixture();
@@ -259,8 +292,9 @@ test("Next public variables require an explicit public declaration and historica
     const run = (await createPublicationMission(f.config, f.store, f.session, randomUUID(), { projectId: flow.id, sourceHash: flow.profile.sourceHash, path: "/", expectedText: "ready" }, f.signal())).run;
     run.state = "needs_input"; run.nextAction = "configure_env"; f.repo.save(f.actor, run);
     const variable = { key: "NEXT_PUBLIC_WEB_API", value: "https://public.example.test" };
+    const storedBeforeRejection = f.store.db.prepare("SELECT COUNT(*) n FROM environment_inputs").get()?.n;
     for (const visibility of [{}, { public: false }]) await assert.rejects(proposeEnvironment(f.config, f.store, f.session, run.id, randomUUID(), [{ ...variable, ...visibility }], f.signal(), { client: f.client }), code("PUBLIC_ENV_SECRET_DENIED"));
-    assert.equal(f.reads, 0); assert.equal(f.store.db.prepare("SELECT COUNT(*) n FROM environment_inputs").get()?.n, 0);
+    assert.equal(f.reads, 0); assert.equal(f.store.db.prepare("SELECT COUNT(*) n FROM environment_inputs").get()?.n, storedBeforeRejection);
     const action = await proposeEnvironment(f.config, f.store, f.session, run.id, randomUUID(), [{ ...variable, public: true }], f.signal(), { client: f.client });
     assert.equal(action.spec.version, 9); if (action.spec.version !== 9) return;
     assert.deepEqual(action.spec.secretKeys, []);

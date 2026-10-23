@@ -6,6 +6,7 @@ import { parseEnvironmentSpec } from "../../contracts/environment.ts";
 import { AppError, ensure } from "../errors.ts";
 import { canonical, fingerprint } from "../policy/action.ts";
 import type { Store } from "../persistence/store.ts";
+import { importedSecretValues } from "./import.ts";
 
 function key(secret: string): Buffer {
   ensure(secret.length >= 32, "ENV_STORAGE_UNAVAILABLE", "راه‌اندازی امن نصب را تکمیل کنید.", 503);
@@ -53,14 +54,14 @@ export function projectEnvironmentValues(store: Store, secret: string, actorId: 
 }
 export function projectSecretValues(store: Store, secret: string, actorId: string): string[] {
   const rows = store.db.prepare("SELECT spec FROM actions WHERE actor_id=? AND json_extract(spec,'$.version')=9 ORDER BY rowid DESC LIMIT 128").all(actorId);
-  return [...new Set(rows.flatMap(row => {
+  return [...new Set([...importedSecretValues(secret, store, actorId), ...rows.flatMap(row => {
     const spec = parseEnvironmentSpec(JSON.parse(string(row.spec, 16384)));
     const publicKeys = new Set(spec.keys.filter(key => !spec.secretKeys.includes(key)));
     // Merging a new key must not leave inherited credential-like values exposed in later evidence.
     return openEnvironmentInput(store, secret, actorId, spec, true).filter(value => spec.secretKeys.includes(value.key) ||
       (!publicKeys.has(value.key) && !isPublicClientEnvironmentKey(value.key) && value.value.length >= 8 && /(?:^|_)(?:PRIVATE|TOKEN|SECRET|PASSWORD|API_KEY|ACCESS|AUTH|CREDENTIALS?)(?:_|$)/i.test(value.key)))
       .map(row => row.value).filter(value => value.length >= 4);
-  }))];
+  })])];
 }
 export function saveEnvironmentInput(store: Store, secret: string, actorId: string, spec: EnvironmentSpec,
   values: readonly EnvironmentVariable[], expiresAt: number): void {

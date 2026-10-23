@@ -27,6 +27,7 @@ import { WorkbenchView } from "./WorkbenchView.tsx";
 import { PlatformBadge } from "./PlatformBadge.tsx";
 import { AccordionMotion } from "./AccordionMotion.tsx";
 import { SignOutDialog } from "./SignOutDialog.tsx";
+import { ProjectLibrary } from "./ProjectLibrary.tsx";
 
 type FlowResult = { flow: ProjectFlow | null; action: Action | null };
 type WorkbenchMode="source"|"incident";
@@ -336,6 +337,8 @@ export function Workbench() {
     [flow, setFlow] = useState<ProjectFlow | null>(null),
     [action, setAction] = useState<Action | null>(null);
   const [confirmSignOut, setConfirmSignOut] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const libraryTrigger = useRef<HTMLButtonElement>(null);
   const [token, setToken] = useState(""),
     [manualDirectory, setManualDirectory] = useState(""),
     [port, setPort] = useState("");
@@ -381,6 +384,7 @@ export function Workbench() {
     setAccountsOpen(false);
     setGitHubOpen(false);
     setFolderOpen(false);
+    setLibraryOpen(false);
     setNotice(
       "نشست شما پایان یافته است. دوباره وارد شوید؛ پیشرفت ذخیره‌شده پس از ورود بازیابی می‌شود.",
     );
@@ -893,6 +897,7 @@ export function Workbench() {
           </a>
           {workspace ? (
             <div className="header-actions">
+              <button type="button" className="button-quiet" ref={libraryTrigger} disabled={busy !== null || expired} onClick={() => setLibraryOpen(true)}><FolderIcon />پروژه‌های من</button>
               <button
                 type="button"
                 className="button-quiet"
@@ -1537,7 +1542,7 @@ export function Workbench() {
                 accountReady={connected}
                 appSelected={Boolean(liara?.selectedApp)}
                 projectHash={flow?.profile.sourceHash}
-                blocked={folderOpen || githubOpen || accountsOpen}
+                blocked={folderOpen || githubOpen || accountsOpen || libraryOpen}
                 onLockChanged={setAgentLocked}
                 onChatLockChanged={setChatLocked}
                 projectId={flow?.id ?? null}
@@ -1565,6 +1570,16 @@ export function Workbench() {
                 onSessionExpired={onSessionExpired}
               />
             </WorkbenchView>
+            {libraryOpen ? <ProjectLibrary disabled={disabled}
+              onExpired={onSessionExpired}
+              onClose={() => { setLibraryOpen(false); requestAnimationFrame(() => libraryTrigger.current?.focus()); }}
+              onNew={() => { setLibraryOpen(false); setEditingProject(true); navigate("source"); requestAnimationFrame(() => chooseProjectHeading.current?.focus()); }}
+              onOpen={async id => {
+                if (!workspace || busy) return;
+                const saved = await api("/api/projects/library", decodeFlow, { csrf: workspace.session.csrfToken, body: { id } });
+                applyFlow(saved); await refresh(); setEditingProject(false); setMode("source"); writeLocation("source", saved.flow?.id ?? null);
+                setNotice("پروژه باز شد؛ انتشار تازه‌ای شروع نشده است.");
+              }} /> : null}
             {folderOpen ? (
               <FolderPicker
                 csrf={workspace.session.csrfToken}

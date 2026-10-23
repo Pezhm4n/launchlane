@@ -1,5 +1,7 @@
 # معیارهای پذیرش محصول
 
+زیرکار جاری A03/A07/A08/A17 و AC22/24/32: [پروژه‌های من و import امن تنظیمات](evidence/project-library-and-environment-import.md) API/رابط موجود و منبع ورودی رمز‌شده را پوشش می‌دهد. oracle شامل مرورگر واقعی پوشه، عدم ورود secret به source/result/model، merge/claim/readback، حفظ تاریخچه، عدم مصرف روی بازکردن و رد source/مقصد نامعتبر است. بنا بر تصمیم تازه مالک، انتشار ترتیبی است؛ اجرای هم‌زمان شرط این برش نیست. env زنده، اتصال DB و پذیرش همه runtimeها همچنان شاهد مستقل لازم دارند.
+
 شاهد تازه A03/A04/A05/A06/A08/A17: [پلن مشترک و بازیابی توقف](evidence/destination-choice-and-resume.md) و [انتخاب Codex در محصول تا انتشار واقعی](evidence/codex-product-publication.md) مرز قبلی انتخاب عامل/انتشار زنده را برای یک case بومی Node22 می‌بندند. همین مأموریت و بودجه، source بارگذاری‌شده، خطای واقعیِ پیش از انتشار، patch خارجی، آزمون مستقل، artifact مشتق و release جاری بررسی شدند. همه۱۴خانواده، DB، ساختارهای متفاوت، داشبورد چندپروژه و اجرای موازی همچنان بازند؛ status کامل از یک case نتیجه نمی‌شود.
 
 شاهد قبلی A06/AC26: [اجرای واقعی Codex و patch با آزمون مستقل](evidence/codex-executable-worker.md) از اتصال MCP جداست. publication آن مصنوعی بود و در آن برش، انتخاب عامل در محصول، fallback مجاز و انتشار زنده با connector هنوز UNCONFIRMED بودند. هزینه اشتراک نامعلوم و failureهای decoder/accounting حفظ شده‌اند.

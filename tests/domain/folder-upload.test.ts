@@ -17,13 +17,13 @@ function request(paths: string[], contents = paths.map(() => "hello"), extra?: (
   for (const [index, path] of paths.entries()) form.set(`file-${index}`, new Blob([contents[index] || ""]), path.split("/").at(-1));
   extra?.(form); return new Request("http://localhost/api/projects/upload", { method: "POST", body: form });
 }
-test("folder preview excludes private files and dependencies before constructing the request", () => {
+test("folder preview separates private environment inputs from source and excludes dependencies", () => {
   const plan = planFolderUpload([
     { path: "project/package.json", size: 80 }, { path: "project/src/server.mjs", size: 120 },
     { path: "project/.env.local", size: 100 }, { path: "project/node_modules/pkg/index.js", size: 500 },
     { path: "project/.git/config", size: 100 }, { path: "project/database.sqlite", size: 300 },
   ]);
-  assert.deepEqual(plan, { name: "project", files: [{ index: 0, path: "package.json" }, { index: 1, path: "src/server.mjs" }], bytes: 200, excluded: 4 });
+  assert.deepEqual(plan, { name: "project", files: [{ index: 0, path: "package.json" }, { index: 1, path: "src/server.mjs" }], bytes: 200, excluded: 4, environmentFiles: [{ index: 2, name: ".env.local" }] });
   assert.throws(() => planFolderUpload([{ path: "project/../outside.js", size: 1 }]), code("UNSAFE_PATH"));
   assert.throws(() => planFolderUpload([{ path: "project/a.js", size: SOURCE_MAX_FILE_BYTES + 1 }]), code("SOURCE_LIMIT"));
   assert.throws(() => planFolderUpload([{ path: "project/a.js", size: 1 }, { path: "project/A.js", size: 1 }]), code("INVALID_FOLDER"));

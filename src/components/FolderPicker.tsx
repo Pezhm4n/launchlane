@@ -71,10 +71,14 @@ export function FolderPicker({
     if (!chosen || uploading) return;
     const controller = new AbortController(); pending.current = controller;
     const form = new FormData();
-    form.set("manifest", JSON.stringify({ name: chosen.plan.name, paths: chosen.plan.files.map(file => file.path) }));
+    form.set("manifest", JSON.stringify({ name: chosen.plan.name, paths: chosen.plan.files.map(file => file.path), environmentFiles: chosen.plan.environmentFiles.map(file => file.name) }));
     for (const [index, file] of chosen.plan.files.entries()) {
       const selected = chosen.files[file.index];
       if (selected) form.set(`file-${index}`, selected, selected.name);
+    }
+    for (const [index, file] of chosen.plan.environmentFiles.entries()) {
+      const selected = chosen.files[file.index];
+      if (selected) form.set(`environment-${index}`, selected, file.name);
     }
     setUploading(true); setError(null);
     try { if (await onUpload(form, controller.signal)) exit(onImported); }
@@ -118,12 +122,13 @@ export function FolderPicker({
             event.currentTarget.value = "";
           }} />
         <button type="button" className={chosen ? "button-secondary" : undefined} disabled={uploading} onClick={() => deviceInput.current?.click()}><FolderIcon />{chosen ? "انتخاب پوشه‌ای دیگر از رایانه" : "انتخاب پوشه از رایانه"}</button>
-        <p className="hint">فایل‌های خصوصی مانند <bdi>.env</bdi> و پوشه‌های وابستگی وارد نمی‌شوند. فعلاً چیزی به لیارا ارسال نمی‌شود.</p>
+        <p className="hint">تنظیمات <bdi>.env</bdi> جدا و رمزگذاری‌شده دریافت می‌شوند؛ وارد بستهٔ کد یا گفت‌وگو نمی‌شوند. فعلاً چیزی به لیارا ارسال نمی‌شود.</p>
       </section>
       {chosen ? <section className="folder-import-preview" aria-labelledby="folder-import-title">
         <div className="section-heading"><h3 id="folder-import-title" ref={preview} tabIndex={-1}><FolderIcon /><bdi>{chosen.plan.name}</bdi></h3><span className="badge badge-quiet">آمادهٔ بررسی محلی</span></div>
         <p>{new Intl.NumberFormat("fa-IR").format(chosen.plan.files.length)} فایل قابل بررسی · {new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 1 }).format(chosen.plan.bytes / 1024)} کیلوبایت</p>
-        {chosen.plan.excluded ? <p className="hint">{new Intl.NumberFormat("fa-IR").format(chosen.plan.excluded)} فایل خصوصی یا اضافی کنار گذاشته شد.</p> : null}
+        {chosen.plan.excluded ? <p className="hint">{new Intl.NumberFormat("fa-IR").format(chosen.plan.excluded)} فایل خصوصی یا اضافی از بستهٔ کد کنار گذاشته شد.</p> : null}
+        {chosen.plan.environmentFiles.length ? <p className="note">تنظیمات از {chosen.plan.environmentFiles.map(file => <bdi key={file.name}> {file.name} </bdi>)} امن دریافت می‌شوند. پیش از اعمال، مقصد و نام تنظیمات را مرور می‌کنید؛ نیازی به کپی مقدارها نیست.</p> : null}
         <button type="button" disabled={uploading} onClick={() => void upload()}><WorkspaceGlyph name={uploading ? "search" : "arrow"} />{uploading ? "در حال ورود و بررسی فایل‌ها…" : "بررسی این پروژه"}</button>
       </section> : null}
       {error ? <div role="alert" className="note note-danger"><p>{error}</p></div> : null}

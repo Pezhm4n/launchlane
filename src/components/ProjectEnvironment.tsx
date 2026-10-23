@@ -15,6 +15,7 @@ export function ProjectEnvironment({ runId, csrf, disabled, onContinue, onLockCh
     [values, setValues] = useState<Record<string, string>>({}), [busy, setBusy] = useState(false), [loading, setLoading] = useState(true), [error, setError] = useState<string | null>(null);
   const key = useRef<string | null>(null);
   const [publicNames, setPublicNames] = useState<Record<string, boolean>>({});
+  const [imported, setImported] = useState<{ available: string[]; needsReview: string[]; publicKeys: string[] }>({ available: [], needsReview: [], publicKeys: [] });
   const failed = useCallback((cause: unknown) => {
     if (cause instanceof ClientError && cause.code === "AUTH_REQUIRED") onExpired();
     else setError(cause instanceof ClientError ? cause.message : "ارتباط کامل نشد؛ وضعیت ثبت‌شده را دریافت کنید.");
@@ -23,10 +24,13 @@ export function ProjectEnvironment({ runId, csrf, disabled, onContinue, onLockCh
     const data = await api(`/api/project-environment?run=${runId}`, value => {
       const row = object(value);
       if (!Array.isArray(row.names)) throw new ClientError("INVALID_RESPONSE", "فهرست اطلاعات لازم معتبر نیست.");
-      return { names: row.names.map(environmentKey), app: string(row.app, 63), action: row.action === null ? null : decodeAction(row.action) };
+      const source = object(row.imported), keys = (value: unknown) => { if (!Array.isArray(value)) throw new ClientError("INVALID_RESPONSE", "فهرست تنظیمات معتبر نیست."); return value.map(environmentKey); };
+      return { names: row.names.map(environmentKey), app: string(row.app, 63), action: row.action === null ? null : decodeAction(row.action),
+        imported: { available: keys(source.available), needsReview: keys(source.needsReview), publicKeys: keys(source.publicKeys) } };
     }, { ...(signal ? { signal } : {}) });
     if (signal?.aborted) return;
     setNames(data.names); setApp(data.app); setAction(data.action);
+    setImported(data.imported);
     if (data.action && ["cancelled", "expired", "failed"].includes(data.action.state)) key.current = null;
   }, [runId]);
   useEffect(() => {
@@ -62,12 +66,25 @@ export function ProjectEnvironment({ runId, csrf, disabled, onContinue, onLockCh
     catch (cause) { failed(cause); await load().catch(failed); key.current = null; }
     finally { setBusy(false); }
   }
+  async function reviewImported() {
+    if (busy || disabled) return;
+    key.current ??= crypto.randomUUID(); setBusy(true); setError(null);
+    try { setAction(await api("/api/project-environment", result, { csrf, body: { operation: "propose-import", runId, requestKey: key.current,
+      publicKeys: imported.publicKeys.filter(name => publicNames[name]) } })); }
+    catch (cause) { failed(cause); await load().catch(failed); key.current = null; }
+    finally { setBusy(false); }
+  }
   return <section className="agent-repair" aria-labelledby="environment-title">
     <h3 id="environment-title">اطلاعات امن برنامه</h3>
     <p>مقصد: <bdi>{app || "در حال دریافت…"}</bdi>. مقدارها وارد گفت‌وگو و سابقه عمومی نمی‌شوند. برای حفظ مقدار فعلی، کادر آن را خالی بگذارید.</p>
     {loading ? <p role="status">در حال بازیابی وضعیت…</p> : null}
     {error ? <p className="note" role="alert">{error}</p> : null}
     {!loading && (!action || ["cancelled", "expired", "failed"].includes(action.state)) ? <form onSubmit={event => void submit(event)} autoComplete="off">
+      {imported.available.length ? <div className="note"><p>این تنظیمات از پوشهٔ شما امن دریافت شده‌اند؛ لازم نیست مقدارها را دوباره وارد کنید: {imported.available.map(name => <bdi key={name}> {name} </bdi>)}</p>
+        {imported.publicKeys.filter(name => imported.available.includes(name)).map(name => <label key={name} className="radio-option"><input type="checkbox" checked={publicNames[name] === true} onChange={event => setPublicNames(current => ({ ...current, [name]: event.target.checked }))} disabled={disabled || busy} />مقدار <bdi>{name}</bdi> عمومی است و در سایت دیده می‌شود.</label>)}
+        <button type="button" disabled={disabled || busy || imported.publicKeys.filter(name => imported.available.includes(name)).some(name => !publicNames[name])} onClick={() => void reviewImported()}>مرور و استفاده از تنظیمات پوشه</button></div> : null}
+      {imported.needsReview.length ? <p className="note">این تنظیمات پیش از استفاده در سایت زنده نیاز به بررسی دارند: {imported.needsReview.map(name => <bdi key={name}> {name} </bdi>)}. نشانی محلی، مقدار کوتاه یا ارجاع به متغیر دیگر خودکار اعمال نمی‌شود.</p> : null}
+      <details open={!imported.available.length}><summary>واردکردن یا تغییر دستی مقدارها</summary>
       {names.map(name => <div key={name}><label htmlFor={`environment-${name}`}><bdi>{name}</bdi></label>
         <input id={`environment-${name}`} type="password" autoComplete="new-password" dir="ltr" minLength={publicNames[name] ? 0 : 4} maxLength={4096} value={values[name] ?? ""}
           aria-describedby={isPublicClientEnvironmentKey(name) ? `visibility-${name}` : undefined}
@@ -76,6 +93,7 @@ export function ProjectEnvironment({ runId, csrf, disabled, onContinue, onLockCh
         <label className="radio-option"><input type="checkbox" aria-label={`عمومی بودن ${name}`} checked={publicNames[name] === true} onChange={event => setPublicNames(current => ({ ...current, [name]: event.target.checked }))} disabled={disabled || busy} />این مقدار عمومی است؛ مثلاً روشن/خاموش</label></div>)}
       <p className="hint">مقدار محرمانه دست‌کم ۴ نویسه دارد. متغیرهای اجرایی مانند PORT توسط تنظیمات اجرا کنترل می‌شوند.</p>
       <button type="submit" disabled={disabled || busy || !names.some(name => values[name]) || names.some(name => values[name] && isPublicClientEnvironmentKey(name) && !publicNames[name])}>مرور تغییر اطلاعات برنامه</button>
+      </details>
     </form> : null}
     {action?.spec.version === 9 ? <>
       <p>کلیدهای این تغییر: {action.spec.keys.map(name => <bdi key={name} className="environment-key"> {name} </bdi>)}. سایر کلیدهای موجود حفظ می‌شوند.</p>

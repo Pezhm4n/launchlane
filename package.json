@@ -31,7 +31,8 @@
     "test:chat": "node scripts/test-chat-browser.mjs",
     "test:platforms": "node scripts/test-platform-browser.mjs",
     "test:networks": "node scripts/test-network-browser.mjs",
-    "test:destination-plans": "node scripts/test-destination-plans-browser.mjs"
+    "test:destination-plans": "node scripts/test-destination-plans-browser.mjs",
+    "test:projects": "node scripts/test-project-library-browser.mjs"
   },
   "dependencies": {
     "next": "16.4.2",

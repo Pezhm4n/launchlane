@@ -8,7 +8,7 @@ import { gunzipSync } from "node:zlib";
 import { agentFixture } from "../helpers/agent-fixture.ts";
 import { prepareProjectFlow } from "../../src/server/application/project-flows.ts";
 import { createPublicationMission, resumePublicationMission } from "../../src/server/application/publication-mission.ts";
-import { proposeEnvironment, executeEnvironment, observeEnvironment } from "../../src/server/application/environment.ts";
+import { proposeImportedEnvironment, executeEnvironment, observeEnvironment } from "../../src/server/application/environment.ts";
 import { sealCredential } from "../../src/server/connections/credentials.ts";
 import { connectedLiaraConfig } from "../../src/server/connections/liara.ts";
 import { LiaraEnvironmentClient } from "../../src/server/liara/environment.ts";
@@ -18,7 +18,7 @@ import { driveAgentRun, decideAgentRepair } from "../../src/server/agent/runs.ts
 import { currentEnvironment } from "../../src/server/environment/secrets.ts";
 import { readArtifact } from "../../src/server/workspace/archive.ts";
 
-test("the same guided mission injects only the approved environment into real isolated build/test/start and retains no secret artifact", async () => {
+test("the same guided mission imports its folder environment into real isolated build/test/start and retains no secret artifact", async () => {
   const f = await agentFixture(), secret = "synthetic-isolated-build-environment", expectedHash = createHash("sha256").update(secret).digest("hex");
   const signal = () => AbortSignal.timeout(120000);
   try {
@@ -29,6 +29,7 @@ test("the same guided mission injects only the approved environment into real is
     writeFileSync(join(f.project, "build.mjs"), check + "import{writeFileSync}from'node:fs';writeFileSync('.build-check','built');console.log(process.env.SERVICE_ACCESS);\n");
     writeFileSync(join(f.project, "environment.test.mjs"), check + "import{readFileSync}from'node:fs';import{test}from'node:test';test('the original build and environment criterion',()=>assert.equal(readFileSync('.build-check','utf8'),'built'));\n");
     writeFileSync(join(f.project, "server.mjs"), check + "import http from'node:http';import{readFileSync}from'node:fs';const ready=readFileSync('.build-check','utf8')==='built';http.createServer((_req,res)=>res.end(ready?'environment build ready':'not ready')).listen(3000);\n");
+    writeFileSync(join(f.project, ".env"), `SERVICE_ACCESS=${secret}\nPORT=9876\n`);
     const flow = await prepareProjectFlow(config, f.store, actor, { kind: "local", directory: "service" }, signal());
     f.store.saveConnection(actor, { source: "token", ciphertext: sealCredential("synthetic-environment-build-provider-credential", config.sessionSecret, actor, "liara"), view: {
       provider: "liara", status: "connected", identityId: "b".repeat(24), teamId: config.teamId, teamName: "تیم آزمون", displayName: "آزمون", login: "test@example.test", checkedAt: Date.now(),
@@ -40,7 +41,7 @@ test("the same guided mission injects only the approved environment into real is
       if (options.method === "POST") { values = JSON.parse(String(options.body)).variables; cloudWrites++; return new Response(""); }
       return Response.json({ project: { _id: "c".repeat(24), project_id: "environment-build", type: "node", planID: "g2-standard", envs: values } });
     });
-    const env = await proposeEnvironment(config, f.store, f.session, run.id, randomUUID(), [{ key: "SERVICE_ACCESS", value: secret }], signal(), { client });
+    const env = await proposeImportedEnvironment(config, f.store, f.session, run.id, randomUUID(), [], signal(), { client });
     f.store.decide(env.id, actor, f.session.id, env.hash, "approve"); await executeEnvironment(config, f.store, f.session, env.id, signal(), { client }); await observeEnvironment(config, f.store, f.session, env.id, signal(), { client });
     const before = repo.get(actor, run.id); assert.ok(before); await resumePublicationMission(config, f.store, f.session, run.id, before.revision, randomUUID(), signal());
     let turn = 0;

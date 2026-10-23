@@ -1,5 +1,11 @@
 # برنامه اجرایی Launchlane
 
+## پروژه‌های من و تنظیمات پوشه؛ A03/A07/A08/A17 / ۲۰۲۶-۱۰-۲۳
+
+خواست تازهٔ مالک: انتشارها ترتیبی بمانند؛ اجرای موازی جزو این برش نیست. «پروژه‌های من» به هدر موجود و API scoped وصل شده است؛ فهرست/refresh/open مصرف مدل یا write ابری نمی‌سازند. بازکردن نسخهٔ دیگر، source/archive و مقصد مجاز را بررسی و در transaction، اختیارهای استفاده‌نشده را باطل می‌کند. سابقه و بودجه حفظ می‌شوند؛ نتیجهٔ نامعلوم مانع جابه‌جایی است. زیرکار داشبورد A03/A17 اکنون implemented_verified (local) است؛ candidate27 با361domain/38HTTP/10حالت رابط جدید/2عرض پوشه/54guided و build/type/lint بدونerror گذشت. [شاهد](docs/evidence/project-library-and-environment-import.md) هویت candidate و failureهای واقعی را نگه می‌دارد؛ reader تازه هنوز UNCONFIRMED است.
+
+زیرکار A07/AC22: `.env` ریشهٔ پوشهٔ مرورگر جدا از source دریافت می‌شود؛ پوشهٔ مجاز نصب نیز با خواندن bounded و بدون اجرای script پشتیبانی می‌شود. ورودی actor/source-bound رمزگذاری‌شده، نام‌های قابل مرور و «استفاده از تنظیمات پوشه» به همان v9 merge/approval/readback و reference ساخت وصل‌اند؛ source activation و ذخیره امن اتمیک‌اند. تنظیمات اجرایی، localhost، interpolation و public prefix کنترل جدا دارند. import و اتصال مشترک implemented_verified در مرز محلی/provider مصنوعی‌اند؛ یک container واقعی Node22 با همین ورودی پوشه، install/build/test/start/HTTP و artifact/redaction را گذراند. اتصال DB، env زنده و همهٔ فایل/نسخه/frameworkها از آن نتیجه نمی‌شوند. [ADR0022](docs/decisions/0022-project-library-and-private-environment-import.md) قرارداد و مرزها را ثبت می‌کند. A05/A08/AC22 کلی partial می‌مانند. مصرف مدل/لیارای تازه در این برش صفر است؛ allowance تمدید نشد.
+
 ## پلن مشترک، توقف و Codex تا نسخه سالم؛ A03/A04/A05/A06/A08/A17 / ۲۰۲۶-۱۰-۲۳
 
 پلن source-bound و گزینه‌های قیمت‌دار از همان catalog، تغییر اتمیک پیشنهاد/رضایت، حساب خالی بدون الزام کنسول لیارا، ادامه همان run پس از توقف، successor اختیار پس از لغو و migration15 پیاده‌اند. دستیار برای سؤال قیمت همان ابزارهای catalog/quote را دارد؛ کنترل انتشار در دستیار همان پنل و callbackهای صفحه را منتقل می‌کند و مأموریت دوم نمی‌سازد. [ADR0021](docs/decisions/0021-destination-choice-and-resume.md) و [شاهد انتخاب/بازیابی](docs/evidence/destination-choice-and-resume.md) failureها و مرزها را نگه می‌دارند. ظرفیت اندازه‌گیری‌نشده است؛ پیشنهاد کم‌هزینه تضمین ظرفیت نیست.

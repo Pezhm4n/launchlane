@@ -11,8 +11,18 @@ import type { Store } from "../persistence/store.ts";
 import { RunBudget } from "../policy/budget.ts";
 import { restoreProjectFlow, validateProjectAction } from "./project-flows.ts";
 import { object, exactKeys } from "../../contracts/validation.ts";
+import { importedEnvironment, importedEnvironmentReview } from "../environment/import.ts";
 
 type Dependencies = { client?: LiaraEnvironmentClient };
+export async function proposeImportedEnvironment(config: Config, store: Store, session: Session, runId: string, requestKey: string,
+  publicKeys: readonly string[], signal: AbortSignal, deps: Dependencies = {}): Promise<Action> {
+  const { flow } = environmentContext(config, store, session.actorId, runId), review = importedEnvironmentReview(config, store, session.actorId, flow);
+  ensure(publicKeys.every(key => review.publicKeys.includes(key)), "ENV_SCOPE_DENIED", "انتخاب متغیر عمومی معتبر نیست.", 409);
+  ensure(review.available.length > 0 && review.publicKeys.filter(key => review.available.includes(key)).every(key => publicKeys.includes(key)),
+    "ENV_REVIEW_REQUIRED", "عمومی‌بودن تنظیمات مرورگر را تأیید کنید؛ نشانی‌های محلی جدا تکمیل می‌شوند.", 409);
+  const values = importedEnvironment(config, store, session.actorId, flow.id).filter(row => review.available.includes(row.key));
+  return proposeEnvironment(config, store, session, runId, requestKey, values.map(row => ({ ...row, public: publicKeys.includes(row.key) })), signal, deps);
+}
 const processState = globalThis as typeof globalThis & { launchlaneEnvironmentOperations?: Set<string> };
 export function environmentContext(config: Config, store: Store, actorId: string, runId: string) {
   const run = new AgentRepository(store).get(actorId, runId);

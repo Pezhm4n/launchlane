@@ -21,8 +21,8 @@ import {
 } from "./paths.ts";
 export { excludedPath } from "./paths.ts";
 
-async function readSafeFile(root: string, path: string): Promise<Buffer> {
-  const relativePath = relative(root, path).split(sep).join("/"), limit = sourceFileByteLimit(relativePath);
+export async function readSafeFile(root: string, path: string, maxBytes?: number): Promise<Buffer> {
+  const relativePath = relative(root, path).split(sep).join("/"), limit = maxBytes ?? sourceFileByteLimit(relativePath);
   const resolved = await realpath(path);
   ensure(under(root, resolved), "UNSAFE_PATH", "فایل بیرون workspace است.", 403);
   const before = await lstat(path);

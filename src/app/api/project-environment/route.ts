@@ -1,4 +1,5 @@
-import { environmentContext, executeEnvironment, observeEnvironment, proposeEnvironment } from "../../../server/application/environment.ts";
+import { environmentContext, executeEnvironment, observeEnvironment, proposeEnvironment, proposeImportedEnvironment } from "../../../server/application/environment.ts";
+import { importedEnvironmentReview } from "../../../server/environment/import.ts";
 import { validateProjectAction } from "../../../server/application/project-flows.ts";
 import { openEnvironmentInput } from "../../../server/environment/secrets.ts";
 import { endpoint, jsonBody, reply } from "../../../server/http.ts";
@@ -16,13 +17,19 @@ export async function GET(request: Request) {
     store.listActions(session.actorId);
     const row = store.db.prepare("SELECT id FROM actions WHERE actor_id=? AND json_extract(spec,'$.version')=9 AND json_extract(spec,'$.agentRunId')=? ORDER BY rowid DESC LIMIT 1").get(session.actorId, id);
     return reply({ names: flow.profile.envNames.filter(isApplicationEnvironmentKey), app: target.app,
+      imported: importedEnvironmentReview(config, store, session.actorId, flow),
       action: row ? store.getAction(String(row.id), session.actorId) : null });
   });
 }
 export async function POST(request: Request) {
   return endpoint(request, true, async ({ config, store, session }) => {
     const input = object(await jsonBody(request));
-    ensure(["propose", "decision", "execute", "observe"].includes(String(input.operation)), "INVALID_OPERATION", "عملیات معتبر نیست.");
+    ensure(["propose", "propose-import", "decision", "execute", "observe"].includes(String(input.operation)), "INVALID_OPERATION", "عملیات معتبر نیست.");
+    if (input.operation === "propose-import") {
+      exactKeys(input, ["operation", "runId", "requestKey", "publicKeys"]);
+      ensure(Array.isArray(input.publicKeys) && input.publicKeys.length <= 32 && input.publicKeys.every(key => typeof key === "string"), "INVALID_INPUT", "انتخاب متغیرهای عمومی معتبر نیست.");
+      return reply({ action: await proposeImportedEnvironment(config, store, session, string(input.runId, 36), string(input.requestKey, 36), input.publicKeys, request.signal) });
+    }
     if (input.operation === "propose") {
       exactKeys(input, ["operation", "runId", "requestKey", "variables"]);
       return reply({ action: await proposeEnvironment(config, store, session, string(input.runId, 36), string(input.requestKey, 36), input.variables, request.signal) });

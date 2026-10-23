@@ -17,6 +17,7 @@ import { prepareArchive } from "./prepare-source.ts";
 import { parseCodeRepairJob } from "../../contracts/code-repair.ts";
 import { object, string } from "../../contracts/validation.ts";
 import { projectEnvironmentValues, projectSecretValues } from "../environment/secrets.ts";
+import { localEnvironmentFiles, saveImportedEnvironment } from "../environment/import.ts";
 
 let preparing = false;
 export function projectRoot(
@@ -53,6 +54,8 @@ export async function prepareProjectFlow(
   github?: GitHubClient,
   ownerRunId?: string,
   uploadedFiles?: readonly SourceFile[],
+  onCreated?: (flow: ProjectFlow) => void,
+  importedSecrets: readonly string[] = [],
 ): Promise<ProjectFlow> {
   ensure(
     !preparing,
@@ -107,6 +110,8 @@ export async function prepareProjectFlow(
     }
     const location = projectRoot(config, { id, selection }),
       privateValues = secrets(config, store, actorId);
+    const localEnvironment = selection.kind === "local" ? await localEnvironmentFiles(location.root, location.directory, signal) : [];
+    privateValues.push(...importedSecrets, ...localEnvironment.filter(row => !row.key.startsWith("NEXT_PUBLIC_") && row.value.length >= 8).map(row => row.value));
     const profile = await inspectProject(location.root, location.directory, {
       signal,
       secrets: privateValues,
@@ -146,7 +151,7 @@ export async function prepareProjectFlow(
           : "پوشه همان برنامه Node با start مشخص یا Python با فرمان مستقیم و تنظیمات معتبر را انتخاب کنید؛ در پروژه چندبخشی، زیرپوشه همان برنامه لازم است.",
       updatedAt: Date.now(),
       actionId: null,
-    });
+    }, flow => { saveImportedEnvironment(config, store, actorId, flow, localEnvironment); onCreated?.(flow); });
   } catch (error) {
     if (imported) {
       try {

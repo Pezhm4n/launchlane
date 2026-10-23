@@ -6,6 +6,9 @@ import { chromium } from "playwright";
 import AxeBuilder from "@axe-core/playwright";
 import { startTestServer } from "./test-server.mjs";
 import { editProject, reviewProject } from "./browser-project.mjs";
+import { createHash } from "node:crypto";
+import { Store } from "../src/server/persistence/store.ts";
+import { importedEnvironment } from "../src/server/environment/import.ts";
 
 const directory = await mkdtemp(join(tmpdir(), "launchlane-native-folder-"));
 const server = await startTestServer({ workspaceConfigured: false });
@@ -58,9 +61,19 @@ try {
   }
   assert.equal(requests.length, 2);
   for (const body of requests) {
-    assert.ok(!body.includes(Buffer.from("PRIVATE_MARKER_MUST_STAY_ON_DEVICE")));
+    assert.ok(body.includes(Buffer.from('name="environment-0"')), "Environment input travels separately from source files under the authenticated upload");
     assert.ok(!body.includes(Buffer.from("DEPENDENCY_MARKER_MUST_STAY_ON_DEVICE")));
   }
+  const store = new Store(join(server.stateDir, "state.sqlite")), actor = createHash("sha256").update(server.token).digest("hex").slice(0, 24);
+  try {
+    const flows = store.db.prepare("SELECT id FROM project_flows WHERE actor_id=?").all(actor);
+    assert.equal(flows.length, 2);
+    for (const { id } of flows) {
+      assert.deepEqual(importedEnvironment({ sessionSecret: server.sessionSecret }, store, actor, id), [{ key: "PRIVATE_MARKER_MUST_STAY_ON_DEVICE", value: "fixture-only" }]);
+      assert.equal(store.getProjectFlow(actor, id).profile.manifest.some(file => file.path.startsWith(".env")), false);
+    }
+    assert.equal(JSON.stringify(store.db.prepare("SELECT * FROM environment_inputs").all()).includes("PRIVATE_MARKER_MUST_STAY_ON_DEVICE"), false);
+  } finally { store.close(); }
   assert.deepEqual(errors, []); assert.deepEqual(external, []);
   const result = { states, externalRequests: external.length, pageErrors: errors.length, output };
   await writeFile(join(output, "results.json"), JSON.stringify(result, null, 2)); console.log(JSON.stringify(result));

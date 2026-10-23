@@ -3,10 +3,13 @@ import { exactKeys, object, string } from "../../contracts/validation.ts";
 import { AppError, ensure } from "../errors.ts";
 import { checkName, excludedPath, sourceFileAllowed } from "./paths.ts";
 import type { SourceFile } from "./inspect.ts";
+import { environmentFileMaxBytes, isEnvironmentFile } from "../../contracts/environment-files.ts";
+import { parseEnvironmentFiles } from "../environment/import.ts";
+import type { EnvironmentVariable } from "../../contracts/environment.ts";
 
 const requestLimit = SOURCE_MAX_BYTES + 1024 * 1024;
 
-export async function readFolderUpload(request: Request): Promise<{ name: string; files: SourceFile[] }> {
+export async function readFolderUpload(request: Request): Promise<{ name: string; files: SourceFile[]; environment: EnvironmentVariable[] }> {
   const type = request.headers.get("content-type") || "";
   ensure(/^multipart\/form-data; boundary=/i.test(type), "INVALID_CONTENT_TYPE", "پوشه باید با انتخاب‌گر فایل وارد شود.", 415);
   ensure(Number(request.headers.get("content-length") || 0) <= requestLimit, "SOURCE_LIMIT", "حجم پوشه بیشتر از سقف مجاز است.", 413);
@@ -35,11 +38,14 @@ export async function readFolderUpload(request: Request): Promise<{ name: string
   ensure(typeof manifest === "string" && manifest.length <= 256 * 1024, "INVALID_UPLOAD", "فهرست فایل‌ها معتبر نیست.");
   let parsed: unknown;
   try { parsed = JSON.parse(manifest); } catch { throw new AppError("INVALID_UPLOAD", "فهرست فایل‌ها معتبر نیست."); }
-  const row = object(parsed); exactKeys(row, ["name", "paths"]);
+  const row = object(parsed); exactKeys(row, ["name", "paths", "environmentFiles"]);
+  ensure(row.environmentFiles === undefined || Array.isArray(row.environmentFiles) && row.environmentFiles.length <= 4, "INVALID_ENV_FILE", "فهرست فایل تنظیمات معتبر نیست.");
+  const environmentNames: unknown[] = Array.isArray(row.environmentFiles) ? row.environmentFiles : [];
+  ensure(environmentNames.every(name => typeof name === "string" && isEnvironmentFile(name)) && new Set(environmentNames).size === environmentNames.length, "INVALID_ENV_FILE", "فهرست فایل تنظیمات معتبر نیست.");
   const name = string(row.name, 160); checkName(name);
   ensure(Array.isArray(row.paths) && row.paths.length > 0 && row.paths.length <= SOURCE_MAX_FILES, "SOURCE_LIMIT", "پوشه باید بین یک تا هزار فایل قابل بررسی داشته باشد.", 413);
   const paths = row.paths.map(value => string(value, 240));
-  const expected = new Set(["manifest", ...paths.map((_, index) => `file-${index}`)]);
+  const expected = new Set(["manifest", ...paths.map((_, index) => `file-${index}`), ...environmentNames.map((_, index) => `environment-${index}`)]);
   ensure([...data.keys()].length === expected.size && [...data.keys()].every(key => expected.has(key)), "INVALID_UPLOAD", "تعداد فایل‌ها با فهرست پوشه برابر نیست.");
   const seen = new Set<string>(), files: SourceFile[] = [];
   let sourceBytes = 0;
@@ -56,5 +62,14 @@ export async function readFolderUpload(request: Request): Promise<{ name: string
     ensure(sourceBytes <= SOURCE_MAX_BYTES, "SOURCE_LIMIT", "فایل‌های قابل بررسی باید کمتر از ۲۰ مگابایت باشند.", 413);
     files.push({ path, content: Buffer.from(await file.arrayBuffer()) });
   }
-  return { name, files };
+  const environmentFiles = [];
+  for (const [index, name] of environmentNames.entries()) {
+    const file = data.get(`environment-${index}`);
+    ensure(typeof name === "string" && file instanceof File && file.size <= environmentFileMaxBytes, "INVALID_ENV_FILE", "فایل تنظیمات معتبر نیست یا بیش از حد بزرگ است.");
+    let content: string;
+    try { content = new TextDecoder("utf-8", { fatal: true }).decode(await file.arrayBuffer()); }
+    catch { throw new AppError("INVALID_ENV_FILE", "فایل تنظیمات باید متن UTF-8 معتبر باشد؛ مقدارها تغییر داده نمی‌شوند."); }
+    environmentFiles.push({ name, content });
+  }
+  return { name, files, environment: parseEnvironmentFiles(environmentFiles) };
 }

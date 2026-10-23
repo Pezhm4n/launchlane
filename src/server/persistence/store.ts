@@ -225,7 +225,7 @@ export class Store {
       this.invalidatePendingAgentDecisions(actorId);
     });
   }
-  saveProjectFlow(actorId: string, input: ProjectFlow): ProjectFlow {
+  saveProjectFlow(actorId: string, input: ProjectFlow, onCreated?: (flow: ProjectFlow) => void): ProjectFlow {
     const flow = parseProjectFlow(input);
     ensure(
       flow.selectionHash === fingerprint(flow.selection) && !flow.actionId,
@@ -255,7 +255,33 @@ export class Store {
           "INSERT INTO operator_progress VALUES (?,?) ON CONFLICT(actor_id) DO UPDATE SET project_flow_id=excluded.project_flow_id",
         )
         .run(actorId, flow.id);
+      onCreated?.(flow);
       return flow;
+    });
+  }
+  activateProjectFlow(actorId: string, id: string, target: { accountId: string; teamId: string; appId: string; app: string } | null): void {
+    this.transaction(() => {
+      const flow = this.getProjectFlow(actorId, id);
+      ensure(flow, "NOT_FOUND", "این پروژه پیدا نشد.", 404);
+      if (this.getProjectFlow(actorId)?.id === id) return;
+      this.assertAgentIdle(actorId, null, true);
+      ensure(!this.db.prepare("SELECT job_id FROM coding_agent_executions WHERE actor_id=? AND state IN ('dispatched','uncertain') LIMIT 1").get(actorId),
+        "UNRESOLVED_EFFECT", "نتیجهٔ اصلاح بیرونی هنوز مشخص نیست؛ ابتدا همان اجرا را بررسی کنید.", 409);
+      ensure(!this.db.prepare("SELECT id FROM actions WHERE actor_id=? AND state IN ('executing','observing','uncertain') LIMIT 1").get(actorId),
+        "UNRESOLVED_EFFECT", "ابتدا نتیجهٔ عملیات قبلی را مشخص کنید؛ پروژه عوض نشد.", 409);
+      const connection = this.getConnection(actorId, "liara");
+      if (target) ensure(connection?.view.identityId === target.accountId && connection.view.teamId === target.teamId &&
+        connection.view.apps.some(app => app.id === target.appId && app.name === target.app),
+        "PROJECT_ACCESS_CHANGED", "حساب یا مقصد این پروژه در اتصال فعلی در دسترس نیست؛ حساب‌ها را بررسی کنید.", 409);
+      this.invalidatePendingAgentDecisions(actorId);
+      for (const row of this.db.prepare("SELECT id FROM actions WHERE actor_id=? AND state IN ('awaiting_approval','approved') AND attempt_id IS NULL").all(actorId)) {
+        const action = this.getAction(string(row.id, 36), actorId);
+        this.db.prepare("UPDATE actions SET state='cancelled',error_code='PROJECT_CHANGED' WHERE id=? AND actor_id=?").run(action.id, actorId);
+        this.audit(action, "project_invalidated", Date.now());
+      }
+      this.db.prepare("UPDATE mission_authorities SET state='revoked' WHERE actor_id=? AND state IN ('proposed','approved')").run(actorId);
+      if (connection) this.saveConnection(actorId, { ...connection, view: { ...connection.view, selectedApp: target?.app ?? null } });
+      this.db.prepare("INSERT INTO operator_progress VALUES (?,?) ON CONFLICT(actor_id) DO UPDATE SET project_flow_id=excluded.project_flow_id").run(actorId, id);
     });
   }
   staleProjectFlow(
