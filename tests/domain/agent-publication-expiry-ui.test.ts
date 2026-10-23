@@ -12,6 +12,7 @@ import type * as PublicationModule from "../../src/components/AgentPublication.t
 const source = await readFile(resolve("src/components/AgentPublication.tsx"), "utf8");
 const code = transpileModule(source, { compilerOptions: { module: ModuleKind.ESNext, jsx: JsxEmit.ReactJSX } }).outputText
   .replace('"react/jsx-runtime"', JSON.stringify(import.meta.resolve("react/jsx-runtime")))
+  .replace('"react"', JSON.stringify(import.meta.resolve("react")))
   .replace('"../contracts/deployment.ts"', JSON.stringify(pathToFileURL(resolve("src/contracts/deployment.ts")).href));
 const { AgentPublication }: typeof PublicationModule = await import(`data:text/javascript;base64,${Buffer.from(code).toString("base64")}`);
 
@@ -49,7 +50,19 @@ test("historical, cancelled and uncertain cards cannot acquire an expired-decisi
   assert.doesNotMatch(render("expired", false), /بستن پیشنهاد منقضی‌شده|تأیید و انتشار این نسخه/);
   for (const state of ["cancelled", "uncertain", "executing", "failed"] as const) {
     const html = render(state);
-    assert.doesNotMatch(html, /بستن پیشنهاد منقضی‌شده|تأیید و انتشار این نسخه|دیدن صفحه بررسی‌شده/);
+    assert.doesNotMatch(html, /بستن پیشنهاد منقضی‌شده|تأیید و انتشار این نسخه|باز کردن سایت|publication-success-address/);
   }
   assert.match(render("uncertain"), /نتیجه ارسال نامعلوم/);
+});
+
+test("verified publication leads with the exact approved URL, usable site and copy actions, and collapsed review details", () => {
+  const html = render("succeeded", false);
+  assert.match(html, /سایت شما منتشر شد/); assert.match(html, /انتشار موفق/);
+  assert.match(html, /https:\/\/synthetic-site\.example\.com\/orders/);
+  assert.match(html, /باز کردن سایت/); assert.match(html, /کپی لینک سایت/);
+  assert.match(html, /rel="noopener noreferrer"/);
+  assert.match(html, /<details class="publication-review">/);
+  assert.doesNotMatch(html, /تأیید و انتشار این نسخه/);
+  for (const state of ["approved", "executing", "observing", "uncertain", "failed", "expired", "cancelled"] as const)
+    assert.doesNotMatch(render(state), /سایت شما منتشر شد|نشانی سایت شما|باز کردن سایت|کپی لینک سایت/);
 });

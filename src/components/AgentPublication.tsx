@@ -1,5 +1,6 @@
 import type { Action } from "../contracts/domain.ts";
 import { canReadDeploymentResult } from "../contracts/deployment.ts";
+import { useState } from "react";
 
 function expectedValue(value: string | number | boolean | null) {
   return value === null ? "null" : String(value);
@@ -18,9 +19,21 @@ export function AgentPublication({
   onDecision: (decision: "approve" | "reject") => void;
   onObserve: () => void;
 }) {
+  const [copy, setCopy] = useState<{ url: string; state: "copying" | "copied" | "failed" } | null>(null);
   if (action.spec.version !== 7 && action.spec.version !== 10 && action.spec.version !== 11 && action.spec.version !== 15 && action.spec.version !== 17 && action.spec.version !== 19) return null;
   const spec = action.spec,
-    assertion = spec.workload.assertion;
+    assertion = spec.workload.assertion,
+    publishedUrl = `${spec.workload.origin}${spec.workload.path}`,
+    copyState = copy?.url === publishedUrl ? copy.state : null;
+  async function copyLink() {
+    setCopy({ url: publishedUrl, state: "copying" });
+    try {
+      await navigator.clipboard.writeText(publishedUrl);
+      setCopy({ url: publishedUrl, state: "copied" });
+    } catch {
+      setCopy({ url: publishedUrl, state: "failed" });
+    }
+  }
   const verified = action.state === "succeeded",
     awaiting = waiting && action.state === "awaiting_approval",
     inFlight =
@@ -48,8 +61,26 @@ export function AgentPublication({
                   ? "تصمیم شما ثبت شد و ارسال در صف اجراست."
                   : "این پیشنهاد هنوز تصمیم نشده است.";
   return (
-    <section className="agent-repair publication-card" aria-labelledby="publication-title">
-      <h3 id="publication-title">{verified ? "انتشار بررسی شد" : "انتشار پروژه"}</h3>
+    <section className="agent-repair publication-card" aria-labelledby="publication-title" data-verified={verified}>
+      {verified ? <div className="publication-success">
+        <div className="publication-success-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="m5 12 4 4L19 6" /></svg></div>
+        <div className="publication-success-heading">
+          <span className="publication-success-label">انتشار موفق</span>
+          <h3 id="publication-title">سایت شما منتشر شد</h3>
+          <p role="status">{status}</p>
+        </div>
+        <div className="publication-success-address">
+          <span>نشانی سایت شما</span>
+          <a href={publishedUrl} target="_blank" rel="noopener noreferrer"><bdi dir="ltr">{publishedUrl}</bdi></a>
+        </div>
+        <div className="button-row publication-success-actions">
+          <a className="publication-open-site" href={publishedUrl} target="_blank" rel="noopener noreferrer">باز کردن سایت <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 3h7v7m0-7L10 14M10 3H4v17h17v-6" /></svg></a>
+          <button type="button" className="button-secondary" disabled={disabled || copyState === "copying"} onClick={copyLink}>
+            {copyState === "copied" ? "لینک کپی شد" : copyState === "copying" ? "در حال کپی…" : "کپی لینک سایت"}
+          </button>
+        </div>
+        <p className="hint publication-copy-status" aria-live="polite">{copyState === "copied" ? "نشانی سایت در حافظه کپی شد." : copyState === "failed" ? "کپی خودکار در این مرورگر در دسترس نیست؛ نشانی بالا را انتخاب و کپی کنید." : "باز کردن سایت در زبانهٔ تازه، انتشار دوباره‌ای آغاز نمی‌کند."}</p>
+      </div> : <h3 id="publication-title">انتشار پروژه</h3>}
       <ol className="publication-steps" aria-label="مراحل انتشار">
         <li className="is-done">پیشنهاد ساخته شد</li>
         <li
@@ -73,6 +104,8 @@ export function AgentPublication({
           نتیجه تأییدشده
         </li>
       </ol>
+      <details className="publication-review" open={!verified}>
+      <summary>{verified ? "جزئیات نسخه و معیار بررسی" : "مشخصات و معیار انتشار"}</summary>
       <dl className="profile-facts">
         <div>
           <dt>برنامه مقصد</dt>
@@ -135,6 +168,7 @@ export function AgentPublication({
         </dl>
         <p>معیار بالا فقط همین پاسخ را می‌سنجد. سلامت همه صفحه‌ها و رفتارهای برنامه از آن نتیجه نمی‌شود.</p>
       </details>
+      </details>
       {awaiting ? (
         <>
           <div className="button-row">
@@ -155,7 +189,7 @@ export function AgentPublication({
           </p>
         </>
       ) : (
-        <p role="status">{status}</p>
+        verified ? null : <p role="status">{status}</p>
       )}
       {waiting && action.state === "expired" ? (
         <button
@@ -166,13 +200,6 @@ export function AgentPublication({
         >
           بستن پیشنهاد منقضی‌شده
         </button>
-      ) : null}
-      {verified ? (
-        <p>
-          <a href={`${spec.workload.origin}${spec.workload.path}`} target="_blank" rel="noreferrer">
-            دیدن صفحه بررسی‌شده
-          </a>
-        </p>
       ) : null}
       {!waiting && canReadDeploymentResult(action) ? (
         <button

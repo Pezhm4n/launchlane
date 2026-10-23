@@ -74,6 +74,15 @@ try {
   await mkdir(output, { recursive: true });
   browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ locale: "fa-IR", reducedMotion: "reduce" }), page = await context.newPage();
+  // The UI handler is real; clipboard transport stays private to this disposable browser.
+  await context.addInitScript(() => {
+    window.__publicationCopyDenied = false;
+    window.__publicationCopied = null;
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async text => {
+      if (window.__publicationCopyDenied) throw new Error("Synthetic clipboard denial");
+      window.__publicationCopied = text;
+    } } });
+  });
   page.setDefaultTimeout(15000);
   page.on("pageerror", error => errors.push(error.message));
   page.on("request", request => {
@@ -82,7 +91,11 @@ try {
       decisions.push({ operation: body.operation, decision: body.decision });
     }
   });
+  let previewPublishedLink = false;
+  const publishedUrl = "https://sample.example.com/orders";
   await context.route("**/*", route => {
+    if (previewPublishedLink && route.request().url() === publishedUrl && route.request().isNavigationRequest())
+      return route.fulfill({ status: 200, contentType: "text/html", body: '<!doctype html><html lang="fa"><title>صفحهٔ مقصد مصنوعی آزمون لینک</title><body>صفحهٔ مقصد مصنوعی آزمون لینک</body></html>' });
     if (new URL(route.request().url()).origin !== server.origin) { external.push(new URL(route.request().url()).origin); return route.abort(); }
     return route.continue();
   });
@@ -110,7 +123,7 @@ try {
     assert.equal(await page.locator(".assistant-float[open]").count(), 0);
     assert.equal(await page.locator(".app-nav a").count(), 2);
     await capture(width, "expired");
-    await card.locator("summary").focus(); await page.keyboard.press("Tab");
+    await card.locator("summary").last().focus(); await page.keyboard.press("Tab");
     assert.equal(await close.evaluate(node => node === document.activeElement), true);
     const responsePromise = page.waitForResponse(response => new URL(response.url()).pathname === `/api/agent/runs/${seeded.id}` &&
       response.request().method() === "POST" && response.request().postDataJSON().operation === "publication-decision");
@@ -134,10 +147,45 @@ try {
     assert.equal(await modelRequests(), callsBefore); assertNoExecution();
     assert.deepEqual(decisions.slice(decisionsBefore), [{ operation: "publication-decision", decision: "reject" }]);
   }
+  // A synthetic read projection exercises the completed card without inventing a durable release or executing a write.
+  await page.route("**/api/agent/runs**", async route => {
+    if (route.request().method() !== "GET") return route.continue();
+    const response = await route.fetch(), body = await response.json();
+    if (body.run?.publication) {
+      body.run.state = "completed"; body.run.nextAction = null; body.run.question = null;
+      body.run.effect = "remote_changes_verified";
+      body.run.publication.state = "succeeded";
+      body.run.publication.remoteId = "e".repeat(24);
+      body.run.publication.deployment = { stage: "release_accepted", sourceId: "synthetic-source", observation: {
+        outcome: "verified", code: "WORKLOAD_VERIFIED", checkedAt: Date.now(), releaseId: "e".repeat(24), releaseState: "Ready", status: 200,
+      } };
+    }
+    return route.fulfill({ response, json: body });
+  });
+  for (const width of [360, 1280]) {
+    await page.setViewportSize({ width, height: 900 }); await page.reload();
+    await card.getByRole("heading", { name: "سایت شما منتشر شد", exact: true }).waitFor();
+    const open = card.getByRole("link", { name: "باز کردن سایت", exact: true }), copy = card.getByRole("button", { name: "کپی لینک سایت", exact: true });
+    assert.equal(await open.getAttribute("href"), publishedUrl); assert.equal(await open.getAttribute("target"), "_blank");
+    assert.equal(await card.locator(".publication-review").evaluate(node => node.open), false);
+    await copy.focus(); await page.keyboard.press("Enter");
+    await card.getByRole("button", { name: "لینک کپی شد", exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => window.__publicationCopied), publishedUrl);
+    await capture(width, "verified-copied");
+    previewPublishedLink = true;
+    const popupPromise = page.waitForEvent("popup"); await open.click(); const popup = await popupPromise;
+    await popup.waitForLoadState("domcontentloaded"); assert.equal(popup.url(), publishedUrl); await popup.close();
+    await page.evaluate(() => { window.__publicationCopyDenied = true; });
+    await card.getByRole("button", { name: "لینک کپی شد", exact: true }).click();
+    await card.getByText("کپی خودکار در این مرورگر در دسترس نیست؛ نشانی بالا را انتخاب و کپی کنید.", { exact: true }).waitFor();
+    await capture(width, "verified-copy-denied");
+    assertNoExecution(); assert.equal(await modelRequests(), 0);
+  }
   assert.deepEqual(errors, []); assert.deepEqual(external, []); assert.equal(await modelRequests(), 0);
   await writeFile(join(output, "report.json"), JSON.stringify({ results, decisions, pageErrors: errors, external, modelRequests: 0,
     providerAttempts: 0, keyboardReject: true, usagePreserved: true, guidedContinuationAvailable: true,
-    limits: "The existing continuation control is enabled; it is not clicked here. This test does not establish replanning, deployment or live-model behavior." }, null, 2));
+    publicationSuccessReadProjection: "synthetic", clipboardTransport: "synthetic", publishedLinkOpensNewTab: true,
+    limits: "The continuation control is enabled but not clicked. Success is a synthetic read projection; no deployment is executed or relabelled as live evidence. Clipboard success/denial uses the actual component with a disposable adapter." }, null, 2));
   console.log(JSON.stringify({ cases: results.length, viewports: [360, 1280], pageErrors: errors.length, externalRequests: external.length,
     modelRequests: 0, providerAttempts: 0, output }));
 } finally {

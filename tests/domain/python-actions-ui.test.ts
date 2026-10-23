@@ -50,7 +50,7 @@ test("Python, native Next and historical Node publication decisions render their
     assert.match(pending, /تأیید و انتشار این نسخه/); assert.match(pending, /رد انتشار/);
     assert.ok(pending.includes(version === 11 ? ">Python<" : version === 19 ? ">React / Node<" : version === 17 ? ">Next.js / Node<" : ">Node<")); assert.ok(pending.includes(version === 11 ? ">3.12<" : version === 19 ? ">20<" : ">22<"));
     const done = renderToStaticMarkup(createElement(Publication, { ...props, waiting: false, action: { ...value, state: "succeeded" } }));
-    assert.match(done, /نسخه جاری و پاسخ مورد انتظار تأیید شدند/); assert.match(done, /دیدن صفحه بررسی‌شده/); assert.doesNotMatch(done, /تأیید و انتشار این نسخه/);
+    assert.match(done, /نسخه جاری و پاسخ مورد انتظار تأیید شدند/); assert.match(done, /باز کردن سایت/); assert.doesNotMatch(done, /تأیید و انتشار این نسخه/);
   }
 });
 
