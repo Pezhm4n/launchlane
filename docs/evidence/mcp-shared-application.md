@@ -65,3 +65,32 @@ candidate تازه از b59eef9 ساخته شد؛ UI ثبت‌شده در6e54988
 | Codex | `npm run smoke:mcp:codex` روی build تازه: discovery۱۰tool و۳call واقعی، scopeDenied/sharedApplication درست، model0/cloud-write0/executableRepairTested=false، cleanup verified |
 
 logهای این candidate در `.local/mcp-mission/` با نام‌های `budget-final-build.log`، `budget-final-typecheck.log`، `combined-lint.log`، `domain-command-final.log`، `budget-final-http.log`، `combined-browser-final.log`، `final-sandbox.log`، `locked-build-final.log`، `final-codex-smoke.log` و `clean-install.log` هستند. `budget-race-before.log` شکست اولیه را حفظ می‌کند. این برش استقرار تازه لیارا یا اصلاح با مدل واقعی ندارد؛ شواهد تاریخی Node/Python همچنان محدود به همان اجراها هستند.
+
+## لغو اختیار در مأموریت پس‌زمینه؛ پس از7196471
+
+بررسی دقیق‌تر نشان داد parent session در HTTP معتبرسنجی می‌شد، اما run صف‌شده فقط child session را می‌سنجید. regression روی source پیش از fix، با transport مصنوعی، پس از revoke والد یک درخواست مدل ساخت؛ oracle صفر بود و۱≠۰ثبت شد. counterexample در `auth-before.log` و source ثابت همان کپی نگه‌داری شد؛ هیچ درخواست مدل واقعی/هزینه/نوشتن ابری در بازتولید نبود.
+
+McpAccess خصوصی اکنون شناسه والد معتبر را به همان loop می‌دهد. session policy مشترک، پیش از source/secret read، شروع، مصرف و پذیرش پاسخ، والد و فرزند را بررسی می‌کند. تست دو حالت revoke پیش از dispatch و هنگام پاسخ را می‌سنجد: اولی مدل۰، دومی دقیقاً۱ارسال مصنوعیِ آغازشده با مصرف محفوظ و پاسخ دیررسِ ردشده؛ attempts۰، run=failed/AUTH_REQUIRED و بدون artifact/approval تازه. actor مجاز دیگری نیز با نشست مستقل همچنان AGENT_NOT_FOUND می‌گیرد؛ oracle جداسازی actor حفظ شد.
+
+برای این برش snapshot مستقل `.local/mcp-mission/auth-index-candidate` از index ساخته شد. source پایه7196471 و UI ثبت‌شده6e54988است؛ working tree جدید UI، package/runnerهای همکار و config نصب اصلی وارد آن نشدند. نتایج315domain/251browser در گزارش والد به همان commit تعلق دارند و با بررسی‌های این اصلاح به‌عنوان یک full pass تازه جمع نمی‌شوند. [قرارداد](../decisions/0017-shared-mcp-facade.md) محدودیت درخواست درحال‌پرواز و حفظ مصرف را توضیح می‌دهد.
+
+اجرای نخست این اصلاح312/316بود: سه fixture پیش از ورود به منطق محصول به مهلت۳ثانیه‌ای archive خوردند؛ یک failure واقعی نیز recovery مقصد بود. کنترل کامل context در ابتدای loop، مقصد verified اما هنوز adoptنشده را زود رد می‌کرد. فقط کنترل authorization به ابتدای کار منتقل شد؛ adopt همان هویت از receipt موجود، پیش از تطبیق context، حفظ شد. آزمون crash/adoption تغییر نکرد و همراه MCP/Agent،۱۷/۱۷گذشت. patch نخست و failure کامل در `auth-initial.patch` و `auth-index-domain.log` محفوظ‌اند.
+
+هم‌زمانی فایل‌های فرمان domain از۲به۱محدود شد؛ هیچ deadline، assertion، skip یا oracle محصول تغییر نکرد و raceهای درون case همچنان هم‌زمان اجرا می‌شوند. این انتخاب، زمان‌بندی محافظه‌کارانهٔ suite در محیط دارای کار هم‌زمان است؛ root cause دقیق فشار CPU/disk اندازه‌گیری نشده است. source نهایی دوباره در همان کپی آماده و در تمام بررسی‌های نهایی ثابت ماند.۲۶۵فایل با index تطبیق داشتند؛ fingerprint نهایی `4746f331a1c1f1465e2da5e9a9d0e93853336747678bd30245391eca7e0e08ab` است و identity جدا در `auth-index-identity.json` ثبت شد.
+
+| بررسی نهایی این اصلاح | نتیجه و مرز |
+| --- | --- |
+| build/typecheck/lint | دو فرمان اول موفق؛ lint۲۶۳فایل،صفرerror و۳۴warning/۹info موجود |
+| domain کامل | فرمان واقعی `npm run test:domain` با هم‌زمانی فایل۱،۳۱۶/۳۱۶،صفرfail/skip؛ شامل recovery مقصد و۵regression MCP |
+| HTTP کامل | `npm run test:http`،۳۷/۳۷،صفرfail/skip |
+| container مرتبط | `node --test tests/sandbox/agent-repair.test.ts`،۴/۴با Node22 واقعی، model مصنوعی، patch غلط مسدود و source اصلی محفوظ؛ این۴case جای اجرای تازه کل۹case نیست |
+| guided browser مرتبط |۳۸حالت در۳۲۰/۳۶۰/۳۹۰/۷۶۸/۱۲۸۰؛ مرورگر واقعی، مدل/cloud مصنوعی؛ این خروجی full browser تازه۲۵۱حالت نیست |
+| Codex واقعی | smoke رسمی همین برش، CLI0.163.0-alpha.11،discovery۱۰tool و۳call واقعی، رد scope و application مشترک؛ model0/cloud0/executableRepairTested=false و cleanup verified |
+
+logها `auth-final-{build,typecheck,lint,domain,http,sandbox,guided,codex}.log` هستند. هیچ model/provider زنده، app، release یا database در این اصلاح ساخته یا تغییر نکرد. مجوز برنامه چندمرحله‌ای، تبار کامل artifact مشتق، connector اجرایی و همه پلتفرم‌ها هنوز پذیرش باز دارند.
+
+## تطبیق ترکیب با UI ثبت‌شده در560cc68
+
+همکار، UI و runner موبایل را جدا در560cc68ثبت کرد؛ هیچ hunk آن در commit backend stage نشد. کپی تازهٔ `.local/mcp-mission/combined-final` از index جاری شامل همان UI و اصلاح authorization ساخته شد.۲۷۰فایل runtime با index مطابق بودند؛ fingerprint `d46be52d8167deb5ca045e46acbf796f59e2286441c1d10505a757520780ee54` در `combined-final-identity.json` ثبت است. build و typecheck موفق؛ lint۲۶۶فایل صفرerror/۳۶warning/۹info موجود؛ HTTP۳۷/۳۷؛ guided۳۸حالت و `npm run test:mobile`۱۰حالت با صفرpageerror/external request گزارش‌شده، فونت واقعی Geist و shimmer پیش‌فرض گذشتند. logها `combined-final-{build,typecheck,lint,http,guided,mobile}.log` هستند.
+
+روی این ترکیب، کل domain/sandbox/browser دوباره اجرا نشد؛ نتایج۳۱۶/۴/۳۸/Codex۳و نتایج قدیمی‌تر۹/۲۵۱در snapshotهای قبلی خودشان باقی می‌مانند. این بررسی هدف‌دار، پذیرش کامل محصول، همه UI یا دستگاه فیزیکی نیست. source/runtime جدید پس از شروع این بررسی تغییر نکرد و code/state اصلی برای تست بازراه‌اندازی نشد.

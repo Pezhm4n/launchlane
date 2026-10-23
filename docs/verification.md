@@ -12,6 +12,12 @@ failureهای حفظ‌شده: اجرای نخست mobile در عرض۲۸۰ و �
 
 self-test نصب کیت UX دوباره۱۲/۵۲ است؛ Playwright مستقل کیت و بخشی از shell/Python encoding آن آماده نیستند. این عدد امتیاز محصول نیست و با آزمون‌های واقعی Playwright محصول جایگزین نشده است. keyboard موبایل فیزیکی، screen reader واقعی، سنجش fps و پذیرش سلیقه‌ای مالک UNCONFIRMED هستند. سرور/.next اصلی، env و gateهای زنده تغییر نکردند؛ این شواهد محلی شاهد انتشار زندهٔ لیارا نیستند. تغییرات staged/unstaged هم‌کار در backend/MCP و متن قدیمی verification وارد این کامیت نمی‌شوند.
 
+## اختیار MCP در طول اجرا؛ snapshot مستقل پس از7196471
+
+پس از commit جداگانهٔ UI در560cc68، snapshot ترکیبی جاری با۲۷۰فایل مطابق index، build/typecheck، lint بدونerror و۳۶warning/۹info موجود،۳۷HTTP،۳۸guided و۱۰mobile گذشت. این subset با۳۱۶domain یا full browser قبلی جمع نشده و پذیرش کامل ترکیب یا دستگاه فیزیکی نیست؛ [شاهد و fingerprint](evidence/mcp-shared-application.md) ثبت‌اند.
+
+[شاهد A16](evidence/mcp-shared-application.md): لغو نشست والد/فرزند در dispatch، allowance و پذیرش پاسخ enforce شد؛ درخواست آغازشده رایگان یا تمدید نمی‌شود. source نهایی۲۶۵فایل مطابق index داشت. build/typecheck، lint با صفرerror/۳۴warning/۹info موجود،۳۱۶domain با هم‌زمانی فایل۱،۳۷HTTP،۴container مرتبط،۳۸guided browser و discovery/۳call واقعی Codex با cleanup گذشتند. مدل/cloud واقعی۰. اجرای اولیه312/316شامل یک regression واقعی recovery مقصد و سه timeout fixture بود؛ correction، patch و failure حفظ‌اند. oracle/deadline و آزمون crash/adoption تغییر نکردند. خروجی کل۹sandbox و۲۵۱browser قبلی به7196471تعلق دارد و به‌عنوان full pass این اصلاح جمع نشده است؛ UI جدید همکار، connector اجرایی، plan چندمرحله‌ای و پوشش همه runtimeها بازند.
+
 ## پیوستگی job و والد؛ snapshot مستقل پس از d11a803
 
 [شاهد A06](evidence/repair-parent-binding.md): parentRunId و بودجه/مهلت/اختیار/نشست همان run در worker enforce شدند؛ review والد را حفظ می‌کند.۲۶۵فایل runtime با index تطبیق داشتند. build/typecheck، lint با صفرerror و۳۴warning/۹info موجود،۳۷HTTP،۹sandbox و browser کامل۲۵۱حالت روی snapshot ثابت گذشتند. domain نخست۳۱۴/۳۱۵با timeout ساخت fixture پیش از بررسی env بود؛ همان فرمان کامل بعد از build/Docker،۳۱۵/۳۱۵شد و failure محفوظ ماند. oracle/deadline تغییر نکرد. مدل و cloud write واقعی صفر؛ UI جدید و runnerهای در حال ویرایش همکار وارد این snapshot نشدند. plan approval، connector بیرونی، fallback و پوشش همه runtimeها همچنان بازند.

@@ -12,7 +12,7 @@ import { projectSecretValues } from "../environment/secrets.ts";
 import { AppError, ensure } from "../errors.ts";
 import type { Store } from "../persistence/store.ts";
 import { RunBudget } from "../policy/budget.ts";
-import type { McpAccess } from "./access.ts";
+import { assertMcpSession, type McpAccess } from "./access.ts";
 
 const empty = { type: "object" as const, additionalProperties: false, properties: {} };
 const runId = { type: "string", pattern: "^[a-f0-9-]{36}$", maxLength: 36 };
@@ -48,6 +48,7 @@ function view(c: Context, run: Parameters<typeof agentView>[0], after = 0) {
 export async function callMcpTool(c: Context, name: string, value: unknown, signal: AbortSignal): Promise<CallToolResult> {
   const requestId = randomUUID();
   try {
+    assertMcpSession(c.store, c.access);
     ensure(mcpTools(c.config, c.access).some(tool => tool.name === name), "TOOL_DENIED", "این ابزار در محدوده اتصال مجاز نیست.", 403);
     const args = object(value ?? {}), { config, store, access } = c, { session } = access;
     let result: unknown;
@@ -66,7 +67,8 @@ export async function callMcpTool(c: Context, name: string, value: unknown, sign
       const created = name === "launchlane_publish"
         ? await createPublicationMission(config, store, session, uuid(args.requestKey), args.publication, signal)
         : await resumePublicationMission(config, store, session, uuid(args.id), integer(args.revision, 1, 10000), uuid(args.requestKey), signal);
-      if (created.created) c.schedule(() => driveAgentRun(config, store, session, created.run.id));
+      if (created.created) c.schedule(() => driveAgentRun(config, store, session, created.run.id,
+        { checkAuthorization: () => assertMcpSession(store, access) }));
       result = view(c, created.run);
     } else if (name === "launchlane_cancel") {
       exactKeys(args, ["id", "revision"]);
@@ -91,11 +93,12 @@ export async function callMcpTool(c: Context, name: string, value: unknown, sign
         mission.usage.elapsedMs = priorMs + Date.now() - started;
         repo.save(session.actorId, mission);
       };
-      budget.take = (kind, parent) => { reserve(kind, parent); reserved = true; persist(); };
+      budget.take = (kind, parent) => { assertMcpSession(store, access); reserve(kind, parent); reserved = true; persist(); };
       try {
         result = await executeAgentTool(name, args, { config: scoped, store, actorId: session.actorId, context, createdAt: mission?.createdAt ?? started, budget, signal: budget.signal(signal) });
       } finally { if (reserved) persist(); }
     }
+    assertMcpSession(store, access);
     return { content: [{ type: "text", text: JSON.stringify({ requestId, data: result }) }] };
   } catch (error) {
     const typed = error instanceof AppError ? error : new AppError("INTERNAL_UNAVAILABLE", "این مرحله کامل نشد؛ شناسه پیگیری را نگه دارید.", 503);

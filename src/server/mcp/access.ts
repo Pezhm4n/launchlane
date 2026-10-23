@@ -6,7 +6,13 @@ import { ensure } from "../errors.ts";
 import type { Store } from "../persistence/store.ts";
 import { checkRequest, csrfFor, safeEqual } from "../policy/session.ts";
 
-export type McpAccess = { session: Session; missions: boolean };
+export type McpAccess = { session: Session; parentSessionId: string; missions: boolean };
+export function assertMcpSession(store: Store, access: McpAccess, now = Date.now()): void {
+  const { session, parentSessionId } = access;
+  ensure(session.expiresAt > now && store.sessionExists(session.id, session.actorId, now) &&
+    store.sessionExists(parentSessionId, session.actorId, now),
+    "AUTH_REQUIRED", "دسترسی اتصال منقضی یا لغو شده است؛ دوباره وارد شوید و اتصال را آماده کنید.", 401);
+}
 function signature(payload: string, secret: string): string {
   return createHmac("sha256", secret).update(`launchlane:mcp:v1:${payload}`).digest("base64url");
 }
@@ -33,6 +39,8 @@ export function requireMcpAccess(request: Request, config: Config, store: Store,
   const row = object(value);
   exactKeys(row, ["audience", "id", "parentId", "actorId", "expiresAt", "missions"]);
   const id = string(row.id, 64), actorId = string(row.actorId, 24), parentId = string(row.parentId, 64), expiresAt = integer(row.expiresAt, 1, Number.MAX_SAFE_INTEGER);
-  ensure(row.audience === "launchlane-mcp-v1" && typeof row.missions === "boolean" && expiresAt > now && expiresAt <= now + 60 * 60_000 && store.sessionExists(id, actorId, now) && store.sessionExists(parentId, actorId, now), "AUTH_REQUIRED", "دسترسی اتصال منقضی یا لغو شده است؛ دوباره وارد شوید و اتصال را آماده کنید.", 401);
-  return { session: { id, actorId, expiresAt, csrfToken: csrfFor(id, config.sessionSecret) }, missions: row.missions };
+  ensure(row.audience === "launchlane-mcp-v1" && typeof row.missions === "boolean" && expiresAt <= now + 60 * 60_000, "AUTH_REQUIRED", "دسترسی اتصال معتبر نیست.", 401);
+  const access = { session: { id, actorId, expiresAt, csrfToken: csrfFor(id, config.sessionSecret) }, parentSessionId: parentId, missions: row.missions };
+  assertMcpSession(store, access, now);
+  return access;
 }

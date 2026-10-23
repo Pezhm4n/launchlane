@@ -406,9 +406,9 @@ export async function driveAgentRun(
     destination?: Parameters<typeof executeDestination>[5];
     pollDelayMs?: number;
     tarballReader?: TarballReader;
+    checkAuthorization?: () => void;
   } = {},
 ): Promise<void> {
-  config = { ...config, projectSecretValues: projectSecretValues(store, config.sessionSecret, session.actorId) };
   const repo = new AgentRepository(store),
     run = repo.claim(session.actorId, id);
   if (!run) return;
@@ -431,19 +431,24 @@ export async function driveAgentRun(
     run.usage.elapsedMs = priorMs + Date.now() - started;
     repo.save(session.actorId, run);
   };
-  const originalTake = budget.take.bind(budget);
-  budget.take = (kind, parent) => {
-    originalTake(kind, parent);
-    if (kind === "model") run.usage.unknownModelCalls++;
-    persist();
-  };
-  const check = () => {
+  const checkAuthorization = () => {
+    dependencies.checkAuthorization?.();
     ensure(
       store.sessionExists(session.id, session.actorId, Date.now()),
       "AUTH_REQUIRED",
       "برای ادامه بررسی دوباره وارد شوید.",
       401,
     );
+  };
+  const originalTake = budget.take.bind(budget);
+  budget.take = (kind, parent) => {
+    checkAuthorization();
+    originalTake(kind, parent);
+    if (kind === "model") run.usage.unknownModelCalls++;
+    persist();
+  };
+  const check = () => {
+    checkAuthorization();
     ensure(!signal.aborted, "CANCELLED", "بررسی متوقف شد؛ نتیجه‌های ثبت‌شده حفظ شدند.", 409);
     ensure(
       repo.get(session.actorId, id)?.state === "working",
@@ -454,6 +459,8 @@ export async function driveAgentRun(
     assertAgentContext(config, store, session.actorId, run.context);
   };
   try {
+    checkAuthorization();
+    config = { ...config, projectSecretValues: projectSecretValues(store, config.sessionSecret, session.actorId) };
     if (run.projectId) {
       const flow = await restoreProjectFlow(config, store, session.actorId, signal, run.projectId);
       ensure(
