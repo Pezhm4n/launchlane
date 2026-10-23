@@ -15,6 +15,7 @@ import { CodeRepairAdapter } from "./code-repair.ts";
 import { proposeWorkloadDeployment } from "../application/deployment.ts";
 import { LiaraAccountClient, quotePaaSOffer } from "../liara/catalog.ts";
 import { proposeDestination } from "../application/provision.ts";
+import { proposeNetwork } from "../application/network.ts";
 import { nodePreparation } from "../../contracts/preparation.ts";
 import { WorkloadProbe, validateProbePath } from "../liara/probe.ts";
 import { parseProbeOrigins } from "../policy/probe-target.ts";
@@ -175,12 +176,12 @@ const repairTool: ToolDefinition = {
 function registeredTools(config: Config): readonly ToolDefinition[] {
   return [...agentTools, ...(config.enableLocalRepair ? [repairTool, preparationTool, buildTool] : []),
     ...(config.enableLiveLiara ? catalogTools : []),
-    ...(config.enableMutations && config.enableLiveLiara ? [publicationTool, destinationTool] : [])];
+    ...(config.enableMutations && config.enableLiveLiara ? [publicationTool, destinationTool, networkTool] : [])];
 }
-export function toolsForAgent(config: Config, preparation: "native" | "build" = "native"): readonly ToolDefinition[] {
+export function toolsForAgent(config: Config, preparation: "native" | "build" = "native", hasTarget = true): readonly ToolDefinition[] {
   // Native start/port preparation cannot handle dependencies; its applicable alternative keeps the model's 16-tool bound.
   const omitted = preparation === "build" ? "propose_project_preparation" : "propose_project_build";
-  return registeredTools(config).filter(tool => tool.function.name !== omitted);
+  return registeredTools(config).filter(tool => tool.function.name !== omitted && tool.function.name !== (hasTarget ? "propose_network" : "read_metrics"));
 }
 const preparationTool: ToolDefinition = { type: "function", function: {
   name: "propose_project_preparation",
@@ -213,6 +214,11 @@ const destinationTool: ToolDefinition = { type: "function", function: {
     app: { type: "string", maxLength: 63 }, planId: { type: "string", maxLength: 63 },
     bundleId: { type: "string", maxLength: 63 }, networkId: { type: "string", maxLength: 24 },
   } },
+} };
+const networkTool: ToolDefinition = { type: "function", function: {
+  name: "propose_network",
+  description: "Propose one private network for the selected project and future allowed app only when the connected team has no existing network. The host generates a unique name and requires a separate human decision explicitly acknowledging UNKNOWN network pricing. This does not create an app, publish, or grant budget. Never call it if a network is already available or a previous network write is uncertain; read the durable receipt instead.",
+  parameters: { type: "object", additionalProperties: false, required: ["app"], properties: { app: { type: "string", maxLength: 63 } } },
 } };
 const publicationTool: ToolDefinition = {
   type: "function",
@@ -250,6 +256,7 @@ export const toolLabels: Readonly<Record<string, string>> = {
   quote_resource_plan: "بررسی هزینه پایه و گزینه‌های پلن",
   read_networks: "بررسی شبکه‌های موجود همین حساب",
   propose_destination: "آماده‌کردن مقصد تازه و هزینه پایه آن",
+  propose_network: "آماده‌کردن تصمیم ساخت شبکه موردنیاز",
   propose_project_preparation: "آماده‌کردن فرمان اجرا و پورت برای تصمیم شما",
   propose_project_build: "آماده‌کردن نصب قفل‌شده و بررسی ساخت و اجرای برنامه",
   read_workload: "خواندن پاسخ تازه همان صفحه سایت",
@@ -305,7 +312,7 @@ export async function executeAgentTool(
     const scoped = connectedLiaraAccountConfig(c.config, c.store, c.actorId),
       networks = await (c.account ?? new LiaraAccountClient(scoped, c.context.account.accountId)).networks(c.budget, c.signal);
     assertAgentContext(c.config, c.store, c.actorId, c.context);
-    return { networks, networkCreationAvailable: false, remoteChanges: false };
+    return { networks, networkCreationAvailable: c.config.enableMutations && !c.context.target && networks.length === 0, remoteChanges: false };
   }
   if (name === "read_catalog" || name === "quote_resource_plan") {
     ensure(c.context.account, "LIARA_AUTH_REQUIRED", "ابتدا حساب مقصد را متصل کنید؛ انتخاب برنامه برای دیدن پلن‌ها لازم نیست.", 409);
@@ -373,6 +380,15 @@ export async function executeAgentTool(
       c.signal, { budget: c.budget, ...(c.read ? { read: c.read } : {}) });
     assertAgentContext(c.config, c.store, c.actorId, c.context);
     return { publicationProposal: action };
+  }
+  if (name === "propose_network") {
+    ensure(c.context.projectId && c.context.account && c.parentRunId, "AGENT_PROJECT_REQUIRED", "پروژه، حساب و مأموریت لازم است.", 409);
+    ensure(!c.context.target, "NETWORK_ALREADY_AVAILABLE", "مقصد فعلی شبکه دارد؛ ساخت اضافه لازم نیست.", 409);
+    const action = await proposeNetwork(c.config, c.store, c.actorId,
+      { flowId: c.context.projectId, app: string(args.app, 63), agentRunId: c.parentRunId }, c.signal,
+      { budget: c.budget, ...(c.account ? { read: c.account } : {}) });
+    assertAgentContext(c.config, c.store, c.actorId, c.context);
+    return { networkProposal: action };
   }
   if (name === "propose_destination") {
     ensure(c.context.projectId && c.context.account, "AGENT_PROJECT_REQUIRED", "پروژه و حساب مقصد لازم است؛ انتخاب app قبلی لازم نیست.", 409);
@@ -449,7 +465,7 @@ export async function executeAgentTool(
       siteOriginConfigured: !!(c.context.target && (c.config.probeOrigins[c.context.target.app] ||
         c.store.getProbeOrigin(c.actorId, c.context.target.teamId, c.context.target.app))),
       limitation:
-        "Publication requires a separate exact-artifact decision. New Node or Python destinations can be proposed with the actual catalog and an existing team network when creationAvailable is true. Env values use the secure project form; network creation is unavailable. No remote changes were made by this read.",
+        "Publication requires an exact-artifact or bounded-program decision. New Node or Python destinations use the actual catalog and a team network. When no network exists, propose_network can obtain a separate human decision acknowledging unknown network pricing before any create. Env values use the secure project form. No remote changes were made by this read.",
     };
   }
   if (name === "inspect_project" || name === "read_project_file") {

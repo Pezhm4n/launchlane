@@ -35,7 +35,7 @@ export async function createPublicationMission(config: Config, store: Store, ses
   // Two tabs and a lost registration response join the same durable run, even with different client keys.
   if (previous) return { run: previous, created: false };
   const pending = repo.forProject(session.actorId, input.projectId, "publication");
-  if (pending?.mission && pending.state === "needs_input" && pending.effect === "no_remote_changes" && !pending.publication && !pending.destination &&
+  if (pending?.mission && pending.state === "needs_input" && pending.effect === "no_remote_changes" && !pending.publication && !pending.destination && !pending.network &&
     (pending.nextAction === "connect_account" || pending.nextAction === "select_app")) {
     const { kind: _kind, identity: _identity, ...intent } = pending.mission;
     if (fingerprint(intent) === fingerprint(input)) return { run: pending, created: false };
@@ -77,7 +77,7 @@ export async function resumePublicationMission(config: Config, store: Store, ses
     store.assertAgentIdle(session.actorId);
     const context = currentAgentContext(config, store, session.actorId);
     if (fingerprint(context) !== fingerprint(run.context)) {
-      ensure(run.effect === "no_remote_changes" && !run.publication && !run.destination &&
+      ensure(run.effect === "no_remote_changes" && !run.publication && !run.destination && !run.network &&
         (run.nextAction === "connect_account" || run.nextAction === "select_app") &&
         context.projectId === run.context.projectId && context.sourceHash === run.context.sourceHash && context.selectionHash === run.context.selectionHash,
         "AGENT_CONTEXT_CHANGED", "این تغییر مقصد خارج از تکمیل حساب اولیه است؛ تصمیم‌ها به انتخاب تازه منتقل نمی‌شوند.", 409);
@@ -99,6 +99,7 @@ export async function resumePublicationMission(config: Config, store: Store, ses
     }
     if (run.publication) run.publication = store.getAction(run.publication.id, session.actorId);
     if (run.destination) run.destination = store.getAction(run.destination.id, session.actorId);
+    if (run.network) run.network = store.getAction(run.network.id, session.actorId);
     if (run.state === "failed" || run.state === "interrupted") run.state = "partially_completed";
     run.errorCode = null;
     run.lastResumeRevision = revision;

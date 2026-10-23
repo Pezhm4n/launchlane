@@ -29,7 +29,8 @@
     "smoke:mcp:codex": "node scripts/smoke-mcp-codex.mjs",
     "test:mobile": "node scripts/test-mobile-browser.mjs",
     "test:chat": "node scripts/test-chat-browser.mjs",
-    "test:platforms": "node scripts/test-platform-browser.mjs"
+    "test:platforms": "node scripts/test-platform-browser.mjs",
+    "test:networks": "node scripts/test-network-browser.mjs"
   },
   "dependencies": {
     "next": "16.4.2",

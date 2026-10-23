@@ -19,6 +19,7 @@ import { parseEnvironmentSpec, parseEnvironmentProgress, parseEnvironmentReferen
 import { parseNodeRuntime, parseNodeVersion } from "./node-runtime.ts";
 import { sourceFileByteLimit, SOURCE_MAX_BYTES, SOURCE_MAX_FILES } from "./source-limits.ts";
 import { parsePythonRuntime } from "./python-runtime.ts";
+import { parseNetworkSpec, parseNetworkProgress } from "./network.ts";
 
 function nullableString(value: unknown, max = 256): string | null {
   return value === null ? null : string(value, max);
@@ -80,17 +81,18 @@ export function decodeAction(value: unknown): Action {
   const state = states.find((state) => state === raw.state);
   ensure(
     state &&
-      (spec.version === 1 || spec.version === 2 || spec.version === 3 || spec.version === 4 || spec.version === 5 || spec.version === 6 || spec.version === 7 || spec.version === 8 || spec.version === 9) &&
-      (spec.operation === "deploy" || spec.operation === "restart" || (spec.version === 8 && spec.operation === "create_app") || (spec.version === 9 && spec.operation === "update_env")),
+      (spec.version === 1 || spec.version === 2 || spec.version === 3 || spec.version === 4 || spec.version === 5 || spec.version === 6 || spec.version === 7 || spec.version === 8 || spec.version === 9 || spec.version === 13) &&
+      (spec.operation === "deploy" || spec.operation === "restart" || (spec.version === 8 && spec.operation === "create_app") || (spec.version === 9 && spec.operation === "update_env") || (spec.version === 13 && spec.operation === "create_network")),
     "INVALID_RESPONSE",
     "ساختار اقدام معتبر نیست.",
   );
   let parsedSpec: ActionSpec;
-  if (spec.version === 9) parsedSpec = parseEnvironmentSpec(spec);
+  if (spec.version === 13) parsedSpec = parseNetworkSpec(spec);
+  else if (spec.version === 9) parsedSpec = parseEnvironmentSpec(spec);
   else if (spec.version === 8) parsedSpec = parseProvisionSpec(spec);
   else {
     ensure(spec.operation === "deploy" || spec.operation === "restart", "INVALID_RESPONSE", "نوع اقدام معتبر نیست.");
-    const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12}>, "scope" | "operation" | "sourceHash" | "args"> = {
+    const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12 | 13}>, "scope" | "operation" | "sourceHash" | "args"> = {
       operation: spec.operation,
       scope: { teamId: string(scope.teamId), app: string(scope.app) },
       sourceHash: nullableString(spec.sourceHash),
@@ -148,6 +150,7 @@ export function decodeAction(value: unknown): Action {
     ...(raw.restart === undefined ? {} : { restart: parseRestartProgress(raw.restart) }),
     ...(raw.provision === undefined ? {} : { provision: parseProvisionProgress(raw.provision) }),
     ...(raw.environment === undefined ? {} : { environment: parseEnvironmentProgress(raw.environment) }),
+    ...(raw.network === undefined ? {} : { network: parseNetworkProgress(raw.network) }),
   };
 }
 export function decodeArtifact(value: unknown): SourceArtifact {

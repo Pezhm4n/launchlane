@@ -47,7 +47,7 @@ export async function destinationOptions(config: Config, store: Store, actor: st
     catalog = await client.catalog(budget, signal), networks = await client.networks(budget, signal), current = store.getConnection(actor, "liara")?.view;
   ensure(current?.status === "connected" && current.identityId === connection.identityId && current.teamId === connection.teamId,
     "SCOPE_DENIED", "حساب هنگام خواندن گزینه‌ها تغییر کرد.", 403);
-  return { catalog, networks, networkCreationAvailable: false };
+  return { catalog, networks, networkCreationAvailable: config.enableMutations && networks.length === 0 };
 }
 
 export async function proposeDestination(config: Config, store: Store, actor: string,

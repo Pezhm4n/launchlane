@@ -10,6 +10,8 @@ import {
   resumeAgentPublication,
   decideAgentDestination,
   resumeAgentDestination,
+  decideAgentNetwork,
+  resumeAgentNetwork,
 } from "../../../../../server/agent/runs.ts";
 import { AgentRepository, agentView } from "../../../../../server/agent/store.ts";
 import { AppError, ensure } from "../../../../../server/errors.ts";
@@ -103,6 +105,19 @@ export async function POST(request: Request, { params }: Context) {
     if (input.operation === "publication-observe") {
       exactKeys(input, ["operation", "revision"]);
       const run = resumeAgentPublication(store, session, id, revision);
+      after(() => driveAgentRun(config, store, session, id));
+      return reply({ run: agentView(run) });
+    }
+    if (input.operation === "network-decision") {
+      exactKeys(input, ["operation", "revision", "actionId", "decision", "acknowledgeUnknownCost"]);
+      ensure((input.decision === "approve" || input.decision === "reject") && typeof input.acknowledgeUnknownCost === "boolean", "INVALID_INPUT", "تصمیم معتبر نیست.");
+      const run = await decideAgentNetwork(config, store, session, id, revision, string(input.actionId, 36), input.decision, input.acknowledgeUnknownCost);
+      if (input.decision === "approve") after(() => driveAgentRun(config, store, session, id));
+      return reply({ run: agentView(run) });
+    }
+    if (input.operation === "network-observe") {
+      exactKeys(input, ["operation", "revision"]);
+      const run = resumeAgentNetwork(store, session, id, revision);
       after(() => driveAgentRun(config, store, session, id));
       return reply({ run: agentView(run) });
     }

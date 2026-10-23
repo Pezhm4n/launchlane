@@ -1,5 +1,9 @@
 # معماری Launchlane
 
+## شبکه موردنیاز حساب تازه؛ A05
+
+ActionSpec v13 و migration12 افزوده، ساخت یک شبکه را با پذیرش صریح تعرفه نامعلوم به actor/account/team/source و parent run متصل می‌کنند. همان Store و executeApproved مالک claim/attempt هستند؛ پاسخ HTTP پذیرفته‌شده و هویت خوانده‌شده دو مرحله جدا هستند. uncertainty ساخت تازه را در کل تیم مسدود می‌کند؛ MCP تنها همان AgentRun و کارت وب را می‌خواند. این capability شبکه را بیرون محصول آماده نمی‌کند و مجوز app، database یا publication نمی‌دهد. [ADR0019](docs/decisions/0019-required-private-network.md).
+
 ## اختیار برنامه محدود؛ A05/AC23
 
 وب و MCP همان AgentRepository/driver و policy انتشار را استفاده می‌کنند. قرارداد MissionPlan v1/revision1، اختیار انسانی ثابت برای build/اصلاح محدود/انتشار به یک مقصد موجود است. migration11 اختیار، تلاش‌های مصرف‌شده و تبار artifact را جدا از ActionSpecهای تاریخی نگه می‌دارد. هر انتشار همچنان source/archive و ActionSpec دقیق دارد؛ مجوز آینده با زنجیره job/patch/آزمون/بسته به برنامه متصل می‌شود. claim و worker اختیار را دوباره بررسی می‌کنند. قیمت پایه و metadata پیش از انتشار دوباره خوانده می‌شوند؛ خارج‌شدن از محدوده کارت تصمیم می‌سازد. restart اختیار را لغو می‌کند؛ نتیجه نامعلوم فقط مشاهده می‌شود. [ADR0018](docs/decisions/0018-bounded-mission-authority.md) جزئیات و محدودیت‌ها را ثبت می‌کند. این برش توضیح تاریخی زیر درباره بازبودن کل اختیار را فقط در همین محدوده تکمیل می‌کند؛ ایجاد منابع، تغییر dependency، بودجه پولی محصول و پذیرش زنده کامل هنوز بازند.

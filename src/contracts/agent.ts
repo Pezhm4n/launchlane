@@ -45,7 +45,7 @@ export type AgentView = {
   question: string | null;
   updatedAt: number;
   // A host-owned statement. Model prose is never an execution receipt.
-  effect: "no_remote_changes" | "destination_created" | "configuration_changed" | "remote_changes_unverified" | "remote_changes_verified";
+  effect: "no_remote_changes" | "network_created" | "destination_created" | "configuration_changed" | "remote_changes_unverified" | "remote_changes_verified";
   repair: CodeRepairJob | null;
   publication: Action | null;
   destination: Action | null;
@@ -53,16 +53,19 @@ export type AgentView = {
   mission?: PublicationMission | null;
   channel?: "legacy" | "conversation";
   authority?: MissionAuthority | null;
+  network?: Action | null;
+  networkContinued?: boolean;
 };
 export function parseAgentView(value: unknown): AgentView {
   const row = object(value);
   ensure(row.destinationContinued === undefined || typeof row.destinationContinued === "boolean",
     "INVALID_RESPONSE", "رسید ادامه ساخت معتبر نیست.");
+  ensure(row.networkContinued === undefined || typeof row.networkContinued === "boolean", "INVALID_RESPONSE", "رسید ادامه شبکه معتبر نیست.");
   const state = agentStates.find((state) => state === row.state);
   const nextAction =
     row.nextAction === null ? null : nextActions.find((action) => action === row.nextAction);
   ensure(
-    state && nextAction !== undefined && (row.effect === "no_remote_changes" || row.effect === "destination_created" || row.effect === "configuration_changed" || row.effect === "remote_changes_unverified" || row.effect === "remote_changes_verified"),
+    state && nextAction !== undefined && (row.effect === "no_remote_changes" || row.effect === "network_created" || row.effect === "destination_created" || row.effect === "configuration_changed" || row.effect === "remote_changes_unverified" || row.effect === "remote_changes_verified"),
     "INVALID_RESPONSE",
     "وضعیت دستیار معتبر نیست.",
   );
@@ -99,6 +102,8 @@ export function parseAgentView(value: unknown): AgentView {
   });
   const destination = row.destination === null || row.destination === undefined ? null : decodeAction(row.destination);
   ensure(!destination || (destination.spec.version === 8 || destination.spec.version === 12), "INVALID_RESPONSE", "رسید مقصد با قرارداد ساخت تطبیق ندارد.");
+  const network = row.network === null || row.network === undefined ? null : decodeAction(row.network);
+  ensure(!network || network.spec.version === 13, "INVALID_RESPONSE", "رسید شبکه معتبر نیست.");
   return {
     id: string(row.id, 36),
     revision: integer(row.revision, 1, 10000),
@@ -116,5 +121,6 @@ export function parseAgentView(value: unknown): AgentView {
     mission: row.mission === undefined || row.mission === null ? null : parsePublicationMission(row.mission),
     channel: row.channel === "conversation" ? "conversation" : "legacy",
     authority: row.authority === undefined || row.authority === null ? null : parseMissionAuthority(row.authority),
+    network, networkContinued: row.networkContinued === true,
   };
 }

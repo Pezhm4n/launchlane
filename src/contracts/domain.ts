@@ -118,7 +118,7 @@ export type ActionSpec = (ActionInputs &
         runtime: import("./python-runtime.ts").PythonRuntime;
         environment: import("./environment.ts").EnvironmentReference | null;
       }>
-  )) | import("./provision.ts").ProvisionSpec | import("./environment.ts").EnvironmentSpec;
+  )) | import("./provision.ts").ProvisionSpec | import("./environment.ts").EnvironmentSpec | import("./network.ts").NetworkSpec;
 
 export type ActionState =
   | "awaiting_approval"
@@ -146,6 +146,7 @@ export type Action = Readonly<{
   restart?: import("./restart.ts").RestartProgress;
   provision?: import("./provision.ts").ProvisionProgress;
   environment?: import("./environment.ts").EnvironmentProgress;
+  network?: import("./network.ts").NetworkProgress;
 }>;
 
 export type Session = Readonly<{

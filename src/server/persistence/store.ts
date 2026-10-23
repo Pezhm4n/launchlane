@@ -14,6 +14,7 @@ import { fingerprint, parseActionSpec } from "../policy/action.ts";
 import { assertMissionActionClaim } from "../policy/mission-authority.ts";
 import { parseProvisionProgress, providerObjectId, type ProvisionProgress, type ProvisionReadback, type ProvisionObservation } from "../../contracts/provision.ts";
 import { migrations } from "./migrations.ts";
+import { parseNetworkProgress, type NetworkProgress } from "../../contracts/network.ts";
 import { parseEnvironmentProgress, type EnvironmentProgress } from "../../contracts/environment.ts";
 import { environmentProjectIds } from "../environment/secrets.ts";
 import { parseProjectFlow, type ProjectFlow } from "../../contracts/project-flow.ts";
@@ -274,7 +275,7 @@ export class Store {
     });
   }
   assertProjectAction(actorId: string, spec: ActionSpec, existingId?: string): void {
-    if (spec.version !== 3 && spec.version !== 4 && spec.version !== 5 && (spec.version !== 7 && spec.version !== 10 && spec.version !== 11) && (spec.version !== 8 && spec.version !== 12) && spec.version !== 9) return;
+    if (spec.version !== 3 && spec.version !== 4 && spec.version !== 5 && (spec.version !== 7 && spec.version !== 10 && spec.version !== 11) && (spec.version !== 8 && spec.version !== 12) && spec.version !== 9 && spec.version !== 13) return;
     const flow = this.getProjectFlow(actorId);
     ensure(
       flow &&
@@ -300,7 +301,7 @@ export class Store {
         environmentProjectIds(this, actorId, flow.id).has(input.projectFlowId) && reference.keys.every(key => flow.profile.envNames.includes(key)),
         "ENV_REFERENCE_CHANGED", "مرجع اطلاعات برنامه به همین پروژه، حساب و مقصد تعلق ندارد.", 409);
     }
-    if ((spec.version === 8 || spec.version === 12)) {
+    if (spec.version === 8 || spec.version === 12 || spec.version === 13) {
       const previous = connection?.apps.find((app) => app.name === connection.selectedApp)?.id ?? null;
       ensure(connection?.status === "connected" && connection.identityId === spec.accountId &&
         connection.teamId === spec.scope.teamId && previous === spec.previousAppId,
@@ -582,7 +583,7 @@ export class Store {
       this.assertActionContext(actorId, spec);
       if (
         ((spec.version === 2 || spec.version === 3 || spec.version === 4 || spec.version === 5 || (spec.version === 7 || spec.version === 10 || spec.version === 11)) &&
-        spec.operation === "deploy") || (spec.version === 8 || spec.version === 12) || spec.version === 9
+        spec.operation === "deploy") || (spec.version === 8 || spec.version === 12) || spec.version === 9 || spec.version === 13
       ) {
         const artifact = this.getArtifact(actorId, spec.artifactHash ?? "");
         ensure(
@@ -628,7 +629,7 @@ export class Store {
           .run(action.id, spec.secretRef, actorId, now);
         ensure(linked.changes === 1, "ENV_INPUT_EXPIRED", "اطلاعات امن مصرف شده یا منقضی است.", 409);
       }
-      if (spec.version === 3 || spec.version === 4 || spec.version === 5 || (spec.version === 7 || spec.version === 10 || spec.version === 11) || (spec.version === 8 || spec.version === 12) || spec.version === 9) {
+      if (spec.version === 3 || spec.version === 4 || spec.version === 5 || (spec.version === 7 || spec.version === 10 || spec.version === 11) || (spec.version === 8 || spec.version === 12) || spec.version === 9 || spec.version === 13) {
         const flow = this.getProjectFlow(actorId);
         if (flow) this.invalidateProjectAction(flow, actorId);
         this.db
@@ -649,12 +650,14 @@ export class Store {
     const restart = this.db.prepare("SELECT data_json FROM restart_progress WHERE action_id=?").get(id);
     const provision = this.db.prepare("SELECT data_json FROM provision_progress WHERE action_id=?").get(id);
     const environment = this.db.prepare("SELECT data_json FROM environment_progress WHERE action_id=?").get(id);
+    const network = this.db.prepare("SELECT data_json FROM network_progress WHERE action_id=?").get(id);
     return {
       ...action,
       ...(progress ? { deployment: parseDeploymentProgress(JSON.parse(string(progress.data_json, 4096))) } : {}),
       ...(restart ? { restart: parseRestartProgress(JSON.parse(string(restart.data_json, 4096))) } : {}),
       ...(provision ? { provision: parseProvisionProgress(JSON.parse(string(provision.data_json, 4096))) } : {}),
       ...(environment ? { environment: parseEnvironmentProgress(JSON.parse(string(environment.data_json, 4096))) } : {}),
+      ...(network ? { network: parseNetworkProgress(JSON.parse(string(network.data_json, 4096))) } : {}),
     };
   }
 
@@ -687,6 +690,7 @@ export class Store {
     decision: "approve" | "reject",
     now = Date.now(),
     afterDecision?: (action: Action) => void,
+    options: { acknowledgeUnknownCost?: boolean } = {},
   ): Action {
     return this.transaction(() => {
       const action = this.getAction(id, actorId);
@@ -700,6 +704,8 @@ export class Store {
       if (decision === "approve") {
         this.assertActionContext(actorId, action.spec, id);
         ensure(action.expiresAt > now, "APPROVAL_EXPIRED", "مهلت تأیید گذشته است؛ پیشنهاد تازه بسازید.", 409);
+        if (action.spec.version === 13) ensure(options.acknowledgeUnknownCost === true,
+          "UNKNOWN_COST_ACK_REQUIRED", "تعرفه مستقل شبکه مشخص نیست؛ پذیرش صریح این هزینه نامعلوم لازم است.", 409);
       }
       ensure(
         action.state === "awaiting_approval" || (decision === "reject" && action.state === "expired"),
@@ -711,6 +717,7 @@ export class Store {
         .prepare("UPDATE actions SET state=?,approval_session_id=? WHERE id=?")
         .run(decision === "approve" ? "approved" : "cancelled", sessionId, id);
       this.audit(action, decision === "approve" ? "approved" : "rejected", now);
+      if (decision === "approve" && action.spec.version === 13) this.audit(action, "unknown_network_cost_acknowledged", now);
       const decided = this.getAction(id, actorId);
       // The run transition and approval must commit together; a crash cannot leave a hidden approved write.
       afterDecision?.(decided);
@@ -719,6 +726,8 @@ export class Store {
   }
 
   private ensureNoConflict(spec: ActionSpec, except = ""): void {
+    if (spec.version === 13) ensure(!this.db.prepare("SELECT id FROM actions WHERE team_id=? AND id<>? AND json_extract(spec,'$.version')=13 AND state IN ('executing','observing','uncertain') LIMIT 1")
+      .get(spec.scope.teamId, except), "UNRESOLVED_EFFECT", "نتیجه ساخت شبکه قبلی همین تیم روشن نیست؛ ساخت دیگری مجاز نیست.", 409);
     const conflict = this.db
       .prepare(
         "SELECT id FROM actions WHERE team_id=? AND app=? AND id<>? AND state IN ('executing','observing','uncertain')",
@@ -736,7 +745,7 @@ export class Store {
     for (const row of this.db.prepare("SELECT id,revision,data_json FROM agent_runs WHERE actor_id=? AND state='needs_approval'").all(actorId)) {
       this.db.prepare("UPDATE mission_authorities SET state='revoked' WHERE actor_id=? AND run_id=? AND state IN ('proposed','approved')").run(actorId, string(row.id, 36));
       const data = object(JSON.parse(string(row.data_json, 512 * 1024)));
-      for (const value of [data.publication, data.destination]) {
+      for (const value of [data.publication, data.destination, data.network]) {
         if (!value) continue;
         const action = this.getAction(string(object(value).id, 36), actorId);
         if (action.state === "awaiting_approval" || action.state === "approved") {
@@ -755,13 +764,13 @@ export class Store {
   }
 
   assertAgentIdle(actorId: string, actionId: string | null = null, allowPendingDecision = false): void {
-    if (actionId === null) ensure(!this.db.prepare("SELECT id FROM actions WHERE actor_id=? AND json_extract(spec,'$.version')=9 AND state IN ('awaiting_approval','approved','executing','observing','uncertain') AND (expires_at>? OR state IN ('executing','observing','uncertain')) LIMIT 1").get(actorId, Date.now()),
+    if (actionId === null) ensure(!this.db.prepare("SELECT id FROM actions WHERE actor_id=? AND json_extract(spec,'$.version') IN (9,13) AND state IN ('awaiting_approval','approved','executing','observing','uncertain') AND (expires_at>? OR state IN ('executing','observing','uncertain')) LIMIT 1").get(actorId, Date.now()),
       "UNRESOLVED_EFFECT", "ابتدا نتیجه تغییر اطلاعات برنامه را بررسی کنید.", 409);
     const active = this.db.prepare(
-      "SELECT id FROM agent_runs WHERE actor_id=? AND (state IN ('queued','working') OR (state='needs_approval' AND ?=0)) AND (? IS NULL OR (COALESCE(json_extract(data_json,'$.publication.id'),'')<>? AND COALESCE(json_extract(data_json,'$.destination.id'),'')<>?)) LIMIT 1",
-    ).get(actorId, allowPendingDecision ? 1 : 0, actionId, actionId, actionId);
+      "SELECT id FROM agent_runs WHERE actor_id=? AND (state IN ('queued','working') OR (state='needs_approval' AND ?=0)) AND (? IS NULL OR (COALESCE(json_extract(data_json,'$.publication.id'),'')<>? AND COALESCE(json_extract(data_json,'$.destination.id'),'')<>? AND COALESCE(json_extract(data_json,'$.network.id'),'')<>?)) LIMIT 1",
+    ).get(actorId, allowPendingDecision ? 1 : 0, actionId, actionId, actionId, actionId);
     ensure(!active, "AGENT_BUSY", "یک مأموریت یا تصمیم در جریان است؛ ابتدا آن را تمام یا متوقف کنید. تغییر تب، مجوز عملیات موازی نمی‌دهد.", 409);
-    if (actionId === null) ensure(!this.db.prepare("SELECT a.id FROM actions a JOIN agent_runs r ON r.actor_id=a.actor_id AND (json_extract(r.data_json,'$.publication.id')=a.id OR json_extract(r.data_json,'$.destination.id')=a.id) WHERE a.actor_id=? AND json_extract(r.data_json,'$.mission.kind')='publication' AND a.state IN ('executing','observing','uncertain') LIMIT 1").get(actorId),
+    if (actionId === null) ensure(!this.db.prepare("SELECT a.id FROM actions a JOIN agent_runs r ON r.actor_id=a.actor_id AND (json_extract(r.data_json,'$.publication.id')=a.id OR json_extract(r.data_json,'$.destination.id')=a.id OR json_extract(r.data_json,'$.network.id')=a.id) WHERE a.actor_id=? AND json_extract(r.data_json,'$.mission.kind')='publication' AND a.state IN ('executing','observing','uncertain') LIMIT 1").get(actorId),
       "UNRESOLVED_EFFECT", "نتیجه عملیات قبلی هنوز قطعی نیست؛ ابتدا همان رسید را بررسی کنید.", 409);
   }
 
@@ -791,6 +800,8 @@ export class Store {
         403,
       );
       ensure(action.expiresAt > now, "APPROVAL_EXPIRED", "مهلت تأیید گذشته است.", 409);
+      if (action.spec.version === 13) ensure(this.db.prepare("SELECT action_id FROM audit_events WHERE action_id=? AND event='unknown_network_cost_acknowledged'").get(id),
+        "UNKNOWN_COST_ACK_REQUIRED", "پذیرش هزینه نامعلوم شبکه ثبت نشده است.", 409);
       ensure(
         action.hash === fingerprint({ actorId, spec: parseActionSpec(current) }),
         "STALE_ACTION",
@@ -819,6 +830,7 @@ export class Store {
       if ((action.spec.version === 8 || action.spec.version === 12))
         this.writeProvisionProgress(id, { stage: "claimed", appId: null, observation: null });
       if (action.spec.version === 9) this.writeEnvironmentProgress(id, { stage: "claimed", checkedAt: null, outcome: null });
+      if (action.spec.version === 13) this.writeNetworkProgress(id, { stage: "claimed", acceptedAt: null, networkId: null, observation: null });
       this.audit(action, "claimed", now);
       return this.getAction(id, actorId);
     });
@@ -839,6 +851,8 @@ export class Store {
       if ((action.spec.version === 8 || action.spec.version === 12))
         ensure(action.provision?.stage === "created" && action.provision.appId === safeId,
           "PROVISION_RECEIPT_REQUIRED", "رسید داخلی ساخت مقصد هنوز ثبت نشده است.", 409);
+      if (action.spec.version === 13) ensure(action.network?.stage === "created" && action.network.networkId === safeId,
+        "NETWORK_RECEIPT_REQUIRED", "هویت شبکه هنوز از سرویس خوانده و ثبت نشده است.", 409);
       ensure(
         /^[a-zA-Z0-9_-]+$/.test(safeId),
         "UPSTREAM_INVALID",
@@ -909,6 +923,60 @@ export class Store {
       this.db.prepare("UPDATE actions SET state=?,error_code=? WHERE id=?")
         .run(outcome === "verified" ? "succeeded" : outcome === "not_started" ? "failed" : "uncertain", outcome === "inconclusive" ? "ENV_READBACK_UNCONFIRMED" : null, id);
       this.audit(action, `environment_${outcome}`, checkedAt); return this.getAction(id, actorId);
+    });
+  }
+
+  private writeNetworkProgress(id: string, progress: NetworkProgress): void {
+    this.db.prepare("INSERT INTO network_progress VALUES (?,?) ON CONFLICT(action_id) DO UPDATE SET data_json=excluded.data_json")
+      .run(id, JSON.stringify(parseNetworkProgress(progress)));
+  }
+  startNetworkRequest(id: string, actorId: string): void {
+    this.transaction(() => {
+      const action = this.getAction(id, actorId);
+      ensure(action.spec.version === 13 && action.state === "executing" && action.attemptId && action.network?.stage === "claimed",
+        "ACTION_CONFLICT", "درخواست ساخت شبکه قبلاً شروع شده یا مجوز ندارد.", 409);
+      this.assertProjectAction(actorId, action.spec, id);
+      this.writeNetworkProgress(id, { ...action.network, stage: "request_started" });
+      this.audit(action, "network_request_started", Date.now());
+    });
+  }
+  acceptNetwork(id: string, actorId: string): Action {
+    return this.transaction(() => {
+      const action = this.getAction(id, actorId);
+      ensure(action.spec.version === 13 && action.state === "executing" && action.network?.stage === "request_started",
+        "ACTION_CONFLICT", "این شبکه منتظر رسید پذیرش نیست.", 409);
+      this.writeNetworkProgress(id, { ...action.network, stage: "accepted", acceptedAt: Date.now() });
+      this.db.prepare("UPDATE actions SET state='observing' WHERE id=?").run(id);
+      this.audit(action, "network_accepted", Date.now());
+      return this.getAction(id, actorId);
+    });
+  }
+  recordNetworkObservation(id: string, actorId: string, expectedCheckedAt: number | null,
+    proof: { accountId: string; teamId: string; id: string; name: string; observedAt: number } | null): Action {
+    return this.transaction(() => {
+      const action = this.getAction(id, actorId), progress = action.network;
+      ensure(action.spec.version === 13 && progress && (action.state === "observing" || action.state === "uncertain") &&
+        (progress.observation?.checkedAt ?? null) === expectedCheckedAt, "ACTION_CONFLICT", "وضعیت بررسی شبکه تغییر کرده است.", 409);
+      const spec = action.spec, connection = this.getConnection(actorId, "liara")?.view;
+      ensure(connection?.status === "connected" && connection.identityId === spec.accountId && connection.teamId === spec.scope.teamId,
+        "SCOPE_DENIED", "حساب بررسی شبکه تغییر کرده است.", 403);
+      const checkedAt = Math.max(Date.now(), (expectedCheckedAt ?? 0) + 1),
+        verified = proof !== null && progress.acceptedAt !== null && (progress.stage === "accepted" || progress.stage === "created");
+      if (proof) ensure(proof.accountId === spec.accountId && proof.teamId === spec.scope.teamId && proof.name === spec.networkName &&
+        proof.observedAt >= (progress.acceptedAt ?? checkedAt) && proof.observedAt <= checkedAt && (!progress.networkId || proof.id === progress.networkId),
+        "EVIDENCE_MISMATCH", "هویت شبکه به همین درخواست پذیرفته‌شده تعلق ندارد.", 409);
+      const notStarted = action.state === "uncertain" && progress.stage === "claimed";
+      const observation: NonNullable<NetworkProgress["observation"]> = {
+        outcome: verified ? "verified" : notStarted ? "not_started" : "inconclusive",
+        code: verified ? "NETWORK_VERIFIED" : notStarted ? "NETWORK_NOT_STARTED" : "NETWORK_RECEIPT_UNKNOWN", checkedAt,
+      };
+      const networkId = verified && proof ? providerObjectId(proof.id) : progress.networkId;
+      this.writeNetworkProgress(id, { ...progress, stage: verified ? "created" : progress.stage, networkId, observation });
+      this.db.prepare("UPDATE actions SET state=?,remote_id=?,error_code=? WHERE id=?")
+        .run(verified ? "succeeded" : notStarted ? "failed" : "uncertain", networkId, verified ? null : observation.code, id);
+      if (networkId) this.db.prepare("UPDATE attempts SET remote_id=? WHERE action_id=?").run(networkId, id);
+      this.audit(action, `network_${observation.outcome}`, checkedAt);
+      return this.getAction(id, actorId);
     });
   }
 
@@ -1209,6 +1277,7 @@ export class Store {
     return this.transaction(() => {
       const action = this.getAction(id, actorId);
       ensure(action.spec.version !== 6, "RESTART_OBSERVATION_REQUIRED", "این اقدام باید با بازخوانی مخصوص راه‌اندازی دوباره بررسی شود.", 409);
+      ensure(action.spec.version !== 13, "NETWORK_OBSERVATION_REQUIRED", "هویت شبکه باید از بازخوانی همان حساب و درخواست تأیید شود.", 409);
       ensure((action.spec.version !== 8 && action.spec.version !== 12), "PROVISION_OBSERVATION_REQUIRED", "ساخت مقصد باید با هویت و تنظیمات همان برنامه بررسی شود.", 409);
       ensure(
         !isDeploymentSpec(action.spec),

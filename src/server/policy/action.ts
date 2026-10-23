@@ -14,6 +14,7 @@ import { parseNodeVersion } from "../../contracts/node-runtime.ts";
 import { parseProvisionSpec } from "../../contracts/provision.ts";
 import { parseEnvironmentSpec, parseEnvironmentReference } from "../../contracts/environment.ts";
 import { parsePythonRuntime } from "../../contracts/python-runtime.ts";
+import { parseNetworkSpec } from "../../contracts/network.ts";
 
 export function canonical(value: unknown): string {
   if (
@@ -37,6 +38,7 @@ export function fingerprint(value: unknown): string {
 
 export function parseActionSpec(value: unknown): ActionSpec {
   const input = object(value);
+  if (input.version === 13) return parseNetworkSpec(input);
   if (input.version === 11) {
     ensure(input.nodeVersion === null && input.operation === "deploy", "INVALID_INPUT", "قرارداد انتشار Python معتبر نیست.");
     const { runtime, environment, ...rest } = input, base = parseActionSpec({ ...rest, version: 7, nodeVersion: "22" });
@@ -91,7 +93,7 @@ export function parseActionSpec(value: unknown): ActionSpec {
     "INVALID_INPUT",
     "restart آرگومان انتشار نمی‌پذیرد.",
   );
-  const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12}>, "scope" | "operation" | "sourceHash" | "args"> = {
+  const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12 | 13}>, "scope" | "operation" | "sourceHash" | "args"> = {
     scope: { teamId, app },
     operation: input.operation,
     sourceHash,

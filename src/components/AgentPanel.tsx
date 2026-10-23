@@ -7,6 +7,7 @@ import { api, ClientError } from "./api.ts";
 import { AgentPublication } from "./AgentPublication.tsx";
 import { MissionAuthorityReview } from "./MissionAuthorityReview.tsx";
 import { AgentDestination } from "./AgentDestination.tsx";
+import { AgentNetwork } from "./AgentNetwork.tsx";
 import { RichText } from "./RichText.tsx";
 import { FloatingAssistant } from "./FloatingAssistant.tsx";
 import { ProjectEnvironment } from "./ProjectEnvironment.tsx";
@@ -517,6 +518,17 @@ export function AgentPanel({
     } catch (cause) { failed(cause); }
     finally { setBusy(false); }
   }
+  async function networkRequest(decision?: "approve" | "reject", acknowledgeUnknownCost = false) {
+    if (!run?.network || busy || disabled) return;
+    setRetryable(null); setBusy(true); setError(null);
+    try {
+      accept(await api(`/api/agent/runs/${run.id}`, decodeRun, { csrf,
+        body: decision ? { operation: "network-decision", revision: run.revision, actionId: run.network.id, decision, acknowledgeUnknownCost }
+          : { operation: "network-observe", revision: run.revision },
+      }));
+    } catch (cause) { failed(cause); }
+    finally { setBusy(false); }
+  }
   async function destinationRequest(decision?: "approve" | "reject") {
     if (!run?.destination || busy || disabled) return;
     setRetryable(null);
@@ -556,6 +568,7 @@ export function AgentPanel({
   const runEffect = run ? <p className="agent-effect">{run.effect === "remote_changes_verified" ? "نسخه منتشرشده و پاسخ مورد انتظار بررسی شدند."
     : run.effect === "configuration_changed" ? "تنظیمات برنامه ذخیره و بررسی شد؛ نسخه تازه و سلامت آن هنوز جدا بررسی می‌شوند."
     : run.effect === "destination_created" ? "مقصد ساخته و تنظیمات آن تأیید شد؛ انتشار هنوز جداگانه بررسی می‌شود."
+    : run.effect === "network_created" ? "شبکه با هویت واقعی تأیید شد؛ ساخت مقصد و انتشار هنوز انجام نشده‌اند."
     : run.effect === "remote_changes_unverified" ? "ارسال به سرویس آغاز شده است؛ نتیجه نهایی هنوز تأیید نشده است."
     : "تغییری در سایت منتشر نشده است."}</p> : null;
   const runSteps = run ? <details><summary>مراحل بررسی</summary><ol className="agent-events">
@@ -802,7 +815,7 @@ export function AgentPanel({
         </form>
       ) : null}
       {guided && run?.mission && run.nextAction !== "configure_env" && !active && ["needs_input", "partially_completed", "failed", "interrupted"].includes(run.state) &&
-        ![run.publication?.state, run.destination?.state].some(state => state === "executing" || state === "observing" || state === "uncertain") &&
+        ![run.publication?.state, run.destination?.state, run.network?.state].some(state => state === "executing" || state === "observing" || state === "uncertain") &&
         (run.nextAction !== "connect_account" || accountReady) && (run.nextAction !== "select_app" || appSelected) ?
         <button type="button" disabled={busy || disabled || restoring} onClick={() => void resumePublication()}>{busy ? "در حال ثبت ادامه…" : "ادامه همان مأموریت"}</button> : null}
       {!enabled ? (
@@ -935,6 +948,9 @@ export function AgentPanel({
             onDecision={decision => void planRequest(decision)} /> : run.mission && run.repair?.validationOnly && run.state === "needs_approval" && appSelected ? (
               <button type="button" disabled={disabled || busy || !sameProject} onClick={() => void planRequest()}>بررسی برنامهٔ انتشار و اصلاح خودکار</button>
             ) : null}
+          {run.network && !run.networkContinued ? <AgentNetwork key={run.network.id} action={run.network} waiting={run.state === "needs_approval"}
+            disabled={disabled || busy || active || !sameProject} resumable={run.network.state === "succeeded" && !run.networkContinued}
+            onDecision={(decision, acknowledged) => void networkRequest(decision, acknowledged)} onObserve={() => void networkRequest()} /> : null}
           {run.destination && !run.destinationContinued ? <AgentDestination action={run.destination} waiting={run.state === "needs_approval" && (run.destination.state === "awaiting_approval" || run.destination.state === "expired")}
             disabled={disabled || busy || active || !sameProject}
             resumable={run.destination.state === "succeeded" && !run.destinationContinued}

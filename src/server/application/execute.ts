@@ -12,7 +12,7 @@ export type MutationAdapter = {
     action: Action,
     signal: AbortSignal,
     source: Buffer | null,
-  ): Promise<{ remoteId: string } | { restartAccepted: true }>;
+  ): Promise<{ remoteId: string } | { restartAccepted: true } | { networkAccepted: true }>;
 };
 
 export async function executeApproved(input: {
@@ -66,6 +66,7 @@ export async function executeApproved(input: {
   try {
     const result = await adapter.execute(action, signal, source);
     if ("restartAccepted" in result) return store.acceptRestart(id, session.actorId);
+    if ("networkAccepted" in result) return store.acceptNetwork(id, session.actorId);
     return store.receipt(id, session.actorId, result.remoteId);
   } catch {
     store.uncertain(id, session.actorId);

@@ -1,5 +1,9 @@
 # برنامه اجرایی Launchlane
 
+## شبکه لازم برای حساب خالی؛ برش A05 / ۲۰۲۶-۱۰-۲۳
+
+اولین اجرای زنده candidate05 پیش از مدل/write به `networks=[]` متوقف شد؛ خواندن مستقل همان تیم نیز خالی بود. وابستگی دائمی به شبکه ازقبل‌آماده رفع می‌شود: ActionSpec v13، پذیرش صریح تعرفه نامعلوم، migration12 افزوده، claim/journal و تطبیق ID از readback حساب، در application مشترک وب/AgentRun پیاده شدند. مسیر guided کارت تصمیم دارد و پس از هویت شبکه همان run/budget را ادامه می‌دهد؛ ساخت app و اختیار publication جدا می‌مانند. پاسخ گم‌شده و شبکه هنوز نامرئی به retry نوشتن تبدیل نمی‌شوند. [ADR0019](docs/decisions/0019-required-private-network.md) و [شاهد](docs/evidence/required-private-network.md) حدود و آزمون‌های candidate را ثبت می‌کنند. A05/AC23 همچنان partial؛ ساخت شبکه و چرخه کامل اصلاح/انتشار زنده هنوز UNCONFIRMED است. هزینه شبکه صفر فرض نشده است.
+
 ## source بدون وابستگی و حفظ مجوز؛ برش A07/A11 / ۲۰۲۶-۱۰-۲۳
 
 Node بدون dependency و lock با `install=none` سرور-اعتبارسنجی‌شده از همان build/repair/workload/artifact می‌گذرد؛ lock خراب و dependency اعلام‌شده از این استثنا استفاده نمی‌کنند. همه مأموریت‌های structured پیش از publication به رسید واقعی همین بسته نیاز دارند. فایل LICENSE/NOTICE بدون پسوند در archive حفظ می‌شود. candidate05 با322domain،37HTTP،6container واقعی مرتبط و43حالت guided browser، build/typecheck/lint بدونerror گذشت؛ provider/model مصنوعی و source اصلی محفوظ‌اند. [ادامه ADR0012](docs/decisions/0012-locked-project-build.md) شرایط و compatibility را ثبت می‌کند. A07/A11 همچنان partial؛ اقدام بعد، همین چرخه از انتخاب source خام و میزبان MCP تا نتیجه زنده، و سپس آماده‌سازی واقعی monorepo/وابستگی و تعمیم ماتریس است. نمونه کتاب‌فروشیِ upstream صرفاً یک case کنترل‌شده است؛ از آن ادعای عمومی پروژه‌های دلخواه ساخته نمی‌شود.

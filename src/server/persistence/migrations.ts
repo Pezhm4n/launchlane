@@ -148,4 +148,12 @@ CREATE TABLE mission_artifacts (
 ) STRICT;
 `,
   },
+  {
+    version: 12,
+    sql: `
+CREATE TABLE network_progress (
+  action_id TEXT PRIMARY KEY REFERENCES actions(id), data_json TEXT NOT NULL
+) STRICT;
+`,
+  },
 ] as const;

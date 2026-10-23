@@ -186,6 +186,7 @@ export function agentView(run: AgentRecord): AgentView {
     mission: run.mission ?? null,
     channel: run.channel,
     authority: run.authority ?? null,
+    network: run.network ?? null, networkContinued: run.networkContinued === true,
   };
 }
 
@@ -219,6 +220,13 @@ export class AgentRepository {
     if (!row) return null;
     const run = parseRecord(JSON.parse(string(row.data_json, 512 * 1024)));
     run.authority = missionAuthority(this.store, actorId, run.id);
+    if (run.network) {
+      run.network = this.store.getAction(run.network.id, actorId);
+      if (!run.publication?.attemptId && !run.destination?.attemptId) {
+        if (run.network.state === "succeeded") run.effect = "network_created";
+        else if (run.network.attemptId) run.effect = "remote_changes_unverified";
+      }
+    }
     if (run.publication) {
       run.publication = this.store.getAction(run.publication.id, actorId);
       if (run.publication.state === "succeeded") run.effect = "remote_changes_verified";
@@ -381,7 +389,7 @@ export class AgentRepository {
         run = this.get(actor, string(row.id));
       if (!run) continue;
       this.store.db.prepare("UPDATE mission_authorities SET state='revoked' WHERE actor_id=? AND run_id=? AND state='approved'").run(actor, run.id);
-      for (const action of [run.publication, run.destination]) {
+      for (const action of [run.publication, run.destination, run.network]) {
         if (action?.state === "approved" && !action.attemptId) {
           // A queued approval must not become an unattended write after a process restart.
           this.store.db.prepare("UPDATE actions SET state='cancelled' WHERE id=? AND actor_id=? AND state='approved' AND attempt_id IS NULL")
@@ -392,6 +400,7 @@ export class AgentRepository {
       }
       if (run.publication) run.publication = this.store.getAction(run.publication.id, actor);
       if (run.destination) run.destination = this.store.getAction(run.destination.id, actor);
+      if (run.network) run.network = this.store.getAction(run.network.id, actor);
       run.state = "interrupted";
       run.errorCode = "PROCESS_INTERRUPTED";
       run.nextAction = "reply";
