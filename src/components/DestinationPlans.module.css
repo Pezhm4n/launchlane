@@ -109,10 +109,11 @@
 }
 .price {
   color: var(--color-ink);
-  font-family: var(--font-code);
-  font-size: var(--text-xl);
-  font-weight: 700;
-  line-height: var(--leading-heading);
+  font-family: var(--font-body);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: var(--leading-body);
+  min-block-size: 3.6em;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
@@ -130,7 +131,11 @@
 }
 .estimateLabel { color: var(--color-muted); }
 .estimate { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-1) var(--space-2); }
-.estimate > span:last-child { color: var(--color-ink); font-variant-numeric: tabular-nums; }
+.estimate > span:last-child { color: var(--color-ink); font-family: var(--font-body); font-variant-numeric: tabular-nums; }
+.exactCosts { font-family: var(--font-body); font-size: var(--text-sm); }
+.exactCosts dl { display: grid; gap: var(--space-3); }
+.exactCosts dt { color: var(--color-muted); }
+.exactCosts dd { margin: 0; line-height: var(--leading-body); }
 .planName {
   color: var(--color-muted);
   font-family: var(--font-code);

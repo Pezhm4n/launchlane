@@ -71,4 +71,17 @@ test("plan cards identify derived continuous-runtime estimates and keep the same
   assert.match(html, /برآورد روشن‌ماندن پیوسته/); assert.match(html, /۲۴٬۹۹۹٫۸۴/); assert.match(html, /۷۴۹٬۹۹۵٫۲/);
   assert.match(html, /ثابت‌ماندن نرخ همین پیشنهاد/); assert.match(html, /مالیات، ترافیک و فضای اضافه جدا هستند/);
   assert.doesNotMatch(html, /قیمت ماهانهٔ رسمی|ظرفیت اندازه‌گیری‌شده/);
+  assert.match(html, /حدود هزار و چهل و دو تومن/); assert.match(html, /حدود ۲۵ هزار تومن/); assert.match(html, /حدود ۷۵۰ هزار تومن/);
+  assert.match(html, /<summary>مبلغ دقیق پلن‌ها<\/summary>/);
+});
+
+test("readable money labels use plain toman words and rounded scales without changing exact quotes", () => {
+  assert.equal(plans.readablePlanCost(104166), "حدود هزار و چهل و دو تومن");
+  assert.equal(plans.readablePlanCost(1212300), "حدود ۱۲ هزار تومن");
+  assert.equal(plans.readablePlanCost(104166, 720), "حدود ۷۵۰ هزار تومن");
+  assert.equal(plans.readablePlanCost(319444, 720), "حدود ۲٫۳ میلیون تومن");
+  assert.equal(plans.readablePlanCost(1), "کمتر از یک تومن");
+  assert.equal(plans.readablePlanCost(0), "صفر تومن");
+  assert.equal(plans.readablePlanCost(99999999), "حدود ۱ میلیون تومن");
+  for (const invalid of [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1]) assert.throws(() => plans.readablePlanCost(invalid), RangeError);
 });

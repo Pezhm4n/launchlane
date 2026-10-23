@@ -47,8 +47,13 @@ try {
   const card = page.locator(".destination-card"); await card.getByRole("heading", { name: "ساخت مقصد تازه", exact: true }).waitFor();
   if (!baseline) {
     const starter = card.locator("label").filter({ has: page.getByRole("radio", { name: /^starter/ }) });
-    await starter.getByText("۱۲٬۹۶۰", { exact: true }).waitFor();
-    await starter.getByText("۳۸۸٬۸۰۰", { exact: true }).waitFor();
+    await starter.getByText("حدود ۱۳ هزار تومن", { exact: true }).waitFor();
+    await starter.getByText("حدود ۳۸۹ هزار تومن", { exact: true }).waitFor();
+    assert.doesNotMatch(await starter.getByText("حدود پانصد و چهل تومن", { exact: true }).evaluate(node => getComputedStyle(node).fontFamily), /Consolas|monospace/i);
+    await card.getByText("مبلغ دقیق پلن‌ها", { exact: true }).click();
+    await card.getByText("۱۲٬۹۶۰", { exact: true }).waitFor();
+    await card.getByText("۳۸۸٬۸۰۰", { exact: true }).waitFor();
+    await card.getByText("مبلغ دقیق پلن‌ها", { exact: true }).click();
     await card.getByText(/ثابت‌ماندن نرخ همین پیشنهاد/).waitFor();
   }
   for (const width of [320, 390, 768, 1280]) await layout(width, "plan-choice");
@@ -85,8 +90,8 @@ try {
     await page.waitForFunction(label => [...document.querySelectorAll('input[type="radio"]')].some(input => input.getAttribute("aria-label") === label && input.checked), await growth.getAttribute("aria-label"));
     assert.equal(await growth.isChecked(), true);
     const growthCard = choice.locator("label").filter({ has: page.getByRole("radio", { name: /growth/ }) });
-    await growthCard.getByText("۲۴٬۹۶۰", { exact: true }).waitFor();
-    await growthCard.getByText("۷۴۸٬۸۰۰", { exact: true }).waitFor();
+    await growthCard.getByText("حدود ۲۵ هزار تومن", { exact: true }).waitFor();
+    await growthCard.getByText("حدود ۷۴۹ هزار تومن", { exact: true }).waitFor();
     const revised = fixture.repository.get(fixture.actor, first.id); assert.notEqual(revised.destination.id, first.destination.id);
     assert.equal(revised.destination.spec.args.planId, "growth"); assert.equal(revised.usage.modelCalls, beforeTokens);
     assert.equal(fixture.store.getAction(first.destination.id, fixture.actor).state, "cancelled");
