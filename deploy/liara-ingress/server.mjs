@@ -29,7 +29,8 @@ export function createIngress(config, send = https.request) {
     }
     const limit = 32 * 1024 * 1024, length = Number(request.headers["content-length"] ?? 0);
     if (!Number.isSafeInteger(length) || length < 0 || length > limit) { response.writeHead(413); response.end("Request too large"); return; }
-    const headers = { ...forwardHeaders(request.headers), host: config.host, "x-forwarded-host": config.host, "x-forwarded-proto": "https" };
+    // The private TLS peer has its own identity; Caddy restores the fixed public Host.
+    const headers = { ...forwardHeaders(request.headers), host: "launchlane-origin", "x-forwarded-host": config.host, "x-forwarded-proto": "https" };
     const upstream = send({ hostname: config.upstream, port: 8443, servername: "launchlane-origin", ca: config.ca, cert: config.cert, key: config.key,
       rejectUnauthorized: true, method: request.method, path: request.url, headers, timeout: 900000 }, result => {
       response.writeHead(result.statusCode ?? 502, { ...forwardHeaders(result.headers), "x-accel-buffering": "no" });

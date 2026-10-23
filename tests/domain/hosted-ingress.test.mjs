@@ -29,7 +29,8 @@ test("ingress binds TLS verification, client credentials and the exact public ho
   const result = await request(port, "/api/mcp", { host: config.host, "content-length": "4", "x-forwarded-proto": "http" }, "test");
   assert.equal(result.status, 200); assert.deepEqual(JSON.parse(result.body), { body: "test" });
   assert.equal(calls.length, 1); assert.equal(calls[0].rejectUnauthorized, true); assert.equal(calls[0].servername, "launchlane-origin");
-  assert.equal(calls[0].headers.host, config.host); assert.equal(calls[0].headers["x-forwarded-proto"], "https");
+  assert.equal(calls[0].headers.host, calls[0].servername); assert.equal(calls[0].headers["x-forwarded-host"], config.host);
+  assert.equal(calls[0].headers["x-forwarded-proto"], "https");
   assert.equal(calls[0].key, config.key); assert.deepEqual(result.headers["set-cookie"], ["session=sample; Secure; HttpOnly; SameSite=Strict"]);
   assert.equal(result.headers["x-accel-buffering"], "no"); assert.ok(!result.body.includes("private-key"));
 }));

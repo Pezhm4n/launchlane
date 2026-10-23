@@ -1,5 +1,9 @@
 # برنامه اجرایی Launchlane
 
+## اتصال دامنه به backend؛ ۲۰۲۶-۱۰-۲۴
+
+image واقعی Linux از27b14b5 روی VPS با شناسهٔ ثابت ساخته و web/سه worker image/GitHub CLI2.103.0 آماده شدند. release ورودی عمومی ثبت شد. readback داخلی به دلیل تفاوت Host عمومی و SNI خصوصی421 داد؛ ورودی اکنون Host خصوصی را برابر SNI ارسال می‌کند و Caddy Host ثابت عمومی را بازمی‌گرداند. TLS verification و client-auth حفظ شدند. طبق توقف آزمون‌های تازه از سوی مالک، suite تازه اجرا نمی‌شود؛ نتیجهٔ درخواست واقعی دامنه پس از rollout جدا ثبت خواهد شد. ledger اصلی با حفظ تمام allowance/reserveهای تاریخی partition شد: از باقیماندهٔ0.421734دلار،0.2برای نصب عمومی و0.221734برای محلی؛ هیچ allowance افزایش نیافت.
+
 ## میزبانی خود Launchlane؛ ۲۰۲۶-۱۰-۲۳ — در حال اجرا
 
 مالک ساخت VPSچهارGB و ورودی کوچک دامنهٔ پیش‌فرض را در همان سقف قبلی۲میلیون تومان تأیید کرد؛ allowance مدل تمدید نشد. account/plan/OS واقعی فقط‌خواندنی تطبیق داده شد. نام بیش‌از۲۰کاراکتر با400 رد شد؛ با رعایت محدودیت کنسول رسمی، یک VPS `launchlane-exec-1023` روی Ubuntu24.04 ساخته و ID/plan/IP خوانده شد. SSH عادی banner timeout داشت؛ اتصال خصوصی همان میزبان از رابط فیزیکی، با host-key و بدون تغییر VPN برقرار شد. Docker29.1.3 و CA/server/client certificate روی همان VPS آماده‌اند. build image محلی به readonly metadata موتور خورد و هنوز موفق معرفی نمی‌شود. بستهٔ standalone، state bind، ingress mTLS و guard همان ledger آماده‌اند؛۹regression مربوط وlint/typecheck پاس. استقرار عمومی، ورود، build/repair و restart persistence تا ثبت شواهد مقصد بازند.
