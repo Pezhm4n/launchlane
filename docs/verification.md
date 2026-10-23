@@ -1,5 +1,9 @@
 # شواهد اعتبارسنجی Launchlane
 
+## نسخهٔ عمومی روی لیارا؛ ۲۰۲۶-۱۰-۲۴
+
+دامنهٔ https://launchlane-live-1023.liara.run با web27b14b5 و ingress4e5a55e/release6adbc700bffb36d7841c34b0 فعال شد. در20:45:20UTC، root/هر۹JS-CSS/health برابر200 و workspace بدون نشست401 بودند؛ فقط READY گزارش نشد. state۲۸جدول و ledger۵جدول روی bind پایدار و quick_check=ok هستند؛ restart persistence و نشست عمومی/انتشار جدید هنوز تأیید نشده‌اند. از همان باقیمانده مدل۰٫۲دلار به public و۰٫۲۲۱۷۳۴به محلی تخصیص یافت؛ allowance۲دلار و reserve تاریخی ثابت ماند. [هویت، خطاهای واقعی، هزینه، حدود و گزارش استقرار](evidence/launchlane-hosted-release.md). سرور محلی candidate53 از6a27c66 روی3000 حفظ است؛ عنوان‌های نسخهٔ فعال زیر snapshotهای تاریخی‌اند. طبق دستور مالک suite تازه شروع نشد.
+
 ## نسخهٔ فعال؛ قیمت و نتیجهٔ انتشار candidate51 / ۲۰۲۶-۱۰-۲۳
 
 کد فعال `6e9cd5c` شامل اصلاح قیمت `d320874` است؛ tree `ad5e9022800491534134cb57dbabcf701645024f`، digest۳۸۲فایل `e1e8c4cc4e3e1f190b66312cf4739f3a7d3169325e1a7288bf896f2df9c2dd9a` و اختلاف snapshot صفر. build/typecheck/lint مرتبط موفق،۱۱domain مرتبط،۱۴حالت plans و۸حالت expiry/success/copy موفق‌اند. success/clipboard در regression مصنوعی‌اند؛ انتشار زندهٔ تازه، full domain و aggregate مرورگر ادعا نمی‌شوند.
