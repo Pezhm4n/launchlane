@@ -1,5 +1,9 @@
 # برنامه اجرایی Launchlane
 
+## native Next؛ A07/A08/A11 / ۲۰۲۶-۱۰-۲۳
+
+پس از8b08364، [ADR0027](docs/decisions/0027-native-next-publication.md) و [شاهد](docs/evidence/native-next.md): قرارداد17/18، source/runtime، env، creation/publication/readback، mission authority و UI به مسیر Next متصل شدند؛ platform node نمی‌تواند receipt Next شود. compiler واقعی با dependency قفل‌شده/build/start/GET در Node22 گذشت؛ cloud/model آن صفر و case کنترل‌شده است. پروژه upstream خام در fixture شبیه credential و lock557 متوقف شد؛ تست‌ها حذف یا ویرایش نشدند. **A11 همچنان partial**؛ native Next زنده/پروژه عمومی، سایر خانواده‌ها و source-preparation عمومی الزامی‌اند. بخش‌های تاریخی Next missing با همین مقدار implementation جایگزین می‌شوند، نه با ادعای تأیید کامل.
+
 ## Node24 در worker مشترک؛ A07/A10/A11 / ۲۰۲۶-۱۰-۲۳
 
 پس از f5d9ace، [ADR0026](docs/decisions/0026-node24-isolated-build.md): ProjectBuildPlan v3 و image رسمی24.18.0 با digest ثابت به ابزار موجود متصل شدند. source نسخه را انتخاب می‌کند؛ approval قدیمی22 عوض نمی‌شود. domain انتخاب/قید/image mismatch و دو container build واقعی گذشتند؛ چرخهٔ یک اختیار، patch بی‌اثر/مؤثر و publication مصنوعی برای22 و24 نیز اجرا شد. نتیجهٔ candidate نهایی جدا در verification ثبت می‌شود. Node24 cloud/Next عمومی هنوز UNCONFIRMED؛ ادامه روی خانواده‌های دیگر در A11، بدون کاهش دامنه۱۴خانواده.

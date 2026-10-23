@@ -11,6 +11,7 @@ import { fingerprint } from "../policy/action.ts";
 import { parsePythonRuntime, pythonStart } from "../../contracts/python-runtime.ts";
 import { staticRuntime } from "../../contracts/static-runtime.ts";
 import { validateStaticFiles } from "./static.ts";
+import { parseNextRuntime } from "../../contracts/next-runtime.ts";
 import { containsSourceCredential } from "../policy/redaction.ts";
 import { SOURCE_MAX_FILES, SOURCE_MAX_ENTRIES, SOURCE_MAX_BYTES, sourceFileByteLimit, sourceFileLimitMessage } from "../../contracts/source-limits.ts";
 import {
@@ -236,7 +237,9 @@ async function scanProject(
     !manifest.some(file => /\.(?:py|php|csproj|fsproj|go|rb|java)$|^(?:Dockerfile|composer\.json|Gemfile)$/i.test(file.path)) &&
     (liara.platform === undefined || liara.platform === "static");
   if (staticSite) validateStaticFiles(files, manifest.map(file => file.path));
-  const nodeRuntime = resolveNodeRuntime(pkg.engines, liara.node);
+  const next = typeof object(pkg.dependencies ?? {}).next === "string" && typeof scripts.start === "string" && /^next start(?:\s|$)/.test(scripts.start) && liara.platform !== "node";
+  const nodeRuntime = resolveNodeRuntime(pkg.engines, next ? liara.next ?? liara.node : liara.node);
+  const nextRuntime = next && nodeRuntime.version ? parseNextRuntime({ kind: "next", version: nodeRuntime.version, mirror: object(liara.next ?? {}).mirror ?? false }) : undefined;
   if (
     typeof liara.port === "number" &&
     Number.isInteger(liara.port) &&
@@ -258,6 +261,8 @@ async function scanProject(
     build = safeScript(scripts.build);
   const missing: string[] = [];
   if (hasWorkspaces) missing.push("این پوشه چند بسته را مدیریت می‌کند؛ زیرپوشه همان برنامه قابل انتشار را انتخاب کنید.");
+  if (next && !manifest.some(file => /^(?:src\/)?(?:app\/(?:\([^/]+\)\/)*page|pages\/index)\.[cm]?[jt]sx?$/.test(file.path))) missing.push("صفحهٔ اصلی Next در پوشهٔ انتخاب‌شده پیدا نشد؛ ریشهٔ همان برنامه را بررسی کنید.");
+  if (next && !build) missing.push("فرمان ساخت Next در پروژه موجود نیست؛ پروژه پیش از انتشار به آماده‌سازی نیاز دارد.");
   if (!staticSite && !packageJson && !python) missing.push("پروژه Node یا Python قابل تشخیص نیست.");
   if (!start) missing.push("دستور start مشخص نیست؛ قبل از انتشار آن را تعیین کنید.");
   if (port === null) missing.push("پورت قطعی نیست؛ پورت برنامه را وارد کنید.");
@@ -270,6 +275,7 @@ async function scanProject(
     runtime: staticSite ? "static" : packageJson ? "node" : python ? "python" : "unknown",
     nodeVersion: python || staticSite ? null : nodeRuntime.requirement,
     ...(staticSite ? { staticRuntime } : pythonRuntime ? { pythonRuntime } : { nodeRuntime }),
+    ...(nextRuntime ? { nextRuntime } : {}),
     port,
     start,
     build,

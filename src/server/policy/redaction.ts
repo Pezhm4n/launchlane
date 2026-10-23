@@ -10,16 +10,18 @@ export function redact(value: string, secrets: readonly string[] = []): string {
   return scrub(value, secrets, sensitiveAssignment);
 }
 
-function scrub(value: string, secrets: readonly string[], assignment: RegExp, source = false, python = false): string {
+function scrub(value: string, secrets: readonly string[], assignment: RegExp, source = false, python = false, javascript = false): string {
   let result = value
     .replace(credentialUrl, "[REDACTED_URL]")
     .replace(/\bBearer\s+[^\s"'<>]+/gi, "Bearer [REDACTED]")
-    .replace(assignment, (match, prefix: string, assigned: string) => {
+    .replace(assignment, (match, prefix: string, assigned: string, offset: number, original: string) => {
       const quote = assigned.startsWith('"') ? '"' : assigned.startsWith("'") ? "'" : "";
       // Public setup templates contain no credential; exact installed secrets are still checked below.
       const literal = quote ? assigned.slice(1, -1) : assigned;
       // Minified input-type maps use e.g. password:!0; a boolean/null expression contains no credential value.
       if (source && !quote && /^(?:true|false|null|undefined|!0|!1)$/.test(literal)) return match;
+      // A complete member reference contains no literal credential; operators/defaults remain rejected.
+      if (javascript && !quote && /^[A-Za-z_$][\w$]*(?:\??\.[A-Za-z_$][\w$]*)+(?:\(\))?$/.test(assigned) && /^\s*(?:[,;}]|$)/.test(original.slice(offset + match.length))) return match;
       // Python annotations and variable expressions are not literal credentials. Known installed values are checked independently.
       if (python && (!quote && !/^\d/.test(assigned) || quote && literal === "")) return match;
       if (source && /^YOUR_(?:[A-Z]+_)*(?:KEY|TOKEN|SECRET|PASSWORD)$/.test(literal)) return match;
@@ -43,6 +45,10 @@ export function containsCredential(value: string, secrets: readonly string[] = [
 }
 
 export function containsSourceCredential(value: string, secrets: readonly string[] = [], path = ""): boolean {
+  if (/\.[cm]?[jt]sx?$/.test(path)) {
+    const normalized = value.replace(/\b([A-Za-z_$][\w$]*(?:api_key|token|password|secret|authorization))\s*:\s*string\s*(?==)/gi, "$1 ");
+    return scrub(normalized, secrets, sourceSensitiveAssignment, true, false, true) !== normalized;
+  }
   if (path.endsWith(".py")) {
     for (const secret of secrets) {
       if (secret.length >= 4 && [secret, JSON.stringify(secret).slice(1, -1), encodeURIComponent(secret.toWellFormed())].some(part => value.includes(part))) return true;

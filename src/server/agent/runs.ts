@@ -347,7 +347,7 @@ export async function decideAgentDestination(
   actionId: string, decision: "approve" | "reject",
 ): Promise<AgentRecord> {
   const repo = new AgentRepository(store), run = repo.get(session.actorId, id);
-  ensure(run?.state === "needs_approval" && run.revision === revision && (run.destination?.spec.version === 8 || run.destination?.spec.version === 12 || run.destination?.spec.version === 16) &&
+  ensure(run?.state === "needs_approval" && run.revision === revision && (run.destination?.spec.version === 8 || run.destination?.spec.version === 12 || run.destination?.spec.version === 16 || run.destination?.spec.version === 18) &&
     run.destination.id === actionId && (run.destination.state === "awaiting_approval" || (decision === "reject" && run.destination.state === "expired")),
     "AGENT_CONFLICT", "پیشنهاد ساخت یا وضعیت آن تغییر کرده است؛ نتیجه تازه را ببینید.", 409);
   ensure(store.sessionExists(session.id, session.actorId, Date.now()), "AUTH_REQUIRED", "دوباره وارد شوید.", 401);
@@ -421,7 +421,7 @@ export function resumeAgentNetwork(store: Store, session: Session, id: string, r
 
 function adoptDestination(config: Config, store: Store, session: Session, run: AgentRecord): void {
   const action = run.destination, current = currentAgentContext(config, store, session.actorId);
-  ensure((action?.spec.version === 8 || action?.spec.version === 12 || action?.spec.version === 16) && action.state === "succeeded" && action.provision?.appId &&
+  ensure((action?.spec.version === 8 || action?.spec.version === 12 || action?.spec.version === 16 || action?.spec.version === 18) && action.state === "succeeded" && action.provision?.appId &&
     current.projectId === run.context.projectId && current.projectId === action.spec.projectFlowId &&
     current.sourceHash === run.context.sourceHash && current.sourceHash === action.spec.sourceHash &&
     current.selectionHash === run.context.selectionHash && current.selectionHash === action.spec.selectionHash &&
@@ -928,7 +928,7 @@ export async function driveAgentRun(
       }
       if (name === "propose_publication" && object(result).ok) {
         run.publication = decodeAction(object(object(result).data).publicationProposal);
-        ensure(run.publication.spec.version === 7 || run.publication.spec.version === 10 || run.publication.spec.version === 11 || run.publication.spec.version === 15, "INVALID_RESPONSE", "قرارداد انتشار معتبر نیست.");
+        ensure(run.publication.spec.version === 7 || run.publication.spec.version === 10 || run.publication.spec.version === 11 || run.publication.spec.version === 15 || run.publication.spec.version === 17, "INVALID_RESPONSE", "قرارداد انتشار معتبر نیست.");
         if (run.authority?.state === "approved") {
           try {
             const authority = run.authority;
@@ -964,7 +964,7 @@ export async function driveAgentRun(
         run.destination = decodeAction(object(object(result).data).destinationProposal);
         const recommendation = object(object(result).data).destinationRecommendation;
         run.destinationRecommendation = recommendation === undefined || recommendation === null ? null : parseDestinationRecommendation(recommendation);
-        ensure((run.destination.spec.version === 8 || run.destination.spec.version === 12 || run.destination.spec.version === 16), "INVALID_RESPONSE", "قرارداد ساخت مقصد معتبر نیست.");
+        ensure((run.destination.spec.version === 8 || run.destination.spec.version === 12 || run.destination.spec.version === 16 || run.destination.spec.version === 18), "INVALID_RESPONSE", "قرارداد ساخت مقصد معتبر نیست.");
         run.destinationContinued = false;
         run.state = "needs_approval";
         run.nextAction = null;

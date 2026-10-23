@@ -18,6 +18,7 @@ import { LiaraAccountClient, quotePaaSOffer } from "../liara/catalog.ts";
 import { connectedLiaraConfig } from "../connections/liara.ts";
 import { restoreProjectFlow } from "./project-flows.ts";
 import { parseCodingAgentChoice, type CodingAgentChoice } from "../../contracts/coding-agent.ts";
+import { profilePlatform } from "../../contracts/platform.ts";
 
 export async function proposeMissionAuthority(config: Config, store: Store, session: Session, id: string, revision: number,
   signal: AbortSignal, read?: LiaraReadClient, account?: LiaraAccountClient, codingAgent?: CodingAgentChoice): Promise<AgentRecord> {
@@ -46,7 +47,7 @@ export async function proposeMissionAuthority(config: Config, store: Store, sess
     ensure(flow?.artifact && flow.profile.sourceHash === run.context.sourceHash, "PROJECT_CHANGED", "source تغییر کرده است.", 409);
     const project = await (read ?? new LiaraReadClient(connectedLiaraConfig(config, store, session.actorId, target.app))).project({ teamId: target.teamId, app: target.app }, budget, signal);
     const configuredOrigin = config.probeOrigins[target.app] || store.getProbeOrigin(session.actorId, target.teamId, target.app);
-    ensure(project.id === target.appId && project.planId && project.platform === (run.repair.build.version === 2 ? "python" : "node"), "PLAN_TARGET_CHANGED", "هویت یا پلن مقصد تأیید نشده است.", 409);
+    ensure(project.id === target.appId && project.planId && project.platform === profilePlatform(flow.profile), "PLAN_TARGET_CHANGED", "هویت یا پلن مقصد تأیید نشده است.", 409);
     const catalogClient = account ?? new LiaraAccountClient(connectedLiaraConfig(config, store, session.actorId, target.app), target.accountId),
       metadata = await catalogClient.projectMetadata(target.app, budget, signal), catalog = await catalogClient.catalog(budget, signal);
     ensure(metadata?.id === target.appId && metadata.planId === project.planId, "PLAN_TARGET_CHANGED", "جزئیات مقصد تغییر کرده است.", 409);

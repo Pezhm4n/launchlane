@@ -1,0 +1,11 @@
+# Next بومی؛ قرارداد و compiler
+
+وضعیت: partial در A07/A08/A11/AC28. [ADR0027](../decisions/0027-native-next-publication.md) قرارداد17/18 و حدود را ثبت می‌کند. منبع صرفاً با نام package یا index موفق حساب نمی‌شود. oracle پیش از اجرا: install قفل‌شده، build واقعی Next، start همان source و پاسخ200 شامل `next build ready`؛ cloud و browser مستقل لازم‌اند.
+
+اجرای کنترل‌شده compiler روی backend بعد8b08364 با source hash `8dcac62a3fe2e4b27113685081a0fea50b982c402007a16531bba3d4545b375b`، چهار فایل، Next16.4.2/React19.3.1/Node22.23.3، job `7fbb1866-ee52-4e59-b933-eb5eede68f84` گذشت. npm ci آفلاین24بسته نصب کرد؛ compiler واقعی، generation و next start سپس GET معیار اولیه را گذراندند. receipt exit0/signalnull/duration67116ms و artifact `fb0ac67ee63525c03a55afc83da4bd958adf5ca85cbcf370566aea0a1359de69` ثبت شد. کل اجرا114193ms؛ container همان ID حذف شد، cloud write/model request صفر. tarballها از cache معتبر و reader عمومی npm با integrity مستقل دریافت شدند؛ workaround شبکه نصب، قابلیت عمومی محصول معرفی نشده است.
+
+این یک compiler case کنترل‌شده است، پذیرش عمومی Next نیست. اجرای اول runner خصوصی پیش از compiler با budget12 شکست خورد؛ source و oracle عوض نشدند. بررسی پروژه واقعی [Lingua Loop](https://github.com/KStrochan/lingua-loop) در commit `c2d05a6f539a4b47bb6872c696b9b5f4aee5800e`، بدون تغییر source، در credential-like fixture آزمون متوقف شد؛ lock557 نیز از سقف512 بیشتر است. public prototype با کسب‌وکار واقعی یکسان نیست، ولی منطق آزمون سطح/جدول دوره‌ها/فرم demo دارد و generator ساده نیست. حذف تست/fixture، ضعیف‌کردن oracle یا انتشار آن اتفاق نیفتاد. raw upstream، native cloud17/18، assets و مرورگر همین خانواده هنوز UNCONFIRMED هستند.
+
+domain، metadata نوع node به‌جای next را رد و create18→ID readback→deploy17 همان artifact، نسخه/mirror/env و payload native را با transport مصنوعی می‌سنجد. compatibility با Node/Python/Static و candidate نهایی در verification ثبت می‌شود.
+
+candidate46 روی پایه14b18b9: domain390/390، HTTP39/39، build/typecheck و lint بدون error؛ مرورگر platform12حالت و ورود8حالت با دو actor و صفر pageerror. digest و tree در [verification](../verification.md) ثبت‌اند. compiler واقعی پیش از این export اجرا شد و با regression تازه به‌عنوان یک full live pass جمع نمی‌شود. هزینهٔ تازه مدل/ابر در این برش صفر است؛ allowance قبلی تمدید نشد.

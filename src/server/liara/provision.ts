@@ -6,6 +6,7 @@ import { authorizeScope } from "../policy/action.ts";
 import type { RunBudget } from "../policy/budget.ts";
 import { abortable, boundedJson, httpFailure, transport, type Transport } from "../providers/http.ts";
 import { containsCredential } from "../policy/redaction.ts";
+import { actionPlatform } from "../../contracts/platform.ts";
 
 export class LiaraProvisionClient {
   readonly config: Config;
@@ -21,7 +22,7 @@ export class LiaraProvisionClient {
     try {
       const response = await abortable(() => this.send(url.href, { method: "POST", redirect: "error", cache: "no-store", signal: bounded,
         headers: { Authorization: `Bearer ${this.config.liaraToken}`, Accept: "application/json", "Content-Type": "application/json" },
-        body: JSON.stringify({ name: spec.scope.app, planID: spec.args.planId, bundlePlanID: spec.bundleId, platform: spec.version === 16 ? "static" : spec.version === 12 ? "python" : "node", network: spec.networkId, readOnlyRootFilesystem: true }),
+        body: JSON.stringify({ name: spec.scope.app, planID: spec.args.planId, bundlePlanID: spec.bundleId, platform: actionPlatform(spec), network: spec.networkId, readOnlyRootFilesystem: true }),
       }), bounded);
       if (response.status !== 200) { await response.body?.cancel(); throw httpFailure(response.status); }
       const raw = object(await abortable(() => boundedJson(response, 16384), bounded));

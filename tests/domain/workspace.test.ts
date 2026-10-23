@@ -119,6 +119,15 @@ test("source vocabulary is accepted while credential assignments and exact insta
   assert.equal(containsSourceCredential(benign, ["subtle animations"]), true);
 });
 
+test("JavaScript environment/member references are source expressions while literal defaults, typed credentials and known installed values remain blocked", () => {
+  for (const source of ["const env = {TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,};", "const token = config.TELEGRAM_BOT_TOKEN?.trim();"])
+    assert.equal(containsSourceCredential(source, [], "app/actions.ts"), false);
+  for (const source of ["const token = process.env.TOKEN || 'do-not-publish';", "const token = process.env.TOKEN\n ?? 'do-not-publish';", "const SERVICE_TOKEN: string = 'do-not-publish';", '{"token":"process.env.TOKEN"}'])
+    assert.equal(containsSourceCredential(source, [], "app/actions.ts"), true);
+  assert.equal(containsSourceCredential("const token = config.TELEGRAM_BOT_TOKEN;", ["TELEGRAM_BOT_TOKEN"], "app/actions.ts"), true);
+  assert.equal(containsSourceCredential("token: process.env.TOKEN", [], "settings.json"), true);
+});
+
 test("a bounded data asset and normal lockfile/design vocabulary survive inspection; config stays smaller", async () => {
   const f = await fixture();
   try {

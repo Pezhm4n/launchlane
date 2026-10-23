@@ -1088,7 +1088,7 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
                     <div className="project-summary-details">
                       <div className="project-summary-meta">
                         <span className="badge badge-quiet">پروژه انتخاب‌شده</span>
-                        <PlatformBadge runtime={flow.profile.runtime} version={flow.profile.pythonRuntime?.version} />
+                        <PlatformBadge runtime={flow.profile.runtime} version={flow.profile.pythonRuntime?.version} framework={flow.profile.nextRuntime?.kind} />
                         {flow.selection.kind === "sample" ? <span className="badge badge-warning">پروژه نمونه</span> : null}
                       </div>
                       <p className="project-summary-name">
@@ -1298,7 +1298,7 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
                         <div>
                           <dt>نوع پروژه</dt>
                           <dd>
-                            {profile.runtime === "unknown" ? "هنوز شناسایی نشده" : <PlatformBadge runtime={profile.runtime} version={profile.pythonRuntime?.version} />}
+                            {profile.runtime === "unknown" ? "هنوز شناسایی نشده" : <PlatformBadge runtime={profile.runtime} version={profile.pythonRuntime?.version} framework={profile.nextRuntime?.kind} />}
                           </dd>
                         </div>
                         <div>

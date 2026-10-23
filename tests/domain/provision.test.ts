@@ -27,10 +27,13 @@ import { object } from "../../src/contracts/validation.ts";
 const team = "a".repeat(24), account = "b".repeat(24), network = "c".repeat(24), createdId = "d".repeat(24), app = "new-agent-app";
 const signal = () => AbortSignal.timeout(3000);
 const code = (expected: string) => (error: unknown) => error instanceof AppError && error.code === expected;
-async function fixture(runtime: "node" | "python" | "static" = "node") {
+async function fixture(runtime: "node" | "python" | "static" | "next" = "node") {
   const f = await agentFixture(), config = { ...f.config, teamId: team, apps: [app], liaraToken: "synthetic-private-provision-key",
     enableLiveLiara: true, enableMutations: true };
   let flow = f.flow;
+  if (runtime === "next") flow = await prepareProjectFlow(config, f.store, f.session.actorId, { kind: "upload", directory: ".", name: "next-catalog" }, signal(), undefined, undefined,
+    [{ path: "package.json", content: Buffer.from(JSON.stringify({ name: "next-catalog", engines: { node: "24.x" }, scripts: { build: "next build", start: "next start" }, dependencies: { next: "16.4.2", react: "19.3.1", "react-dom": "19.3.1" } })) },
+      { path: "app/page.tsx", content: Buffer.from('export default function Page(){return <h1>Product catalog</h1>}') }]);
   if (runtime === "static") flow = await prepareProjectFlow(config, f.store, f.session.actorId, { kind: "upload", directory: ".", name: "login-site" }, signal(), undefined, undefined,
     [{ path: "index.html", content: Buffer.from('<!DOCTYPE html><html><head><title>Login & Registration</title><link rel="stylesheet" href="style.css"></head><body><button>Login</button><script src="script.js"></script></body></html>') },
       { path: "style.css", content: Buffer.from("body{color:navy}") }, { path: "script.js", content: Buffer.from("document.body.dataset.ready='yes';") }]);
@@ -138,6 +141,30 @@ test("plain static source provisions native Static and binds its unchanged artif
     const run = new AgentRepository(f.store).get(f.session.actorId, intent.run.id);
     assert.equal(run?.state, "needs_approval"); assert.equal(run.question, null); assert.equal(run.publication?.spec.version, 15);
     assert.equal(run.usage.modelCalls, 1); assert.equal(f.store.db.prepare("SELECT count(*) n FROM code_repair_jobs").get()?.n, 0);
+  } finally { f.close(); }
+});
+
+test("Next native creation and publication preserve the exact account, artifact, runtime and provider platform instead of relabelling a Node release", async () => {
+  const f = await fixture("next");
+  try {
+    assert.equal(f.flow.profile.port, 3000); assert.deepEqual(f.flow.profile.nextRuntime, { kind: "next", version: "24", mirror: false });
+    assert.equal(f.action.spec.version, 18); assert.deepEqual(decodeAction(f.action).spec, parseActionSpec(f.action.spec));
+    f.approve(); await executeDestination(f.config, f.store, f.session, f.action.id, signal(), f.deps);
+    assert.equal((await observeDestination(f.config, f.store, f.session, f.action.id, signal(), f.deps)).state, "succeeded");
+    const origin = `https://${app}.example.com`; f.store.setProbeOrigin(f.session.actorId, { teamId: team, app }, origin);
+    const read = new LiaraReadClient(f.config, async () => Response.json({ project: { _id: createdId, project_id: app, type: "next", planID: "starter", status: "Running", envs: [] } }));
+    const publication = await proposeWorkloadDeployment(f.config, f.store, f.session.actorId, { flowId: f.flow.id, app, port: null,
+      workload: { origin, path: "/", status: 200, assertion: { kind: "text", contains: "Product catalog" } } }, signal(), { read });
+    assert.equal(publication.spec.version, 17); if (publication.spec.version !== 17) throw Error("Wrong Next contract");
+    assert.equal(publication.spec.artifactHash, f.flow.artifact?.archiveHash); assert.equal(publication.spec.nodeVersion, "24"); assert.equal(publication.spec.environment, null);
+    assert.deepEqual(decodeAction(publication).spec, parseActionSpec(publication.spec));
+    assert.throws(() => parseActionSpec({ ...publication.spec, nodeVersion: "22" }));
+    assert.throws(() => parseActionSpec({ ...f.action.spec, nodeVersion: "22" }));
+    let sent: unknown; const write = new LiaraDeployClient(f.config, async (_url, init) => { sent = JSON.parse(String(init.body)); return Response.json({ releaseID: "next-release" }); });
+    await write.release(publication.spec, "next-source", new RunBudget(f.config), signal());
+    assert.deepEqual(sent, { sourceID: "next-source", port: 3000, type: "next", platformConfig: { version: "24", mirror: false } });
+    const wrong = new LiaraReadClient(f.config, async () => Response.json({ project: { _id: createdId, project_id: app, type: "node", planID: "starter", status: "Running", envs: [] } }));
+    await assert.rejects(proposeWorkloadDeployment(f.config, f.store, f.session.actorId, { flowId: f.flow.id, app, port: null, workload: publication.spec.workload }, signal(), { read: wrong }), code("DEPLOYMENT_UNSUPPORTED"));
   } finally { f.close(); }
 });
 

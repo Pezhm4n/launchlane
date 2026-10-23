@@ -1,5 +1,11 @@
 # شواهد اعتبارسنجی Launchlane
 
+## Next بومی؛ candidate46 / ۲۰۲۶-۱۰-۲۳
+
+پایه14b18b9، tree `3025e5f343ac031119e14ff6aa6952f908961c14`، digest358فایل `f894d85719235e178e8467c544004c314c9e739952b3839ba7b6ee720b107c32`، صفر اختلاف export ایندکس. domain390/390، HTTP39/39، typecheck و build پاس؛ lint0error/43warning/12info. مرورگر واقعی همان candidate،12حالت platform و8حالت ورود/دوکاربر/جداسازی source را با صفر pageerror گذراند؛ profileهای Python/unknown و provider ورود مصنوعی‌اند. کارت‌های17/18 نیز همان تصمیم ساخت/انتشار و برچسب Next را در domain رندر می‌کنند. این مجموعه پذیرش زندهٔ Next یا full aggregate تمام runtimeها نیست.
+
+build اول به نوشتن cache در دیسک کم‌فضا هشدار داد، هرچند با exit0 و خروجی تولیدی تمام شد. cacheهای متعلق به candidateهای قدیمی همین مأموریت، با بررسی مسیر و نبود link، به پوشه خصوصی در درایو C منتقل و حفظ شدند؛ source/state/evidence و سرور جاری تغییر نکردند. build مجدد همین candidate بدون خطای کمبود فضا پاس شد؛ هشدارهای tracing موجود حفظ‌اند. این علت مشاهده‌شده، timeoutهای تاریخی fixture را توضیح نمی‌دهد. [شاهد compiler واقعی Next](evidence/native-next.md) روی source/job/artifact مشخص، از انتشار native ابری و پروژه upstream متوقف‌شده جداست؛ مدل و cloud تازه در regression صفرند.
+
 ## worker Node24؛ candidate45 / ۲۰۲۶-۱۰-۲۳
 
 پس از f5d9ace، tree `a4c0c377cd72ce93abbe09fcd88b7b0212aca97c`، digest355فایل `7f4628503930f30b552abc3e1898d66ebd7ca4d338ce0172916320b931763aa5` با صفر اختلاف export ایندکس: build/typecheck پاس، lint0error/39warning/12info، domain388/388 و HTTP39/39. دو suite sandbox روی همین snapshot،۵/۵ مورد واقعی را گذراندند: Node22/24 دقیق، native executable در tmpfs، و برنامهٔ یک‌تصمیمی با شکست، patch بی‌اثر ردشده، اصلاح مؤثر، آزمون مستقل و publication مصنوعی همان artifact. containerها محدود، source اصلی محفوظ و model/provider مصنوعی بودند؛ cloud write و مصرف مدل زنده صفر. اجرای قبلی همین منطق در worktree، typecheck را به‌علت capture کردن optional build در callback رد کرد؛ narrowing محلی اصلاح شد و candidate45 موفق است. فرمان lint آزمایشی با آرگومان نامعتبر false اجرا نشد؛ فرمان واقعی candidate بدون آن پاس شد.

@@ -17,6 +17,7 @@ import { parsePythonRuntime } from "../../contracts/python-runtime.ts";
 import { parseNetworkSpec } from "../../contracts/network.ts";
 import { parseLifecycleSpec } from "../../contracts/project-lifecycle.ts";
 import { parseStaticRuntime } from "../../contracts/static-runtime.ts";
+import { parseNextRuntime } from "../../contracts/next-runtime.ts";
 
 export function canonical(value: unknown): string {
   if (
@@ -40,6 +41,12 @@ export function fingerprint(value: unknown): string {
 
 export function parseActionSpec(value: unknown): ActionSpec {
   const input = object(value);
+  if (input.version === 17) {
+    const { runtime, environment, ...rest } = input, parsed = parseNextRuntime(runtime), base = parseActionSpec({ ...rest, version: 7 });
+    ensure(base.version === 7 && typeof base.sourceHash === "string" && base.nodeVersion === parsed.version, "INVALID_INPUT", "نسخهٔ انتشار Next با پروژه برابر نیست.");
+    return { ...base, version: 17, operation: "deploy", sourceHash: base.sourceHash, runtime: parsed, environment: environment === null ? null : parseEnvironmentReference(environment) };
+  }
+  if (input.version === 18) return parseProvisionSpec(input);
   if (input.version === 15) {
     ensure(input.nodeVersion === null && input.operation === "deploy", "INVALID_INPUT", "قرارداد انتشار ایستا معتبر نیست.");
     const { runtime, ...rest } = input, base = parseActionSpec({ ...rest, version: 7, nodeVersion: "22" });
@@ -103,7 +110,7 @@ export function parseActionSpec(value: unknown): ActionSpec {
     "INVALID_INPUT",
     "restart آرگومان انتشار نمی‌پذیرد.",
   );
-  const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12 | 13 | 14 | 16}>, "scope" | "operation" | "sourceHash" | "args"> = {
+  const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12 | 13 | 14 | 16 | 18}>, "scope" | "operation" | "sourceHash" | "args"> = {
     scope: { teamId, app },
     operation: input.operation,
     sourceHash,

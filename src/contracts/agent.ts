@@ -109,11 +109,11 @@ export function parseAgentView(value: unknown): AgentView {
     };
   });
   const destination = row.destination === null || row.destination === undefined ? null : decodeAction(row.destination);
-  ensure(!destination || (destination.spec.version === 8 || destination.spec.version === 12 || destination.spec.version === 16), "INVALID_RESPONSE", "رسید مقصد با قرارداد ساخت تطبیق ندارد.");
+  ensure(!destination || (destination.spec.version === 8 || destination.spec.version === 12 || destination.spec.version === 16 || destination.spec.version === 18), "INVALID_RESPONSE", "رسید مقصد با قرارداد ساخت تطبیق ندارد.");
   const network = row.network === null || row.network === undefined ? null : decodeAction(row.network);
   const destinationRecommendation = row.destinationRecommendation === null || row.destinationRecommendation === undefined ? null : parseDestinationRecommendation(row.destinationRecommendation);
   const destinationSpec = destination?.spec;
-  ensure(!destinationRecommendation || destinationSpec && (destinationSpec.version === 8 || destinationSpec.version === 12 || destinationSpec.version === 16) &&
+  ensure(!destinationRecommendation || destinationSpec && (destinationSpec.version === 8 || destinationSpec.version === 12 || destinationSpec.version === 16 || destinationSpec.version === 18) &&
     destinationRecommendation.projectId === destinationSpec.projectFlowId && destinationRecommendation.sourceHash === destinationSpec.sourceHash &&
     destinationRecommendation.catalogFingerprint === destinationSpec.cost.catalogFingerprint && destinationRecommendation.offers.some(offer =>
       offer.planId === destinationSpec.args.planId && offer.bundleId === destinationSpec.bundleId && offer.hourlyHundredthsToman === destinationSpec.cost.hourlyHundredthsToman),

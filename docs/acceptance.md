@@ -1,5 +1,7 @@
 # معیارهای پذیرش محصول
 
+افزوده A07/A08/A11/AC28: [Next بومی](evidence/native-next.md) قراردادهای17/18 را از انتخاب source تا ساخت مقصد، env، اختیار، artifact و انتشار به موتور مشترک وصل می‌کند. نصب قفل‌شده، compiler واقعی و start/GET در worker کنترل‌شده گذشتند؛ native cloud و پروژه upstream از source خام هنوز پذیرش زنده ندارند. این مرزها با تشخیص یا payload مصنوعی بسته نمی‌شوند؛ همه۱۴خانواده همچنان لازم‌اند.
+
 افزوده A07/A08/A10/A11: [Static بومی Login](evidence/native-static-login.md) شاهد محدود انتخاب پوشه→upload→مقصد→انتشار Agent→current release→HTML/CSS/JS و رفتار مرورگر است؛ plain Static بدون سؤال Node/port و بدون wrapper انتشار می‌یابد. ساخت از API و تصمیم معتبر، با ساخت از Agent UI یکی نیست؛ live دومی و repair عمومی Static بازند. شکست باید علت/اقدام بعدی نشان دهد؛ پوشه مفقود نباید مدیریت/حذف سابقه را قفل کند و source نامعتبر نباید publication بگیرد. AC28 همچنان تمام۱۴خانواده را لازم دارد.
 
 افزودهٔ A03/A05/A17/A19 برای کاربران سایت: [ADR0024](decisions/0024-liara-identity-login.md) و [شاهد ورود](evidence/liara-identity-login.md). فرم عمومی کلید اپراتور/دستور نصب نمی‌خواهد؛ login معتبر، انتخاب تیم واقعی، جداسازی source/action/credential دو کاربر، CSRF/Origin/Host/revoke و نبود رمز در persistence/model/log شرط‌اند. درخواست صریح پروژهٔ خارج از حساب باید 404 بدهد؛ پاسخ خالی قبلی با نبود افشا از خطای قراردادی جدا ثبت می‌شود. login یا آزمون synthetic، انتشار زنده در میزبانی عمومی را ثابت نمی‌کند. حساب شخصی بدون تیم، ساخت تیم و sandbox مقصد عمومی همچنان مرز پذیرش بازند.

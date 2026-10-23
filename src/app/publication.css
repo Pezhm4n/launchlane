@@ -6,6 +6,7 @@
 .publication-start > button { justify-self: start; }
 .project-summary p { margin-block: var(--space-1); }
 .platform-badge[data-platform="static"] .platform-mark { mask-image: url("/icon/platform/static.svg"); }
+.platform-badge[data-platform="next"] .platform-mark { mask-image: url("/icon/platform/next.svg"); }
 .project-technical { margin-block: var(--space-4); }
 .project-technical .project-review { display: block; margin-block-start: var(--space-4); }
 .project-technical .profile-facts { margin-block-end: var(--space-4); }

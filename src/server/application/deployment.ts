@@ -23,6 +23,7 @@ import { restoreProjectFlow } from "./project-flows.ts";
 import { currentEnvironment, environmentFingerprint, projectEnvironmentValues } from "../environment/secrets.ts";
 import { LiaraEnvironmentClient } from "../liara/environment.ts";
 import { parseNodeVersion } from "../../contracts/node-runtime.ts";
+import { actionPlatform, profilePlatform } from "../../contracts/platform.ts";
 
 type Dependencies = {
   read?: LiaraReadClient;
@@ -53,7 +54,7 @@ function authorize(
   );
   if (requireActiveProject) {
     store.assertProjectAction(actorId, spec, actionId);
-    if (spec.version === 10 || spec.version === 11 && spec.environment !== null) projectEnvironmentValues(store, current.sessionSecret, actorId, spec.projectFlowId, spec.environment);
+    if (spec.version === 10 || (spec.version === 11 || spec.version === 17) && spec.environment !== null) projectEnvironmentValues(store, current.sessionSecret, actorId, spec.projectFlowId, spec.environment);
   }
   else
     ensure(
@@ -64,7 +65,7 @@ function authorize(
       "هویت برنامه بررسی‌شده تغییر کرده است.",
       403,
     );
-  ensure((spec.version !== 7 && spec.version !== 10 && spec.version !== 11 && spec.version !== 15) || store.getConnection(actorId, "liara")?.view.identityId === spec.accountId,
+  ensure((spec.version !== 7 && spec.version !== 10 && spec.version !== 11 && spec.version !== 15 && spec.version !== 17) || store.getConnection(actorId, "liara")?.view.identityId === spec.accountId,
     "SCOPE_DENIED", "حساب انتشار تغییر کرده است.", 403);
 }
 async function checkProject(
@@ -76,7 +77,7 @@ async function checkProject(
   const project = await client.project(spec.scope, budget, signal);
   ensure(
     project.id === spec.targetAppId &&
-      project.platform === (spec.version === 15 ? "static" : spec.version === 11 ? "python" : "node") &&
+      project.platform === actionPlatform(spec) &&
       project.planId === spec.args.planId,
     "DEPLOYMENT_TARGET_CHANGED",
     "هویت برنامه، نوع اجرا یا پلن پس از پیشنهاد تغییر کرده است؛ تأیید تازه لازم است.",
@@ -84,7 +85,7 @@ async function checkProject(
   );
 }
 async function checkEnvironment(config: Config, spec: DeploymentSpec, budget: RunBudget, signal: AbortSignal, client?: LiaraEnvironmentClient) {
-  if (spec.version !== 10 && spec.version !== 11) return;
+  if (spec.version !== 10 && spec.version !== 11 && spec.version !== 17) return;
   const reference = spec.environment;
   if (reference === null) return;
   const current = await (client ?? new LiaraEnvironmentClient(config)).read(spec, budget, signal);
@@ -144,7 +145,7 @@ async function prepareDeployment(
     budget = dependencies.budget ?? new RunBudget(scoped);
   const project = await client.project({ teamId: scoped.teamId, app: input.app }, budget, signal);
   ensure(
-    project.platform === flow.profile.runtime && project.planId,
+    project.platform === profilePlatform(flow.profile) && project.planId,
     "DEPLOYMENT_UNSUPPORTED",
     "نوع مقصد باید با runtime پروژه برابر و پلن آن مشخص باشد.",
     409,
@@ -165,6 +166,8 @@ async function prepareDeployment(
   ensure(generic || !environment, "ENV_PUBLICATION_REQUIRED", "انتشار با اطلاعات امن از مسیر مرحله‌ای و تصمیم متصل به همان اطلاعات ادامه می‌یابد.", 409);
   const spec: DeploySpec = flow.profile.runtime === "static" && flow.profile.staticRuntime
     ? { ...common, version: 15, operation: "deploy", sourceHash: flow.profile.sourceHash, nodeVersion: null, runtime: flow.profile.staticRuntime, accountId: connection.identityId, workload: parseWorkloadContract(workload) }
+    : flow.profile.nextRuntime ? { ...common, version: 17, operation: "deploy", sourceHash: flow.profile.sourceHash, nodeVersion: flow.profile.nextRuntime.version,
+      runtime: flow.profile.nextRuntime, environment, accountId: connection.identityId, workload: parseWorkloadContract(workload) }
     : flow.profile.runtime === "python" && flow.profile.pythonRuntime
     ? { ...common, version: 11, operation: "deploy", nodeVersion: null, runtime: flow.profile.pythonRuntime, environment, accountId: connection.identityId, workload: parseWorkloadContract(workload) }
     : generic
@@ -203,7 +206,7 @@ export async function executeDeployment(
   );
   const action = store.getAction(id, session.actorId);
   ensure(
-    action.spec.version === 5 || (action.spec.version === 7 || action.spec.version === 10 || action.spec.version === 11 || action.spec.version === 15),
+    action.spec.version === 5 || (action.spec.version === 7 || action.spec.version === 10 || action.spec.version === 11 || action.spec.version === 15 || action.spec.version === 17),
     "DEPLOYMENT_PROPOSAL_REQUIRED",
     "این پیشنهاد قدیمی قابل انتشار نیست؛ پیشنهاد تازه با نسخه اجرا و معیار بررسی سایت بسازید.",
     409,
@@ -239,7 +242,7 @@ export async function executeDeployment(
         await checkProject(client, spec, budget, bounded);
         await checkEnvironment(scoped, spec, budget, bounded, dependencies.environment);
         // Leave room for both writes and the second identity read, including its one connect retry.
-        ensure(budget.maxToolCalls - budget.toolCalls >= ((spec.version === 10 || spec.version === 11 && spec.environment !== null) ? 6 : 4), "BUDGET_EXHAUSTED", "بودجه ادامه انتشار و بررسی مقصد کافی نیست.", 409);
+        ensure(budget.maxToolCalls - budget.toolCalls >= ((spec.version === 10 || (spec.version === 11 || spec.version === 17) && spec.environment !== null) ? 6 : 4), "BUDGET_EXHAUSTED", "بودجه ادامه انتشار و بررسی مقصد کافی نیست.", 409);
         authorize(scoped, store, session.actorId, spec, id);
       },
       async execute(claimed, bounded, source) {
@@ -258,7 +261,7 @@ export async function executeDeployment(
       },
     },
   }); } catch (error) {
-    if ((spec.version === 10 || spec.version === 11 && spec.environment !== null) && error instanceof AppError && error.code === "ENV_REFERENCE_CHANGED")
+    if ((spec.version === 10 || (spec.version === 11 || spec.version === 17) && spec.environment !== null) && error instanceof AppError && error.code === "ENV_REFERENCE_CHANGED")
       return store.invalidateEnvironmentPublication(id, session.actorId);
     throw error;
   }
@@ -327,7 +330,7 @@ export async function observeDeployment(
           spec.workload.path,
           budget,
           signal,
-          (spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 15) ? 65536 : 4096,
+          (spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 15 || spec.version === 17) ? 65536 : 4096,
         );
         ensure(
           probe.scope.teamId === spec.scope.teamId &&
@@ -358,7 +361,7 @@ export async function observeDeployment(
           outcome:
             probe.outcome === "response" &&
             probe.status === spec.workload.status &&
-            ((spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 15)
+            ((spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 15 || spec.version === 17)
               ? matchesWorkload(spec.workload, probe.status, probe.body)
               : revision === spec.workload.revision)
               ? "verified"
@@ -367,7 +370,7 @@ export async function observeDeployment(
         };
         // Provider current/READY can precede the public route switching from the old response.
         // Waiting never changes the approved assertion; a persistent mismatch still fails at the deadline.
-        if (result.outcome === "failed" && (spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 15) && probe.outcome === "response" &&
+        if (result.outcome === "failed" && (spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 15 || spec.version === 17) && probe.outcome === "response" &&
           action.deployment.releaseAcceptedAt !== undefined &&
           probe.observedAt >= action.deployment.releaseAcceptedAt &&
           probe.observedAt - action.deployment.releaseAcceptedAt < 300_000)

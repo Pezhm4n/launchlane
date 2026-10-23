@@ -1,5 +1,7 @@
 # وضعیت پلتفرم‌ها و مسیر انتشار
 
+افزوده بعد8b08364: Next دارای قراردادهای بومی17/18 و کنترل platform مشترک شد؛ یک compiler واقعی16.4.2 در Node22، install/build/start/GET و artifact را گذراند. این case کنترل‌شده است؛ raw upstream و native cloud همچنان UNCONFIRMED. [گزارش Next](evidence/native-next.md) تفاوت native payload، Docker worker، پروژه عمومی متوقف‌شده و مرزهای باز را ثبت می‌کند. عبارت تاریخی «native next پیاده نیست» پایین با این implementation جزئی جایگزین می‌شود؛ family کامل نیست.
+
 افزوده worker بعد از f5d9ace: Node24.18.0 با ProjectBuildPlan v3 و image رسمی digest-bound در همان build/repair/authority/artifact اجرا شد؛ candidate45، domain388/388، HTTP39/39 و۵sandbox واقعی پاس شد. این گسترش اجرای محلی22/24 است؛ native cloud Node24 و Next مستقل هنوز UNCONFIRMED هستند. [ADR0026](decisions/0026-node24-isolated-build.md).
 
 افزوده پس از72618b6: [Static واقعی Login](evidence/native-static-login.md) از انتخاب پوشه/upload محصول، create16، انتشار Agent با مدل واقعی، artifact15، current release، تطبیق HTML/CSS/JS و تعامل مرورگر گذشت؛ stop/delete همان app تأیید شد. سؤال Node/port حذف شد. ردیف‌های تاریخی Static/missing پایین با این شاهد جایگزین می‌شوند: وضعیت فعلی **implemented_verified برای plain index/asset**، بدون install/build/start کاربر؛ Nginx80، source/assetهای nested از root انتخابی؛ bundler، SPA rewrite عمومی و repair عمومی باز. این شاهد به خانواده‌های دیگر تعمیم ندارد؛ همه۱۴خانواده الزامی‌اند.
