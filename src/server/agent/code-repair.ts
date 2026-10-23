@@ -365,6 +365,7 @@ export class CodeRepairAdapter {
     draft: boolean,
   ): Promise<CodeRepairJob> {
     const goal = text(input.goal, 2000);
+    ensure(this.config.authMode === "operator" || input.execution === "container", "SANDBOX_REQUIRED", "اصلاح پروژهٔ عمومی باید در محیط ایزوله اجرا شود؛ اجرای مستقیم روی سرور مجاز نیست.", 403);
     const checkParent = () => {
       if (input.parentRunId === undefined) return;
       const parent = new AgentRepository(this.store).get(actor, string(input.parentRunId, 36));
@@ -554,6 +555,7 @@ export class CodeRepairAdapter {
         "REPAIR_SHARED_BUDGET_REQUIRED", "اصلاح وابسته باید از بودجه پایدار همان مأموریت مصرف کند.", 409);
     };
     checkParent();
+    ensure(this.config.authMode === "operator" || record.job.execution === "container", "SANDBOX_REQUIRED", "اجرای مستقیم پروژه روی سرور عمومی مجاز نیست.", 403);
     ensure(record.job.execution !== "container" || record.job.containerImage === (record.job.build?.version === 2 ? pythonBuildImage : projectBuildImage),
       "SANDBOX_IMAGE_CHANGED", "محیط اجرای این job تغییر کرده است؛ تصمیم تازه لازم است.", 409);
     const claim = this.store.db

@@ -11,6 +11,7 @@
     "dev": "next dev --hostname 127.0.0.1",
     "build": "next build",
     "start": "next start --hostname 127.0.0.1",
+    "start:hosted": "node --env-file-if-exists=.env.local scripts/start-hosted.mjs",
     "lint": "biome lint .",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "node --test tests/bootstrap.test.mjs",
@@ -32,7 +33,8 @@
     "test:platforms": "node scripts/test-platform-browser.mjs",
     "test:networks": "node scripts/test-network-browser.mjs",
     "test:destination-plans": "node scripts/test-destination-plans-browser.mjs",
-    "test:projects": "node scripts/test-project-library-browser.mjs"
+    "test:projects": "node scripts/test-project-library-browser.mjs",
+    "test:login": "node scripts/test-liara-login-browser.mjs"
   },
   "dependencies": {
     "next": "16.4.2",

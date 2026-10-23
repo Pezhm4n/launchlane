@@ -30,8 +30,8 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  return endpoint(request, true, ({ store, session }) => {
+  return endpoint(request, true, ({ config, store, session }) => {
     store.revokeSession(session.id);
-    return reply({ state: "signed_out" }, 200, { "Set-Cookie": logoutCookie });
+    return reply({ state: "signed_out" }, 200, { "Set-Cookie": `${logoutCookie}${config.origin.startsWith("https:") ? "; Secure" : ""}` });
   });
 }

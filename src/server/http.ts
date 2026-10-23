@@ -5,6 +5,7 @@ import { AppError, ensure } from "./errors.ts";
 import { getRuntime } from "./runtime.ts";
 import type { Store } from "./persistence/store.ts";
 import { checkRequest, requireSession } from "./policy/session.ts";
+import { actorConfig } from "./connections/actor-config.ts";
 
 type Context = { config: Config; store: Store; session: Session; requestId: string };
 const headers = {
@@ -62,7 +63,7 @@ export async function endpoint(
   try {
     const { config, store } = getRuntime();
     const session = requireSession(request, config, store, write);
-    const response = await handler({ config, store, session, requestId });
+    const response = await handler({ config: actorConfig(config, store, session.actorId), store, session, requestId });
     response.headers.set("X-Request-Id", requestId);
     return response;
   } catch (error) {

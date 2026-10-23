@@ -35,6 +35,7 @@ export async function POST(request: Request) {
       "INVALID_OPERATION",
       "این درخواست اتصال پشتیبانی نمی‌شود.",
     );
+    ensure(config.authMode === "operator" || operation !== "connect", "AUTH_METHOD_DENIED", "برای اتصال حساب دیگر، خارج شوید و با حساب لیارا وارد شوید.", 403);
     exactKeys(input, [
       "operation",
       ...(operation === "connect"

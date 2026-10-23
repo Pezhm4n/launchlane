@@ -1,5 +1,9 @@
 # شواهد اعتبارسنجی Launchlane
 
+## ورود هویتی لیارا؛ candidate38 / ۲۰۲۶-۱۰-۲۳
+
+[شاهد](evidence/liara-identity-login.md) و [ADR0024](decisions/0024-liara-identity-login.md): build/typecheck و lint بدون error،39HTTP و8 حالت مرورگر واقعی با دو هویت/provider مصنوعی گذشتند. domain کامل380/381 بود؛ failure شبکهٔ HTTP worker در preparation و recheck5/6 سپس6/6، بدون تغییر oracle، حفظ شده‌اند؛ root cause نامعلوم و full pass تازه ادعا نمی‌شود. اتصال read/check/teams واقعی لیارا مشاهده شد، ولی رمز واقعی ارسال نشد؛ ورود زنده، حساب شخصی بدون تیم، sandbox میزبان عمومی و استقرار از همان دامنه UNCONFIRMED هستند. فایل و state اپراتور حفظ و تغییرات همکار از snapshot خارج ماندند.
+
 ## Project removal / provider env response — candidate35, 2026-10-23
 
 Frozen runtime tree `ef28adf03bea64e9ee7e462b08348b53925382f2`, base `a8384407`;336 runtime/test/config files, digest `465aebf90be741b14562fe05848a4b9be0000129d354ba6989adef110de82eae`, zero mismatches. Production build and typecheck passed; lint had0 errors/39 warnings/12 infos. On this candidate:370/370 domain,39/39 HTTP,14 project-library browser states,12 plan states and54 guided states passed. Network transport for those browser suites is synthetic; folder input and Chromium interactions are actual. This is the relevant subset, not a new full aggregate sandbox/all-runtime pass.

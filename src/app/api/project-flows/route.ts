@@ -44,6 +44,7 @@ export async function GET(request: Request) {
       AbortSignal.any([request.signal, AbortSignal.timeout(config.runTimeoutMs)]),
       id ?? undefined,
     );
+    ensure(!id || flow, "NOT_FOUND", "این پروژه در حساب شما پیدا نشد. پروژه را از «پروژه‌های من» انتخاب کنید.", 404);
     store.listActions(session.actorId);
     return reply({
       flow: displayFlow(config, flow),

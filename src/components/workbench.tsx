@@ -28,6 +28,8 @@ import { PlatformBadge } from "./PlatformBadge.tsx";
 import { AccordionMotion } from "./AccordionMotion.tsx";
 import { SignOutDialog } from "./SignOutDialog.tsx";
 import { ProjectLibrary } from "./ProjectLibrary.tsx";
+import { LiaraSignIn } from "./LiaraSignIn.tsx";
+import { LiaraTeamPicker } from "./LiaraTeamPicker.tsx";
 
 type FlowResult = { flow: ProjectFlow | null; action: Action | null };
 type WorkbenchMode="source"|"incident";
@@ -328,7 +330,7 @@ function Proposal({
   );
 }
 
-export function Workbench() {
+export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "liara" }) {
   const [editingProject, setEditingProject] = useState(false), [agentLocked, setAgentLocked] = useState(false), [chatLocked, setChatLocked] = useState(false);
   const [workspace, setWorkspace] = useState<WorkspaceView | null>(null),
     [loading, setLoading] = useState(true),
@@ -577,6 +579,15 @@ export function Workbench() {
     setToken("");
     try {
       await api("/api/session", () => true, { body: { token: submitted } });
+      await finishSignIn();
+    } catch (error) {
+      if (error instanceof ClientError && error.code === "AUTH_REQUIRED") setError(error);
+      else fail(error);
+    } finally {
+      setBusy(null);
+    }
+  }
+  async function finishSignIn() {
       const state = locationState();
       const [data, saved] = await Promise.all([
         refresh(),
@@ -591,12 +602,6 @@ export function Workbench() {
           ? "پروژه ذخیره‌شده بازیابی شد. فایل‌ها دوباره بررسی شدند."
           : "وارد میز کار شدید.",
       );
-    } catch (error) {
-      if (error instanceof ClientError && error.code === "AUTH_REQUIRED") setError(error);
-      else fail(error);
-    } finally {
-      setBusy(null);
-    }
   }
   async function signOut() {
     if (!workspace || busy) return;
@@ -969,7 +974,7 @@ export function Workbench() {
         id="main-content"
         className="app-main task-main"
       >
-        <WorkspaceIntro authenticated={Boolean(workspace)} projectName={flow ? projectName(flow) : null} mode={mode} loading={loading} />
+        {workspace || authMode === "operator" ? <WorkspaceIntro authenticated={Boolean(workspace)} projectName={flow ? projectName(flow) : null} mode={mode} loading={loading} /> : null}
         <div
           className="live-message compact-status"
           role="status"
@@ -1002,6 +1007,8 @@ export function Workbench() {
           <div className="panel" aria-busy="true">
             <p>در حال آماده‌کردن میز کار…</p>
           </div>
+        ) : !workspace && authMode === "liara" ? (
+          <LiaraSignIn onSignedIn={finishSignIn} />
         ) : !workspace ? (
           <div className="login-layout">
             <section className="panel login-panel" aria-labelledby="login-title">
@@ -1051,6 +1058,7 @@ export function Workbench() {
           </div>
         ) : (
           <>
+            {authMode === "liara" && !workspace.connections.liara?.teamId ? <LiaraTeamPicker csrf={workspace.session.csrfToken} onSelected={refresh} /> : null}
             {expired ? (
               <div className="note" role="alert">
                 <p>

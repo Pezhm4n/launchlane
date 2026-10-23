@@ -526,25 +526,26 @@ export class Store {
       .run(action.id, action.actorId, event, now);
   }
 
-  rateLimitLogin(now = Date.now()): void {
+  rateLimitLogin(now = Date.now(), bucket = "operator", maxAttempts = 5): void {
     this.transaction(() => {
+      this.db.prepare("DELETE FROM login_limits WHERE reset_at<=?").run(now);
       const row = this.db
-        .prepare("SELECT attempts,reset_at FROM login_limits WHERE bucket='operator'")
-        .get();
+        .prepare("SELECT attempts,reset_at FROM login_limits WHERE bucket=?")
+        .get(bucket);
       if (!row || Number(row.reset_at) <= now) {
         this.db
-          .prepare("INSERT OR REPLACE INTO login_limits VALUES ('operator',1,?)")
-          .run(now + 60_000);
+          .prepare("INSERT OR REPLACE INTO login_limits VALUES (?,1,?)")
+          .run(bucket, now + 60_000);
       } else {
         ensure(
-          Number(row.attempts) < 5,
+          Number(row.attempts) < maxAttempts,
           "RATE_LIMITED",
           "تلاش ورود زیاد است؛ یک دقیقه بعد دوباره تلاش کنید.",
           429,
         );
         this.db
-          .prepare("UPDATE login_limits SET attempts=attempts+1 WHERE bucket='operator'")
-          .run();
+          .prepare("UPDATE login_limits SET attempts=attempts+1 WHERE bucket=?")
+          .run(bucket);
       }
     });
   }

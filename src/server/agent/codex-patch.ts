@@ -91,6 +91,7 @@ export class CodexPatchModel implements ModelPort {
     this.config = config; this.store = store; this.actor = actor; this.executable = executable; this.process = process;
   }
   async complete(messages: readonly ModelMessage[], tools: readonly ToolDefinition[], budget: RunBudget, signal: AbortSignal): Promise<ToolTurn> {
+    ensure(this.config.authMode === "operator", "CODEX_UNAVAILABLE", "اجرای حساب Codex سرور برای کاربران عمومی مجاز نیست؛ عامل داخلی را انتخاب کنید.", 503);
     ensure(tools.length === 1 && tools[0]?.function.name === "submit_patch" && messages.length === 2 && messages[0]?.role === "system" && messages[1]?.role === "user",
       "CODEX_SCOPE_DENIED", "اتصال Codex فقط packet اصلاح محدود را می‌پذیرد.", 403);
     const packet = object(JSON.parse(messages[1].content)), jobId = string(packet.jobId, 36),

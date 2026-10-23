@@ -52,6 +52,7 @@ export function login(
   store: Store,
   now = Date.now(),
 ): { session: Session; cookie: string } {
+  ensure(config.authMode === "operator", "AUTH_METHOD_DENIED", "با حساب لیارا وارد شوید.", 403);
   ensure(config.authConfigured, "AUTH_UNCONFIGURED", "ابتدا تنظیمات ورود محلی را آماده کنید.", 503);
   store.rateLimitLogin(now);
   ensure(
@@ -60,8 +61,13 @@ export function login(
     "کلید ورود محلی درست نیست.",
     401,
   );
-  const id = randomBytes(24).toString("base64url");
   const actorId = createHash("sha256").update(config.operatorToken).digest("hex").slice(0, 24);
+  return issueSession(actorId, config, store, now);
+}
+
+export function issueSession(actorId: string, config: Config, store: Store, now = Date.now()): { session: Session; cookie: string } {
+  ensure(config.authConfigured && /^[a-f0-9]{24}$/.test(actorId), "AUTH_UNCONFIGURED", "ورود در این نصب هنوز آماده نیست.", 503);
+  const id = randomBytes(24).toString("base64url");
   const session = {
     id,
     actorId,
@@ -74,7 +80,7 @@ export function login(
   store.saveSession(session);
   return {
     session,
-    cookie: `${COOKIE}=${payload}.${signature(payload, config.sessionSecret)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${TTL / 1000}`,
+    cookie: `${COOKIE}=${payload}.${signature(payload, config.sessionSecret)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${TTL / 1000}${config.origin.startsWith("https:") ? "; Secure" : ""}`,
   };
 }
 

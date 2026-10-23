@@ -1,5 +1,9 @@
 # معماری Launchlane
 
+## هویت بازدیدکنندهٔ سایت
+
+[ADR0024](docs/decisions/0024-liara-identity-login.md) حالت صریح `liara` را کنار اپراتور خصوصی تعریف می‌کند. login پس از تعویض رسمی رمز و خواندن هویت provider، actor پایدار و اتصال رمز‌شده می‌سازد؛ رمز ذخیره نمی‌شود. هر درخواست وب/MCP با `actorConfig` تیم همان actor را به application موجود می‌دهد. config جهانی نمی‌تواند توکن، تیم، probe، root یا CLI اپراتور را به بازدیدکننده بدهد. انتخاب تیم نیز read/membership از provider دارد. policy، journal، artifact، بودجه و canonicalization موازی ساخته نشده‌اند؛ schema قبلی actor/bucket را پشتیبانی می‌کند. پذیرش میزبانی عمومی و scope حساب شخصی هنوز باز است.
+
 ## شبکه موردنیاز حساب تازه؛ A05
 
 ActionSpec v13 و migration12 افزوده، ساخت یک شبکه را با پذیرش صریح تعرفه نامعلوم به actor/account/team/source و parent run متصل می‌کنند. همان Store و executeApproved مالک claim/attempt هستند؛ پاسخ HTTP پذیرفته‌شده و هویت خوانده‌شده دو مرحله جدا هستند. uncertainty ساخت تازه را در کل تیم مسدود می‌کند؛ MCP تنها همان AgentRun و کارت وب را می‌خواند. این capability شبکه را بیرون محصول آماده نمی‌کند و مجوز app، database یا publication نمی‌دهد. [ADR0019](docs/decisions/0019-required-private-network.md).

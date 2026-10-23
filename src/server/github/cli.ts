@@ -24,6 +24,7 @@ export async function githubEnvironment(
   actorId: string,
   source: GitHubAuthSource,
 ): Promise<NodeJS.ProcessEnv> {
+  ensure(config.authMode === "operator" || source === "cli_private", "GITHUB_SCOPE_DENIED", "در این نصب، حساب GitHub خودتان را متصل کنید.", 403);
   const env: NodeJS.ProcessEnv = { NODE_ENV: "production" };
   // Provider/model keys, debug flags and arbitrary shell configuration never enter the child.
   for (const name of [

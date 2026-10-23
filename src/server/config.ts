@@ -19,6 +19,11 @@ export const permittedChatModels: readonly string[] = [
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
+function authenticationMode(value: string): "operator" | "liara" {
+  ensure(value === "operator" || value === "liara", "CONFIG_INVALID", "روش ورود معتبر نیست.", 503);
+  return value;
+}
+
 function flag(env: Environment, key: string): boolean {
   const value = env[key] ?? "false";
   ensure(
@@ -53,6 +58,7 @@ function fixedUrl(raw: string | undefined, expected: string): string {
 }
 
 export function readConfig(env: Environment = process.env) {
+  const authMode = authenticationMode(env.LAUNCHLANE_AUTH_MODE || "operator");
   const origin = env.LAUNCHLANE_ORIGIN || "http://127.0.0.1:3000";
   let parsed: URL;
   try {
@@ -61,13 +67,13 @@ export function readConfig(env: Environment = process.env) {
     throw new AppError("CONFIG_INVALID", "origin محلی معتبر نیست.", 503);
   }
   ensure(
-    parsed.protocol === "http:" &&
-      ["127.0.0.1", "localhost", "[::1]"].includes(parsed.hostname) &&
+    ((parsed.protocol === "http:" && ["127.0.0.1", "localhost", "[::1]"].includes(parsed.hostname)) ||
+      (authMode === "liara" && parsed.protocol === "https:")) &&
       parsed.origin === origin &&
       !parsed.username &&
       !parsed.password,
     "CONFIG_INVALID",
-    "این نسخه فقط روی origin محلی اجرا می‌شود.",
+    "نشانی نصب باید محلی باشد؛ ورود عمومی به نشانی ثابت HTTPS نیاز دارد.",
     503,
   );
   const teamId = env.LIARA_TEAM_ID || "";
@@ -112,22 +118,23 @@ export function readConfig(env: Environment = process.env) {
     503,
   );
   return {
+    authMode,
     origin,
-    operatorToken,
+    operatorToken: authMode === "operator" ? operatorToken : "",
     sessionSecret,
     projectSecretValues: [] as readonly string[],
-    authConfigured: operatorToken.length >= 32 && sessionSecret.length >= 32,
+    authConfigured: sessionSecret.length >= 32 && (authMode === "liara" || operatorToken.length >= 32),
     // Runtime-only operator paths. Do not trace private workspace/state into a server build.
-    workspaceRoot: env.LAUNCHLANE_WORKSPACE_ROOT
+    workspaceRoot: authMode === "operator" && env.LAUNCHLANE_WORKSPACE_ROOT
       ? resolve(/* turbopackIgnore: true */ env.LAUNCHLANE_WORKSPACE_ROOT)
       : null,
     stateDir: resolve(/* turbopackIgnore: true */ env.LAUNCHLANE_STATE_DIR || ".data"),
-    teamId,
-    apps: [...new Set(apps)],
-    probeOrigins: parseProbeOrigins(env.LAUNCHLANE_PROBE_ORIGINS, apps),
+    teamId: authMode === "operator" ? teamId : "",
+    apps: authMode === "operator" ? [...new Set(apps)] : [],
+    probeOrigins: parseProbeOrigins(authMode === "operator" ? env.LAUNCHLANE_PROBE_ORIGINS : undefined, authMode === "operator" ? apps : []),
     liaraBaseUrl: fixedUrl(env.LIARA_API_BASE_URL, "https://api.liara.ir"),
-    liaraToken: env.LIARA_API_TOKEN || "",
-    githubCliPath: env.LAUNCHLANE_GITHUB_CLI_PATH
+    liaraToken: authMode === "operator" ? env.LIARA_API_TOKEN || "" : "",
+    githubCliPath: authMode === "operator" && env.LAUNCHLANE_GITHUB_CLI_PATH
       ? resolve(/* turbopackIgnore: true */ env.LAUNCHLANE_GITHUB_CLI_PATH)
       : "",
     modelBaseUrl: fixedUrl(env.MODEL_BASE_URL, "https://ai.boxapi.ir/ai/v1"),
