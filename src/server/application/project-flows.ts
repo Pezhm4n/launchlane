@@ -11,6 +11,7 @@ import { connectedGitHub } from "../github/login.ts";
 import type { Store } from "../persistence/store.ts";
 import { authorizeScope, fingerprint } from "../policy/action.ts";
 import { inspectProject } from "../workspace/inspect.ts";
+import type { SourceFile } from "../workspace/inspect.ts";
 import { readArtifact } from "../workspace/archive.ts";
 import { prepareArchive } from "./prepare-source.ts";
 import { parseCodeRepairJob } from "../../contracts/code-repair.ts";
@@ -24,6 +25,8 @@ export function projectRoot(
 ): { root: string; directory: string } {
   if (flow.selection.kind === "github")
     return { root: join(config.stateDir, "github-sources", flow.id), directory: "." };
+  if (flow.selection.kind === "upload")
+    return { root: join(config.stateDir, "uploaded-sources", flow.id), directory: "." };
   if(flow.selection.kind==="repair") return {root:join(config.stateDir,"repair-workspaces",flow.selection.jobId),directory:"."};
   if (flow.selection.kind === "sample")
     return { root: resolve(/* turbopackIgnore: true */ "."), directory: "examples/node-service" };
@@ -49,6 +52,7 @@ export async function prepareProjectFlow(
   signal: AbortSignal,
   github?: GitHubClient,
   ownerRunId?: string,
+  uploadedFiles?: readonly SourceFile[],
 ): Promise<ProjectFlow> {
   ensure(
     !preparing,
@@ -60,6 +64,11 @@ export async function prepareProjectFlow(
   const id = randomUUID();
   let imported = false;
   try {
+    if (selection.kind === "upload") {
+      ensure(uploadedFiles?.length, "UPLOAD_REQUIRED", "پوشه را از رایانه انتخاب و فایل‌ها را برای بررسی وارد کنید.");
+      await persistGitHubSource(config.stateDir, id, uploadedFiles, signal, "uploaded-sources");
+      imported = true;
+    }
     if(selection.kind==="repair") {
       const row=store.db.prepare("SELECT data_json,state FROM code_repair_jobs WHERE actor_id=? AND id=?").get(actorId,selection.jobId);
       ensure(row,"REPAIR_NOT_FOUND","نسخه اصلاح‌شده در دسترس نیست.",404);
@@ -142,7 +151,7 @@ export async function prepareProjectFlow(
     if (imported) {
       try {
         // A committed flow owns its snapshot, including when a response is lost after persistence.
-        if (!store.getProjectFlow(actorId, id)) await discardGitHubSource(config.stateDir, id);
+        if (!store.getProjectFlow(actorId, id)) await discardGitHubSource(config.stateDir, id, selection.kind === "upload" ? "uploaded-sources" : "github-sources");
       } catch {
         throw new AppError("GITHUB_CLEANUP_UNAVAILABLE", "بررسی پروژه کامل نشد و پاک‌سازی فایل‌های موقت ممکن نبود. پروژه قبلی حفظ شده است؛ از مسئول نصب برای بررسی فضای ذخیره‌سازی کمک بگیرید.", 503);
       }

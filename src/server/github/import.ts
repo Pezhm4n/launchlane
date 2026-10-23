@@ -204,10 +204,11 @@ export async function persistGitHubSource(
   id: string,
   files: readonly SourceFile[],
   signal: AbortSignal,
+  namespace: "github-sources" | "uploaded-sources" = "github-sources",
 ): Promise<string> {
   ensure(/^[a-f0-9-]{36}$/.test(id), "INVALID_INPUT", "شناسه پروژه معتبر نیست.");
   const root = await realpath(stateDir),
-    base = join(root, "github-sources");
+    base = join(root, namespace);
   await mkdir(base, { recursive: true, mode: 0o700 });
   const stat = await lstat(base);
   ensure(
@@ -240,14 +241,14 @@ export async function persistGitHubSource(
     );
     return destination;
   } catch (error) {
-    await discardGitHubSource(stateDir, id);
+    await discardGitHubSource(stateDir, id, namespace);
     throw error;
   }
 }
 
-export async function discardGitHubSource(stateDir: string, id: string): Promise<void> {
+export async function discardGitHubSource(stateDir: string, id: string, namespace: "github-sources" | "uploaded-sources" = "github-sources"): Promise<void> {
   ensure(/^[a-f0-9-]{36}$/.test(id), "INVALID_INPUT", "شناسه پروژه معتبر نیست.");
-  const root = await realpath(stateDir), base = join(root, "github-sources"), target = join(base, id);
+  const root = await realpath(stateDir), base = join(root, namespace), target = join(base, id);
   const stat = await lstat(base);
   ensure(stat.isDirectory() && !stat.isSymbolicLink() && (await realpath(base)) === base,
     "UNSAFE_PATH", "پوشه نگهداری پروژه امن نیست؛ پاک‌سازی متوقف شد.", 503);

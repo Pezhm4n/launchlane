@@ -592,6 +592,7 @@ export function Workbench() {
     selection: ProjectSelection,
     origin: "folder" | "sample" | "manual" | "github",
     upstream?: AbortSignal,
+    upload?: FormData,
   ): Promise<boolean> {
     if (!workspace || busy || expired || pending.current) return false;
     const controller = new AbortController();
@@ -606,8 +607,8 @@ export function Workbench() {
         : "در حال بررسی و آماده‌سازی محلی فایل‌های پروژه…",
     );
     try {
-      const result = await api("/api/project-flows", decodeFlow, {
-        body: { operation: "prepare", selection },
+      const result = await api(upload ? "/api/projects/upload" : "/api/project-flows", decodeFlow, {
+        ...(upload ? { form: upload } : { body: { operation: "prepare", selection } }),
         csrf: workspace.session.csrfToken,
         signal,
       });
@@ -638,7 +639,7 @@ export function Workbench() {
               ),
         );
       setNotice("");
-      if (origin === "github") throw error;
+      if (origin === "github" || upload) throw error;
       return false;
     } finally {
       if (pending.current === controller) {
@@ -1027,7 +1028,7 @@ export function Workbench() {
               {flow && !editingProject ? <section className="panel project-summary" aria-label="پروژه انتخاب‌شده">
                 <div className="section-heading"><div><span className="hint">پروژه انتخاب‌شده</span><p><strong><bdi>{projectName(flow)}</bdi></strong></p></div>
                 <button type="button" className="button-quiet" disabled={disabled} onClick={() => setEditingProject(true)}>تغییر پروژه</button></div>
-                <p className="hint">{flow.selection.kind === "github" ? "از GitHub؛ نسخه انتخاب‌شده ثبت شده" : flow.selection.kind === "repair" ? "نسخه اصلاح‌شده و آزموده‌شده" : "از پوشه‌های مجاز همین رایانه"}</p>
+                <p className="hint">{flow.selection.kind === "github" ? "از GitHub؛ نسخه انتخاب‌شده ثبت شده" : flow.selection.kind === "repair" ? "نسخه اصلاح‌شده و آزموده‌شده" : flow.selection.kind === "upload" ? "کپی واردشده از رایانه؛ فایل اصلی شما تغییر نمی‌کند" : "از پوشه‌های مجاز همین رایانه"}</p>
                 {flow.selection.kind === "sample" ? <span className="badge badge-warning">پروژه نمونه</span> : null}
               </section> : null}
               <section hidden={Boolean(flow && !editingProject)}
@@ -1043,7 +1044,7 @@ export function Workbench() {
                     <span className="badge badge-warning">پروژه نمونه</span>
                   ) : flow ? (
                     <span className="badge badge-quiet">
-                      {flow.selection.kind === "repair" ? "اصلاح آزموده‌شده" : flow.selection.kind === "github" ? "از GitHub" : "روی این رایانه"}
+                      {flow.selection.kind === "repair" ? "اصلاح آزموده‌شده" : flow.selection.kind === "github" ? "از GitHub" : flow.selection.kind === "upload" ? "از رایانه شما" : "روی این رایانه"}
                     </span>
                   ) : null}
                 </div>
@@ -1059,7 +1060,7 @@ export function Workbench() {
                     type="button"
                     className="studio-source-button"
                     ref={folderTrigger}
-                    disabled={disabled || workspace.capabilities.workspace.state !== "available"}
+                    disabled={disabled}
                     aria-describedby={projectError ? "project-error" : "project-choice-help"}
                     onClick={() => {
                       restoreFocus.current = "folder";
@@ -1091,8 +1092,7 @@ export function Workbench() {
                 </p>
                 {workspace.capabilities.workspace.state !== "available" ? (
                   <p className="note">
-                    پوشه‌های محلی این نصب هنوز تعیین نشده‌اند. از GitHub انتخاب کنید یا با پروژه نمونه
-                    امتحان کنید.
+                    پوشهٔ دلخواه را با «انتخاب پوشه پروژه» از رایانه وارد کنید؛ نیازی به تنظیم پوشهٔ مجاز نصب نیست.
                   </p>
                 ) : null}
                 {busy === "prepare" ? (
@@ -1527,6 +1527,11 @@ export function Workbench() {
               <FolderPicker
                 csrf={workspace.session.csrfToken}
                 initial={flow?.selection.kind === "local" ? flow.selection.directory : "."}
+                onUpload={async (form, signal) => {
+                  const result = await prepare({ kind: "upload", directory: ".", name: "پروژه" }, "folder", signal, form);
+                  if (result) { restoreFocus.current = null; setFolderOpen(false); }
+                  return result;
+                }}
                 onSelect={(directory) => {
                   setFolderOpen(false);
                   restoreFocus.current = null;

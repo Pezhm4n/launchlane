@@ -153,6 +153,7 @@ try {
   await folderButton.press("Enter");
   const folders = page.getByRole("dialog", { name: "انتخاب پوشه پروژه", exact: true });
   await folders.waitFor();
+  await folders.getByText("انتخاب از پوشه‌های مجاز این نصب", { exact: true }).click();
   await folders.getByRole("button", { name: /examples/ }).click();
   await folders.getByRole("button", { name: /node-service/ }).click();
   await folders.getByRole("button", { name: "انتخاب همین پوشه", exact: true }).click();
@@ -392,6 +393,7 @@ try {
   );
   await editProject(page);
   await page.getByRole("button", { name: "تغییر پوشه پروژه", exact: true }).click();
+  await folders.getByText("انتخاب از پوشه‌های مجاز این نصب", { exact: true }).click();
   await folders.getByRole("button", { name: /examples/ }).click();
   await folders.getByRole("button", { name: /node-service/ }).click();
   const oldProject = new URL(page.url()).searchParams.get("project");

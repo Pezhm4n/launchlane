@@ -6,6 +6,7 @@ import { hash, integer, object, string } from "./validation.ts";
 import { ensure } from "../server/errors.ts";
 export type ProjectSelection =
   | { kind: "local" | "sample"; directory: string }
+  | { kind: "upload"; directory: "."; name: string }
   | {kind:"repair";directory:".";jobId:string;artifactHash:string}
   | {
       kind: "github";
@@ -32,11 +33,15 @@ export type ProjectFlowResponse = { flow: ProjectFlow; action: Action | null };
 export function parseSelection(value: unknown): ProjectSelection {
   const row = object(value);
   ensure(
-    row.kind === "local" || row.kind === "sample" || row.kind === "github" || row.kind === "repair",
+    row.kind === "local" || row.kind === "sample" || row.kind === "github" || row.kind === "repair" || row.kind === "upload",
     "INVALID_INPUT",
     "روش انتخاب پروژه معتبر نیست.",
   );
   const directory = string(row.directory, 240);
+  if (row.kind === "upload") {
+    ensure(directory === ".", "INVALID_INPUT", "پوشه واردشده معتبر نیست.");
+    return { kind: "upload", directory: ".", name: string(row.name, 160) };
+  }
   if(row.kind==="repair") {
     const jobId=string(row.jobId,36);ensure(directory==="."&&/^[a-f0-9-]{36}$/.test(jobId),"INVALID_INPUT","نسخه اصلاح‌شده معتبر نیست.");
     return {kind:"repair",directory:".",jobId,artifactHash:hash(row.artifactHash)};

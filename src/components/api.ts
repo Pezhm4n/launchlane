@@ -20,17 +20,17 @@ export class ClientError extends Error {
 export async function api<T>(
   path: string,
   decode: (value: unknown) => T,
-  options: { body?: unknown; csrf?: string; method?: string; signal?: AbortSignal } = {},
+  options: { body?: unknown; form?: FormData; csrf?: string; method?: string; signal?: AbortSignal } = {},
 ): Promise<T> {
   const headers: Record<string, string> = {};
   if (options.body !== undefined) headers["Content-Type"] = "application/json";
   if (options.csrf) headers["X-CSRF-Token"] = options.csrf;
   const response = await fetch(path, {
-    method: options.method || (options.body !== undefined ? "POST" : "GET"),
+    method: options.method || (options.body !== undefined || options.form ? "POST" : "GET"),
     credentials: "same-origin",
     cache: "no-store",
     headers,
-    ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
+    ...(options.form ? { body: options.form } : options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
     ...(options.signal ? { signal: options.signal } : {}),
   });
   const value: unknown = await response.json();

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import "./globals.css";
 import "./studio.css";
 import "./assistant-studio.css";
+import "./source-picker.css";
 
 export const metadata: Metadata = {
   title: "Launchlane",
