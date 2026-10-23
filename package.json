@@ -19,7 +19,7 @@
     "test:sandbox": "node scripts/test-sandbox.mjs && node --test tests/sandbox/*.test.ts",
     "test:build-sandbox": "node scripts/test-build-sandbox.mjs && node --test tests/sandbox/environment-build.test.ts",
     "test:http": "node --test tests/http/*.test.mjs",
-    "test:browser": "node scripts/test-browser.mjs && node scripts/test-deployment-browser.mjs && node scripts/test-restart-browser.mjs && node scripts/test-domain-browser.mjs && node scripts/test-guided-browser.mjs && node scripts/test-destination-browser.mjs && node scripts/test-studio-browser.mjs && npm run test:interactions && npm run test:mobile && npm run test:chat && npm run test:platforms",
+    "test:browser": "node scripts/test-browser.mjs && node scripts/test-deployment-browser.mjs && node scripts/test-restart-browser.mjs && node scripts/test-domain-browser.mjs && node scripts/test-guided-browser.mjs && node scripts/test-destination-browser.mjs && node scripts/test-studio-browser.mjs && npm run test:interactions && npm run test:mobile && npm run test:chat && npm run test:platforms && npm run test:publication-expiry",
     "test:studio": "node scripts/test-studio-browser.mjs",
     "setup:local": "node scripts/setup-local.mjs",
     "setup:github": "powershell -NoProfile -File scripts/setup-github.ps1",
@@ -35,7 +35,8 @@
     "test:destination-plans": "node scripts/test-destination-plans-browser.mjs",
     "test:projects": "node scripts/test-project-library-browser.mjs",
     "test:login": "node scripts/test-liara-login-browser.mjs",
-    "test:static": "node scripts/test-static-browser.mjs"
+    "test:static": "node scripts/test-static-browser.mjs",
+    "test:publication-expiry": "node scripts/test-agent-expiry-browser.mjs"
   },
   "dependencies": {
     "next": "16.4.2",

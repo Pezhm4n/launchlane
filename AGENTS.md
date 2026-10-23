@@ -53,6 +53,7 @@ Run from the repository root with Node **24.15+ within 24.x** and npm. Dependenc
 | Mobile UI | `npm run test:mobile` | Requires build; fixed bottom tabs, compact header and controls, text enlargement, bidi project names, actual Geist rendering and unprompted launcher shimmer; synthetic local transport |
 | Assistant reading | `npm run test:chat` | Requires build; full-screen mobile, reading area, measured text contrast, simulated keyboard viewports, scroll retention, copy, cancel/retry, expanded desktop and focus; synthetic run responses |
 | Platform badges | `npm run test:platforms` | Requires build; inspected Node.js, synthetic Python/unknown profiles, local icons, centered desktop tabs, mobile tab bar and text enlargement; no model or cloud writes |
+| Expired publication | `npm run test:publication-expiry` | Requires build and Chromium; actual publication card, keyboard reject through the authenticated API, preserved run usage and no replay; disposable synthetic state, no live model/cloud |
 | Local operator setup | `npm run setup:local` | Preserves existing config; writes ignored operator access locally; prints no token |
 | GitHub login tool setup | `npm run setup:github` | Windows x64; checksum-verified official CLI 2.103.0 in ignored local tools; no account grant or global PATH change |
 | Model compatibility smoke | `npm run smoke:model -- --live` | Opt-in, consumes BoxAPI credit, maximum two requests; synthetic evidence through real transport; never part of automatic checks |
@@ -102,7 +103,7 @@ The smoke suite checks HTTP entry/liveness and truthful integration state. It do
 - Use real provider-contract fixtures, negative cases and fresh examples; label synthetic/live evidence separately. Keep original failed inputs as regressions and fix causes instead of weakening oracles.
 - Verify deny/expiry/replay, account mix-up, provider 401/429/5xx, lost write response, missing metrics, conflicting evidence, secret redaction and prompt injection when the relevant boundary is implemented.
 - Use design tokens for color, typography, spacing, dimensions and component states. Follow DESIGN and extend it with the actual design decisions before substantial UI work.
-- Preserve concurrent work. Stage only related files and inspect the staged diff. Use topical Conventional Commits. No force push, history rewriting, secrets, generated state or source archives in Git.
+- Preserve concurrent work. Stage only related files and inspect the staged diff. Commit each completed, validated slice promptly using topical Conventional Commits and concise `-` body bullets; keep related changes together. No force push, history rewriting, secrets, generated state or source archives in Git.
 - Change repository visibility only under the owner's explicit instruction. Keep internal prompts, research and working notes in local Git excludes; do not add them to `.gitignore`. Check the staged file list before every commit.
 - After each phase, update TASKS with implementation state, exact checks, real/simulated boundaries, blocker and next action. Continue independent authorized work instead of waiting on routine decisions.
 - Final technical handoff: revision/configuration, acceptance evidence, measured failures, working run/setup instructions, architecture and documented limits. Keep unavailable integrations and unmeasured behavior explicit.
