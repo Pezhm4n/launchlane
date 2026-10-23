@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
-import { applyTextEdits, CodeRepairAdapter } from "../../src/server/agent/code-repair.ts";
+import { applyTextEdits, CodeRepairAdapter, repairSourceInventory } from "../../src/server/agent/code-repair.ts";
 import { prepareProjectFlow } from "../../src/server/application/project-flows.ts";
 import type { ModelPort } from "../../src/server/agent/model.ts";
 import { agentFixture, repairBrokenSource } from "../helpers/agent-fixture.ts";
@@ -22,15 +22,29 @@ test("missing, repeated, overlapping and malformed matches cannot become a best-
   assert.throws(() => applyTextEdits("alpha", []));
 });
 
+test("worker source inventory is bounded, marks omissions and shares names without file contents", () => {
+  const files = Array.from({ length: 300 }, (_, index) => ({ path: `${String(index).padStart(3, "0")}-${"x".repeat(100)}.txt`, content: Buffer.from("private context must not be copied") }));
+  const inventory = repairSourceInventory(files);
+  assert.ok(inventory.paths.length > 0 && inventory.paths.length <= 128);
+  assert.equal(inventory.omitted, files.length - inventory.paths.length);
+  assert.ok(Buffer.byteLength(JSON.stringify(inventory.paths)) <= 8194);
+  assert.equal(JSON.stringify(inventory).includes("private context"), false);
+  assert.deepEqual(repairSourceInventory([]), { paths: [], omitted: 0 });
+});
+
 test("a larger real source file can be repaired with a small hash-bound model edit and unchanged tests", async () => {
   const f = await agentFixture();
   try {
     const original = "// preserved context\n".repeat(700) + repairBrokenSource;
     writeFileSync(join(f.project, "invoice.mjs"), original);
+    writeFileSync(join(f.project, "asset.txt"), "unrelated asset content must not enter the model");
     const flow = await prepareProjectFlow(f.config, f.store, f.session.actorId, { kind: "local", directory: "service" }, AbortSignal.timeout(5000));
     let requests = 0;
-    const model: ModelPort = { async complete(_messages, _tools, budget, signal) {
+    const model: ModelPort = { async complete(messages, _tools, budget, signal) {
       requests++; budget.take("model", signal);
+      const context = String(messages[1]?.content);
+      assert.match(context, /"sourceInventory":\{"paths":\[[^\]]*"asset.txt"/);
+      assert.equal(context.includes("unrelated asset content"), false);
       return { content: null, usage: 25, calls: [{ id: "exact-edit", type: "function", function: { name: "submit_patch", arguments: JSON.stringify({
         baseRevision: flow.profile.sourceHash, files: [{ path: "invoice.mjs", beforeHash: createHash("sha256").update(original).digest("hex"), replacements: [{ before: "sum + line.price", after: "sum + line.price * line.quantity" }] }],
       }) } }] };

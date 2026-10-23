@@ -80,6 +80,23 @@ test("wheel downloads verify provider hashes before use and reject corrupted byt
   } finally { f.close(); }
 });
 
+test("Python 3.12 accepts the real dual Python tag but rejects wheels for another runtime or architecture", async () => {
+  const f = await agentFixture(), content = Buffer.from("synthetic timezone wheel"), sha256 = createHash("sha256").update(content).digest("hex");
+  const row = (filename: string) => ({ packagetype: "bdist_wheel", yanked: false, filename, digests: { sha256 }, size: content.length, url: "https://files.pythonhosted.org/packages/tzdata.whl" });
+  try {
+    const filename = "tzdata-2026.2-py2.py3-none-any.whl";
+    await downloadPythonWheels([{ name: "tzdata", version: "2026.2" }], join(f.directory, "dual-tag"), AbortSignal.timeout(3000), () => {},
+      async url => url.endsWith("/json") ? Buffer.from(JSON.stringify({ urls: [row(filename)] })) : content);
+    assert.deepEqual(await readFile(join(f.directory, "dual-tag", filename)), content);
+    let downloads = 0;
+    await assert.rejects(downloadPythonWheels([{ name: "fixture", version: "1.0" }], join(f.directory, "wrong-runtime"), AbortSignal.timeout(3000), () => {}, async url => {
+      if (!url.endsWith("/json")) { downloads++; return content; }
+      return Buffer.from(JSON.stringify({ urls: [row("fixture-1.0-cp313-cp313-manylinux_2_17_x86_64.whl"), row("fixture-1.0-cp312-cp312-manylinux_2_17_aarch64.whl")] }));
+    }), { code: "PYTHON_WHEEL_UNAVAILABLE" });
+    assert.equal(downloads, 0);
+  } finally { f.close(); }
+});
+
 test("Python approval binds runtime, exact archive, workload and official release fields", async () => {
   const spec = parseActionSpec({ version: 11, operation: "deploy", scope, sourceHash: "1".repeat(64), artifactHash: "2".repeat(64), projectFlowId: "12345678-1234-1234-1234-123456789012", selectionHash: "3".repeat(64), accountId: "b".repeat(24), targetAppId: "c".repeat(24), args: { port: 8000, planId: "small" }, nodeVersion: null, runtime, environment: null, workload });
   assert.equal(spec.version, 11); if (spec.version !== 11) throw Error("wrong contract");
