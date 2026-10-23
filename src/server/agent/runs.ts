@@ -238,6 +238,54 @@ export async function decideAgentRepair(
   }
 }
 
+export async function reviewAgentRepair(config: Config, store: Store, session: Session, id: string,
+  revision: number, jobId: string, signal: AbortSignal): Promise<AgentRecord> {
+  const repo = new AgentRepository(store), run = repo.get(session.actorId, id);
+  ensure(run?.state === "needs_approval" && run.revision === revision && run.repair?.id === jobId &&
+    run.repair.state === "proposed" && !run.repairDecision?.consumed, "AGENT_CONFLICT", "محدوده قبلی دیگر منتظر بررسی نیست.", 409);
+  ensure(store.sessionExists(session.id, session.actorId, Date.now()), "AUTH_REQUIRED", "دوباره وارد شوید.", 401);
+  ensure(config.enableLocalRepair && config.enableLiveModel && run.repair.execution === "container" &&
+    run.repair.containerImage === (run.repair.build?.version === 2 ? pythonBuildImage : projectBuildImage),
+    "HISTORICAL_RUNNER_DISABLED", "این محدوده با محیط فعلی قابل بازبینی نیست؛ پیشنهاد تازه لازم است.", 409);
+  assertAgentContext(config, store, session.actorId, run.context);
+  ensure(run.usage.toolCalls < run.limits.maxToolCalls && run.usage.elapsedMs < run.limits.runTimeoutMs,
+    "BUDGET_EXHAUSTED", "بودجه همان مأموریت برای بررسی تازه کافی نیست.", 409);
+  const old = run.repair, adapter = new CodeRepairAdapter(config, store), started = Date.now();
+  // Reserve the read before preparation. Old authority is never extended or executed by this operation.
+  run.usage.toolCalls++; repo.save(session.actorId, run, revision); const reserved = run.revision;
+  let proposal: import("../../contracts/code-repair.ts").CodeRepairJob | null = null;
+  try {
+    proposal = await adapter.propose(session.actorId, { projectId: old.projectId, expectedSourceHash: old.baseRevision,
+      goal: old.goal, allowedPaths: old.allowedPaths, testFiles: old.testFiles, execution: "container",
+      ...(old.build ? { build: old.build } : {}), ...(old.preparation ? { preparation: old.preparation } : {}),
+      ...(old.validationOnly ? { validationOnly: true } : {}) }, signal);
+    ensure(!signal.aborted && run.usage.elapsedMs + Date.now() - started < run.limits.runTimeoutMs,
+      "BUDGET_EXHAUSTED", "بررسی تازه از زمان همان مأموریت فراتر رفت؛ اجرا انجام نشد.", 409);
+    const prepared = proposal;
+    return store.transaction(() => {
+      const current = repo.get(session.actorId, id);
+      ensure(current?.revision === reserved && current.state === "needs_approval" && current.repair?.id === old.id,
+        "AGENT_CONFLICT", "نتیجه هم‌زمان تغییر کرده است؛ وضعیت تازه را ببینید.", 409);
+      assertAgentContext(config, store, session.actorId, current.context);
+      adapter.cancel(session.actorId, old.id);
+      current.usage.elapsedMs += Date.now() - started;
+      current.repair = prepared;
+      current.repairDecision = { sessionId: session.id, expiresAt: Date.now() + 600000, consumed: false };
+      addEvent(current, "state", "اعتبار بررسی قبلی پایان یافته بود. محدوده از فایل‌های فعلی دوباره بررسی شد؛ چیزی اجرا نشد. پیشنهاد تازه را ببینید و دوباره تصمیم بگیرید.");
+      repo.save(session.actorId, current, reserved);
+      return current;
+    });
+  } catch (error) {
+    if (proposal) adapter.cancel(session.actorId, proposal.id);
+    const current = repo.get(session.actorId, id);
+    if (current?.revision === reserved && current.repair?.id === old.id) {
+      current.usage.elapsedMs += Date.now() - started;
+      repo.save(session.actorId, current, reserved);
+    }
+    throw error;
+  }
+}
+
 export async function decideAgentPublication(
   config: Config, store: Store, session: Session, id: string, revision: number,
   actionId: string, decision: "approve" | "reject",

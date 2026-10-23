@@ -5,13 +5,14 @@ import {
   continueAgentRun,
   driveAgentRun,
   decideAgentRepair,
+  reviewAgentRepair,
   decideAgentPublication,
   resumeAgentPublication,
   decideAgentDestination,
   resumeAgentDestination,
 } from "../../../../../server/agent/runs.ts";
 import { AgentRepository, agentView } from "../../../../../server/agent/store.ts";
-import { ensure } from "../../../../../server/errors.ts";
+import { AppError, ensure } from "../../../../../server/errors.ts";
 import { endpoint, jsonBody, reply } from "../../../../../server/http.ts";
 import { resumePublicationMission } from "../../../../../server/application/publication-mission.ts";
 export const runtime = "nodejs";
@@ -61,7 +62,8 @@ export async function POST(request: Request, { params }: Context) {
         "INVALID_INPUT",
         "تصمیم معتبر نیست.",
       );
-      const run = await decideAgentRepair(
+      let run: Awaited<ReturnType<typeof decideAgentRepair>>;
+      try { run = await decideAgentRepair(
         config,
         store,
         session,
@@ -69,8 +71,11 @@ export async function POST(request: Request, { params }: Context) {
         revision,
         string(input.jobId, 36),
         input.decision,
-      );
-      if (input.decision === "approve") after(() => driveAgentRun(config, store, session, id));
+      ); } catch (error) {
+        if (!(error instanceof AppError) || error.code !== "REPAIR_APPROVAL_EXPIRED" || input.decision !== "approve") throw error;
+        run = await reviewAgentRepair(config, store, session, id, revision, string(input.jobId, 36), request.signal);
+      }
+      if (input.decision === "approve" && run.state === "queued") after(() => driveAgentRun(config, store, session, id));
       return reply({ run: agentView(run) });
     }
     if (input.operation === "publication-decision") {
