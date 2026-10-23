@@ -21,6 +21,7 @@ import { sourceFileByteLimit, SOURCE_MAX_BYTES, SOURCE_MAX_FILES } from "./sourc
 import { parsePythonRuntime } from "./python-runtime.ts";
 import { parseNetworkSpec, parseNetworkProgress } from "./network.ts";
 import { parseLifecycleSpec, parseLifecycleProgress } from "./project-lifecycle.ts";
+import { parseStaticRuntime } from "./static-runtime.ts";
 
 function nullableString(value: unknown, max = 256): string | null {
   return value === null ? null : string(value, max);
@@ -51,6 +52,16 @@ export function decodeAction(value: unknown): Action {
     spec = object(raw.spec),
     scope = object(spec.scope),
     args = object(spec.args);
+  if (spec.version === 15) {
+    ensure(spec.nodeVersion === null, "INVALID_RESPONSE", "نسخه انتشار ایستا معتبر نیست.");
+    const { runtime, ...rest } = spec, base = decodeAction({ ...raw, spec: { ...rest, version: 7, nodeVersion: "22" } });
+    ensure(base.spec.version === 7 && typeof base.spec.sourceHash === "string" && base.spec.args.port === 80, "INVALID_RESPONSE", "پیشنهاد انتشار ایستا معتبر نیست.");
+    return { ...base, spec: { ...base.spec, version: 15, operation: "deploy", sourceHash: base.spec.sourceHash, nodeVersion: null, runtime: parseStaticRuntime(runtime) } };
+  }
+  if (spec.version === 16) {
+    const parsed = parseProvisionSpec(spec), { runtime: _runtime, ...rest } = spec;
+    return { ...decodeAction({ ...raw, spec: { ...rest, version: 8, nodeVersion: "22" } }), spec: parsed };
+  }
   if (spec.version === 11) {
     ensure(spec.nodeVersion === null, "INVALID_RESPONSE", "نسخه انتشار Python معتبر نیست.");
     const { runtime, environment, ...rest } = spec, base = decodeAction({ ...raw, spec: { ...rest, version: 7, nodeVersion: "22" } });
@@ -94,7 +105,7 @@ export function decodeAction(value: unknown): Action {
   else if (spec.version === 8) parsedSpec = parseProvisionSpec(spec);
   else {
     ensure(spec.operation === "deploy" || spec.operation === "restart", "INVALID_RESPONSE", "نوع اقدام معتبر نیست.");
-    const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12 | 13 | 14}>, "scope" | "operation" | "sourceHash" | "args"> = {
+    const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12 | 13 | 14 | 16}>, "scope" | "operation" | "sourceHash" | "args"> = {
       operation: spec.operation,
       scope: { teamId: string(scope.teamId), app: string(scope.app) },
       sourceHash: nullableString(spec.sourceHash),
@@ -210,7 +221,7 @@ export function decodeWorkspace(value: unknown): WorkspaceView {
 export function decodeProfile(value: unknown): ProjectProfile {
   const raw = object(object(value).profile);
   ensure(
-    raw.runtime === "node" || raw.runtime === "python" || raw.runtime === "unknown",
+    raw.runtime === "node" || raw.runtime === "python" || raw.runtime === "static" || raw.runtime === "unknown",
     "INVALID_RESPONSE",
     "runtime پاسخ معتبر نیست.",
   );
@@ -219,12 +230,18 @@ export function decodeProfile(value: unknown): ProjectProfile {
     "INVALID_RESPONSE",
     "manifest پاسخ معتبر نیست.",
   );
+  if (raw.runtime === "static") {
+    parseStaticRuntime(raw.staticRuntime);
+    ensure(raw.nodeVersion === null && raw.nodeRuntime === undefined && raw.pythonRuntime === undefined && raw.port === 80 && raw.start === "liara-static" && raw.build === null,
+      "INVALID_RESPONSE", "اطلاعات اجرای سایت ایستا با قرارداد آن تطبیق ندارد.");
+  }
   return {
     directory: string(raw.directory, 240),
     runtime: raw.runtime,
     nodeVersion: nullableString(raw.nodeVersion),
     ...(raw.nodeRuntime === undefined ? {} : { nodeRuntime: parseNodeRuntime(raw.nodeRuntime) }),
     ...(raw.pythonRuntime === undefined ? {} : { pythonRuntime: parsePythonRuntime(raw.pythonRuntime) }),
+    ...(raw.staticRuntime === undefined ? {} : { staticRuntime: parseStaticRuntime(raw.staticRuntime) }),
     port: raw.port === null ? null : integer(raw.port, 1, 65535),
     start: nullableString(raw.start),
     build: nullableString(raw.build),

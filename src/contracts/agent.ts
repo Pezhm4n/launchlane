@@ -6,6 +6,7 @@ import type { Action } from "./domain.ts";
 import { parsePublicationMission, type PublicationMission } from "./publication-mission.ts";
 import { parseMissionAuthority, type MissionAuthority } from "./mission-authority.ts";
 import { parseDestinationRecommendation, type DestinationRecommendation } from "./destination-recommendation.ts";
+import { parseAgentFailure, type AgentFailure } from "./agent-failure.ts";
 
 export const agentStates = [
   "queued",
@@ -36,6 +37,7 @@ export type AgentEvent = {
   tool?: string;
   callId?: string;
   outcome?: "succeeded" | "failed";
+  failure?: AgentFailure;
 };
 export type AgentView = {
   id: string;
@@ -103,14 +105,15 @@ export function parseAgentView(value: unknown): AgentView {
       ...(event.tool === undefined ? {} : { tool: string(event.tool, 80) }),
       ...(event.callId === undefined ? {} : { callId: string(event.callId, 80) }),
       ...(event.outcome === undefined ? {} : { outcome: event.outcome }),
+      ...(event.failure === undefined ? {} : { failure: parseAgentFailure(event.failure) }),
     };
   });
   const destination = row.destination === null || row.destination === undefined ? null : decodeAction(row.destination);
-  ensure(!destination || (destination.spec.version === 8 || destination.spec.version === 12), "INVALID_RESPONSE", "رسید مقصد با قرارداد ساخت تطبیق ندارد.");
+  ensure(!destination || (destination.spec.version === 8 || destination.spec.version === 12 || destination.spec.version === 16), "INVALID_RESPONSE", "رسید مقصد با قرارداد ساخت تطبیق ندارد.");
   const network = row.network === null || row.network === undefined ? null : decodeAction(row.network);
   const destinationRecommendation = row.destinationRecommendation === null || row.destinationRecommendation === undefined ? null : parseDestinationRecommendation(row.destinationRecommendation);
   const destinationSpec = destination?.spec;
-  ensure(!destinationRecommendation || destinationSpec && (destinationSpec.version === 8 || destinationSpec.version === 12) &&
+  ensure(!destinationRecommendation || destinationSpec && (destinationSpec.version === 8 || destinationSpec.version === 12 || destinationSpec.version === 16) &&
     destinationRecommendation.projectId === destinationSpec.projectFlowId && destinationRecommendation.sourceHash === destinationSpec.sourceHash &&
     destinationRecommendation.catalogFingerprint === destinationSpec.cost.catalogFingerprint && destinationRecommendation.offers.some(offer =>
       offer.planId === destinationSpec.args.planId && offer.bundleId === destinationSpec.bundleId && offer.hourlyHundredthsToman === destinationSpec.cost.hourlyHundredthsToman),

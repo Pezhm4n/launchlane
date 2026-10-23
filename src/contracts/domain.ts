@@ -7,11 +7,12 @@ export type ManifestEntry = Readonly<{
 }>;
 export type ProjectProfile = Readonly<{
   directory: string;
-  runtime: "node" | "python" | "unknown";
+  runtime: "node" | "python" | "static" | "unknown";
   nodeVersion: string | null;
   // Historical profiles predate runtime selection; fresh inspection always supplies it.
   nodeRuntime?: import("./node-runtime.ts").NodeRuntime;
   pythonRuntime?: import("./python-runtime.ts").PythonRuntime;
+  staticRuntime?: import("./static-runtime.ts").StaticRuntime;
   port: number | null;
   start: string | null;
   build: string | null;
@@ -117,6 +118,11 @@ export type ActionSpec = (ActionInputs &
         nodeVersion: null;
         runtime: import("./python-runtime.ts").PythonRuntime;
         environment: import("./environment.ts").EnvironmentReference | null;
+      }>
+    | Readonly<{
+        version: 15; operation: "deploy"; sourceHash: string; artifactHash: string; projectFlowId: string;
+        selectionHash: string; accountId: string; targetAppId: string; workload: import("./deployment.ts").WorkloadContract;
+        nodeVersion: null; runtime: import("./static-runtime.ts").StaticRuntime;
       }>
   )) | import("./provision.ts").ProvisionSpec | import("./environment.ts").EnvironmentSpec | import("./network.ts").NetworkSpec | import("./project-lifecycle.ts").LifecycleSpec;
 

@@ -16,6 +16,7 @@ import { parseEnvironmentSpec, parseEnvironmentReference } from "../../contracts
 import { parsePythonRuntime } from "../../contracts/python-runtime.ts";
 import { parseNetworkSpec } from "../../contracts/network.ts";
 import { parseLifecycleSpec } from "../../contracts/project-lifecycle.ts";
+import { parseStaticRuntime } from "../../contracts/static-runtime.ts";
 
 export function canonical(value: unknown): string {
   if (
@@ -39,6 +40,13 @@ export function fingerprint(value: unknown): string {
 
 export function parseActionSpec(value: unknown): ActionSpec {
   const input = object(value);
+  if (input.version === 15) {
+    ensure(input.nodeVersion === null && input.operation === "deploy", "INVALID_INPUT", "قرارداد انتشار ایستا معتبر نیست.");
+    const { runtime, ...rest } = input, base = parseActionSpec({ ...rest, version: 7, nodeVersion: "22" });
+    ensure(base.version === 7 && typeof base.sourceHash === "string" && base.args.port === 80, "INVALID_INPUT", "پورت یا source انتشار ایستا معتبر نیست.");
+    return { ...base, version: 15, operation: "deploy", sourceHash: base.sourceHash, nodeVersion: null, runtime: parseStaticRuntime(runtime) };
+  }
+  if (input.version === 16) return parseProvisionSpec(input);
   if (input.version === 14) return parseLifecycleSpec(input);
   if (input.version === 13) return parseNetworkSpec(input);
   if (input.version === 11) {
@@ -54,7 +62,7 @@ export function parseActionSpec(value: unknown): ActionSpec {
     return { ...base, version: 10, operation: "deploy", sourceHash: base.sourceHash, environment: parseEnvironmentReference(environment) };
   }
   if (input.version === 9) return parseEnvironmentSpec(input);
-  if (input.version === 8 || input.version === 12) return parseProvisionSpec(input);
+  if (input.version === 8 || input.version === 12 || input.version === 16) return parseProvisionSpec(input);
   exactKeys(input, [
     "version",
     "scope",
@@ -95,7 +103,7 @@ export function parseActionSpec(value: unknown): ActionSpec {
     "INVALID_INPUT",
     "restart آرگومان انتشار نمی‌پذیرد.",
   );
-  const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12 | 13 | 14}>, "scope" | "operation" | "sourceHash" | "args"> = {
+  const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12 | 13 | 14 | 16}>, "scope" | "operation" | "sourceHash" | "args"> = {
     scope: { teamId, app },
     operation: input.operation,
     sourceHash,

@@ -60,6 +60,21 @@ const finalResponse = (nextAction = "connect_account") =>
 const code = (expected: string) => (error: unknown) =>
   error instanceof AppError && error.code === expected;
 
+test("a known unavailable build runtime stops once with a correlated cause and next step instead of repeating technical questions", async () => {
+  const f = await agentFixture(); try {
+    const run = createAgentRun(f.config, f.store, f.session, randomUUID(), "خودت پروژه را بررسی کن", f.flow.id).run;
+    let models = 0, tools = 0;
+    const model = new GoalModelClient(f.config, async () => { models++; return toolResponse([call("inspect_project")]); });
+    await driveAgentRun(f.config, f.store, f.session, run.id, { model, tool: async () => { tools++; throw new AppError("BUILD_RUNTIME_UNSUPPORTED", "محیط این نسخه هنوز آماده نیست.", 409); } });
+    const stored = new AgentRepository(f.store).get(f.session.actorId, run.id); assert.ok(stored);
+    assert.equal(stored.state, "failed"); assert.equal(stored.question, null); assert.equal(models, 1); assert.equal(tools, 1);
+    const failed = agentView(stored).events.find(event => event.kind === "tool" && event.failure);
+    assert.equal(failed?.failure?.code, "BUILD_RUNTIME_UNSUPPORTED"); assert.equal(failed?.failure?.message, "محیط این نسخه هنوز آماده نیست.");
+    assert.match(failed?.failure?.nextStep ?? "", /محیط اجرای سازگار/);
+    assert.equal(stored.usage.modelCalls, 1);
+  } finally { f.close(); }
+});
+
 test("the goal loop reads actual project results, branches to a file only when incomplete, and persists correlated tool receipts", async () => {
   for (const incomplete of [false, true]) {
     const f = await agentFixture(incomplete),

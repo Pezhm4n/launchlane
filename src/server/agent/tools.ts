@@ -214,7 +214,7 @@ const catalogTools: readonly ToolDefinition[] = [
 ];
 const destinationTool: ToolDefinition = { type: "function", function: {
   name: "propose_destination",
-  description: "Propose a new Node application for the selected ready project. Supply a unique app name, an available plan/bundle from the actual catalog and an existing team network from read_networks. The host binds the immutable source, account, expiring base hourly quote and selected network. User approval is mandatory before any create. Creation does not publish, resize, set env or prove workload health. For a publication goal with no app, propose this step instead of sending the user to select a nonexistent app. Capacity is unmeasured; do not promise a plan will meet load. Only Iran-region plans and existing networks are implemented.",
+  description: "Propose a native Node, Python or plain Static destination matching the selected inspected project; the host selects the platform from source, never from a model guess. Supply a unique app name, an available plan/bundle from the actual catalog and an existing team network from read_networks. User approval is mandatory before any create. Creation does not publish, resize, set env or prove workload health. For publication with no app, propose this step instead of sending the user to select a nonexistent app. Capacity is unmeasured. Only Iran-region plans and existing networks are implemented.",
   parameters: { type: "object", additionalProperties: false, required: ["app", "planId", "bundleId", "networkId"], properties: {
     app: { type: "string", maxLength: 63 }, planId: { type: "string", maxLength: 63 },
     bundleId: { type: "string", maxLength: 63 }, networkId: { type: "string", maxLength: 24 },
@@ -365,7 +365,7 @@ export async function executeAgentTool(
       }, c.signal);
       return { repairProposal: job };
     }
-    if (c.mission || requiresProjectBuild(captured.files)) {
+    if (flow.profile.runtime !== "static" && (c.mission || requiresProjectBuild(captured.files))) {
       const rows = c.store.db.prepare("SELECT state,data_json FROM code_repair_jobs WHERE actor_id=? AND state='succeeded' AND json_extract(data_json,'$.job.artifact.sourceHash')=? ORDER BY updated_at DESC LIMIT 10").all(c.actorId, c.context.sourceHash);
       const verified = rows.some(row => {
         const job = parseCodeRepairJob({ ...object(object(JSON.parse(string(row.data_json, 1024 * 1024))).job), state: row.state });

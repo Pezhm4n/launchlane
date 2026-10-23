@@ -1,5 +1,11 @@
 # برنامه اجرایی Launchlane
 
+## Static واقعی و رفع توقف بی‌اثر؛ A07/A08/A10/A11/A18 / ۲۰۲۶-۱۰-۲۳
+
+پس از72618b6: [ADR0025](docs/decisions/0025-native-static-publication.md) و [شاهد Login](docs/evidence/native-static-login.md)، native Static را با create16/deploy15 به همان archive، actor، approval و journal وصل کردند. پوشه اصلی از browser upload، تصمیم هزینه application، انتشار Agent، current release، byte هر سه فایل و تعامل مرورگر گذشت؛ توقف/حذف مقصد تأیید شد. آماده‌سازی بیرون محصول انجام نشد. API-create زنده با Agent-create یکی نیست؛ دو guard تصمیم/ادامه v16 اصلاح و regression شدند، live این قسمت باز است. A11/AC28 همچنان partial و هر۱۴خانواده الزامی‌اند؛ bundler و سایر runtimeها از Static نتیجه نمی‌شوند.
+
+UI علت correlated شکست و قدم بعدی دارد؛ runtime ناموجود و no-progress بدون سؤال/مصرف تکراری متوقف می‌شوند. Node24 هنوز پیاده نشده؛ توقف جای تکمیل آن نیست. سابقهٔ پوشه مفقود برای مدیریت مقصد/حذف باز می‌شود؛ publication بدون source معتبر رد است. دو اجرای کاربر خارج fetch-ledger با سقف۰٫۶۸۷۸۶۶ دلار reserve شدند؛ allowance۲دلار تمدید نشد. candidate نهایی و failure oracle تکرار invalid read در verification ثبت می‌شوند.
+
 ## ورود کاربر عمومی؛ A03/A05/A17/A19 / ۲۰۲۶-۱۰-۲۳
 
 برش جدیدِ همین تسک‌ها: ورود ایمیل/رمز/TOTP از قرارداد رسمی CLI لیارا، actor پایدار، کلید رمز‌شده، نشست Secure در HTTPS و انتخاب تیم داخل محصول پیاده شده‌اند. وب و MCP همان actorConfig و application را مصرف می‌کنند؛ توکن/تیم/root/CLI حساب اپراتور به کاربران ارث نمی‌رسد. مسیر اپراتور برای نصب خصوصی سازگار می‌ماند و در حالت عمومی پذیرفته نمی‌شود. [ADR0024](docs/decisions/0024-liara-identity-login.md)، [شاهد](docs/evidence/liara-identity-login.md) و [راه‌اندازی](docs/hosted-access.md) مرزها را مشخص می‌کنند. A03/A05/A17/A19 همچنان partial هستند: login زنده با رمز، حساب شخصی بدون تیم، ساخت تیم، sandbox و استقرار در میزبان عمومی اولین مرزهای بازند. بقیهٔ مأموریت و همهٔ خانواده‌های runtime حفظ می‌شوند.

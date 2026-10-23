@@ -197,13 +197,13 @@ test("invalid real-model read argument shapes are rejected before a read and can
   }
 });
 
-test("malformed JSON stays fatal and repetitive invalid SRE calls exhaust the existing budget without a read",async()=>{
-  for(const malformed of [true,false]){
+test("malformed JSON stays fatal; duplicate invalid calls stop for no progress and distinct invalid calls retain the cumulative budget stop",async()=>{
+  for(const mode of ["malformed","duplicate","budget"] as const){
     const f=await fixture();try{
       const config={...f.config,agentMaxModelCalls:2};let requests=0;
       const model=new GoalModelClient(config,async()=>{
         requests++;return Response.json({choices:[{finish_reason:"tool_calls",message:{role:"assistant",tool_calls:[{
-          id:randomUUID(),type:"function",function:{name:"read_metrics",arguments:malformed ? "{" : '{"approved":true}'},
+          id:randomUUID(),type:"function",function:{name:"read_metrics",arguments:mode === "malformed" ? "{" : mode === "duplicate" ? '{"approved":true}' : JSON.stringify({approved:true,attempt:requests})},
         }]}}],usage:{total_tokens:35}});
       });
       const run=createAgentRun(config,f.store,f.session,randomUUID(),"وضعیت منابع را بررسی کن",f.flow.id).run;
@@ -211,8 +211,8 @@ test("malformed JSON stays fatal and repetitive invalid SRE calls exhaust the ex
         tool:(name,args,context)=>executeAgentTool(name,args,{...context,read:f.context().read,probe:f.context().probe})});
       const saved=new AgentRepository(f.store).get(f.session.actorId,run.id);
       assert.equal(saved?.state,"failed");assert.equal(saved.effect,"no_remote_changes");
-      assert.equal(saved.errorCode,malformed ? "MODEL_PROTOCOL" : "BUDGET_EXHAUSTED");
-      assert.equal(requests,malformed ? 1 : 2);assert.deepEqual(f.state.paths,[]);assert.equal(f.state.sockets,0);
+      assert.equal(saved.errorCode,mode === "malformed" ? "MODEL_PROTOCOL" : mode === "duplicate" ? "AGENT_NO_PROGRESS" : "BUDGET_EXHAUSTED");
+      assert.equal(requests,mode === "malformed" ? 1 : 2);assert.deepEqual(f.state.paths,[]);assert.equal(f.state.sockets,0);
     }finally{f.close();}
   }
 });

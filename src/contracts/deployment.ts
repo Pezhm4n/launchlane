@@ -2,9 +2,9 @@ import { AppError, ensure } from "../server/errors.ts";
 import { exactKeys, integer, object, string } from "./validation.ts";
 import type { Action, ActionSpec } from "./domain.ts";
 
-export type DeploymentSpec = Extract<ActionSpec, { version: 4 | 5 | 7 | 10 | 11 }>;
+export type DeploymentSpec = Extract<ActionSpec, { version: 4 | 5 | 7 | 10 | 11 | 15 }>;
 export function isDeploymentSpec(spec: ActionSpec): spec is DeploymentSpec {
-  return spec.version === 4 || spec.version === 5 || spec.version === 7 || spec.version === 10 || spec.version === 11;
+  return spec.version === 4 || spec.version === 5 || spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 15;
 }
 
 // This is a bounded GET oracle, never a model-supplied URL or executable expression.

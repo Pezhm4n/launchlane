@@ -16,14 +16,24 @@ import { LiaraReadClient } from "../../src/server/liara/client.ts";
 import { proposeWorkloadDeployment } from "../../src/server/application/deployment.ts";
 import { RunBudget } from "../../src/server/policy/budget.ts";
 import { prepareProjectFlow } from "../../src/server/application/project-flows.ts";
+import { LiaraDeployClient } from "../../src/server/liara/deploy.ts";
+import { createPublicationMission } from "../../src/server/application/publication-mission.ts";
+import { driveAgentRun } from "../../src/server/agent/runs.ts";
+import { AgentRepository } from "../../src/server/agent/store.ts";
+import { GoalModelClient } from "../../src/server/agent/model.ts";
+import { executeAgentTool } from "../../src/server/agent/tools.ts";
+import { object } from "../../src/contracts/validation.ts";
 
 const team = "a".repeat(24), account = "b".repeat(24), network = "c".repeat(24), createdId = "d".repeat(24), app = "new-agent-app";
 const signal = () => AbortSignal.timeout(3000);
 const code = (expected: string) => (error: unknown) => error instanceof AppError && error.code === expected;
-async function fixture(runtime: "node" | "python" = "node") {
+async function fixture(runtime: "node" | "python" | "static" = "node") {
   const f = await agentFixture(), config = { ...f.config, teamId: team, apps: [app], liaraToken: "synthetic-private-provision-key",
     enableLiveLiara: true, enableMutations: true };
   let flow = f.flow;
+  if (runtime === "static") flow = await prepareProjectFlow(config, f.store, f.session.actorId, { kind: "upload", directory: ".", name: "login-site" }, signal(), undefined, undefined,
+    [{ path: "index.html", content: Buffer.from('<!DOCTYPE html><html><head><title>Login & Registration</title><link rel="stylesheet" href="style.css"></head><body><button>Login</button><script src="script.js"></script></body></html>') },
+      { path: "style.css", content: Buffer.from("body{color:navy}") }, { path: "script.js", content: Buffer.from("document.body.dataset.ready='yes';") }]);
   if (runtime === "python") {
     cpSync(resolve("tests/fixtures/python-service"), join(f.workspace, "python"), { recursive: true });
     flow = await prepareProjectFlow(config, f.store, f.session.actorId, { kind: "local", directory: "python" }, signal());
@@ -93,6 +103,41 @@ test("an approved destination pins the real returned internal ID and exact confi
     assert.ok(!JSON.stringify(checked).includes("secret-not-in-readback")); assert.equal(f.writes, 1);
     await assert.rejects(executeDestination(f.config, f.store, f.session, f.action.id, signal(), f.deps), code("ACTION_CONFLICT"));
     assert.equal(f.writes, 1);
+  } finally { f.close(); }
+});
+
+test("plain static source provisions native Static and binds its unchanged artifact to an 80-port publication without inventing a Node runtime", async () => {
+  const f = await fixture("static");
+  try {
+    assert.equal(f.flow.profile.runtime, "static"); assert.equal(f.flow.profile.port, 80); assert.equal(f.flow.status, "ready");
+    assert.equal(f.action.spec.version, 16); assert.deepEqual(decodeAction(f.action).spec, parseActionSpec(f.action.spec));
+    f.approve(); await executeDestination(f.config, f.store, f.session, f.action.id, signal(), f.deps);
+    assert.equal((await observeDestination(f.config, f.store, f.session, f.action.id, signal(), f.deps)).state, "succeeded");
+    const origin = `https://${app}.example.com`; f.store.setProbeOrigin(f.session.actorId, { teamId: team, app }, origin);
+    const read = new LiaraReadClient(f.config, async () => Response.json({ project: { _id: createdId, project_id: app, type: "static", status: "ACTIVE", planID: "starter", envs: [] } }));
+    const publication = await proposeWorkloadDeployment(f.config, f.store, f.session.actorId, { flowId: f.flow.id, app, port: null,
+      workload: { origin, path: "/", status: 200, assertion: { kind: "text", contains: "Login & Registration" } } }, signal(), { read });
+    assert.equal(publication.spec.version, 15); if (publication.spec.version !== 15) throw Error("Wrong static contract");
+    assert.equal(publication.spec.nodeVersion, null); assert.equal(publication.spec.args.port, 80); assert.equal(publication.spec.artifactHash, f.flow.artifact?.archiveHash);
+    assert.deepEqual(decodeAction(publication).spec, parseActionSpec(publication.spec));
+    assert.throws(() => parseActionSpec({ ...publication.spec, args: { ...publication.spec.args, port: 3000 } }));
+    assert.throws(() => parseActionSpec({ ...publication.spec, nodeVersion: "22" }));
+    let sent: unknown;
+    const writer = new LiaraDeployClient(f.config, async (_url, init) => { sent = JSON.parse(String(init.body)); return Response.json({ releaseID: "static-release" }); });
+    await writer.release(publication.spec, "static-source", new RunBudget(f.config), signal());
+    assert.deepEqual(sent, { sourceID: "static-source", port: 80, type: "static", platformConfig: {} });
+    f.store.decide(publication.id, f.session.actorId, f.session.id, publication.hash, "reject");
+    const intent = await createPublicationMission(f.config, f.store, f.session, "static-native-mission", { projectId: f.flow.id, sourceHash: f.flow.profile.sourceHash, path: "/", expectedText: "Login & Registration" }, signal());
+    const model = new GoalModelClient(f.config, async (_url, init) => {
+      const request = object(JSON.parse(String(init.body))); assert.ok(Array.isArray(request.tools));
+      assert.equal(request.tools.some(tool => object(object(tool).function).name === "propose_project_build"), false);
+      return Response.json({ choices: [{ finish_reason: "tool_calls", message: { role: "assistant", tool_calls: [{ id: "static-publication", type: "function", function: {
+        name: "propose_publication", arguments: JSON.stringify({ path: "/", status: 200, assertion: { kind: "text", contains: "Login & Registration" } }) } }] } }], usage: { total_tokens: 10 } });
+    });
+    await driveAgentRun(f.config, f.store, f.session, intent.run.id, { model, tool: (name, args, context) => executeAgentTool(name, args, { ...context, read }) });
+    const run = new AgentRepository(f.store).get(f.session.actorId, intent.run.id);
+    assert.equal(run?.state, "needs_approval"); assert.equal(run.question, null); assert.equal(run.publication?.spec.version, 15);
+    assert.equal(run.usage.modelCalls, 1); assert.equal(f.store.db.prepare("SELECT count(*) n FROM code_repair_jobs").get()?.n, 0);
   } finally { f.close(); }
 });
 

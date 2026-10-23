@@ -18,7 +18,7 @@ export function AgentPublication({
   onDecision: (decision: "approve" | "reject") => void;
   onObserve: () => void;
 }) {
-  if (action.spec.version !== 7 && action.spec.version !== 10 && action.spec.version !== 11) return null;
+  if (action.spec.version !== 7 && action.spec.version !== 10 && action.spec.version !== 11 && action.spec.version !== 15) return null;
   const spec = action.spec,
     assertion = spec.workload.assertion;
   const verified = action.state === "succeeded",
@@ -115,9 +115,9 @@ export function AgentPublication({
         <summary>اطلاعات فنی نسخه</summary>
         <dl className="profile-facts">
           <div>
-            <dt>{spec.version === 11 ? "Python" : "Node"}</dt>
+            <dt>{spec.version === 15 ? "نوع انتشار" : spec.version === 11 ? "Python" : "Node"}</dt>
             <dd>
-              <bdi>{spec.version === 11 ? spec.runtime.version : spec.nodeVersion}</bdi>
+              <bdi>{spec.version === 15 ? "Static · Nginx لیارا" : spec.version === 11 ? spec.runtime.version : spec.nodeVersion}</bdi>
             </dd>
           </div>
           <div>

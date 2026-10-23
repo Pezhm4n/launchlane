@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { writeFileSync } from "node:fs";
+import { writeFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { agentFixture } from "../helpers/agent-fixture.ts";
 import { prepareProjectFlow } from "../../src/server/application/project-flows.ts";
@@ -10,6 +10,20 @@ import { AppError } from "../../src/server/errors.ts";
 import { sealCredential } from "../../src/server/connections/credentials.ts";
 
 const code = (expected: string) => (error: unknown) => error instanceof AppError && error.code === expected;
+
+test("a missing historical folder opens its unavailable record and can be removed without needing the source", async () => {
+  const f = await agentFixture(), actor = f.session.actorId;
+  try {
+    await prepareProjectFlow(f.config, f.store, actor, { kind: "local", directory: "service" }, AbortSignal.timeout(5000));
+    renameSync(f.project, join(f.workspace, "moved-service"));
+    const opened = await openLibraryProject(f.config, f.store, actor, f.flow.id, AbortSignal.timeout(5000));
+    assert.equal(opened.status, "unavailable"); assert.equal(f.store.getProjectFlow(actor)?.id, f.flow.id);
+    assert.equal(listProjects(f.config, f.store, actor).projects.find(row => row.id === f.flow.id)?.removal, "local");
+    f.store.archiveProject(actor, f.session.id, f.flow.id, f.flow.profile.sourceHash);
+    assert.equal(listProjects(f.config, f.store, actor).projects.some(row => row.id === f.flow.id), false);
+    assert.equal(f.store.db.prepare("SELECT count(*) n FROM actions").get()?.n, 0);
+  } finally { f.close(); }
+});
 test("project library isolates actors and opens the original snapshot without creating runs, actions, artifacts or renewing budgets", async () => {
   const f = await agentFixture(), actor = f.session.actorId;
   try {

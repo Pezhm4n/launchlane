@@ -5,7 +5,7 @@ import { string } from "../../contracts/validation.ts";
 import { AgentRepository } from "../agent/store.ts";
 import type { Config } from "../config.ts";
 import type { Store } from "../persistence/store.ts";
-import { ensure } from "../errors.ts";
+import { AppError, ensure } from "../errors.ts";
 import { inspectProject } from "../workspace/inspect.ts";
 import { readArtifact } from "../workspace/archive.ts";
 import { projectSecretValues } from "../environment/secrets.ts";
@@ -51,8 +51,18 @@ export async function openLibraryProject(config: Config, store: Store, actorId: 
   ensure(!store.db.prepare("SELECT project_id FROM project_archives WHERE project_id=? AND actor_id=?").get(id, actorId), "PROJECT_ARCHIVED", "این پروژه از فهرست حذف شده است؛ پوشه را دوباره انتخاب کنید.", 409);
   if (store.getProjectFlow(actorId)?.id === flow.id) return { ...flow, displayName: libraryProjectName(config, flow) };
   store.assertAgentIdle(actorId, null, true);
-  const location = projectRoot(config, flow), current = await inspectProject(location.root, location.directory, { signal,
-    secrets: [config.liaraToken, config.modelKey, config.operatorToken, config.sessionSecret, ...projectSecretValues(store, config.sessionSecret, actorId)].filter(Boolean) });
+  let current: ProjectFlow["profile"];
+  try {
+    const location = projectRoot(config, flow);
+    current = await inspectProject(location.root, location.directory, { signal,
+      secrets: [config.liaraToken, config.modelKey, config.operatorToken, config.sessionSecret, ...projectSecretValues(store, config.sessionSecret, actorId)].filter(Boolean) });
+  } catch (error) {
+    if (signal.aborted || !(error instanceof AppError) || !["FOLDER_NOT_FOUND", "SOURCE_CHANGED", "FOLDER_ACCESS_DENIED", "WORKSPACE_UNCONFIGURED", "FILESYSTEM_UNAVAILABLE"].includes(error.code)) throw error;
+    // Missing source blocks publication, while the actor still needs its ID-bound destination controls.
+    store.activateProjectFlow(actorId, id, libraryTarget(store, actorId, flow.id));
+    const unavailable = store.staleProjectFlow(actorId, id, "فایل‌های این نسخه در دسترس نیستند. برای انتشار، پوشه را دوباره انتخاب کنید؛ مدیریت مقصد و حذف سابقه همچنان در دسترس است.", "unavailable");
+    return { ...unavailable, displayName: libraryProjectName(config, unavailable) };
+  }
   ensure(current.sourceHash === flow.profile.sourceHash, "PROJECT_CHANGED", "فایل‌های این نسخه تغییر کرده‌اند؛ پوشه را دوباره انتخاب کنید. سابقه حفظ شده است.", 409);
   if (flow.artifact) await readArtifact(config.stateDir, store.getArtifact(actorId, flow.artifact.archiveHash));
   ensure(!signal.aborted, "CANCELLED", "بازکردن پروژه متوقف شد.", 409);

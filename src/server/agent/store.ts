@@ -9,6 +9,7 @@ import { parseCodeRepairJob } from "../../contracts/code-repair.ts";
 import { fingerprint } from "../policy/action.ts";
 import type { PublicationMission } from "../../contracts/publication-mission.ts";
 import { missionAuthority } from "../policy/mission-authority.ts";
+import { failureNextStep, type AgentFailure } from "../../contracts/agent-failure.ts";
 
 export type AgentContext = {
   projectId: string | null;
@@ -170,11 +171,17 @@ export function addEvent(
 }
 export function agentView(run: AgentRecord): AgentView {
   const outcomes = new Map<string, "succeeded" | "failed">();
+  const failures = new Map<string, AgentFailure>();
+  const lastError = run.events.findLast(event => event.kind === "error")?.sequence;
   for (const message of run.messages) {
     if (message.role !== "tool") continue;
     try {
       const result = object(JSON.parse(message.content));
       if (typeof result.ok === "boolean") outcomes.set(message.tool_call_id, result.ok ? "succeeded" : "failed");
+      if (result.ok === false && result.error) {
+        const error = object(result.error), code = string(error.code, 100), errorMessage = string(error.message, 6000);
+        failures.set(message.tool_call_id, { code, message: errorMessage, nextStep: failureNextStep(code) });
+      }
     } catch { /* Legacy free text does not prove success or failure. */ }
   }
   return {
@@ -184,7 +191,9 @@ export function agentView(run: AgentRecord): AgentView {
     state: run.state,
     events: run.events.map(event => {
       const outcome = event.kind === "tool" && event.callId ? outcomes.get(event.callId) : undefined;
-      return !event.outcome && outcome ? { ...event, outcome } : event;
+      const failure = event.kind === "tool" && event.callId ? failures.get(event.callId) : event.kind === "error" && event.sequence === lastError && run.errorCode
+        ? { code: run.errorCode, message: event.message, nextStep: failureNextStep(run.errorCode) } : undefined;
+      return { ...event, ...(!event.outcome && outcome ? { outcome } : {}), ...(failure ? { failure } : {}) };
     }),
     nextAction: run.nextAction,
     question: run.question,

@@ -3,6 +3,7 @@ import { exactKeys, hash, identifier, integer, object, string } from "./validati
 import { parseNodeVersion, type NodeVersion } from "./node-runtime.ts";
 import type { Scope } from "./domain.ts";
 import { parsePythonRuntime, type PythonRuntime } from "./python-runtime.ts";
+import { parseStaticRuntime, type StaticRuntime } from "./static-runtime.ts";
 
 type NodeProvisionSpec = Readonly<{
   version: 8;
@@ -25,7 +26,7 @@ type NodeProvisionSpec = Readonly<{
 }>;
 export type ProvisionSpec = NodeProvisionSpec | (Omit<NodeProvisionSpec, "version" | "nodeVersion"> & Readonly<{
   version: 12; nodeVersion: null; runtime: PythonRuntime;
-}>);
+}>) | (Omit<NodeProvisionSpec, "version" | "nodeVersion"> & Readonly<{ version: 16; nodeVersion: null; runtime: StaticRuntime }>);
 export type ProvisionObservation = Readonly<{
   outcome: "verified" | "changed" | "inconclusive" | "not_started";
   checkedAt: number;
@@ -42,7 +43,7 @@ export type ProvisionReadback = Readonly<{
   defaultSubdomain?: boolean;
 }>;
 export function canReadDestinationResult(action: import("./domain.ts").Action): boolean {
-  return (action.spec.version === 8 || action.spec.version === 12) && !!action.provision &&
+  return (action.spec.version === 8 || action.spec.version === 12 || action.spec.version === 16) && !!action.provision &&
     (action.state === "observing" || action.state === "uncertain");
 }
 export function providerObjectId(value: unknown): string {
@@ -52,6 +53,11 @@ export function providerObjectId(value: unknown): string {
 }
 export function parseProvisionSpec(value: unknown): ProvisionSpec {
   const row = object(value);
+  if (row.version === 16) {
+    ensure(row.nodeVersion === null, "INVALID_INPUT", "سایت ایستا نسخه Node نمی‌پذیرد.");
+    const { runtime, ...rest } = row, base = parseProvisionSpec({ ...rest, version: 8, nodeVersion: "22" });
+    return { ...base, version: 16, nodeVersion: null, runtime: parseStaticRuntime(runtime) };
+  }
   if (row.version === 12) {
     ensure(row.nodeVersion === null, "INVALID_INPUT", "مقصد Python نسخه Node نمی‌پذیرد.");
     const { runtime, ...rest } = row, base = parseProvisionSpec({ ...rest, version: 8, nodeVersion: "22" });

@@ -34,7 +34,8 @@
     "test:networks": "node scripts/test-network-browser.mjs",
     "test:destination-plans": "node scripts/test-destination-plans-browser.mjs",
     "test:projects": "node scripts/test-project-library-browser.mjs",
-    "test:login": "node scripts/test-liara-login-browser.mjs"
+    "test:login": "node scripts/test-liara-login-browser.mjs",
+    "test:static": "node scripts/test-static-browser.mjs"
   },
   "dependencies": {
     "next": "16.4.2",

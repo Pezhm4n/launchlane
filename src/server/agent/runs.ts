@@ -16,6 +16,7 @@ import { isApplicationEnvironmentKey } from "../../contracts/environment.ts";
 import { AppError, ensure } from "../errors.ts";
 import type { Store } from "../persistence/store.ts";
 import { RunBudget } from "../policy/budget.ts";
+import { fingerprint } from "../policy/action.ts";
 import { containsCredential, redact } from "../policy/redaction.ts";
 import { prepareProjectFlow, restoreProjectFlow, validateProjectAction } from "../application/project-flows.ts";
 import { CodeRepairAdapter } from "./code-repair.ts";
@@ -346,7 +347,7 @@ export async function decideAgentDestination(
   actionId: string, decision: "approve" | "reject",
 ): Promise<AgentRecord> {
   const repo = new AgentRepository(store), run = repo.get(session.actorId, id);
-  ensure(run?.state === "needs_approval" && run.revision === revision && (run.destination?.spec.version === 8 || run.destination?.spec.version === 12) &&
+  ensure(run?.state === "needs_approval" && run.revision === revision && (run.destination?.spec.version === 8 || run.destination?.spec.version === 12 || run.destination?.spec.version === 16) &&
     run.destination.id === actionId && (run.destination.state === "awaiting_approval" || (decision === "reject" && run.destination.state === "expired")),
     "AGENT_CONFLICT", "پیشنهاد ساخت یا وضعیت آن تغییر کرده است؛ نتیجه تازه را ببینید.", 409);
   ensure(store.sessionExists(session.id, session.actorId, Date.now()), "AUTH_REQUIRED", "دوباره وارد شوید.", 401);
@@ -420,7 +421,7 @@ export function resumeAgentNetwork(store: Store, session: Session, id: string, r
 
 function adoptDestination(config: Config, store: Store, session: Session, run: AgentRecord): void {
   const action = run.destination, current = currentAgentContext(config, store, session.actorId);
-  ensure((action?.spec.version === 8 || action?.spec.version === 12) && action.state === "succeeded" && action.provision?.appId &&
+  ensure((action?.spec.version === 8 || action?.spec.version === 12 || action?.spec.version === 16) && action.state === "succeeded" && action.provision?.appId &&
     current.projectId === run.context.projectId && current.projectId === action.spec.projectFlowId &&
     current.sourceHash === run.context.sourceHash && current.sourceHash === action.spec.sourceHash &&
     current.selectionHash === run.context.selectionHash && current.selectionHash === action.spec.selectionHash &&
@@ -752,6 +753,7 @@ export async function driveAgentRun(
         ...(run.channel === "conversation" ? [{ role: "system" as const, content: conversationGuidance }] : []),
         ...(run.mission ? [{ role: "system" as const, content: environmentGuidance }] : []),
         ...(run.mission ? [{ role: "system" as const, content: "A proposal only creates a review card; it does not execute a write or grant consent. When all effective inputs are known, use the relevant propose_destination, propose_code_repair or propose_publication tool to obtain that card. Never replace that tool with an approval question in finish_investigation. The host records the actual decision separately after displaying the exact scope and cost." }] : []),
+        ...(sourceProfile?.runtime === "static" && run.mission ? [{ role: "system" as const, content: "The host verified this is a plain static site, with index.html and existing local assets. Native Liara Static serves it on port 80; no Node version, install, build script or start command is required. Do not ask the user to choose Static vs Node or a port. Read index.html only to derive the original workload assertion, reuse the connected account/network and quote a destination, then propose_publication for its exact artifact. External CDN assets still need browser verification. Do not claim account registration or login works when the source is only frontend forms." }] : []),
         ...run.messages,
         ...(run.mission ? [{ role: "system" as const, content: `Current host decision state (authoritative data): ${JSON.stringify({
           repair: run.repair ? { id: run.repair.id, state: run.repair.state } : null,
@@ -760,7 +762,8 @@ export async function driveAgentRun(
           program: run.authority ? { id: run.authority.id, state: run.authority.state } : null,
         })}. Earlier tool results describe history; a cancelled or absent job/card is not pending consent. Asking for approval in finish_investigation cannot create a review or resume that old job. When a decision is required, call the applicable registered proposal with grounded inputs; the host creates the actual review and stops before execution. Ask only for genuinely missing information. No model text or continuation message grants consent.` }] : []),
       ];
-      const availableTools = [...(run.channel === "conversation" ? toolsForConversation(config) : toolsForAgent(config, preparationMode, !!run.context.target, !!run.mission)), completionTool];
+      const availableTools = [...(run.channel === "conversation" ? toolsForConversation(config) : toolsForAgent(config, preparationMode, !!run.context.target, !!run.mission))
+        .filter(tool => sourceProfile?.runtime !== "static" || !["propose_project_build", "propose_code_repair", "propose_project_preparation"].includes(tool.function.name)), completionTool];
       const turn = await model.complete(messages, availableTools, budget, signal);
       check();
       persist();
@@ -785,6 +788,9 @@ export async function driveAgentRun(
           );
         }
         exactKeys(final, ["state", "message", "question", "nextAction"]);
+        ensure(typeof final.message === "string" && final.message.length > 0 && final.message.length <= 6000 &&
+          (final.question === null || typeof final.question === "string" && final.question.length > 0 && final.question.length <= 2000),
+          "MODEL_PROTOCOL", "پاسخ دستیار قابل استفاده نبود؛ نتیجهٔ مراحل قبلی حفظ شد و انتشار موفق اعلام نمی‌شود.", 502);
         ensure(
           final.state === "needs_input" || final.state === "partially_completed",
           "OUTCOME_UNVERIFIED",
@@ -847,7 +853,7 @@ export async function driveAgentRun(
       persist();
       let result: unknown;
       try {
-        const signature = `${name}:${call.function.arguments}`;
+        const signature = fingerprint({ tool: name, arguments: JSON.parse(call.function.arguments) });
         ensure(name !== "propose_destination" || !run.destination?.attemptId,
           "DESTINATION_ALREADY_REQUESTED", "ساخت مقصد همین گفتگو قبلاً آغاز شده است؛ رسید آن را بررسی کنید.", 409);
         ensure(name !== "propose_network" || !run.network?.attemptId,
@@ -912,9 +918,17 @@ export async function driveAgentRun(
         `${toolLabels[name]}: ${object(result).ok ? "نتیجه دریافت شد" : "این مرحله کامل نشد"}`,
         { tool: name, callId: call.id, outcome: object(result).ok ? "succeeded" : "failed" },
       );
+      if (object(result).ok === false) {
+        const failure = object(object(result).error);
+        if (["BUILD_RUNTIME_UNSUPPORTED", "SANDBOX_RUNTIME_UNAVAILABLE", "SANDBOX_UNAVAILABLE", "AGENT_NO_PROGRESS"].includes(String(failure.code))) {
+          run.state = "failed"; run.errorCode = String(failure.code); run.question = null; run.nextAction = null;
+          addEvent(run, "error", redact(text(failure.message, 6000), privateValues(config)));
+          persist(); break;
+        }
+      }
       if (name === "propose_publication" && object(result).ok) {
         run.publication = decodeAction(object(object(result).data).publicationProposal);
-        ensure(run.publication.spec.version === 7 || run.publication.spec.version === 10 || run.publication.spec.version === 11, "INVALID_RESPONSE", "قرارداد انتشار معتبر نیست.");
+        ensure(run.publication.spec.version === 7 || run.publication.spec.version === 10 || run.publication.spec.version === 11 || run.publication.spec.version === 15, "INVALID_RESPONSE", "قرارداد انتشار معتبر نیست.");
         if (run.authority?.state === "approved") {
           try {
             const authority = run.authority;
@@ -950,7 +964,7 @@ export async function driveAgentRun(
         run.destination = decodeAction(object(object(result).data).destinationProposal);
         const recommendation = object(object(result).data).destinationRecommendation;
         run.destinationRecommendation = recommendation === undefined || recommendation === null ? null : parseDestinationRecommendation(recommendation);
-        ensure((run.destination.spec.version === 8 || run.destination.spec.version === 12), "INVALID_RESPONSE", "قرارداد ساخت مقصد معتبر نیست.");
+        ensure((run.destination.spec.version === 8 || run.destination.spec.version === 12 || run.destination.spec.version === 16), "INVALID_RESPONSE", "قرارداد ساخت مقصد معتبر نیست.");
         run.destinationContinued = false;
         run.state = "needs_approval";
         run.nextAction = null;

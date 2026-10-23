@@ -64,7 +64,7 @@ function authorize(
       "هویت برنامه بررسی‌شده تغییر کرده است.",
       403,
     );
-  ensure((spec.version !== 7 && spec.version !== 10 && spec.version !== 11) || store.getConnection(actorId, "liara")?.view.identityId === spec.accountId,
+  ensure((spec.version !== 7 && spec.version !== 10 && spec.version !== 11 && spec.version !== 15) || store.getConnection(actorId, "liara")?.view.identityId === spec.accountId,
     "SCOPE_DENIED", "حساب انتشار تغییر کرده است.", 403);
 }
 async function checkProject(
@@ -76,7 +76,7 @@ async function checkProject(
   const project = await client.project(spec.scope, budget, signal);
   ensure(
     project.id === spec.targetAppId &&
-      project.platform === (spec.version === 11 ? "python" : "node") &&
+      project.platform === (spec.version === 15 ? "static" : spec.version === 11 ? "python" : "node") &&
       project.planId === spec.args.planId,
     "DEPLOYMENT_TARGET_CHANGED",
     "هویت برنامه، نوع اجرا یا پلن پس از پیشنهاد تغییر کرده است؛ تأیید تازه لازم است.",
@@ -135,9 +135,9 @@ async function prepareDeployment(
   ensure(
     flow?.status === "ready" &&
       flow.artifact &&
-      flow.profile.start && (flow.profile.runtime === "node" && flow.profile.nodeRuntime?.version || flow.profile.runtime === "python" && flow.profile.pythonRuntime),
+      flow.profile.start && (flow.profile.runtime === "node" && flow.profile.nodeRuntime?.version || flow.profile.runtime === "python" && flow.profile.pythonRuntime || flow.profile.runtime === "static" && flow.profile.staticRuntime),
     "PROJECT_INCOMPLETE",
-    "ابتدا یک پروژه Node یا Python با روش اجرای مشخص آماده کنید.",
+    "پروژه هنوز آمادهٔ انتشار نیست؛ نتیجهٔ بررسی فایل‌ها و روش اجرای آن را ببینید.",
     409,
   );
   const client = dependencies.read ?? new LiaraReadClient(scoped),
@@ -163,7 +163,9 @@ async function prepareDeployment(
   ensure(connection?.status === "connected", "LIARA_AUTH_REQUIRED", "ابتدا حساب را متصل کنید.", 409);
   const environment = currentEnvironment(store, scoped.sessionSecret, actorId, flow.id);
   ensure(generic || !environment, "ENV_PUBLICATION_REQUIRED", "انتشار با اطلاعات امن از مسیر مرحله‌ای و تصمیم متصل به همان اطلاعات ادامه می‌یابد.", 409);
-  const spec: DeploySpec = flow.profile.runtime === "python" && flow.profile.pythonRuntime
+  const spec: DeploySpec = flow.profile.runtime === "static" && flow.profile.staticRuntime
+    ? { ...common, version: 15, operation: "deploy", sourceHash: flow.profile.sourceHash, nodeVersion: null, runtime: flow.profile.staticRuntime, accountId: connection.identityId, workload: parseWorkloadContract(workload) }
+    : flow.profile.runtime === "python" && flow.profile.pythonRuntime
     ? { ...common, version: 11, operation: "deploy", nodeVersion: null, runtime: flow.profile.pythonRuntime, environment, accountId: connection.identityId, workload: parseWorkloadContract(workload) }
     : generic
     ? environment ? { ...common, nodeVersion: parseNodeVersion(flow.profile.nodeRuntime?.version), sourceHash: flow.profile.sourceHash, version: 10, operation: "deploy", accountId: connection.identityId, workload: parseWorkloadContract(workload), environment }
@@ -201,7 +203,7 @@ export async function executeDeployment(
   );
   const action = store.getAction(id, session.actorId);
   ensure(
-    action.spec.version === 5 || (action.spec.version === 7 || action.spec.version === 10 || action.spec.version === 11),
+    action.spec.version === 5 || (action.spec.version === 7 || action.spec.version === 10 || action.spec.version === 11 || action.spec.version === 15),
     "DEPLOYMENT_PROPOSAL_REQUIRED",
     "این پیشنهاد قدیمی قابل انتشار نیست؛ پیشنهاد تازه با نسخه اجرا و معیار بررسی سایت بسازید.",
     409,
@@ -325,7 +327,7 @@ export async function observeDeployment(
           spec.workload.path,
           budget,
           signal,
-          (spec.version === 7 || spec.version === 10 || spec.version === 11) ? 65536 : 4096,
+          (spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 15) ? 65536 : 4096,
         );
         ensure(
           probe.scope.teamId === spec.scope.teamId &&
@@ -356,7 +358,7 @@ export async function observeDeployment(
           outcome:
             probe.outcome === "response" &&
             probe.status === spec.workload.status &&
-            ((spec.version === 7 || spec.version === 10 || spec.version === 11)
+            ((spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 15)
               ? matchesWorkload(spec.workload, probe.status, probe.body)
               : revision === spec.workload.revision)
               ? "verified"
@@ -365,7 +367,7 @@ export async function observeDeployment(
         };
         // Provider current/READY can precede the public route switching from the old response.
         // Waiting never changes the approved assertion; a persistent mismatch still fails at the deadline.
-        if (result.outcome === "failed" && (spec.version === 7 || spec.version === 10 || spec.version === 11) && probe.outcome === "response" &&
+        if (result.outcome === "failed" && (spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 15) && probe.outcome === "response" &&
           action.deployment.releaseAcceptedAt !== undefined &&
           probe.observedAt >= action.deployment.releaseAcceptedAt &&
           probe.observedAt - action.deployment.releaseAcceptedAt < 300_000)

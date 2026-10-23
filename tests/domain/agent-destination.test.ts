@@ -14,11 +14,15 @@ import { WorkloadProbe } from "../../src/server/liara/probe.ts";
 import { sealCredential } from "../../src/server/connections/credentials.ts";
 import { executeDestination, observeDestination } from "../../src/server/application/provision.ts";
 import { AppError } from "../../src/server/errors.ts";
+import { prepareProjectFlow } from "../../src/server/application/project-flows.ts";
 
 const app = "agent-created-site", team = "a".repeat(24), accountId = "b".repeat(24), network = "c".repeat(24), createdId = "d".repeat(24);
-async function fixture() {
+async function fixture(runtime: "node" | "static" = "node") {
   const f = await agentFixture(), config = { ...f.config, teamId: team, apps: [app], liaraToken: "private-destination-test-credential",
     enableLiveLiara: true, enableMutations: true };
+  const flow = runtime === "static" ? await prepareProjectFlow(config, f.store, f.session.actorId,
+    { kind: "upload", name: "invoice-site", directory: "." }, AbortSignal.timeout(3000), undefined, undefined,
+    [{ path: "index.html", content: Buffer.from("<!DOCTYPE html><html><title>invoice service</title><body>invoice service</body></html>") }]) : f.flow;
   f.store.saveConnection(f.session.actorId, { source: "token", ciphertext: sealCredential(config.liaraToken, config.sessionSecret, f.session.actorId, "liara"),
     view: { provider: "liara", status: "connected", identityId: accountId, displayName: "آزمون", login: "test@example.test",
       teamId: team, teamName: "آزمون", checkedAt: Date.now(), apps: [], selectedApp: null } });
@@ -33,7 +37,7 @@ async function fixture() {
     assert.equal(path, `/v1/projects/${app}`);
     if (!exists) return new Response(null, { status: 404 });
     beforeObservation?.();
-    return Response.json({ project: { _id: createdId, project_id: app, type: "node", planID: "starter", bundlePlanID: "basic",
+    return Response.json({ project: { _id: createdId, project_id: app, type: runtime, planID: "starter", bundlePlanID: "basic",
       network: { _id: network }, readOnlyRootFilesystem: true, defaultSubdomain } });
   });
   const write = new LiaraProvisionClient(config, async () => {
@@ -47,7 +51,7 @@ async function fixture() {
     assert.ok(exists);
     return Response.json(url.includes("/releases")
       ? { currentRelease: "created-release", total: 1, releases: [{ _id: "created-release", state: "READY", port: 3000 }] }
-      : { project: { _id: createdId, project_id: app, type: "node", planID: "starter", status: "Running", envs: [] } });
+      : { project: { _id: createdId, project_id: app, type: runtime, planID: "starter", status: "Running", envs: [] } });
   });
   const deployment = { read, write: new LiaraDeployClient(config, async (url) => {
     publishes++;
@@ -64,13 +68,14 @@ async function fixture() {
   });
   const dependencies = { model, destination: { read: account, write }, deployment, pollDelayMs: 1,
     tool: (name: string, input: unknown, context: Parameters<typeof executeAgentTool>[2]) => executeAgentTool(name, input, { ...context, account, read }) };
-  const repo = new AgentRepository(f.store), initial = createAgentRun(config, f.store, f.session, randomUUID(), "مقصد تازه بساز و همین پروژه را منتشر کن", f.flow.id).run;
+  const repo = new AgentRepository(f.store), initial = createAgentRun(config, f.store, f.session, randomUUID(), "مقصد تازه بساز و همین پروژه را منتشر کن", flow.id).run;
   await driveAgentRun(config, f.store, f.session, initial.id, dependencies);
   const run = repo.get(f.session.actorId, initial.id);
-  assert.ok(run?.destination?.spec.version === 8);
+  assert.equal(run?.destination?.spec.version, runtime === "static" ? 16 : 8);
+  assert.ok(run);
   assert.equal(run.state, "needs_approval");
   assert.equal(creates, 0);
-  return { ...f, config, repo, run, dependencies,
+  return { ...f, flow, config, repo, run, dependencies,
     counts: () => ({ creates, publishes, reads, models }),
     set(v: { loseResponse?: boolean; defaultSubdomain?: boolean; beforeObservation?: () => void }) {
       loseResponse = v.loseResponse ?? loseResponse; defaultSubdomain = v.defaultSubdomain ?? defaultSubdomain;
@@ -80,15 +85,16 @@ async function fixture() {
   };
 }
 
-test("agent creates one approved identity then proposes and publishes the same archive with a separate decision", async () => {
-  const f = await fixture();
+for (const runtime of ["node", "static"] as const) test(`${runtime} agent creates one approved identity then proposes and publishes the same archive with a separate decision`, async () => {
+  const f = await fixture(runtime);
   try {
     const selectedHash = f.flow.artifact?.archiveHash;
     await f.approve();
     await assert.rejects(f.approve(), (e: unknown) => e instanceof AppError && e.code === "AGENT_CONFLICT");
     await driveAgentRun(f.config, f.store, f.session, f.run.id, f.dependencies);
     const proposed = f.repo.get(f.session.actorId, f.run.id);
-    assert.ok(proposed?.publication?.spec.version === 7);
+    assert.equal(proposed?.publication?.spec.version, runtime === "static" ? 15 : 7);
+    assert.ok(proposed?.publication);
     assert.equal(proposed.state, "needs_approval");
     assert.equal(proposed.destination?.state, "succeeded");
     assert.equal(proposed.effect, "destination_created");

@@ -1,5 +1,5 @@
 const excludedNames = new Set([
-  ".git", ".hg", ".svn", "node_modules", ".next", ".data", ".local", ".artifacts",
+  ".git", ".hg", ".svn", ".idea", ".vscode", "node_modules", ".next", ".data", ".local", ".artifacts",
   ".agents", ".cache", ".npm", ".yarn", "coverage", "dist", "build", "out", "vendor",
   ".vercel", ".liara", ".ssh", ".aws", "__pycache__", ".venv", "venv", ".pytest_cache", ".mypy_cache", ".ruff_cache",
 ]);
@@ -12,7 +12,7 @@ export function excludedPath(name: string): boolean {
 }
 
 export function sourceFileAllowed(name: string): boolean {
-  return /\.(?:py|toml|[cm]?[jt]sx?|json|lock|md|txt|html?|css|scss|svg|png|jpe?g|webp|ico|woff2?|ya?ml)$/i.test(name) ||
+  return /\.(?:py|php|go|mod|sum|cs|fs|csproj|fsproj|sln|razor|cshtml|vue|svelte|toml|[cm]?[jt]sx?|json|lock|md|txt|html?|css|scss|svg|png|jpe?g|webp|ico|woff2?|ya?ml)$/i.test(name) ||
     ["Dockerfile", "Procfile", ".dockerignore", ".gitignore"].includes(name) ||
     /^(?:LICENSE|LICENCE|COPYING|NOTICE)(?:[-.][A-Z0-9-]+)?$/i.test(name);
 }

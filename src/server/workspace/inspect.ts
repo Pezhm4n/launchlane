@@ -9,6 +9,8 @@ import { resolveNodeRuntime } from "./node-runtime.ts";
 import { sourcePorts } from "./ports.ts";
 import { fingerprint } from "../policy/action.ts";
 import { parsePythonRuntime, pythonStart } from "../../contracts/python-runtime.ts";
+import { staticRuntime } from "../../contracts/static-runtime.ts";
+import { validateStaticFiles } from "./static.ts";
 import { containsSourceCredential } from "../policy/redaction.ts";
 import { SOURCE_MAX_FILES, SOURCE_MAX_ENTRIES, SOURCE_MAX_BYTES, sourceFileByteLimit, sourceFileLimitMessage } from "../../contracts/source-limits.ts";
 import {
@@ -190,7 +192,7 @@ async function scanProject(
         sha256: createHash("sha256").update(content).digest("hex"),
       });
       // Retain actual bytes, not the full scratch buffer behind readSafeFile's subarray.
-      if (capture) files.push({ path: relativePath, content: Buffer.from(content) });
+      if (capture || /\.(?:html?|css|m?js)$/i.test(relativePath)) files.push({ path: relativePath, content: Buffer.from(content) });
       totalBytes += content.length;
       if (relativePath === "package.json" || relativePath === "liara.json") {
         let parsed: unknown;
@@ -230,6 +232,10 @@ async function scanProject(
   const pkg: Record<string, unknown> = packageJson ?? {};
   const liara: Record<string, unknown> = liaraJson ?? {};
   const scripts = pkg.scripts === undefined ? {} : object(pkg.scripts);
+  const staticSite = !packageJson && manifest.some(file => file.path === "index.html") &&
+    !manifest.some(file => /\.(?:py|php|csproj|fsproj|go|rb|java)$|^(?:Dockerfile|composer\.json|Gemfile)$/i.test(file.path)) &&
+    (liara.platform === undefined || liara.platform === "static");
+  if (staticSite) validateStaticFiles(files, manifest.map(file => file.path));
   const nodeRuntime = resolveNodeRuntime(pkg.engines, liara.node);
   if (
     typeof liara.port === "number" &&
@@ -241,18 +247,18 @@ async function scanProject(
   const nextStart = typeof object(pkg.dependencies ?? {}).next === "string" && typeof scripts.start === "string"
     ? /^next start(?: (?:-H|--hostname) (?:0\.0\.0\.0|127\.0\.0\.1))?(?: (?:-p|--port) (\d{1,5}))?$/.exec(scripts.start) : null;
   const nextPort = nextStart ? Number(nextStart[1] ?? 3000) : null;
-  const port = literalPort ?? (nextPort && nextPort <= 65535 ? nextPort : null) ?? (!unresolvedPort && ports.size === 1 ? ([...ports][0] ?? null) : null);
+  const port = staticSite ? 80 : literalPort ?? (nextPort && nextPort <= 65535 ? nextPort : null) ?? (!unresolvedPort && ports.size === 1 ? ([...ports][0] ?? null) : null);
   // A workspace manifest describes multiple packages. Do not treat an orchestrator start
   // as the single Node workload supported by this deployment path; require an explicit leaf.
   const hasWorkspaces = pkg.workspaces !== undefined;
   const python = !packageJson && manifest.some(file => file.path.endsWith(".py"));
   const pythonRuntime = python ? parsePythonRuntime({ kind: "python", version: object(liara.python ?? {}).version ?? "3.12",
     command: Array.isArray(liara.args) && liara.args.length === 1 && typeof liara.args[0] === "string" ? liara.args[0].trim().split(/\s+/) : ["python3", "main.py"] }) : undefined;
-  const start = pythonRuntime ? (pythonRuntime.command[1] === "-m" || manifest.some(file => file.path === pythonRuntime.command[1]) ? pythonStart(pythonRuntime) : null) : hasWorkspaces ? null : safeScript(scripts.start),
+  const start = staticSite ? "liara-static" : pythonRuntime ? (pythonRuntime.command[1] === "-m" || manifest.some(file => file.path === pythonRuntime.command[1]) ? pythonStart(pythonRuntime) : null) : hasWorkspaces ? null : safeScript(scripts.start),
     build = safeScript(scripts.build);
   const missing: string[] = [];
   if (hasWorkspaces) missing.push("این پوشه چند بسته را مدیریت می‌کند؛ زیرپوشه همان برنامه قابل انتشار را انتخاب کنید.");
-  if (!packageJson && !python) missing.push("پروژه Node یا Python قابل تشخیص نیست.");
+  if (!staticSite && !packageJson && !python) missing.push("پروژه Node یا Python قابل تشخیص نیست.");
   if (!start) missing.push("دستور start مشخص نیست؛ قبل از انتشار آن را تعیین کنید.");
   if (port === null) missing.push("پورت قطعی نیست؛ پورت برنامه را وارد کنید.");
   if (packageJson && !nodeRuntime.version) missing.push(nodeRuntime.detail);
@@ -261,9 +267,9 @@ async function scanProject(
   manifest.sort((a, b) => a.path.localeCompare(b.path, "en"));
   const profile: ProjectProfile = {
     directory,
-    runtime: packageJson ? "node" : python ? "python" : "unknown",
-    nodeVersion: python ? null : nodeRuntime.requirement,
-    ...(pythonRuntime ? { pythonRuntime } : { nodeRuntime }),
+    runtime: staticSite ? "static" : packageJson ? "node" : python ? "python" : "unknown",
+    nodeVersion: python || staticSite ? null : nodeRuntime.requirement,
+    ...(staticSite ? { staticRuntime } : pythonRuntime ? { pythonRuntime } : { nodeRuntime }),
     port,
     start,
     build,

@@ -7,7 +7,7 @@ import { setTimeout as pause } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import { freeHttpTestPort } from "../tests/helpers/http-port.ts";
 
-export async function startTestServer({ browserHost = "127.0.0.1", agentFixture = false, environmentFixture = false, destinationFixture = false, workspaceConfigured = true, authFixture = false } = {}) {
+export async function startTestServer({ browserHost = "127.0.0.1", agentFixture = false, environmentFixture = false, destinationFixture = false, workspaceConfigured = true, authFixture = false, staticFixture = false } = {}) {
   if (environmentFixture && !agentFixture) throw new Error("Environment fixture requires the network-denying test hook");
   if (destinationFixture && !agentFixture) throw new Error("Destination fixture requires the network-denying test hook");
   if (!["127.0.0.1", "localhost"].includes(browserHost)) throw new Error("Unsupported loopback test host");
@@ -54,6 +54,8 @@ export async function startTestServer({ browserHost = "127.0.0.1", agentFixture 
     ...(environmentFixture ? { LAUNCHLANE_ENABLE_MUTATIONS: "true", LAUNCHLANE_ENABLE_LIVE_LIARA: "true", LAUNCHLANE_ENVIRONMENT_FIXTURE: "true" } : {}),
     ...(destinationFixture ? { LAUNCHLANE_ENABLE_MUTATIONS: "true", LAUNCHLANE_ENABLE_LIVE_LIARA: "true", LAUNCHLANE_DESTINATION_FIXTURE: "true" } : {}),
     ...(authFixture ? { LAUNCHLANE_AUTH_MODE: "liara", NODE_OPTIONS: `--import=${pathToFileURL(resolve("tests/helpers/liara-auth-hook.mjs")).href}` } : {}),
+    ...(staticFixture ? { LAUNCHLANE_ENABLE_MUTATIONS: "true", LAUNCHLANE_ENABLE_LIVE_MODEL: "true", LAUNCHLANE_ENABLE_LIVE_LIARA: "true",
+      MODEL_ID: "gpt-6-luna", MODEL_API_KEY: "synthetic-static-fixture-key", NODE_OPTIONS: `--import=${pathToFileURL(resolve("tests/helpers/static-publication-hook.mjs")).href}` } : {}),
   };
   const child = spawn(
     process.execPath,

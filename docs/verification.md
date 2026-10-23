@@ -1,5 +1,13 @@
 # شواهد اعتبارسنجی Launchlane
 
+## native Static و خطاهای قابل‌اقدام؛ candidate44 / ۲۰۲۶-۱۰-۲۳
+
+پایه72618b6، tree `d45a7211331f906bce7ee5ed121daf50535d13df`، digest355فایل `f1067260e5ae045edd011fd5db3a4cd9b87fa9ea91ccaffb4bfef1d18b09bb9f`، صفر اختلاف byte با ایندکس. build/typecheck پاس؛ lint صفرerror،39warning،12info. HTTP39/39؛ `test:static` سه viewport320/390/1280 با axe0/pageerror0، source chooser→مأموریت مشترک→کارت v15→refresh بدون job/write/model تازه؛ مدل/provider مصنوعی. تصاویر بررسی شدند؛ این آزمون، cloud یا کار UI همکار را قبول نمی‌کند.
+
+full domain در اجرای اول386/387 شد: archiveِ fixture مقصد در مهلت کوتاه تست CANCELLED شد، پیش از اجرای assertion مربوط به رد تصمیم. stack، deadline و failure حفظ‌اند؛ علت افت سرعت سیستم اثبات نشده و به concurrency=1 نسبت داده نمی‌شود. بدون تغییر assertion، timeout یا code همین candidate، اجرای کامل مجدد387/387 پاس شد. این full pass تازه است و جمع subsetهای متفاوت نیست؛ ناپایداری زمانِ fixture همچنان ریسک ثبت‌شده است. candidate43 قبلاً387/387 داشت ولی lint عنوان SVG تازه را رد کرد؛ عنوان اصلاح و در44 lint پاس شد. شکست‌های قدیمی preparation و oracle تکرار invalid read در [گزارش](evidence/native-static-login.md) حفظ شده‌اند.
+
+[Login اصلی](evidence/native-static-login.md) روی candidate40 با source/artifact/app/release مشخص، upload مرورگری، مدل واقعی، native Static و current-release/HTML/asset-byte/browser اثبات شد؛ stop/delete همان app نیز readback شدند. native publication با Docker worker یکی نیست. تغییرات بعد40 شامل دو guard مقصد Agent، badge Static و جزئیات خطاست؛ live Agent-create همچنان UNCONFIRMED است. مجوز تجمعی مدل پس از۴درخواست تازه و reserve دو اجرای کاربر حداکثر۰٫۵۸۵۹۷۸ دلار باقیمانده دارد؛ مانده حساب یا صورتحساب Liara اندازه‌گیری نشده. A11/AC28 و باقی خانواده‌ها باز می‌مانند.
+
 ## ورود هویتی لیارا؛ candidate38 / ۲۰۲۶-۱۰-۲۳
 
 [شاهد](evidence/liara-identity-login.md) و [ADR0024](decisions/0024-liara-identity-login.md): build/typecheck و lint بدون error،39HTTP و8 حالت مرورگر واقعی با دو هویت/provider مصنوعی گذشتند. domain کامل380/381 بود؛ failure شبکهٔ HTTP worker در preparation و recheck5/6 سپس6/6، بدون تغییر oracle، حفظ شده‌اند؛ root cause نامعلوم و full pass تازه ادعا نمی‌شود. اتصال read/check/teams واقعی لیارا مشاهده شد، ولی رمز واقعی ارسال نشد؛ ورود زنده، حساب شخصی بدون تیم، sandbox میزبان عمومی و استقرار از همان دامنه UNCONFIRMED هستند. فایل و state اپراتور حفظ و تغییرات همکار از snapshot خارج ماندند.
