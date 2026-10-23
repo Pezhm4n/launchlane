@@ -15,3 +15,11 @@
 ## پیامدها و بازبینی
 
 مزیت، یک مسیر قابل آزمون با بودجه مشترک، base دقیق و same-test oracle است. هزینه، محدودبودن دامنه اصلاح و نبود OS/network isolation است. gate پیش‌فرض خاموش و scope/test پیش از اجرا قابل تصمیم‌اند. هر تغییر command/dependency یا افزودن runtime باید قرارداد و تست جدید داشته باشد. وقتی runtime رسمی با provider مجاز و isolation مناسب واقعاً آزموده شود، می‌تواند همین adapter را جایگزین کند؛ UI و policy نباید موتور دوم بسازند. راه کار سیستم در ARCHITECTURE و شواهد اجرا در گزارش Agent ثبت می‌شوند.
+
+## بازبینی مأموریت کامل؛ ۲۰۲۶-۱۰-۲۳
+
+محدودیت‌های تاریخی بالا با ADR0011/0012/0014/0015 در حوزه container، build و Python گسترش یافته‌اند؛ «فقط Node مستقیم» توصیف امروز همه worker نیست. CodeRepairJob، base/scope، budget، containment، لغو، آزمون مستقل و artifact receipt حفظ می‌شوند. محدودیت واقعی باقی‌مانده، آماده‌سازی raw/monorepo، تغییر dependency/command و connector اجرایی سه میزبان است؛ این‌ها الزام دائمی محصول نیستند.
+
+[OpenHands Software Agent SDK](https://github.com/OpenHands/software-agent-sdk) APIهای Python/TypeScript/REST و Agent Server برای workspace اجرا دارد؛ جایگزینی فعلی، سرویس و runtime/permission/dependency تازه می‌خواهد و هیچ اجرای واقعی مقایسه‌ای در این نصب انجام نشده است. [mini-swe-agent](https://github.com/SWE-agent/mini-swe-agent) حلقه ساده و shell/subprocess دارد؛ سادگی حلقه، به‌تنهایی محدودیت command/network/receipt را حل نمی‌کند. هیچ کد از این دو پروژه اقتباس نشده است.
+
+انتخاب اجرایی فعلی حفظ worker موجود و اتصال host از پشت همان قرارداد است. افزودن SDK تازه تا وقتی یک شکاف مشخص را با اجرای sandbox و receipt مستقل نبندد، توجیه ندارد. این تصمیم صرفه‌جویی اندازه‌گیری‌شده یا برتری عمومی worker نیست. spike واقعی جدید با Codex0.163.0-alpha.11 فقط MCP→application، discovery و سه فراخوانی بدون مدل را اثبات کرد؛ dispatch اصلاح، هزینه/مصرف، cancel/recovery و محدودیت ابزار هر connector هنوز آزمون جدا می‌خواهند. API رسمی جدید app-server، اجرای برنامه‌نویسی‌شده Claude Code و OpenCode SDK بررسی شده‌اند؛ CLI دو میزبان اخیر در PATH و مسیرهای معمولِ بررسی‌شده نبود. Markdown یا MCP discovery جای این مرز اجرایی قرار نمی‌گیرد.
