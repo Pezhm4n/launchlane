@@ -8,7 +8,7 @@ import { prepareProjectFlow, restoreProjectFlow } from "../../src/server/applica
 import { captureProject } from "../../src/server/workspace/inspect.ts";
 import { parsePythonRuntime } from "../../src/contracts/python-runtime.ts";
 import { parseProjectBuildPlan, pythonBuildImage } from "../../src/contracts/project-build.ts";
-import { downloadPythonWheels, pythonRequirements } from "../../src/server/agent/python-source.ts";
+import { downloadPythonWheels, pythonRequirements, reusePythonWheels } from "../../src/server/agent/python-source.ts";
 import { fingerprint, parseActionSpec } from "../../src/server/policy/action.ts";
 import { decodeAction } from "../../src/contracts/client-decode.ts";
 import { LiaraDeployClient } from "../../src/server/liara/deploy.ts";
@@ -76,6 +76,11 @@ test("wheel downloads verify provider hashes before use and reject corrupted byt
     await downloadPythonWheels([{ name: "fixture", version: "1.0" }], join(f.directory, "wheels"), AbortSignal.timeout(3000), () => { calls++; }, async url => url.endsWith("/json") ? metadata : content);
     assert.equal(calls, 2);
     assert.equal(await readFile(join(f.directory, "wheels/requirements.txt"), "utf8"), `fixture==1.0 --hash=sha256:${sha256}`);
+    await reusePythonWheels([{ name: "fixture", version: "1.0" }], join(f.directory, "wheels"), join(f.directory, "reused"), AbortSignal.timeout(3000));
+    assert.deepEqual(await readFile(join(f.directory, "reused/fixture-1.0-py3-none-any.whl")), content);
+    await assert.rejects(reusePythonWheels([{ name: "fixture", version: "2.0" }], join(f.directory, "wheels"), join(f.directory, "wrong-lock"), AbortSignal.timeout(3000)), { code: "PYTHON_WHEEL_CHANGED" });
+    await writeFile(join(f.directory, "wheels/fixture-1.0-py3-none-any.whl"), "corrupted bytes");
+    await assert.rejects(reusePythonWheels([{ name: "fixture", version: "1.0" }], join(f.directory, "wheels"), join(f.directory, "corrupt-cache"), AbortSignal.timeout(3000)), { code: "PYTHON_WHEEL_CHANGED" });
     await assert.rejects(downloadPythonWheels([{ name: "fixture", version: "1.0" }], join(f.directory, "corrupt"), AbortSignal.timeout(3000), () => {}, async url => url.endsWith("/json") ? metadata : Buffer.from("wrong")), { code: "PYTHON_WHEEL_CHANGED" });
   } finally { f.close(); }
 });

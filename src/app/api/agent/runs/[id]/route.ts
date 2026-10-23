@@ -50,8 +50,9 @@ export async function POST(request: Request, { params }: Context) {
       return reply({ run: agentView(cancelAgentRun(store, session.actorId, id, revision)) });
     }
     if (input.operation === "resume-publication") {
-      exactKeys(input, ["operation", "revision", "requestKey"]);
-      const result = await resumePublicationMission(config, store, session, id, revision, string(input.requestKey, 80), request.signal);
+      exactKeys(input, ["operation", "revision", "requestKey", "feedback"]);
+      const result = await resumePublicationMission(config, store, session, id, revision, string(input.requestKey, 80), request.signal,
+        input.feedback === undefined ? null : text(input.feedback, 2000));
       if (result.created) after(() => driveAgentRun(config, store, session, id));
       return reply({ run: agentView(result.run) });
     }

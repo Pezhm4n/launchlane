@@ -28,7 +28,7 @@ import { validateBuildPlan, validateBuildRepairPaths } from "./build-policy.ts";
 import { downloadLockedTarballs, lockedTarballs, type TarballReader } from "./npm-source.ts";
 import { projectEnvironmentValues } from "../environment/secrets.ts";
 import { connectedLiaraConfig } from "../connections/liara.ts";
-import { downloadPythonWheels, pythonRequirements } from "./python-source.ts";
+import { downloadPythonWheels, pythonRequirements, reusePythonWheels } from "./python-source.ts";
 import { runPythonBuild } from "./python-container.ts";
 
 const patchTool: ToolDefinition = {
@@ -569,7 +569,16 @@ export class CodeRepairAdapter {
       if (record.job.build) {
         projectEnvironmentValues(this.store, this.config.sessionSecret, actor, record.job.projectId, record.job.build.environment);
         validateBuildPlan(base.files, base.profile, record.job.build);
-        if (record.job.build.version === 2) await downloadPythonWheels(pythonRequirements(base.files), tarballs, bounded, () => budget.take("tool", bounded));
+        if (record.job.build.version === 2) {
+          const selection = this.store.getProjectFlow(actor, record.job.projectId)?.selection,
+            parent = selection?.kind === "repair" ? this.record(actor, selection.jobId).job : null;
+          if (selection?.kind === "repair" && parent?.state === "succeeded" && parent.build?.version === 2 &&
+            parent.artifact?.archiveHash === selection.artifactHash && parent.artifact.sourceHash === record.job.baseRevision) {
+            // Only the selected exact parent artifact can provide a cache; every byte and lock is revalidated.
+            budget.take("tool", bounded);
+            await reusePythonWheels(pythonRequirements(base.files), join(this.config.stateDir, "repair-tarballs", parent.id), tarballs, bounded);
+          } else await downloadPythonWheels(pythonRequirements(base.files), tarballs, bounded, () => budget.take("tool", bounded));
+        }
         else await downloadLockedTarballs(lockedTarballs(base.files), tarballs, bounded, () => budget.take("tool", bounded), this.tarballReader);
       }
       const tests = async (): Promise<RepairTestReceipt> => {

@@ -9,6 +9,7 @@ import { CodeRepairAdapter } from "../../src/server/agent/code-repair.ts";
 import { parseProjectBuildPlan, pythonBuildImage } from "../../src/contracts/project-build.ts";
 import type { ModelPort } from "../../src/server/agent/model.ts";
 import { runPythonBuild } from "../../src/server/agent/python-container.ts";
+import { downloadPythonWheels } from "../../src/server/agent/python-source.ts";
 
 test("offline Python worker reproduces a semantic failure, repairs only scoped source and selects the exact tested artifact", async () => {
   const f = await agentFixture();
@@ -60,5 +61,29 @@ test("a corrupted wheel is rejected before pip or project code runs", async () =
     const result = await runPythonBuild(project, wheels, plan, [], AbortSignal.timeout(60000));
     assert.equal(result.exitCode, 74); assert.match(result.output, /checksum changed/);
     assert.equal(result.output.includes("Installing collected"), false);
+  } finally { f.close(); }
+});
+
+test("a successful HTML response cannot hide missing JavaScript, CSS fonts or icons", async () => {
+  const f = await agentFixture();
+  try {
+    const project = join(f.directory, "web"), wheels = join(f.directory, "web-wheels");
+    await mkdir(join(project, "public/assets"), { recursive: true }); await mkdir(join(project, "public/fonts"));
+    await downloadPythonWheels([], wheels, AbortSignal.timeout(3000), () => {});
+    await writeFile(join(project, "main.py"), 'from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler\nfrom functools import partial\nThreadingHTTPServer(("0.0.0.0", 8000), partial(SimpleHTTPRequestHandler, directory="public")).serve_forever()\n');
+    await writeFile(join(project, "public/index.html"), '<title>PythonWeb</title><script src="/assets/app.js"></script><link rel="stylesheet" href="/assets/app.css"><link rel="icon" href="/icon.svg">');
+    await writeFile(join(project, "public/assets/app.css"), '@font-face{font-family:fixture;src:url("/fonts/font.woff2")}');
+    const plan = parseProjectBuildPlan({ version: 2, nodeVersion: null, image: pythonBuildImage,
+      runtime: { kind: "python", version: "3.12", command: ["python3", "main.py"] }, buildCommand: null, testCommand: null,
+      startCommand: "python3 main.py", port: 8000, workload: { path: "/", status: 200, assertion: { kind: "text", contains: "<title>PythonWeb</title>" } } });
+    assert.equal(plan.version, 2); if (plan.version !== 2) throw Error("wrong Python plan");
+    const missingScript = await runPythonBuild(project, wheels, plan, [], AbortSignal.timeout(60000));
+    assert.equal(missingScript.exitCode, 73); assert.match(missingScript.output, /linked asset \/assets\/app.js failed/);
+    await writeFile(join(project, "public/assets/app.js"), "window.loaded=true;"); await writeFile(join(project, "public/icon.svg"), '<svg xmlns="http://www.w3.org/2000/svg"></svg>');
+    const missingFont = await runPythonBuild(project, wheels, plan, [], AbortSignal.timeout(60000));
+    assert.equal(missingFont.exitCode, 73); assert.match(missingFont.output, /linked asset \/fonts\/font.woff2 failed/);
+    await writeFile(join(project, "public/fonts/font.woff2"), "fixture font bytes");
+    const complete = await runPythonBuild(project, wheels, plan, [], AbortSignal.timeout(60000));
+    assert.equal(complete.exitCode, 0, complete.output); assert.match(complete.output, /verified 4 same-origin assets/);
   } finally { f.close(); }
 });

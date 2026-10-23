@@ -4,11 +4,46 @@ import { environmentVariables, isApplicationEnvironmentKey, type EnvironmentVari
 import { ensure } from "../errors.ts";
 import { docker, containerState, type CommandResult } from "./container.ts";
 
-const program = `import os,sys,json,shutil,subprocess,threading,time,urllib.request,hashlib,unittest,re
+const program = `import os,sys,json,shutil,subprocess,threading,time,urllib.request,urllib.parse,html.parser,hashlib,unittest,re
 plan=json.loads(sys.argv[1]); tests=json.loads(sys.argv[2]); stage='cache'
 threading.Timer(110,lambda:os._exit(124)).start()
 started=time.monotonic()
 def progress(): print('Launchlane Python stage:',stage,round((time.monotonic()-started)*1000),'ms',flush=True)
+
+def verify_assets(path,content_type,data):
+ origin='http://127.0.0.1:'+str(plan['port']);pending=[(path,content_type,data,0)];seen=set();total=0;external=0
+ class Links(html.parser.HTMLParser):
+  def __init__(self): super().__init__();self.links=[]
+  def handle_starttag(self,tag,attrs):
+   values=dict(attrs)
+   if tag=='script' and values.get('src'): self.links.append(values['src'])
+   if tag=='link' and set((values.get('rel') or '').split()) & {'stylesheet','icon','apple-touch-icon'} and values.get('href'): self.links.append(values['href'])
+ while pending:
+  current,kind,body,depth=pending.pop(0);links=[]
+  if kind=='text/html':
+   parser=Links();parser.feed(body.decode('utf8'));links=parser.links
+  elif kind=='text/css': links=[value.strip().strip(chr(34)+chr(39)) for value in re.findall(r'url[(]([^)]*)[)]',body.decode('utf8'))]
+  for reference in links:
+   if reference.startswith('data:'): continue
+   if len(reference)>1024: raise RuntimeError('linked asset URL exceeds limit')
+   target=urllib.parse.urlsplit(urllib.parse.urljoin(origin+current,reference))
+   if target.scheme!='http' or target.netloc!=urllib.parse.urlsplit(origin).netloc:
+    external+=1;continue
+   url=urllib.parse.urlunsplit(target._replace(fragment=''))
+   if url in seen: continue
+   if len(seen)>=16 or depth>=3: raise RuntimeError('linked asset graph exceeds limit')
+   seen.add(url)
+   try:
+    with urllib.request.urlopen(url,timeout=2) as asset:
+     payload=asset.read(524289);mime=asset.headers.get_content_type()
+     if asset.status!=200 or not asset.url.startswith(origin+'/') or len(payload)>524288: raise RuntimeError('response does not meet local asset limits')
+     if target.path.endswith('.js') and mime not in {'application/javascript','text/javascript'}: raise RuntimeError('JavaScript MIME is invalid')
+     if target.path.endswith('.css') and mime!='text/css': raise RuntimeError('CSS MIME is invalid')
+     total+=len(payload)
+     if total>2097152: raise RuntimeError('linked assets exceed byte limit')
+     pending.append((target.path,mime,payload,depth+1))
+   except Exception as error: raise RuntimeError('linked asset '+target.path+' failed: '+str(error)) from error
+ print('Launchlane: verified',len(seen),'same-origin assets;',external,'external references unverified',flush=True)
 env={'PATH':'/usr/local/bin:/usr/bin:/bin','HOME':'/work','TMPDIR':'/work','PYTHONDONTWRITEBYTECODE':'1','PYTHONUNBUFFERED':'1','PORT':str(plan['port']),'PYTHONPATH':'/work/site:/work/project'}
 for row in json.load(sys.stdin): env[row['key']]=row['value']
 shutil.copytree('/source','/work/project');os.chdir('/work/project')
@@ -47,10 +82,11 @@ try:
      body=data.decode('utf8');a=plan['workload']['assertion']
      value=json.loads(body) if a['kind']=='json' else None
      matches=(a['contains'] in body) if a['kind']=='text' else isinstance(value,dict) and a['field'] in value and type(value[a['field']]) is type(a['equals']) and value[a['field']]==a['equals']
-     if response.status==plan['workload']['status'] and matches: matched=True;break
+     if response.status==plan['workload']['status'] and matches: matched=True;content_type=response.headers.get_content_type();break
    except Exception: pass
    time.sleep(.25)
   if not matched: raise RuntimeError('original workload expectation not met')
+  verify_assets(plan['workload']['path'],content_type,data)
  finally:
   child.terminate()
   try: child.wait(timeout=3)

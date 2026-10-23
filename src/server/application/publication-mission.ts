@@ -4,6 +4,7 @@ import type { Config } from "../config.ts";
 import type { Store } from "../persistence/store.ts";
 import { ensure } from "../errors.ts";
 import { fingerprint } from "../policy/action.ts";
+import { text } from "../../contracts/validation.ts";
 import { containsCredential } from "../policy/redaction.ts";
 import { currentAgentContext, privateValues } from "../agent/tools.ts";
 import { AgentRepository, addEvent } from "../agent/store.ts";
@@ -44,12 +45,17 @@ export async function createPublicationMission(config: Config, store: Store, ses
 
 const continuation = "همان مأموریت انتشار را با source و معیار قبلی ادامه بده. انتخاب‌های تکمیل‌شده حساب را دوباره بررسی کن؛ بودجه و سابقه قبلی حفظ می‌شوند و هیچ مجوز تازه‌ای از این پیام صادر نمی‌شود.";
 export async function resumePublicationMission(config: Config, store: Store, session: Session, id: string,
-  revision: number, requestKey: string, signal: AbortSignal) {
+  revision: number, requestKey: string, signal: AbortSignal, feedback: string | null = null) {
+  config = { ...config, projectSecretValues: projectSecretValues(store, config.sessionSecret, session.actorId) };
+  const observation = feedback === null ? null : text(feedback, 2000).trim();
+  ensure(observation === null || observation.length > 0, "INVALID_INPUT", "توضیح ادامه خالی است.");
+  ensure(!observation || !containsCredential(observation, privateValues(config)), "SENSITIVE_INPUT", "مقدار محرمانه را در توضیح ادامه ننویسید.");
+  const message = observation ? `${continuation}\nAdditional operator observations (not approval; keep the original source and workload): ${observation}` : continuation;
   ensure(/^[a-f0-9-]{36}$/.test(requestKey), "INVALID_INPUT", "شناسه ادامه معتبر نیست.");
   const repo = new AgentRepository(store), previous = repo.get(session.actorId, id);
   ensure(previous?.mission, "AGENT_CONFLICT", "این درخواست مأموریت مرحله‌ای انتشار نیست.", 409);
   if (previous.lastInputKey === requestKey) {
-    ensure(previous.lastInput === continuation, "IDEMPOTENCY_CONFLICT", "شناسه ادامه با درخواست دیگری ثبت شده است.", 409);
+    ensure(previous.lastInput === message, "IDEMPOTENCY_CONFLICT", "شناسه ادامه با درخواست دیگری ثبت شده است.", 409);
     return { run: previous, created: false };
   }
   const flow = await restoreProjectFlow(config, store, session.actorId, signal, previous.projectId ?? undefined);
@@ -58,7 +64,7 @@ export async function resumePublicationMission(config: Config, store: Store, ses
   store.db.exec("BEGIN IMMEDIATE");
   try {
     const run = repo.get(session.actorId, id);
-    if (run?.mission && ((run.lastInputKey === requestKey && run.lastInput === continuation) || (run.lastResumeRevision === revision && run.lastInput === continuation))) {
+    if (run?.mission && ((run.lastInputKey === requestKey && run.lastInput === message) || (run.lastResumeRevision === revision && run.lastInput === message))) {
       store.db.exec("COMMIT");
       return { run, created: false };
     }
@@ -93,7 +99,7 @@ export async function resumePublicationMission(config: Config, store: Store, ses
     run.errorCode = null;
     run.lastResumeRevision = revision;
     repo.save(session.actorId, run, revision);
-    const result = continueAgentRun(config, store, session, id, run.revision, requestKey, continuation);
+    const result = continueAgentRun(config, store, session, id, run.revision, requestKey, message);
     store.db.exec("COMMIT");
     return result;
   } catch (error) {

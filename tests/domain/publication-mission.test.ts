@@ -17,6 +17,25 @@ import { sealCredential } from "../../src/server/connections/credentials.ts";
 
 const errorCode = (code: string) => (error: unknown) => error instanceof AppError && error.code === code;
 
+test("publication recovery accepts bounded observations without changing intent, allowance or approval", async () => {
+  const f = await agentFixture();
+  try {
+    const repo = new AgentRepository(f.store), run = (await createPublicationMission(f.config, f.store, f.session, randomUUID(), {
+      projectId: f.flow.id, sourceHash: f.flow.profile.sourceHash, path: "/", expectedText: "invoice ready",
+    }, AbortSignal.timeout(5000))).run;
+    run.state = "failed"; run.usage.modelCalls = 3; run.usage.toolCalls = 7; repo.save(f.session.actorId, run);
+    const revision = run.revision, key = randomUUID(), feedback = "HTML works, but the same page references a missing local font. Repeat the original build check before proposing publication.";
+    const result = await resumePublicationMission(f.config, f.store, f.session, run.id, revision, key, AbortSignal.timeout(5000), feedback);
+    assert.equal(result.created, true); assert.equal(result.run.state, "queued"); assert.equal(result.run.usage.modelCalls, 3); assert.equal(result.run.usage.toolCalls, 7);
+    assert.deepEqual(result.run.mission, run.mission); assert.deepEqual(result.run.limits, run.limits); assert.equal(result.run.publication, null);
+    assert.ok(result.run.lastInput?.includes(feedback)); assert.ok(result.run.lastInput?.includes("not approval"));
+    assert.equal((await resumePublicationMission(f.config, f.store, f.session, run.id, revision, key, AbortSignal.timeout(5000), feedback)).created, false);
+    await assert.rejects(resumePublicationMission(f.config, f.store, f.session, run.id, revision, key, AbortSignal.timeout(5000), "different"), { code: "IDEMPOTENCY_CONFLICT" });
+    await assert.rejects(resumePublicationMission(f.config, f.store, f.session, run.id, revision, randomUUID(), AbortSignal.timeout(5000), f.config.modelKey), { code: "SENSITIVE_INPUT" });
+    assert.equal(f.store.db.prepare("SELECT COUNT(*) n FROM attempts").get()?.n, 0);
+  } finally { f.close(); }
+});
+
 test("account setup continues the same mission and seeded allowance; two resume keys join one continuation", async () => {
   const f = await agentFixture();
   try {

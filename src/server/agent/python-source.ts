@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { object, string } from "../../contracts/validation.ts";
 import { ensure, AppError } from "../errors.ts";
@@ -23,6 +23,37 @@ export function pythonRequirements(files: readonly SourceFile[]): PythonRequirem
   return result;
 }
 export type Wheel = { filename: string; sha256: string; url: string; size: number };
+
+export async function reusePythonWheels(requirements: readonly PythonRequirement[], source: string, directory: string, signal: AbortSignal): Promise<void> {
+  const stat = await lstat(source), manifestPath = join(source, "manifest.json"), metadata = await lstat(manifestPath);
+  ensure(stat.isDirectory() && !stat.isSymbolicLink() && metadata.isFile() && !metadata.isSymbolicLink() && metadata.size <= 65536,
+    "PYTHON_WHEEL_CHANGED", "کش وابستگی معتبر نیست؛ اجرای پروژه شروع نشد.", 409);
+  const raw: unknown = JSON.parse((await readFile(manifestPath, { signal })).toString("utf8"));
+  ensure(Array.isArray(raw) && raw.length === requirements.length && raw.length <= 80, "PYTHON_WHEEL_CHANGED", "فهرست کش وابستگی تغییر کرده است.", 409);
+  const manifest = raw.map(value => {
+    const row = object(value), filename = string(row.filename, 220), sha256 = string(row.sha256, 64), size = row.size;
+    ensure(/^[A-Za-z0-9_.+-]+\.whl$/.test(filename) && /^[a-f0-9]{64}$/.test(sha256) && typeof size === "number" && Number.isSafeInteger(size) && size > 0 && size <= 20 * 1024 * 1024,
+      "PYTHON_WHEEL_CHANGED", "مشخصات کش وابستگی تغییر کرده است.", 409);
+    return { filename, sha256, size, url: string(row.url, 1024) };
+  });
+  ensure(new Set(manifest.map(row => row.filename)).size === manifest.length && manifest.reduce((sum, row) => sum + row.size, 0) <= 128 * 1024 * 1024,
+    "PYTHON_WHEEL_CHANGED", "حجم یا مسیر کش وابستگی معتبر نیست.", 409);
+  const expected = requirements.map((row, index) => `${row.name}==${row.version} --hash=sha256:${manifest[index]?.sha256}`).join("\n");
+  const pinned = await lstat(join(source, "requirements.txt"));
+  ensure(pinned.isFile() && !pinned.isSymbolicLink() && pinned.size <= 32768 && await readFile(join(source, "requirements.txt"), "utf8") === expected,
+    "PYTHON_WHEEL_CHANGED", "قفل کش با وابستگی همین منبع برابر نیست.", 409);
+  await mkdir(directory, { recursive: true, mode: 0o700 });
+  for (const row of manifest) {
+    const path = join(source, row.filename), file = await lstat(path);
+    ensure(file.isFile() && !file.isSymbolicLink() && file.size === row.size, "PYTHON_WHEEL_CHANGED", "فایل کش وابستگی تغییر کرده است.", 409);
+    const bytes = await readFile(path, { signal });
+    ensure(bytes.length === row.size && createHash("sha256").update(bytes).digest("hex") === row.sha256,
+      "PYTHON_WHEEL_CHANGED", "checksum کش وابستگی تغییر کرده است.", 409);
+    await writeFile(join(directory, row.filename), bytes, { flag: "wx", mode: 0o600 });
+  }
+  await writeFile(join(directory, "requirements.txt"), expected, { flag: "wx", mode: 0o600 });
+  await writeFile(join(directory, "manifest.json"), JSON.stringify(manifest), { flag: "wx", mode: 0o600 });
+}
 type Reader = (url: string, signal: AbortSignal, maxBytes: number) => Promise<Buffer>;
 export const pythonRegistryRead: Reader = async (url, signal, maxBytes) => {
   const parsed = new URL(url);

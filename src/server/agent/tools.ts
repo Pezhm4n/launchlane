@@ -93,6 +93,7 @@ export const agentTools: readonly ToolDefinition[] = [
   },
   {
     type: "function",
+    argumentValidation: "application",
     function: {
       name: "read_destination",
       description:

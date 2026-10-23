@@ -163,8 +163,8 @@ test("rejected SRE arguments reach the model as a correlated error before any se
   }finally{f.close();}
 });
 
-test("invalid real-model release argument shapes are rejected before a read and can be corrected",async()=>{
-  for(const invalid of [{"}":""},{call:{}}]){
+test("invalid real-model read argument shapes are rejected before a read and can be corrected",async()=>{
+  for(const [tool,invalid] of [["read_releases",{"}":""}],["read_releases",{call:{}}],["read_destination",{path:"/assets/app.css",status:200,assertion:{kind:"text",contains:"@font-face"}}]] as const){
     const f=await fixture();try{
       let requests=0;const rejectedId=randomUUID();
       const model=new GoalModelClient(f.config,async(_url,init)=>{
@@ -176,7 +176,7 @@ test("invalid real-model release argument shapes are rejected before a read and 
           assert.equal(result.ok,false);assert.equal(object(result.error).code,"INVALID_INPUT");
           assert.deepEqual(f.state.paths,[]);
         }
-        const name=requests<2 ? "read_releases" : "finish_investigation",
+        const name=requests<2 ? tool : "finish_investigation",
           args=requests===0 ? invalid : requests===1 ? {} : {state:"partially_completed",
             message:"نسخه READY است؛ پاسخ صفحه و علت خطا هنوز بررسی نشده‌اند.",question:null,nextAction:"reply"};
         const id=requests===0 ? rejectedId : randomUUID();requests++;
@@ -190,8 +190,8 @@ test("invalid real-model release argument shapes are rejected before a read and 
       const saved=new AgentRepository(f.store).get(f.session.actorId,run.id);
       assert.equal(saved?.state,"partially_completed");assert.equal(saved.effect,"no_remote_changes");
       assert.equal(requests,3);assert.equal(saved.usage.unknownModelCalls,0);
-      assert.equal(f.state.paths.filter(path=>path.endsWith("/releases")).length,1);
-      assert.equal(f.state.paths.length,3);assert.equal(f.state.sockets,0);
+      assert.equal(f.state.paths.filter(path=>path.endsWith("/releases")).length,tool==="read_releases" ? 1 : 0);
+      assert.equal(f.state.paths.length,tool==="read_releases" ? 3 : 0);assert.equal(f.state.sockets,0);
       assert.equal(f.store.db.prepare("SELECT COUNT(*) n FROM attempts").get()?.n,0);
     }finally{f.close();}
   }
