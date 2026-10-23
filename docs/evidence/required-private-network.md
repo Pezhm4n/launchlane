@@ -1,5 +1,7 @@
 # Required private network — A05 / AC21 / AC23
 
+Update on `fb67971`: the operator-authorized real network, destination and bounded repair/publication cycle now passed; see the [correlated live record](codex-publication-mission.md). The pending-live statements below describe the earlier local candidate. App deletion is verified; the exact unused network was still listed at08:04:39UTC and its provider garbage collection remains UNCONFIRMED.
+
 The first candidate-05 live attempt selected and uploaded the controlled bookshop source through Chromium and connected the real Liara account. Destination options then returned zero networks. An independent read of the actual selected team returned the same empty list. The semantic precondition failed before any create, publication, AgentRun or model request. The isolated app name was independently absent (404); no delete was sent. Private request logs and the failed oracle are retained under the ignored mission directory.
 
 This closes a product gap, not a reason to prepare infrastructure manually outside Launchlane. [ADR0019](../decisions/0019-required-private-network.md) records the official guide and installed CLI evidence, unknown-price decision, ActionSpec v13, appended migration 12 and no-replay journal. The publication program from ADR0018 does not implicitly authorize this new resource.

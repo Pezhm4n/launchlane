@@ -1,6 +1,6 @@
 # ADR0019 — Required private network with separate unknown-cost consent
 
-Status: implemented; live verification pending. Date: 2026-10-23.
+Status: implemented and bounded-live verified on `fb67971`; unused-network garbage collection pending. Date: 2026-10-23. The [correlated record](../evidence/codex-publication-mission.md) supersedes the earlier pending-live state and preserves its failed attempts.
 
 The bounded publication trial stopped before any model or provider write because the selected team's `GET /v1/networks` returned an empty list. An earlier preflight had observed an unused network. Liara documents automatic deletion of unused networks; that explains a possible cause, but the deletion event was not observed. Requiring an existing network forever would leave a fresh account unable to use publication.
 

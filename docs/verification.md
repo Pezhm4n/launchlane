@@ -1,5 +1,10 @@
 # شواهد اعتبارسنجی Launchlane
 
+## برنامه، artifact مشتق و مأموریت واقعی Codex MCP؛ bounded_live / ۲۰۲۶-۱۰-۲۳
+
+روی `fb67971` و candidate06/tree `2622f352628d3485fa9259b5a66c4a20edb4fd37`، build/typecheck/lint بدونerror،329domain،38HTTP،6container مرتبط و43+5حالت مرورگر گذشتند. سپس یک source upstream با fault اعلام‌شده، از upload محصول و Codex MCP به شبکه/app تازه، برنامه مصوب، failure500، patch واقعی داخلی، آزمون مستقل، artifact مشتق و انتشار بومی Node22 تا release جاری/HTML/API صحیح رسید. reconnect و replay بودجه/write تازه نساختند؛ پس از تصمیم برنامه، ادامه انسانی تازه لازم نشد. app با ID/404 حذف شد؛ GC شبکه هنوز UNCONFIRMED است. مدل واقعی11request/97039token، ceiling افزوده$0.097496 و باقی همان مجوز$0.240970. [شاهد کامل و حدود](evidence/codex-publication-mission.md) revision/هویت‌ها، oracle، آغاز502، مصرف، شکست‌های قبلی و تفکیک connector اجرایی را ثبت می‌کند. هیچ پذیرش عمومی همه runtimeها یا کامل‌بودن A05/AC23/A08/A10/A16 ادعا نمی‌شود.
+
+
 ## اصلاح بازخورد دسکتاپ و نشان پلتفرم؛ verified_local / ۲۰۲۶-۱۰-۲۳
 
 این بخش تصمیم modal دسکتاپ و فونت۱۶px پاسخ در بخش تاریخی پیشین را جایگزین می‌کند. پاسخ هر دو اندازه۱۴px است؛ ورودی۱۶px و ناحیه لمس کپی۴۴px حفظ می‌شوند، ولی glyph کپی۱۴px است. پنل بزرگ۹۲۸px و ستون پیام۸۳۲px وسط‌اند. محدودیت قدیمی agent-panel برداشته شد. علت قفل اسکرول، قانون سراسری html:has(dialog[open]) بود؛ اکنون تنها dialog:modal قفل می‌کند. دسکتاپ عادی و بزرگ non-modal و موبایل modal است. چرخ ماوس روی صفحهٔ پشت پنل بزرگ، افزایش واقعی scrollY را تأیید کرد. تب‌های دسکتاپ نسبت به viewport وسط‌اند. نشان Node.js/Python فقط runtime معتبر inspection را نمایش می‌دهد؛ Python/unknown در آزمون fixture و Node نمونه واقعی محلی‌اند. unknown آیکون برند ندارد؛ framework حدس زده نمی‌شود. دارایی SVG محلی با منشأ و CC0 همراه است.

@@ -1,5 +1,7 @@
 # MCP و application مشترک؛ ۲۰۲۶-۱۰-۲۳
 
+به‌روزرسانی `fb67971`: [Codex واقعی از ثبت مأموریت تا نتیجه زنده](codex-publication-mission.md) با stdio→HTTP مشترک، تصمیم‌های وب، reconnect و replay پس از descendant اجرا شد. harness از RPC ابزار میزبان استفاده کرد و turn مکالمه‌ای مدل Codex نداشت؛ worker اصلاح همان داخلی است. این شاهد جدید، محدودیت تاریخی «فقط discovery/سه call» را برای همین میزبان و مأموریت تکمیل می‌کند، نه Claude/OpenCode یا connector اجرایی.
+
 وضعیت A16/AC31: partial. این برش یک مسیر واقعی HTTP و stdio را به application موجود متصل می‌کند؛ پذیرش کل MCP، connector اجرایی یا مأموریت کامل Launchlane نیست.
 
 ## revision و configuration

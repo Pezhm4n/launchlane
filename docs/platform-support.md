@@ -1,5 +1,7 @@
 # وضعیت پلتفرم‌ها و مسیر انتشار
 
+شاهد افزوده `fb67971`: [کتاب‌فروشی upstream با fault صریح](evidence/codex-publication-mission.md) از upload محصول و Codex MCP، شبکه/مقصد تازه، برنامه مصوب، خطای500 در Node22 ایزوله، patch داخلی، آزمون مستقل و انتشار بومی همان artifact تا release جاری و HTML/API صحیح گذشت. source اصلی محفوظ و app با ID/404 پاک شد؛ cleanup خودکار شبکه هنوز تأیید نشده است. این مورد Node22ِ بدون dependency/lock/build-script است؛ Docker worker آن شاهد Docker publication، compiler frontend یا monorepo نیست و وضعیت خانواده‌های دیگر جدول را تغییر نمی‌دهد.
+
 بازبینی: ۲۰۲۶-۱۰-۲۳، پایه6ae5c38. این ماتریس قرارداد A11/AC28 است؛ هر ردیف تا پروژه واقعی و شاهد انتشار همان مسیر، باز می‌ماند. «فهرست رسمی لیارا»، «تشخیص ایستا»، «ساخت محلی در Docker» و «انتشار بومی روی لیارا» شواهد جدا هستند. محصول هنوز پشتیبانی کامل همه خانواده‌ها را ندارد.
 
 [فهرست رسمی](https://docs.liara.ir/paas/about/) در این بازبینی همان۱۴ خانواده را دارد. CLI نصب‌شده9.4.7 از package و source همان نصب بررسی شد؛ `get-supported-versions.js` فهرست ایستاست، پاسخ availability حساب نیست. دو GET واقعی `/v1/me?teamID` و `/v1/projects?teamID` در تیم مجاز200 شدند؛ تیم تطبیق داشت و فهرست برنامه‌ها خالی بود. پاسخ حساب، فهرست نسخه‌های database دارد؛ availability هر پلتفرم PaaS از آن اثبات نمی‌شود. OpenAPI pinned برای release، type/config را عرضه می‌کند و پذیرش همه ترکیب‌ها در حساب همچنان UNCONFIRMED است.

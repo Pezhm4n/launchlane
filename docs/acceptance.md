@@ -1,5 +1,7 @@
 # معیارهای پذیرش محصول
 
+شاهد `fb67971`: [یک برنامه مصوب با artifact مشتق، worker داخلی و انتشار بومی Node22 از میزبان واقعی MCP تا نتیجه](evidence/codex-publication-mission.md) گذشت. این پذیرش محدود، failure/repair در اجرای ایزوله پیش از انتشار را پوشش می‌دهد؛ repair پس از failure زنده و release دوم، همه runtimeها/DB و connectorهای اجرایی همچنان بازند. A05/AC23/A08/A10/A16 کامل اعلام نمی‌شوند.
+
 ساخت شبکه لازم در A05/AC21 با ActionSpec v13 و [ADR0019](decisions/0019-required-private-network.md) به همان موتور افزوده شده است؛ تعرفه نامعلوم پذیرش صریح می‌خواهد و جزو اختیار publication به مقصد موجود نیست. پذیرش آن، خواندن هویت واقعی شبکه همان درخواست بدون retry write است. کارت، قرارداد و fixture جای شاهد زنده ساخت یا سلامت برنامه را نمی‌گیرند.
 
 برش جاری A05/AC23: [ADR0018](decisions/0018-bounded-mission-authority.md) اختیار برنامه و artifact مشتق را برای یک build و مقصد موجود تعریف می‌کند. آزمون container با patch بی‌اثر/مؤثر و publication مصنوعی، پذیرش زنده یا کامل AC23 نیست. تکمیل آن به source واقعی، برنامه مصوب، همان artifact/release و معیار workload روی candidate مشخص نیاز دارد. معیار همه۱۴ خانواده در AC28 و اتصال‌های مستقل سه میزبان در AC31 پابرجاست.

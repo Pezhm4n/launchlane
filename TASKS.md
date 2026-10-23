@@ -1,5 +1,9 @@
 # برنامه اجرایی Launchlane
 
+## چرخه زنده برنامه و MCP؛ A05/A08/A10/A16 / ۲۰۲۶-۱۰-۲۳
+
+روی `fb67971` و candidate06 ثابت، [یک مأموریت واقعی Codex MCP](docs/evidence/codex-publication-mission.md) از upload source کتاب‌فروشی upstream با fault اعلام‌شده، شبکه و app تازه، کارت برنامه، failure500 واقعی، patch worker داخلی، آزمون مستقل، artifact مشتق و انتشار بومی Node22 تا تأیید release جاری/HTML/API رسید. تصمیم‌های ضروری شبکه، هزینه مقصد و برنامه ثبت شدند؛ پس از تأیید برنامه هیچ تصمیم/ادامه تازه یا جابه‌جایی لاگ لازم نشد. reconnect و duplicate/replay پس از descendant صفر مصرف/write تازه داشتند. برنامه با ID/404 پاک شد؛ GC شبکه هنوز UNCONFIRMED است. A05/AC23، A08/A10 و A16 همچنان partial؛ connectorهای اجرایی، DB، dependency/monorepo و همه خانواده‌های جدول بازند. ۱۱ درخواست/۹۷۰۳۹token واقعی مدل، ceiling افزوده۰٫۰۹۷۴۹۶دلار؛ از همان۰٫۸دلار قدیمی،۰٫۲۴۰۹۷۰باقی است. قدم بعد، connector اجرایی Codex با همان patch/test/artifact/policy و fallback معتبر است.
+
 ## شبکه لازم برای حساب خالی؛ برش A05 / ۲۰۲۶-۱۰-۲۳
 
 اولین اجرای زنده candidate05 پیش از مدل/write به `networks=[]` متوقف شد؛ خواندن مستقل همان تیم نیز خالی بود. وابستگی دائمی به شبکه ازقبل‌آماده رفع می‌شود: ActionSpec v13، پذیرش صریح تعرفه نامعلوم، migration12 افزوده، claim/journal و تطبیق ID از readback حساب، در application مشترک وب/AgentRun پیاده شدند. مسیر guided کارت تصمیم دارد و پس از هویت شبکه همان run/budget را ادامه می‌دهد؛ ساخت app و اختیار publication جدا می‌مانند. پاسخ گم‌شده و شبکه هنوز نامرئی به retry نوشتن تبدیل نمی‌شوند. [ADR0019](docs/decisions/0019-required-private-network.md) و [شاهد](docs/evidence/required-private-network.md) حدود و آزمون‌های candidate را ثبت می‌کنند. A05/AC23 همچنان partial؛ ساخت شبکه و چرخه کامل اصلاح/انتشار زنده هنوز UNCONFIRMED است. هزینه شبکه صفر فرض نشده است.

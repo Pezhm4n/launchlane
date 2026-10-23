@@ -1,5 +1,7 @@
 # اتصال به Launchlane از MCP
 
+[آزمون زنده Codex روی `fb67971`](evidence/codex-publication-mission.md) اکنون ثبت مأموریت با `launchlane_publish`، دریافت کارت تصمیم وب، دنبال‌کردن progress با `launchlane_mission`، قطع/وصل، رد ابزار خارج scope و تحویل نتیجه همان artifact/release را پوشش می‌دهد. این فراخوانی‌ها از client واقعی app-server/stdio میزبان با harness انجام شدند؛ turn مکالمه‌ای Codex و connector اجرایی Codex، Claude Code یا OpenCode از این شاهد نتیجه نمی‌شوند.
+
 این برش روی همان نصب operator-local کار می‌کند. وب‌اپ باید در حال اجرا باشد؛ bridge مالک SQLite، مدل یا موتور انتشار جدا نیست. دو مسیر «ایجنت کاربر→Launchlane از MCP» و «Launchlane→Coding Agent برای اصلاح» مستقل‌اند. این راهنما مسیر اول را توضیح می‌دهد؛ وجود اتصال MCP به معنی آماده‌بودن worker بیرونی نیست.
 
 ## نصب و دسترسی
