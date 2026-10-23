@@ -23,3 +23,10 @@ test("log redaction remains conservative even for setup-template strings", () =>
   assert.equal(redact('apiKey="YOUR_API_KEY"'), 'apiKey="[REDACTED]"');
   assert.equal(redact("token=YOUR_ACCESS_TOKEN"), "token=[REDACTED]");
 });
+
+test("compiled boolean metadata is not a source credential, while literal and installed values remain blocked", () => {
+  for (const value of ["!0", "!1", "true", "false", "null", "undefined"]) assert.equal(containsSourceCredential(`const inputTypes={password:${value}}`), false);
+  assert.equal(containsSourceCredential('password:"false"'), true);
+  assert.equal(containsSourceCredential('password:false', ['false']), true);
+  assert.equal(redact('password:!0'), 'password:[REDACTED]');
+});

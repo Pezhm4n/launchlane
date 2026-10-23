@@ -18,6 +18,8 @@ function scrub(value: string, secrets: readonly string[], assignment: RegExp, so
       const quote = assigned.startsWith('"') ? '"' : assigned.startsWith("'") ? "'" : "";
       // Public setup templates contain no credential; exact installed secrets are still checked below.
       const literal = quote ? assigned.slice(1, -1) : assigned;
+      // Minified input-type maps use e.g. password:!0; a boolean/null expression contains no credential value.
+      if (source && !quote && /^(?:true|false|null|undefined|!0|!1)$/.test(literal)) return match;
       // Python annotations and variable expressions are not literal credentials. Known installed values are checked independently.
       if (python && (!quote && !/^\d/.test(assigned) || quote && literal === "")) return match;
       if (source && /^YOUR_(?:[A-Z]+_)*(?:KEY|TOKEN|SECRET|PASSWORD)$/.test(literal)) return match;
