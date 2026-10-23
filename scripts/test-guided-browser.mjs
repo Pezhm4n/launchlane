@@ -33,7 +33,7 @@ async function modelRequests() {
 }
 async function layout(width, name, height = 844) {
   await page.setViewportSize({ width, height });
-  await page.evaluate(async () => document.fonts.ready);
+  await page.evaluate(async () => { await document.fonts.ready; window.scrollTo(0, 0); });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${name}: overflow`);
   const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
   assert.deepEqual(axe.violations.map(item => ({ id: item.id, nodes: item.nodes.map(node => node.target) })), [], name);

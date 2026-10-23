@@ -618,14 +618,15 @@ export function AgentPanel({
               .join(" ")}
             aria-invalid={error?.code === "EMPTY_GOAL" || undefined}
           />
-          <p id="agent-help" className="hint">
-            رمز یا کلید وارد نکنید.<span className="chat-key-hint"> Enter ارسال · Shift+Enter خط تازه</span>
-          </p>
           {active ? (
             <p id="agent-active-help" className="hint">
               بررسی در حال اجراست؛ نوشتن آزاد است و ارسال پس از پایان ممکن می‌شود.
             </p>
           ) : null}
+          <div className="composer-toolbar">
+          <p id="agent-help" className="hint">
+            رمز یا کلید وارد نکنید.<span className="chat-key-hint"> Enter ارسال · Shift+Enter خط تازه</span>
+          </p>
           <div className="button-row">
             <button
               type="submit"
@@ -645,6 +646,7 @@ export function AgentPanel({
                 توقف بررسی
               </button>
             ) : null}
+          </div>
           </div>
         </form>
       ) : null;
@@ -755,7 +757,11 @@ export function AgentPanel({
           {active ? (
             <div className="agent-progress">
               <p role="status" aria-live="polite" aria-atomic="true" className="hint">
-
+                <span className="agent-activity" aria-hidden="true">
+                  <span className="agent-dot" />
+                  <span className="agent-dot" />
+                  <span className="agent-dot" />
+                </span>
                 {progress ?? "در حال بررسی درخواست…"}
               </p>
               <span className="hint agent-elapsed" aria-hidden="true">

@@ -4,6 +4,7 @@ import { parseFolders, type FolderListing } from "../contracts/folders.ts";
 import { api, ClientError } from "./api.ts";
 import { planFolderUpload } from "../contracts/folder-upload.ts";
 import { WorkspaceGlyph } from "./WorkspaceGlyph.tsx";
+import { useDialogExit } from "./useDialogExit.ts";
 
 export function FolderPicker({
   csrf,
@@ -11,16 +12,19 @@ export function FolderPicker({
   onSelect,
   onCancel,
   onUpload,
+  onImported,
 }: {
   csrf: string;
   initial: string;
   onSelect: (directory: string) => void;
   onCancel: () => void;
   onUpload: (form: FormData, signal: AbortSignal) => Promise<boolean>;
+  onImported: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null),
     heading = useRef<HTMLHeadingElement>(null);
   const pending = useRef<AbortController | null>(null);
+  const exit = useDialogExit(dialog);
   const listingRequest = useRef<AbortController | null>(null);
   const deviceInput = useRef<HTMLInputElement>(null), preview = useRef<HTMLHeadingElement>(null);
   const [chosen, setChosen] = useState<{ plan: ReturnType<typeof planFolderUpload>; files: File[] } | null>(null);
@@ -62,7 +66,7 @@ export function FolderPicker({
       if (listingRequest.current === controller) listingRequest.current = null;
     };
   }, [csrf, location, browsing, uploading]);
-  function dismiss() { pending.current?.abort(); listingRequest.current?.abort(); onCancel(); }
+  function dismiss() { pending.current?.abort(); listingRequest.current?.abort(); exit(onCancel); }
   async function upload() {
     if (!chosen || uploading) return;
     const controller = new AbortController(); pending.current = controller;
@@ -73,7 +77,7 @@ export function FolderPicker({
       if (selected) form.set(`file-${index}`, selected, selected.name);
     }
     setUploading(true); setError(null);
-    try { await onUpload(form, controller.signal); }
+    try { if (await onUpload(form, controller.signal)) exit(onImported); }
     catch (cause) {
       if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "ورود پوشه کامل نشد؛ دوباره انتخاب کنید.");
     } finally { if (pending.current === controller) pending.current = null; setUploading(false); }
@@ -96,12 +100,12 @@ export function FolderPicker({
         </button>
       </div>
       <p id="folder-picker-help">
-        پوشهٔ خود برنامه را از رایانه انتخاب کنید. یک کپی برای بررسی وارد میز کار می‌شود؛ فایل اصلی شما تغییر نمی‌کند.
+        پوشهٔ برنامه را از رایانه انتخاب کنید؛ اصل فایل‌های شما تغییر نمی‌کند.
       </p>
-      <section className="device-folder-choice" aria-labelledby="device-folder-title">
+      <section className="device-folder-choice" data-selected={chosen ? "true" : undefined} aria-label="انتخاب پوشه از رایانه">
         <span className="device-folder-mark" aria-hidden="true"><FolderIcon /></span>
         <h3 id="device-folder-title">پروژه‌تان کجاست؟</h3>
-        <p>پنجرهٔ انتخاب پوشهٔ رایانه را باز کنید و پوشهٔ برنامه را انتخاب کنید.</p>
+        <p>پوشهٔ برنامه را از هر جای رایانه انتخاب کنید.</p>
         <input ref={deviceInput} type="file" multiple hidden {...{ webkitdirectory: "" }} aria-label="فایل‌های پوشه پروژه"
           onChange={event => {
             const files = Array.from(event.currentTarget.files || []);
@@ -110,10 +114,10 @@ export function FolderPicker({
               const plan = planFolderUpload(files.map(file => ({ path: file.webkitRelativePath, size: file.size })));
               setChosen({ plan, files }); setError(null);
               requestAnimationFrame(() => preview.current?.focus());
-            } catch (cause) { setError(cause instanceof Error ? cause.message : "این پوشه قابل بررسی نیست."); }
+            } catch (cause) { setChosen(null); setError(cause instanceof Error ? cause.message : "این پوشه قابل بررسی نیست."); }
             event.currentTarget.value = "";
           }} />
-        <button type="button" disabled={uploading} onClick={() => deviceInput.current?.click()}><FolderIcon />{chosen ? "انتخاب پوشه‌ای دیگر از رایانه" : "انتخاب پوشه از رایانه"}</button>
+        <button type="button" className={chosen ? "button-secondary" : undefined} disabled={uploading} onClick={() => deviceInput.current?.click()}><FolderIcon />{chosen ? "انتخاب پوشه‌ای دیگر از رایانه" : "انتخاب پوشه از رایانه"}</button>
         <p className="hint">فایل‌های خصوصی مانند <bdi>.env</bdi> و پوشه‌های وابستگی وارد نمی‌شوند. فعلاً چیزی به لیارا ارسال نمی‌شود.</p>
       </section>
       {chosen ? <section className="folder-import-preview" aria-labelledby="folder-import-title">
@@ -144,7 +148,7 @@ export function FolderPicker({
                   پوشه بالاتر
                 </button>
               ) : null}
-              <button type="button" disabled={busy || uploading} onClick={() => onSelect(listing.directory)}>
+              <button type="button" disabled={busy || uploading} onClick={() => exit(() => onSelect(listing.directory))}>
                 انتخاب همین پوشه
               </button>
             </div>

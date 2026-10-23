@@ -64,6 +64,9 @@ const liaraFixture = {
 async function layout(width, label) {
   await page.evaluate(async () => {
     await document.fonts.ready;
+    // Scan a stable page origin; recovery focus is checked in its actual scrolled position.
+    // Otherwise axe counts inactive rows partially behind the sticky nav as shrunken targets.
+    window.scrollTo(0, 0);
   });
   const geometry = await page.evaluate(() => ({
     width: document.documentElement.clientWidth,
@@ -509,6 +512,13 @@ try {
   await handoffPanel.getByRole("status").getByText(/آماده‌سازی گزارش متوقف شد/).waitFor();
   assert.equal(await handoffPanel.getByRole("link", { name: "دریافت فایل گزارش", exact: true }).getAttribute("href"), oldDownload);
   assert.equal(await handoffPanel.getByRole("button", { name: "آماده‌سازی دوباره گزارش", exact: true }).evaluate((element) => element === document.activeElement), true);
+  const recovered = await handoffPanel.evaluate(node => ({
+    summaryTop: node.querySelector(":scope > summary").getBoundingClientRect().top,
+    focusedTop: document.activeElement.getBoundingClientRect().top,
+    headerBottom: document.querySelector(".app-top").getBoundingClientRect().bottom,
+  }));
+  assert.ok(recovered.summaryTop >= recovered.headerBottom && recovered.focusedTop >= recovered.headerBottom,
+    `The restored control and section heading must stay below sticky navigation: ${JSON.stringify(recovered)}`);
   await layout(360, "handoff-cancel-preserves-file-and-returns-focus");
   await page.reload(); await incidentReport.waitFor();
   assert.equal(await handoffPanel.getByRole("link", { name: "دریافت فایل گزارش", exact: true }).count(), 0);

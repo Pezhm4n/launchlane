@@ -1,0 +1,124 @@
+.app-nav.app-nav-motion {
+  position: relative;
+  isolation: isolate;
+  inline-size: fit-content;
+  max-inline-size: calc(100% - var(--space-8));
+  margin-inline-start: max(var(--space-4), calc((100% - var(--layout-header)) / 2 + var(--space-4)));
+  margin-inline-end: auto;
+  margin-block-end: var(--space-4);
+  padding: var(--space-1);
+  gap: var(--space-1);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-field);
+}
+.nav-active-indicator {
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  border: var(--border-width) solid var(--color-primary);
+  border-radius: var(--radius-md);
+  background: var(--color-primary);
+  box-shadow: var(--shadow-primary);
+  transform-origin: top left;
+}
+.app-nav-motion .app-nav-link {
+  z-index: 1;
+  background: transparent;
+  border-color: transparent;
+  border-radius: var(--radius-md);
+  color: var(--color-muted);
+  padding: var(--space-3) var(--space-5);
+}
+.app-nav-motion .app-nav-link[aria-current="page"] {
+  background: transparent;
+  border-color: transparent;
+  color: var(--color-primary-text);
+}
+.app-nav-motion .app-nav-link::after {
+  content: none;
+}
+@media (hover: hover) {
+  .app-nav-motion .app-nav-link:hover:not([aria-current="page"]) {
+    background: var(--color-primary-soft);
+  }
+}
+@media (max-width: 559px) {
+  .app-nav.app-nav-motion { inline-size: calc(100% - var(--space-8)); margin-block-end: 0; }
+  .app-nav-motion .app-nav-link { flex-direction: row; padding: var(--space-2); line-height: 1.5; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  main .panel {
+    animation: workbench-panel-in var(--motion-panel-enter) var(--ease-panel-enter) both;
+  }
+  :root dialog {
+    transform: translateY(var(--space-4)) scale(0.97);
+    transition-duration: var(--motion-panel-exit);
+  }
+  :root dialog[open] {
+    transform: none;
+    transition-duration: var(--motion-panel-enter);
+    transition-timing-function: var(--ease-panel-enter);
+  }
+  :root dialog[open][data-closing] { opacity: 0; transform: translateY(var(--space-4)) scale(0.97); pointer-events: none; transition-duration: var(--motion-panel-exit); }
+  :root dialog[open][data-closing]::backdrop { opacity: 0; transition-duration: var(--motion-panel-exit); }
+  @starting-style {
+    :root dialog[open] {
+      opacity: 0.55;
+      transform: translateY(var(--space-4)) scale(0.97);
+    }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root dialog { transform: none; transition: none; }
+  main .panel { animation: none; }
+}
+@keyframes workbench-panel-in {
+  from {
+    opacity: 0.65;
+    transform: translateY(var(--motion-panel-travel));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@supports selector(details::details-content) {
+  details::details-content {
+    opacity: 0;
+    transform: translateY(calc(var(--space-2) * -1));
+    transition:
+      opacity var(--motion-panel-exit) var(--ease-exit),
+      transform var(--motion-panel-exit) var(--ease-exit),
+      content-visibility var(--motion-panel-exit) allow-discrete;
+  }
+  details[open]::details-content {
+    opacity: 1;
+    transform: none;
+    transition-duration: var(--motion-panel-enter);
+    transition-timing-function: var(--ease-panel-enter);
+  }
+  details[open] > :not(summary) {
+    animation: none;
+  }
+  @starting-style {
+    details[open]::details-content {
+      opacity: 0;
+      transform: translateY(calc(var(--space-2) * -1));
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    details::details-content {
+      transform: none;
+      transition: none;
+    }
+  }
+}
+@supports (interpolate-size: allow-keywords) {
+  details::details-content { interpolate-size: allow-keywords; block-size: 0; overflow: clip; transition-property: opacity, transform, content-visibility, block-size; }
+  details[open]::details-content { block-size: auto; }
+  @media (prefers-reduced-motion: reduce) { details::details-content { transition: none; } }
+}

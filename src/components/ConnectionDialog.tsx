@@ -4,6 +4,7 @@ import type { WorkspaceView } from "../contracts/domain.ts";
 import { parseConnection } from "../contracts/connections.ts";
 import { object } from "../contracts/validation.ts";
 import { api, ClientError } from "./api.ts";
+import { useDialogExit } from "./useDialogExit.ts";
 
 export function ConnectionDialog({
   workspace,
@@ -35,6 +36,8 @@ export function ConnectionDialog({
       "connect" | "refresh" | "select" | "disconnect" | "site" | null
     >(null),
     [confirmDisconnect, setConfirmDisconnect] = useState(false);
+  const exit = useDialogExit(dialog);
+  const dismiss = () => { pending.current?.abort(); exit(onClose); };
   const [metadata, setMetadata] = useState<{
     configuredKey: boolean;
     teamConfigured: boolean;
@@ -158,12 +161,12 @@ export function ConnectionDialog({
       aria-labelledby="accounts-title"
       onCancel={(event) => {
         event.preventDefault();
-        onClose();
+        dismiss();
       }}
     >
       <div className="section-heading">
         <h2 id="accounts-title">حساب‌ها و دسترسی</h2>
-        <button type="button" className="button-quiet" onClick={onClose}>
+        <button type="button" className="button-quiet" onClick={dismiss}>
           بستن
         </button>
       </div>
@@ -462,7 +465,7 @@ export function ConnectionDialog({
           type="button"
           className="button-secondary"
           disabled={busy !== null}
-          onClick={onGitHub}
+          onClick={() => exit(onGitHub)}
         >
           {github?.status === "connected"
             ? "مخزن‌ها و مدیریت اتصال GitHub"
@@ -480,7 +483,7 @@ export function ConnectionDialog({
           type="button"
           className="button-secondary"
           disabled={busy !== null}
-          onClick={onSignOut}
+          onClick={() => exit(onSignOut)}
         >
           خروج از میز کار
         </button>

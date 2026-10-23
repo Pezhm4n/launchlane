@@ -18,12 +18,13 @@
     "test:sandbox": "node scripts/test-sandbox.mjs && node --test tests/sandbox/*.test.ts",
     "test:build-sandbox": "node scripts/test-build-sandbox.mjs && node --test tests/sandbox/environment-build.test.ts",
     "test:http": "node --test tests/http/*.test.mjs",
-    "test:browser": "node scripts/test-browser.mjs && node scripts/test-deployment-browser.mjs && node scripts/test-restart-browser.mjs && node scripts/test-domain-browser.mjs && node scripts/test-guided-browser.mjs && node scripts/test-destination-browser.mjs && node scripts/test-studio-browser.mjs",
+    "test:browser": "node scripts/test-browser.mjs && node scripts/test-deployment-browser.mjs && node scripts/test-restart-browser.mjs && node scripts/test-domain-browser.mjs && node scripts/test-guided-browser.mjs && node scripts/test-destination-browser.mjs && node scripts/test-studio-browser.mjs && npm run test:interactions",
     "test:studio": "node scripts/test-studio-browser.mjs",
     "setup:local": "node scripts/setup-local.mjs",
     "setup:github": "powershell -NoProfile -File scripts/setup-github.ps1",
     "smoke:model": "node scripts/smoke-model.mjs",
-    "check": "npm run lint && npm run typecheck && npm run test:domain && npm test"
+    "check": "npm run lint && npm run typecheck && npm run test:domain && npm test",
+    "test:interactions": "node scripts/test-folder-browser.mjs && node scripts/test-motion-browser.mjs"
   },
   "dependencies": {
     "next": "16.4.2",

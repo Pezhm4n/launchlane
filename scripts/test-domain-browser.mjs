@@ -37,7 +37,7 @@ const submit = region.getByRole("button", { name: "دیدن راهنمای دا�
 const heading = () => region.getByRole("heading", { name: /^راهنمای اتصال / });
 async function layout(width, label) {
   await page.setViewportSize({ width, height: 900 });
-  await page.evaluate(async () => document.fonts.ready);
+  await page.evaluate(async () => { await document.fonts.ready; window.scrollTo(0, 0); });
   const dimensions = await page.evaluate(() => ({
     width: document.documentElement.clientWidth,
     content: document.documentElement.scrollWidth,

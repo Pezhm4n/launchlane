@@ -14,6 +14,7 @@ import { integer, object, string } from "../contracts/validation.ts";
 import { ensure } from "../server/errors.ts";
 import { api, ClientError } from "./api.ts";
 import { FolderIcon } from "./FolderPicker.tsx";
+import { useDialogExit } from "./useDialogExit.ts";
 
 const loginPending = (login: GitHubLoginView | null) =>
   Boolean(
@@ -42,6 +43,7 @@ export function GitHubProjectPicker({
     pending = useRef<AbortController | null>(null);
   const importControl = useRef<HTMLButtonElement>(null),
     cancelledImport = useRef(false);
+  const exit = useDialogExit(dialog);
   const [connection, setConnection] = useState(initialConnection),
     [toolReady, setToolReady] = useState<boolean | null>(null),
     [login, setLogin] = useState<GitHubLoginView | null>(null);
@@ -326,7 +328,7 @@ export function GitHubProjectPicker({
         },
         signal,
       );
-      if (accepted) onClose(true);
+      if (accepted) exit(() => onClose(true));
       else if (signal.aborted) {
         cancelledImport.current = true;
         setNotice("دریافت پروژه متوقف شد. پروژه قبلی حفظ شده است.");
@@ -337,7 +339,8 @@ export function GitHubProjectPicker({
     if (busy === "import") return;
     if (loginPending(login) && login)
       void post({ operation: "cancel", id: login.id }, () => true).catch(() => undefined);
-    onClose();
+    pending.current?.abort();
+    exit(() => onClose());
   }
   function search(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

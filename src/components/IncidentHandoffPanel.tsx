@@ -42,7 +42,9 @@ export function IncidentHandoffPanel({
   useEffect(() => {
     if (!loading && returnFocus.current) {
       returnFocus.current = false;
-      trigger.current?.focus();
+      trigger.current?.focus({ preventScroll: true });
+      // Cancelling shortens this section; keep its summary below the sticky navigation.
+      trigger.current?.closest("details")?.scrollIntoView({ block: "start" });
     }
   }, [loading]);
   function cancel(focus: boolean) {

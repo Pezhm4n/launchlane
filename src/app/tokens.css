@@ -65,9 +65,16 @@
   --table-width: 38rem;
   --step-size: 1.75rem;
   --icon-size: 1rem;
+  --icon-nav: 1.125rem;
   --brand-symbol-width: 1.875rem;
   --brand-symbol-height: 2rem;
+  --motion-quick: 90ms;
   --motion-feedback: 140ms;
+  --motion-enter: 200ms;
+  --motion-exit: 120ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --motion-travel: 0.25rem;
   --color-elevated: #1c2c42;
   --color-grid: #26364c;
   --color-sheen: #69e2c014;
@@ -97,4 +104,12 @@
   --studio-enter: 440ms;
   --studio-art-enter: 900ms;
   --studio-draw: 1600ms;
+  --motion-tab-slide: 280ms;
+  --motion-panel-enter: 280ms;
+  --motion-panel-exit: 180ms;
+  --motion-panel-travel: 0.75rem;
+  --motion-art-float: 6s;
+  --motion-launcher-shine: 7s;
+  --ease-tab-slide: cubic-bezier(0.2, 0.65, 0.3, 1);
+  --ease-panel-enter: cubic-bezier(0.16, 0.6, 0.25, 1);
 }

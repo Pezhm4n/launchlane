@@ -15,12 +15,14 @@ import { api, ClientError } from "./api.ts";
 import { WorkspaceIntro } from "./WorkspaceIntro.tsx";
 import { WorkspaceGlyph } from "./WorkspaceGlyph.tsx";
 import { FolderIcon, FolderPicker } from "./FolderPicker.tsx";
+import { IncidentIcon, PublishIcon } from "./icons.tsx";
 import { ConnectionDialog } from "./ConnectionDialog.tsx";
 import { GitHubProjectPicker } from "./GitHubProjectPicker.tsx";
 import { IncidentWorkbench } from "./IncidentWorkbench.tsx";
 import { DomainGuidePanel } from "./DomainGuidePanel.tsx";
 import { AgentPanel } from "./AgentPanel.tsx";
 import { workbenchLocation } from "../contracts/navigation.ts";
+import { WorkbenchNavigation } from "./WorkbenchNavigation.tsx";
 
 type FlowResult = { flow: ProjectFlow | null; action: Action | null };
 type WorkbenchMode="source"|"incident";
@@ -40,6 +42,10 @@ const modeNames: Record<WorkbenchMode, string> = {
 const modeShortNames: Record<WorkbenchMode, string> = {
   source: "انتشار",
   incident: "مشکل سایت",
+};
+const modeIcons: Record<WorkbenchMode, typeof PublishIcon> = {
+  source: PublishIcon,
+  incident: IncidentIcon,
 };
 const journeySteps = [
   "انتخاب و بررسی پروژه",
@@ -856,8 +862,8 @@ export function Workbench() {
               <span />
               <span />
             </span>
-            <span dir="ltr">
-              Launchlane
+            <span className="brand-name" dir="rtl">
+              لانچ‌لین
               <span className="brand-subtitle">از پروژه تا انتشار، با تصمیم شما</span>
               <span className="sr-only">، صفحه اصلی</span>
             </span>
@@ -904,15 +910,29 @@ export function Workbench() {
                 </span>
               ) : null}
             </p>
-            <nav className="workbench-switch task-switch app-nav" aria-label="بخش‌های میز کار">
-              {workbenchModes.map((item) => (
-                <a key={item} className="app-nav-link" href={modeHref(item)} aria-label={modeNames[item]}
-                  aria-current={mode === item ? "page" : undefined} aria-disabled={busy !== null || undefined}
-                  onClick={(event) => { event.preventDefault(); navigate(item); }}>
-                  <span className="nav-label-full">{modeNames[item]}</span><span className="nav-label-short">{modeShortNames[item]}</span>
-                </a>
-              ))}
-            </nav>
+            <WorkbenchNavigation activeKey={mode}>
+              {workbenchModes.map((item) => {
+                const ModeIcon = modeIcons[item];
+                return (
+                  <a
+                    key={item}
+                    className="app-nav-link"
+                    href={modeHref(item)}
+                    aria-label={modeNames[item]}
+                    aria-current={mode === item ? "page" : undefined}
+                    aria-disabled={busy !== null || undefined}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      navigate(item);
+                    }}
+                  >
+                    <ModeIcon className="nav-icon" />
+                    <span className="nav-label-full">{modeNames[item]}</span>
+                    <span className="nav-label-short">{modeShortNames[item]}</span>
+                  </a>
+                );
+              })}
+            </WorkbenchNavigation>
           </>
         ) : null}
       </header>
@@ -1528,10 +1548,9 @@ export function Workbench() {
                 csrf={workspace.session.csrfToken}
                 initial={flow?.selection.kind === "local" ? flow.selection.directory : "."}
                 onUpload={async (form, signal) => {
-                  const result = await prepare({ kind: "upload", directory: ".", name: "پروژه" }, "folder", signal, form);
-                  if (result) { restoreFocus.current = null; setFolderOpen(false); }
-                  return result;
+                  return prepare({ kind: "upload", directory: ".", name: "پروژه" }, "folder", signal, form);
                 }}
+                onImported={() => { restoreFocus.current = null; setFolderOpen(false); requestAnimationFrame(() => document.querySelector<HTMLHeadingElement>(".studio-intro h1")?.focus()); }}
                 onSelect={(directory) => {
                   setFolderOpen(false);
                   restoreFocus.current = null;
@@ -1577,7 +1596,9 @@ export function Workbench() {
           </>
         )}
         <footer className="app-footer">
-          <p className="studio-footer-line"><span>Launchlane · نتیجه هر عملیات باید با شواهد بررسی شود.</span><span className="studio-provider">انتشار روی <Image src="/icon/liara-logo.svg" alt="لیارا" width={101} height={45} /></span></p>
+          <div className="footer-identity"><strong>لانچ‌لین</strong><p>از پروژه تا انتشار، با تصمیم شما</p></div>
+          <p className="footer-principle"><WorkspaceGlyph name="shield" /><span>هر تغییر با تأیید شما؛ هر نتیجه با بررسی شواهد.</span></p>
+          <span className="studio-provider">انتشار روی <Image src="/icon/liara-logo.svg" alt="لیارا" width={101} height={45} /></span>
         </footer>
       </main>
     </>

@@ -19,7 +19,7 @@ await context.route("**/*", (route) => {
 let fixture;
 async function layout(width, label) {
   await page.setViewportSize({ width, height: 900 });
-  await page.evaluate(async () => document.fonts.ready);
+  await page.evaluate(async () => { await document.fonts.ready; window.scrollTo(0, 0); });
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   assert.ok(overflow <= 0, `${label} overflow`);
   const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();

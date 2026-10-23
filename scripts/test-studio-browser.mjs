@@ -69,7 +69,7 @@ try {
   await page.getByLabel("کلید ورود محلی", { exact: true }).fill(server.token);
   await page.getByRole("button", { name: "ورود به میز کار", exact: true }).click();
   await page.getByRole("heading", { name: "پروژه‌تان را انتخاب کنید", exact: true }).waitFor();
-  for (const width of [280, 320, 360, 390, 768, 1280]) {
+  for (const width of [280, 320, 360, 390, 768, 1101, 1280]) {
     await layout(width, "source-choice");
     const choose = await page.getByRole("button", { name: "انتخاب پوشه پروژه", exact: true }).boundingBox();
     if (width < 768) assert.ok(choose.y + choose.height <= 844, "project choice stays in the first mobile viewport");
@@ -145,6 +145,15 @@ try {
   for (const width of [280, 320, 360, 390, 768, 1280]) {
     await layout(width, "incident-report");
     if ([360, 1280].includes(width)) await page.screenshot({ path: join(output, `incident-${width}.png`), fullPage: true });
+  }
+  await page.locator(".sample-comparison > summary").click();
+  await page.getByRole("button", { name: "امتحان اصلاح مرتبط در نمونه", exact: true }).click();
+  await page.locator(".incident-http").filter({ hasText: "HTTP 200" }).waitFor();
+  await page.getByText("فرضیهٔ بررسی قبلی", { exact: false }).waitFor();
+  assert.equal(await page.locator(".incident-analysis").evaluate(node => node.open), false, "the previous hypothesis cannot compete with the latest successful observation");
+  for (const width of [360, 1101, 1280]) {
+    await layout(width, "incident-after-readback");
+    await page.screenshot({ path: join(output, `incident-after-${width}.png`), fullPage: true });
   }
   await page.reload(); await openChat();
   assert.equal(await input.inputValue(), "پیش‌نویس خوانا و قابل ویرایش");

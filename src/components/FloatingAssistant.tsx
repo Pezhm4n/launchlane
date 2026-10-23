@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { WorkspaceGlyph } from "./WorkspaceGlyph.tsx";
+import { useDialogExit } from "./useDialogExit.ts";
 
 export function FloatingAssistant({ children, blocked, projectName }: {
   children: ReactNode; blocked: boolean; projectName: string | null;
@@ -9,6 +10,7 @@ export function FloatingAssistant({ children, blocked, projectName }: {
   const [open, setOpen] = useState(false);
   const panel = useRef<HTMLDialogElement>(null), launcher = useRef<HTMLButtonElement>(null), close = useRef<HTMLButtonElement>(null);
   const wasOpen = useRef(false);
+  const exit = useDialogExit(panel);
   useEffect(() => {
     const node = panel.current;
     if (!node) return;
@@ -43,7 +45,7 @@ export function FloatingAssistant({ children, blocked, projectName }: {
     return () => { viewport?.removeEventListener("resize", resize); viewport?.removeEventListener("scroll", resize); };
   }, []);
   function dismiss() {
-    setOpen(false);
+    exit(() => setOpen(false));
   }
   return <>
     <button ref={launcher} type="button" className="assistant-launcher" hidden={blocked || open}

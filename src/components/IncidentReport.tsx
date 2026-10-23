@@ -5,6 +5,7 @@ import type { IncidentRun } from "../contracts/incident-run.ts";
 import { IncidentHandoffPanel } from "./IncidentHandoffPanel.tsx";
 import { compareLatency, summarizeLatency } from "../contracts/latency.ts";
 import { LatencyReport } from "./LatencyReport.tsx";
+import { WorkspaceGlyph } from "./WorkspaceGlyph.tsx";
 const names = {
   workload: "پاسخ سایت",
   project: "تنظیمات برنامه",
@@ -45,7 +46,7 @@ export function IncidentReport({
     [showAfter, setShowAfter] = useState(false),
     [focusEvidence, setFocusEvidence] = useState<string | null>(null);
   const title = useRef<HTMLHeadingElement>(null);
-  const outcome = useRef<HTMLElement>(null),
+  const outcome = useRef<HTMLParagraphElement>(null),
     cause = useRef<HTMLElement>(null);
   const saved = run.after ?? run.evidence,
     latest = operationEvidence && operationEvidence.collectedAt > saved.collectedAt ? operationEvidence : saved,
@@ -76,6 +77,8 @@ export function IncidentReport({
         .map((row) => row.source),
     ),
   ];
+  const [analysisExpanded, setAnalysisExpanded] = useState(!hasAfter);
+  const lastAnalysis = useRef(run.analysis);
   useEffect(() => {
     title.current?.focus();
     title.current?.scrollIntoView({ block: "start" });
@@ -84,7 +87,14 @@ export function IncidentReport({
     if (run.after) outcome.current?.focus();
   }, [run.after]);
   useEffect(() => {
-    if (run.analysis === "model" || run.analysis === "failed") cause.current?.focus();
+    if (hasAfter) setAnalysisExpanded(false);
+  }, [hasAfter]);
+  useEffect(() => {
+    if (lastAnalysis.current !== run.analysis && (run.analysis === "model" || run.analysis === "failed")) {
+      setAnalysisExpanded(true);
+      cause.current?.focus();
+    }
+    lastAnalysis.current = run.analysis;
   }, [run.analysis]);
   useEffect(() => {
     if (evidenceOpen && focusEvidence) {
@@ -117,17 +127,17 @@ export function IncidentReport({
           حالت آزمایشی: هیچ حساب، مدل یا سرویس واقعی فراخوانی یا تغییر نکرده است.
         </p>
       ) : null}
-      <p className="hint">
+      <p className="hint incident-timestamp">
         زمان مشاهده:{" "}
         {new Intl.DateTimeFormat("fa-IR", { dateStyle: "short", timeStyle: "short" }).format(
           latest.collectedAt,
         )}
       </p>
-      <dl className="incident-summary">
-        <div className="incident-observation">
-          <dt>چه مشکلی مشاهده شد؟</dt>
-          <dd>
-            <span>{observed}</span>
+      <section className="incident-observation" data-tone={fact?.kind === "http" && fact.status >= 200 && fact.status < 300 ? "success" : fact?.kind === "http" && fact.status >= 500 ? "danger" : "unknown"} aria-labelledby="incident-observation-title">
+          <span className="incident-status-mark" aria-hidden="true"><WorkspaceGlyph name={fact?.kind === "http" && fact.status >= 200 && fact.status < 300 ? "check" : "search"} /></span>
+          <div>
+            <div className="incident-observation-heading"><span className="hint">{hasAfter ? "آخرین مشاهدهٔ همین صفحه" : "آنچه از همین صفحه دیدیم"}</span>{fact?.kind === "http" ? <span className="incident-http" dir="ltr">HTTP {fact.status}</span> : null}</div>
+            <h3 id="incident-observation-title">{observed}</h3>
             {fact?.kind === "http" ? (
               <p className="hint">
                 <bdi>
@@ -143,28 +153,10 @@ export function IncidentReport({
                 ) : null}
               </p>
             ) : null}
-          </dd>
-        </div>
-        <div className="incident-cause">
-          <dt ref={cause} tabIndex={-1}>
-            علت احتمالی چیست؟
-          </dt>
-          <dd>
-            {run.diagnosis
-              ? run.diagnosis.summary
-              : run.analysis === "pending"
-                ? "توضیح شواهد هنوز کامل نشده است."
-                : "هنوز شواهد کافی برای تعیین علت نداریم."}
-            <p className="hint">
-              {run.diagnosis
-                ? "این توضیح یک فرضیه است و علت تأییدشده محسوب نمی‌شود."
-                : run.analysisMessage || "اطلاعات در دسترس را بدون حدس بررسی کنید."}
-              {hasAfter && run.diagnosis
-                ? " توضیح علت به بررسی نخست مربوط است؛ نتیجه تازه در بخش آخر آمده است."
-                : ""}
-            </p>
-          </dd>
-        </div>
+            <p className="incident-comparison" ref={outcome} tabIndex={-1}>{comparison?.reason ?? "این اولین مشاهده است؛ هنوز مقایسهٔ دوباره‌ای نداریم."}</p>
+          </div>
+      </section>
+      <dl className="incident-summary incident-guidance">
         <div className="incident-next-action">
           <dt>اقدام پیشنهادی</dt>
           <dd>
@@ -176,18 +168,15 @@ export function IncidentReport({
                 "گزارش‌ها و پاسخ همین صفحه را بررسی کنید. اطلاعات ناموجود را نمی‌توان نشانه سالم‌بودن یا خرابی قطعی گرفت."}
           </dd>
         </div>
-        <div className="incident-latest">
-          <dt ref={outcome} tabIndex={-1}>
-            نتیجه آخرین بررسی
-          </dt>
-          <dd>
-            <span>
-              {comparison?.reason ?? "هنوز بررسی دومی برای مقایسه نداریم."}
-            </span>
-          </dd>
-        </div>
       </dl>
       {run.symptom === "slow" ? <LatencyReport before={run.evidence} after={hasAfter ? latest : null} /> : null}
+      <details className="incident-analysis" open={analysisExpanded} onToggle={event => setAnalysisExpanded(event.currentTarget.open)}>
+        <summary ref={cause} tabIndex={0}>{hasAfter ? "فرضیهٔ بررسی قبلی" : "توضیح علت احتمالی"}<span className="incident-section-hint">{hasAfter ? "مربوط به مشاهدهٔ نخست" : "هنوز تأیید نشده"}</span></summary>
+        <dl><div className="incident-cause"><dt>علت احتمالی چیست؟</dt><dd>
+          <p>{run.diagnosis?.summary ?? (run.analysis === "pending" ? "توضیح شواهد هنوز کامل نشده است." : "هنوز شواهد کافی برای تعیین علت نداریم.")}</p>
+          <p className="hint">{run.diagnosis ? "این توضیح یک فرضیه است و علت تأییدشده محسوب نمی‌شود." : run.analysisMessage || "اطلاعات در دسترس را بدون حدس بررسی کنید."}{hasAfter && run.diagnosis ? " توضیح علت به بررسی نخست مربوط است؛ نتیجه تازه در بالای گزارش آمده است." : ""}</p>
+        </dd></div></dl>
+      </details>
       {run.diagnosis?.hypotheses.length ? (
         <details>
           <summary>دلیل این فرضیه و شواهد مرتبط</summary>
