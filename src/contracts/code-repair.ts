@@ -14,6 +14,7 @@ export type RepairTestReceipt = {
 };
 export type CodeRepairJob = {
   id: string;
+  parentRunId?: string | null;
   projectId: string;
   baseRevision: string;
   state: "proposed" | "queued" | "working" | "succeeded" | "failed" | "cancelled" | "interrupted";
@@ -67,6 +68,9 @@ function receipt(value: unknown): RepairTestReceipt | null {
 export function parseCodeRepairJob(value: unknown): CodeRepairJob {
   const row = object(value),
     state = row.state;
+  const parentRunId = row.parentRunId === undefined || row.parentRunId === null ? null : string(row.parentRunId, 36);
+  ensure(parentRunId === null || /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(parentRunId),
+    "STORAGE_INVALID", "شناسه مأموریت والد اصلاح معتبر نیست.", 503);
   ensure(row.validationOnly === undefined || (row.validationOnly === true && row.build !== undefined), "STORAGE_INVALID", "نوع آماده‌سازی معتبر نیست.", 503);
   ensure(
     state === "proposed" ||
@@ -82,6 +86,7 @@ export function parseCodeRepairJob(value: unknown): CodeRepairJob {
   );
   return {
     id: string(row.id, 36),
+    parentRunId,
     projectId: string(row.projectId, 36),
     baseRevision: hash(row.baseRevision),
     state,

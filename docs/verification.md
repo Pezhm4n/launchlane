@@ -1,5 +1,9 @@
 # شواهد اعتبارسنجی Launchlane
 
+## پیوستگی job و والد؛ snapshot مستقل پس از d11a803
+
+[شاهد A06](evidence/repair-parent-binding.md): parentRunId و بودجه/مهلت/اختیار/نشست همان run در worker enforce شدند؛ review والد را حفظ می‌کند.۲۶۵فایل runtime با index تطبیق داشتند. build/typecheck، lint با صفرerror و۳۴warning/۹info موجود،۳۷HTTP،۹sandbox و browser کامل۲۵۱حالت روی snapshot ثابت گذشتند. domain نخست۳۱۴/۳۱۵با timeout ساخت fixture پیش از بررسی env بود؛ همان فرمان کامل بعد از build/Docker،۳۱۵/۳۱۵شد و failure محفوظ ماند. oracle/deadline تغییر نکرد. مدل و cloud write واقعی صفر؛ UI جدید و runnerهای در حال ویرایش همکار وارد این snapshot نشدند. plan approval، connector بیرونی، fallback و پوشش همه runtimeها همچنان بازند.
+
 ## MCP مشترک؛ برش مستقل ۲۰۲۶-۱۰-۲۳
 
 [گزارش MCP](evidence/mcp-shared-application.md): روی export پایه6ae5c38، SDK2.3.1/HTTP/stdio و application مشترک پیاده و domain310 با concurrency2، HTTP37، build/typecheck و هفت browser75/27/27/22/38/5/39 گذشتند. Codex0.163.0-alpha.11 discovery و۳tool call واقعی بدون turn/model داشت؛ worker بیرونی تأیید نشده است. شکست domain موازی308/310 و failureهای harness/cleanup حفظ‌اند. مدل و cloud write این برش صفر و حساب فقط با دو GET واقعی خوانده شد. رابط ثبت‌نشده همکار، برنامه چندمرحله‌ای و سایر runtimeها از این برش پذیرش نمی‌گیرند.

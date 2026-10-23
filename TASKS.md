@@ -16,6 +16,10 @@ A01 دوباره با HEAD/source تطبیق شد: graph نسل2026-10-21T19:24:
 
 A16/AC23/AC24: schema publication با parser وب مشترک شد؛ read مستقیم، allowance و زمان همان مأموریت متوقف‌شده را با reserve/CAS مصرف می‌کند و مالک فعال جلوی read موازی را می‌گیرد. regression مسابقهٔ یک سهم/دو درخواست و عدم تمدید مدل گذشت؛ شکست نخست حفظ شد. فرمان domain هم‌زمانی۲ دارد، بدون تغییر oracle/deadline. روی candidate ثابت پس ازb59eef9، build/typecheck،۳۱۱domain،۳۷HTTP، فرمان کامل browser (هفت suite۷۵/۲۷/۲۷/۲۲/۳۸/۵/۴۳، انتخاب پوشه۲ و motion۱۲)، sandbox۹ و locked build واقعی Node22/env۱ گذشتند. npm ci مستقل آفلاین و setup/Codex۳call واقعی نیز گذشتند؛ مدل/cloud-write0. [شاهد تفکیکی](docs/evidence/mcp-shared-application.md) حدود و failureها را نگه می‌دارد. A16 همچنان partial؛ اختیار چندمرحله‌ای، connector اجرایی و پوشش خانواده‌های دیگر بعدی‌اند.
 
+## پیوند job اصلاح به مأموریت؛ برش A06 / ۲۰۲۶-۱۰-۲۳
+
+A06/AC26 و پیش‌نیاز A05/AC23: host، parentRunId را در CodeRepairJob، consent و packet می‌بندد. build/preparation/repair و review همین والد را حفظ می‌کنند؛ worker بدون والد working، job/source جاری، تصمیم/نشست معتبر و RunBudget با سقف/مصرف/deadline همان run claim نمی‌شود. legacy/null و canonicalization قدیمی محفوظ‌اند. regression والد دیگر، لغو، source عوض‌شده، job جایگزین، انقضا، نشست لغوشده و بودجه نو/بزرگ/تمدیدشده اضافه شد؛ same-test واقعی و patch غلط حفظ‌اند. [شاهد مستقل](docs/evidence/repair-parent-binding.md) نتایج candidate و وضعیت UI هم‌زمان را دارد. اختیار یکجای plan، تبار کامل artifact، raw preparation و connectorهای اجرایی هنوز بازند؛ این برش A05 یا A06 را کامل نمی‌کند.
+
 ## انتخاب پوشهٔ دلخواه؛ verified_local / ۲۰۲۶-۱۰-۲۳
 
 AC32: انتخاب بومی پوشه با پیش‌نمایش، پالایش مشترک و کپی خصوصی، بدون وابستگی به workspaceRoot پیاده شد. build/type/lint،۲۹HTTP،۷۵حالت میزکار و انتخاب واقعی پوشه در دو عرض گذشتند. Domain موازی یک timeout داشت؛ همان۳۰۷تست با هم‌زمانی۲ گذشتند. ADR0016 و verification مرزها و failure اولیه را نگه می‌دارند. اقدام بعد: تکمیل خوانایی گزارش، تب‌ها، composer و حرکت واقعی رابط. انتشار و مدل زنده در این برش اجرا نشده‌اند.

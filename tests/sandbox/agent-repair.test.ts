@@ -32,6 +32,9 @@ function scriptedModel(f: Awaited<ReturnType<typeof agentFixture>>, wrongPatch =
     if (JSON.stringify(body.tools).includes('"submit_patch"')) {
       assert.ok(Array.isArray(body.messages));
       const request = object(JSON.parse(String(object(body.messages.at(-1)).content)));
+      const parent = new AgentRepository(f.store).get(f.session.actorId);
+      assert.equal(request.parentRunId, parent?.id);
+      assert.equal(request.jobId, parent?.repair?.id);
       return tool("submit_patch", {
         baseRevision: request.baseRevision,
         files: [
@@ -104,6 +107,7 @@ async function proposed(f: Awaited<ReturnType<typeof agentFixture>>) {
   );
   assert.equal(run.state, "needs_approval");
   assert.equal(run.repair.state, "proposed");
+  assert.equal(run.repair.parentRunId, run.id);
   assert.equal(run.repair.beforeTest, null);
   assert.equal(run.repair.afterTest, null);
   assert.equal(scripted.requests(), 4);

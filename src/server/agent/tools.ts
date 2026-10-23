@@ -261,6 +261,7 @@ export type AgentToolContext = {
   actorId: string;
   context: AgentContext;
   createdAt: number;
+  parentRunId?: string;
   budget: RunBudget;
   signal: AbortSignal;
   read?: LiaraReadClient;
@@ -347,6 +348,7 @@ export async function executeAgentTool(
         environment: currentEnvironment(c.store, c.config.sessionSecret, c.actorId, flow.id) });
       const job = await new CodeRepairAdapter(c.config, c.store).propose(c.actorId, {
         projectId: flow.id, expectedSourceHash: c.context.sourceHash, goal: "نصب قفل‌شده، ساخت و بررسی پاسخ همان برنامه در محیط ایزوله",
+        ...(c.parentRunId ? { parentRunId: c.parentRunId } : {}),
         allowedPaths: [], testFiles: [], execution: "container", build, validationOnly: true,
       }, c.signal);
       return { repairProposal: job };
@@ -414,6 +416,7 @@ export async function executeAgentTool(
       c.actorId,
       {
         projectId: c.context.projectId,
+        ...(c.parentRunId ? { parentRunId: c.parentRunId } : {}),
         expectedSourceHash: c.context.sourceHash,
         goal: preparation ? `آماده‌سازی با فرمان «${preparation.startCommand}» و پورت ${preparation.port}. ${text(args.goal, 1400)}` : text(args.goal, 2000),
         allowedPaths,

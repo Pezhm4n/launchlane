@@ -256,6 +256,7 @@ export async function reviewAgentRepair(config: Config, store: Store, session: S
   let proposal: import("../../contracts/code-repair.ts").CodeRepairJob | null = null;
   try {
     proposal = await adapter.propose(session.actorId, { projectId: old.projectId, expectedSourceHash: old.baseRevision,
+      parentRunId: run.id,
       goal: old.goal, allowedPaths: old.allowedPaths, testFiles: old.testFiles, execution: "container",
       ...(old.build ? { build: old.build } : {}), ...(old.preparation ? { preparation: old.preparation } : {}),
       ...(old.validationOnly ? { validationOnly: true } : {}) }, signal);
@@ -757,6 +758,7 @@ export async function driveAgentRun(
               actorId: session.actorId,
               context: run.context,
               createdAt: run.createdAt,
+              parentRunId: run.id,
               mission: run.mission ?? null,
               buildJob: run.repair?.build ? run.repair : null,
               explicitBuildRetry: run.buildRetryKey === run.lastInputKey && !run.buildRetryConsumed,

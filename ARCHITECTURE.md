@@ -1,5 +1,9 @@
 # معماری Launchlane
 
+## پیوستگی worker و مأموریت والد؛ برش A06 در ۲۰۲۶-۱۰-۲۳
+
+CodeRepairJob تازهٔ Agent دارای parentRunId تولیدشدهٔ host است؛ مدل آن را انتخاب نمی‌کند. build/preparation/repair و review تصمیم منقضی همین پیوند را نگه می‌دارند. adapter پیش از claim، مصرف، پذیرش پاسخ مدل و ساخت artifact، والد، base، job فعال، اختیار/نشست و سقف/شمارنده/deadline همان RunBudget پایدار را بررسی می‌کند؛ job وابسته بودجه مستقلی نمی‌سازد. تاریخچه بدون این فیلد null خوانده می‌شود و ActionSpec/migration قدیمی تغییر نکرده‌اند. [شاهد](docs/evidence/repair-parent-binding.md) محدودهٔ اعتبارسنجی را ثبت می‌کند. این پیوند، مجوز چندمرحله‌ای یا تبار کامل artifact مشتق نیست؛ آن قرارداد همچنان در A05/AC23 باز است.
+
 ## MCP مشترک؛ برش A16 در ۲۰۲۶-۱۰-۲۳
 
 `/api/mcp` از SDK رسمی2.3.1 و `getRuntime` همان وب استفاده می‌کند. schema و اجرای read از registry موجود و lifecycle مأموریت از application/AgentRepository می‌آیند؛ Store، budget یا journal موازی ندارد. `scripts/mcp-stdio.mjs` فقط client/server bridge به HTTP است و SQLite را باز نمی‌کند. grant امضاشده با audience مستقل، actor، نشست والد/فرزند، expiry و scope خواندن یا مأموریت به همان جدول sessions متصل است. Host/Origin و auth قبل از SDK enforce می‌شوند؛ loopback به‌تنهایی مجوز نیست. token در فایل ignored و خصوصی است و مقدار آن در tool result نیست.

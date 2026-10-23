@@ -30,6 +30,7 @@ import { projectEnvironmentValues } from "../environment/secrets.ts";
 import { connectedLiaraConfig } from "../connections/liara.ts";
 import { downloadPythonWheels, pythonRequirements, reusePythonWheels } from "./python-source.ts";
 import { runPythonBuild } from "./python-container.ts";
+import { AgentRepository } from "./store.ts";
 
 const patchTool: ToolDefinition = {
   type: "function",
@@ -91,6 +92,7 @@ type RepairRecord = {
 };
 export type RepairInput = {
   projectId: string;
+  parentRunId?: string;
   goal: string;
   allowedPaths: string[];
   testFiles: string[];
@@ -106,6 +108,7 @@ export function repairConsent(input: Omit<RepairInput, "localWorkConsent">): str
     .update(
       JSON.stringify({
         projectId: input.projectId,
+        ...(input.parentRunId ? { parentRunId: input.parentRunId } : {}),
         goal: input.goal,
         allowedPaths: input.allowedPaths,
         testFiles: input.testFiles,
@@ -361,6 +364,15 @@ export class CodeRepairAdapter {
     draft: boolean,
   ): Promise<CodeRepairJob> {
     const goal = text(input.goal, 2000);
+    const checkParent = () => {
+      if (input.parentRunId === undefined) return;
+      const parent = new AgentRepository(this.store).get(actor, string(input.parentRunId, 36));
+      ensure(parent && (parent.state === "working" || (parent.state === "needs_approval" && parent.repair?.state === "proposed" &&
+        parent.repair.projectId === input.projectId && parent.repair.baseRevision === input.expectedSourceHash)) && parent.projectId === input.projectId &&
+        parent.context.projectId === input.projectId && parent.context.sourceHash === input.expectedSourceHash,
+        "REPAIR_PARENT_CHANGED", "مأموریت والد یا نسخه پایه این اصلاح معتبر نیست.", 409);
+    };
+    checkParent();
     ensure(
       !containsSourceCredential(input.goal, privateValues(this.config)),
       "SENSITIVE_INPUT",
@@ -370,6 +382,7 @@ export class CodeRepairAdapter {
       input.localWorkConsent ===
         repairConsent({
           projectId: input.projectId,
+          ...(input.parentRunId ? { parentRunId: input.parentRunId } : {}),
           goal: input.goal,
           allowedPaths: input.allowedPaths,
           testFiles: input.testFiles,
@@ -467,6 +480,7 @@ export class CodeRepairAdapter {
       usage: { modelCalls: 0, toolCalls: 0, tokens: null, unknownModelCalls: 0 },
       job: {
         id,
+        parentRunId: input.parentRunId ?? null,
         projectId: flow.id,
         baseRevision: input.expectedSourceHash,
         state: draft ? "proposed" : "queued",
@@ -490,6 +504,7 @@ export class CodeRepairAdapter {
         updatedAt: now,
       },
     };
+    checkParent();
     this.store.db
       .prepare("INSERT INTO code_repair_jobs VALUES (?,?,?,?,?)")
       .run(id, actor, record.job.state, now, JSON.stringify(record));
@@ -518,6 +533,23 @@ export class CodeRepairAdapter {
     sharedBudget?: RunBudget,
   ): Promise<CodeRepairJob> {
     const record = this.record(actor, id);
+    const checkParent = () => {
+      if (!record.job.parentRunId) return;
+      const parent = new AgentRepository(this.store).get(actor, record.job.parentRunId);
+      ensure(parent?.state === "working" && parent.projectId === record.job.projectId &&
+        parent.context.projectId === record.job.projectId && parent.context.sourceHash === record.job.baseRevision &&
+        parent.repair?.id === record.job.id && parent.repair.parentRunId === parent.id,
+        "REPAIR_PARENT_CHANGED", "این job به مأموریت و نسخه جاری تعلق ندارد؛ اجرا ادامه نمی‌یابد.", 409);
+      ensure(parent.repairDecision?.consumed && parent.repairDecision.expiresAt > Date.now() &&
+        this.store.sessionExists(parent.repairDecision.sessionId, actor, Date.now()),
+        "REPAIR_APPROVAL_EXPIRED", "اختیار همین job پایان یافته است؛ اجرا ادامه نمی‌یابد.", 409);
+      ensure(sharedBudget && sharedBudget.maxModelCalls === parent.limits.maxModelCalls &&
+        sharedBudget.maxToolCalls === parent.limits.maxToolCalls && sharedBudget.modelCalls === parent.usage.modelCalls &&
+        sharedBudget.toolCalls === parent.usage.toolCalls &&
+        sharedBudget.deadline <= Date.now() + parent.limits.runTimeoutMs - parent.usage.elapsedMs,
+        "REPAIR_SHARED_BUDGET_REQUIRED", "اصلاح وابسته باید از بودجه پایدار همان مأموریت مصرف کند.", 409);
+    };
+    checkParent();
     ensure(record.job.execution !== "container" || record.job.containerImage === (record.job.build?.version === 2 ? pythonBuildImage : projectBuildImage),
       "SANDBOX_IMAGE_CHANGED", "محیط اجرای این job تغییر کرده است؛ تصمیم تازه لازم است.", 409);
     const claim = this.store.db
@@ -539,6 +571,7 @@ export class CodeRepairAdapter {
     const take = budget.take,
       prior = { model: budget.modelCalls, tool: budget.toolCalls };
     budget.take = (kind, parent) => {
+      checkParent();
       take.call(budget, kind, parent);
       record.usage.modelCalls = budget.modelCalls - prior.model;
       record.usage.toolCalls = budget.toolCalls - prior.tool;
@@ -605,6 +638,7 @@ export class CodeRepairAdapter {
       };
       if (record.job.validationOnly) {
         budget.take("tool", bounded); record.job.afterTest = await tests(); this.save(record);
+        checkParent();
         ensure(record.job.afterTest.passed, "BUILD_CHECK_FAILED", "ساخت یا پاسخ برنامه معیار مصوب را نگذراند؛ نسخه قابل انتشار تأیید نشد.", 409);
         const latest = await restoreProjectFlow(this.config, this.store, actor, bounded, record.job.projectId),
           verified = await captureProject(record.workspace, ".", { signal: bounded, secrets: privateValues(this.config) });
@@ -637,6 +671,8 @@ export class CodeRepairAdapter {
           {
             role: "user",
             content: JSON.stringify({
+              jobId: record.job.id,
+              parentRunId: record.job.parentRunId ?? null,
               goal: record.job.goal,
               baseRevision: record.job.baseRevision,
               allowedPaths: record.job.allowedPaths,
@@ -657,6 +693,7 @@ export class CodeRepairAdapter {
         budget,
         bounded,
       );
+      checkParent();
       record.usage.tokens = turn.usage;
       if (turn.usage !== null) record.usage.unknownModelCalls--;
       ensure(
@@ -799,6 +836,7 @@ export class CodeRepairAdapter {
         409,
       );
       ensure(!bounded.aborted, "CANCELLED", "اصلاح متوقف شد.", 409);
+      checkParent();
       record.job.artifact = await prepareArchive({
         store: this.store,
         stateDir: this.config.stateDir,
