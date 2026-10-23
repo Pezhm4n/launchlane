@@ -3,6 +3,7 @@ import { permittedChatModels, type Config } from "../config.ts";
 import { AppError, ensure } from "../errors.ts";
 import type { RunBudget } from "../policy/budget.ts";
 import { redact } from "../policy/redaction.ts";
+import { projectModelMessages } from "./context-projection.ts";
 import {
   abortable,
   boundedJson,
@@ -109,7 +110,7 @@ export class GoalModelClient implements ModelPort {
     const secrets = [c.modelKey, c.liaraToken, c.operatorToken, c.sessionSecret, ...c.projectSecretValues].filter(Boolean);
     const body = JSON.stringify({
       model: c.modelId,
-      messages: messages.map((message) => ({
+      messages: projectModelMessages(messages).map((message) => ({
         ...message,
         content:
           typeof message.content === "string" ? redact(message.content, secrets) : message.content,

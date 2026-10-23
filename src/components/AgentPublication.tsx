@@ -37,7 +37,7 @@ export function AgentPublication({
       : action.state === "cancelled"
         ? "شما این انتشار را رد کردید."
         : action.state === "expired"
-          ? "مهلت این پیشنهاد تمام شده است؛ برای ادامه، درخواست تازه‌ای در گفت‌وگو بنویسید."
+          ? "مهلت این پیشنهاد تمام شده است؛ ادامهٔ انتشار به پیشنهاد تازه نیاز دارد."
           : action.state === "uncertain"
             ? "نتیجه ارسال نامعلوم است. دوباره ارسال نکنید؛ ابتدا نتیجه را از سرویس بخوانید."
             : action.state === "observing"
@@ -157,6 +157,16 @@ export function AgentPublication({
       ) : (
         <p role="status">{status}</p>
       )}
+      {waiting && action.state === "expired" ? (
+        <button
+          type="button"
+          className="button-secondary"
+          disabled={disabled}
+          onClick={() => onDecision("reject")}
+        >
+          بستن پیشنهاد منقضی‌شده
+        </button>
+      ) : null}
       {verified ? (
         <p>
           <a href={`${spec.workload.origin}${spec.workload.path}`} target="_blank" rel="noreferrer">
