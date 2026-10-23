@@ -5,6 +5,7 @@ import type { Scope } from "./domain.ts";
 import { parsePythonRuntime, type PythonRuntime } from "./python-runtime.ts";
 import { parseStaticRuntime, type StaticRuntime } from "./static-runtime.ts";
 import { parseNextRuntime, type NextRuntime } from "./next-runtime.ts";
+import { parseFrontendRuntime, type FrontendRuntime } from "./frontend-runtime.ts";
 
 type NodeProvisionSpec = Readonly<{
   version: 8;
@@ -28,7 +29,8 @@ type NodeProvisionSpec = Readonly<{
 export type ProvisionSpec = NodeProvisionSpec | (Omit<NodeProvisionSpec, "version" | "nodeVersion"> & Readonly<{
   version: 12; nodeVersion: null; runtime: PythonRuntime;
 }>) | (Omit<NodeProvisionSpec, "version" | "nodeVersion"> & Readonly<{ version: 16; nodeVersion: null; runtime: StaticRuntime }>)
-  | (Omit<NodeProvisionSpec, "version"> & Readonly<{ version: 18; runtime: NextRuntime }>);
+  | (Omit<NodeProvisionSpec, "version"> & Readonly<{ version: 18; runtime: NextRuntime }>)
+  | (Omit<NodeProvisionSpec, "version" | "nodeVersion"> & Readonly<{ version: 20; nodeVersion: "20"; runtime: FrontendRuntime }>);
 export type ProvisionObservation = Readonly<{
   outcome: "verified" | "changed" | "inconclusive" | "not_started";
   checkedAt: number;
@@ -45,7 +47,7 @@ export type ProvisionReadback = Readonly<{
   defaultSubdomain?: boolean;
 }>;
 export function canReadDestinationResult(action: import("./domain.ts").Action): boolean {
-  return (action.spec.version === 8 || action.spec.version === 12 || action.spec.version === 16 || action.spec.version === 18) && !!action.provision &&
+  return (action.spec.version === 8 || action.spec.version === 12 || action.spec.version === 16 || action.spec.version === 18 || action.spec.version === 20) && !!action.provision &&
     (action.state === "observing" || action.state === "uncertain");
 }
 export function providerObjectId(value: unknown): string {
@@ -55,6 +57,11 @@ export function providerObjectId(value: unknown): string {
 }
 export function parseProvisionSpec(value: unknown): ProvisionSpec {
   const row = object(value);
+  if (row.version === 20) {
+    const { runtime, ...rest } = row, parsed = parseFrontendRuntime(runtime), base = parseProvisionSpec({ ...rest, version: 8 });
+    ensure(base.version === 8 && base.nodeVersion === parsed.nodeVersion, "INVALID_INPUT", "محیط مقصد رابط با پروژه برابر نیست.");
+    return { ...base, version: 20, nodeVersion: "20", runtime: parsed };
+  }
   if (row.version === 18) {
     const { runtime, ...rest } = row, parsed = parseNextRuntime(runtime), base = parseProvisionSpec({ ...rest, version: 8 });
     ensure(base.version === 8 && base.nodeVersion === parsed.version, "INVALID_INPUT", "نسخهٔ محیط مقصد Next با پروژه برابر نیست.");

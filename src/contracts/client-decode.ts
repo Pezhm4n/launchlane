@@ -23,6 +23,7 @@ import { parseNetworkSpec, parseNetworkProgress } from "./network.ts";
 import { parseLifecycleSpec, parseLifecycleProgress } from "./project-lifecycle.ts";
 import { parseStaticRuntime } from "./static-runtime.ts";
 import { parseNextRuntime } from "./next-runtime.ts";
+import { parseFrontendRuntime } from "./frontend-runtime.ts";
 
 function nullableString(value: unknown, max = 256): string | null {
   return value === null ? null : string(value, max);
@@ -53,6 +54,15 @@ export function decodeAction(value: unknown): Action {
     spec = object(raw.spec),
     scope = object(spec.scope),
     args = object(spec.args);
+  if (spec.version === 19) {
+    const { runtime, environment, ...rest } = spec, parsed = parseFrontendRuntime(runtime), base = decodeAction({ ...raw, spec: { ...rest, version: 7 } });
+    ensure(base.spec.version === 7 && typeof base.spec.sourceHash === "string" && base.spec.nodeVersion === parsed.nodeVersion && base.spec.args.port === 80, "INVALID_RESPONSE", "محیط انتشار رابط با پروژه برابر نیست.");
+    return { ...base, spec: { ...base.spec, version: 19, operation: "deploy", sourceHash: base.spec.sourceHash, nodeVersion: "20", runtime: parsed, environment: environment === null ? null : parseEnvironmentReference(environment) } };
+  }
+  if (spec.version === 20) {
+    const parsed = parseProvisionSpec(spec), { runtime: _runtime, ...rest } = spec;
+    return { ...decodeAction({ ...raw, spec: { ...rest, version: 8 } }), spec: parsed };
+  }
   if (spec.version === 17) {
     const { runtime, environment, ...rest } = spec, parsed = parseNextRuntime(runtime), base = decodeAction({ ...raw, spec: { ...rest, version: 7 } });
     ensure(base.spec.version === 7 && typeof base.spec.sourceHash === "string" && base.spec.nodeVersion === parsed.version, "INVALID_RESPONSE", "نسخهٔ انتشار Next با پروژه برابر نیست.");
@@ -115,7 +125,7 @@ export function decodeAction(value: unknown): Action {
   else if (spec.version === 8) parsedSpec = parseProvisionSpec(spec);
   else {
     ensure(spec.operation === "deploy" || spec.operation === "restart", "INVALID_RESPONSE", "نوع اقدام معتبر نیست.");
-    const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12 | 13 | 14 | 16 | 18}>, "scope" | "operation" | "sourceHash" | "args"> = {
+    const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12 | 13 | 14 | 16 | 18 | 20}>, "scope" | "operation" | "sourceHash" | "args"> = {
       operation: spec.operation,
       scope: { teamId: string(scope.teamId), app: string(scope.app) },
       sourceHash: nullableString(spec.sourceHash),
@@ -250,6 +260,11 @@ export function decodeProfile(value: unknown): ProjectProfile {
     ensure(raw.runtime === "node" && parseNodeRuntime(raw.nodeRuntime).version === next.version && raw.pythonRuntime === undefined && raw.staticRuntime === undefined,
       "INVALID_RESPONSE", "نسخهٔ Next و محیط Node پاسخ با هم برابر نیستند.");
   }
+  if (raw.frontendRuntime !== undefined) {
+    const frontend = parseFrontendRuntime(raw.frontendRuntime);
+    ensure(raw.runtime === "node" && parseNodeRuntime(raw.nodeRuntime).version === frontend.nodeVersion && raw.port === 80 && raw.start === "liara-frontend" && raw.nextRuntime === undefined && raw.pythonRuntime === undefined && raw.staticRuntime === undefined,
+      "INVALID_RESPONSE", "روش اجرای رابط با مشخصات پروژه برابر نیست.");
+  }
   return {
     directory: string(raw.directory, 240),
     runtime: raw.runtime,
@@ -258,6 +273,7 @@ export function decodeProfile(value: unknown): ProjectProfile {
     ...(raw.pythonRuntime === undefined ? {} : { pythonRuntime: parsePythonRuntime(raw.pythonRuntime) }),
     ...(raw.staticRuntime === undefined ? {} : { staticRuntime: parseStaticRuntime(raw.staticRuntime) }),
     ...(raw.nextRuntime === undefined ? {} : { nextRuntime: parseNextRuntime(raw.nextRuntime) }),
+    ...(raw.frontendRuntime === undefined ? {} : { frontendRuntime: parseFrontendRuntime(raw.frontendRuntime) }),
     port: raw.port === null ? null : integer(raw.port, 1, 65535),
     start: nullableString(raw.start),
     build: nullableString(raw.build),

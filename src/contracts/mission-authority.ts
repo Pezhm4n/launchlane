@@ -47,7 +47,7 @@ export function parseMissionPlan(value: unknown): MissionPlan {
     cost: { currency: "toman", period: "hour", hourlyHundredthsToman: integer(cost.hourlyHundredthsToman, 0, Number.MAX_SAFE_INTEGER), catalogFingerprint: hash(cost.catalogFingerprint), observedAt: integer(cost.observedAt, 0, Number.MAX_SAFE_INTEGER), extras: "tax_traffic_storage_not_included" },
     costEffect: "existing_plan_unchanged", build: parseProjectBuildPlan(row.build), allowedPaths,
     maxBuildJobs: integer(row.maxBuildJobs, 1, 6), maxRepairs: integer(row.maxRepairs, 0, 4), maxPublications: integer(row.maxPublications, 1, 4),
-    limits: { maxModelCalls: integer(limits.maxModelCalls, 1, 24), maxToolCalls: integer(limits.maxToolCalls, 1, 160), runTimeoutMs: integer(limits.runTimeoutMs, 100, 900000) },
+    limits: { maxModelCalls: integer(limits.maxModelCalls, 1, 24), maxToolCalls: integer(limits.maxToolCalls, 1, 4096), runTimeoutMs: integer(limits.runTimeoutMs, 100, 900000) },
     expiresAt: integer(row.expiresAt, 0, Number.MAX_SAFE_INTEGER) };
   return row.version === 1 ? { version: 1, ...base } : { version: 2, ...base, codingAgent: parseCodingAgentChoice(row.codingAgent) };
 }

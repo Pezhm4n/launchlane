@@ -5,6 +5,7 @@ import { parseNodeVersion } from "../../contracts/node-runtime.ts";
 import { parsePythonRuntime } from "../../contracts/python-runtime.ts";
 import { parseStaticRuntime } from "../../contracts/static-runtime.ts";
 import { parseNextRuntime } from "../../contracts/next-runtime.ts";
+import { parseFrontendRuntime } from "../../contracts/frontend-runtime.ts";
 import { actionPlatform } from "../../contracts/platform.ts";
 import { object, string } from "../../contracts/validation.ts";
 import type { Config } from "../config.ts";
@@ -20,7 +21,7 @@ import {
   type Transport,
 } from "../providers/http.ts";
 
-export type DeploySpec = Extract<ActionSpec, { version: 5 | 7 | 10 | 11 | 15 | 17 }>;
+export type DeploySpec = Extract<ActionSpec, { version: 5 | 7 | 10 | 11 | 15 | 17 | 19 }>;
 export class LiaraDeployClient {
   readonly config: Config;
   readonly send: Transport;
@@ -37,8 +38,9 @@ export class LiaraDeployClient {
     budget: RunBudget,
     signal: AbortSignal,
   ): Promise<string> {
-    ensure(spec.version === 5 || spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 15 || spec.version === 17, "DEPLOYMENT_PROPOSAL_REQUIRED", "پیشنهاد تازه با نسخه اجرا مشخص لازم است.", 409);
+    ensure(spec.version === 5 || spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 15 || spec.version === 17 || spec.version === 19, "DEPLOYMENT_PROPOSAL_REQUIRED", "پیشنهاد تازه با نسخه اجرا مشخص لازم است.", 409);
     if (spec.version === 15) parseStaticRuntime(spec.runtime);
+    else if (spec.version === 19) ensure(parseFrontendRuntime(spec.runtime).nodeVersion === spec.nodeVersion, "FRONTEND_RUNTIME_CHANGED", "محیط انتشار رابط تغییر کرده است.", 409);
     else if (spec.version === 17) ensure(parseNextRuntime(spec.runtime).version === spec.nodeVersion, "NEXT_RUNTIME_CHANGED", "نسخهٔ Next تغییر کرده است.", 409);
     else if (spec.version === 11) parsePythonRuntime(spec.runtime);
     else parseNodeVersion(spec.nodeVersion);
@@ -149,7 +151,7 @@ export class LiaraDeployClient {
         sourceID: sourceId,
         port: spec.args.port,
         type: actionPlatform(spec),
-        ...(spec.version === 15 ? { platformConfig: {} } : { platformConfig: { version: spec.version === 11 ? parsePythonRuntime(spec.runtime).version : parseNodeVersion(spec.nodeVersion), ...(spec.version === 17 ? { mirror: spec.runtime.mirror } : {}) } }),
+        platformConfig: spec.version === 15 ? {} : spec.version === 19 ? { mirror: spec.runtime.mirror } : spec.version === 17 ? { nodeVersion: spec.nodeVersion, mirror: spec.runtime.mirror } : { version: spec.version === 11 ? parsePythonRuntime(spec.runtime).version : parseNodeVersion(spec.nodeVersion) },
         ...(spec.version === 11 ? { args: [spec.runtime.command.join(" ")] } : {}),
       }),
       "releaseID",

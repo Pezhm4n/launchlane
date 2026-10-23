@@ -139,7 +139,7 @@ function parseRecord(value: unknown): AgentRecord {
     messages,
     usage: {
       modelCalls: integer(usage.modelCalls, 0, 100),
-      toolCalls: integer(usage.toolCalls, 0, 160),
+      toolCalls: integer(usage.toolCalls, 0, 4096),
       observedTokens: integer(usage.observedTokens, 0, 10000000),
       unknownModelCalls: integer(usage.unknownModelCalls, 0, 100),
       elapsedMs: integer(usage.elapsedMs, 0, 10000000),
@@ -147,7 +147,7 @@ function parseRecord(value: unknown): AgentRecord {
     createdAt: integer(row.createdAt, 0, Number.MAX_SAFE_INTEGER),
     limits: {
       maxModelCalls: integer(limits.maxModelCalls, 1, 24),
-      maxToolCalls: integer(limits.maxToolCalls, 1, 160),
+      maxToolCalls: integer(limits.maxToolCalls, 1, 4096),
       runTimeoutMs: integer(limits.runTimeoutMs, 100, 900000),
     },
     errorCode: row.errorCode === null ? null : string(row.errorCode, 100),

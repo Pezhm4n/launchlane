@@ -421,7 +421,7 @@ export class CodeRepairAdapter {
         signal,
         secrets: privateValues(this.config),
       });
-    if (input.execution === "container") ensure(flow.profile.nodeRuntime?.version === "22" || flow.profile.nodeRuntime?.version === "24" && input.build?.version === 3 || flow.profile.runtime === "python" && input.build?.version === 2, "SANDBOX_RUNTIME_UNAVAILABLE", "محیط ایزولهٔ سازگار با این پروژه آماده نیست؛ کد روی رایانه اجرا نمی‌شود.", 409);
+    if (input.execution === "container") ensure(flow.profile.nodeRuntime?.version === "22" || flow.profile.nodeRuntime?.version === "24" && input.build?.version === 3 || flow.profile.nodeRuntime?.version === "20" && (input.build?.version === 4 || input.build?.version === 5) || flow.profile.runtime === "python" && input.build?.version === 2, "SANDBOX_RUNTIME_UNAVAILABLE", "محیط ایزولهٔ سازگار با این پروژه آماده نیست؛ کد روی رایانه اجرا نمی‌شود.", 409);
     ensure(
       captured.profile.sourceHash === input.expectedSourceHash,
       "PROJECT_CHANGED",
@@ -629,7 +629,7 @@ export class CodeRepairAdapter {
             testSignal = AbortSignal.any([bounded, AbortSignal.timeout(120000)]), result = record.job.build.version === 2
               ? await runPythonBuild(record.workspace, tarballs, record.job.build, record.job.testFiles, testSignal, onCreated, environment)
               : await runContainerBuild(record.workspace, tarballs, record.job.build, testSignal, onCreated, environment);
-          return { command: record.job.build.version === 2 ? `pip install --no-index --require-hashes; compileall; unittest ${record.job.testFiles.join(" ")}; ${record.job.build.startCommand}; GET ${record.job.build.workload.path}` : `${record.job.build.install === "none" ? "no dependencies to install" : "npm ci --offline"}${record.job.build.buildCommand ? " && npm run build" : ""}${record.job.build.testCommand ? " && npm test" : ""} && npm start; GET ${record.job.build.workload.path}`,
+          return { command: record.job.build.version === 2 ? `pip install --no-index --require-hashes; compileall; unittest ${record.job.testFiles.join(" ")}; ${record.job.build.startCommand}; GET ${record.job.build.workload.path}` : `${record.job.build.install === "none" ? "no dependencies to install" : "npm ci --offline"}${record.job.build.buildCommand ? " && npm run build" : ""}${record.job.build.testCommand ? " && npm test" : ""} && ${record.job.build.version === 5 ? `host serve ${record.job.build.frontend.outputDirectory}; verify local JS/CSS` : "npm start"}; GET ${record.job.build.workload.path}`,
             exitCode: result.exitCode, signal: result.signal, durationMs: Date.now() - started, output: redact(result.output, [...privateValues(this.config), ...environment.map(row => row.value).filter(value => value.length >= 4)]),
             passed: result.exitCode === 0 && !bounded.aborted && !result.signal };
         }

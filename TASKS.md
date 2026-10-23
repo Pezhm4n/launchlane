@@ -1,5 +1,10 @@
 # برنامه اجرایی Launchlane
 
+## Native React/Vue/Angular؛ A07/A08/A11 / ۲۰۲۶-۱۰-۲۳
+
+قرارداد19/20، worker بومی Node20 و build واقعی خروجی frontend به موتور مشترک وصل شدند. React خام upstream با failure واقعی output، patch فقط Vite config و آزمون مستقل گذشت؛ Vue/Angular فعلاً قرارداد و تشخیص/runner دارند، نه شاهد compiler و cloud. اصلاح next.nodeVersion، کشف env واقعی و خلاصهٔ وضعیت/برآورد هزینه نیز در همین candidate بررسی می‌شوند. [ADR0028](docs/decisions/0028-native-frontend-build.md)، [شاهد](docs/evidence/native-frontend.md). A11 و پذیرش همه۱۴خانواده همچنان partial؛ ساخت ترکیبی ترب، دیسک/داده، cloud frontend و بقیه خانواده‌ها ادامه دارند.
+
+
 ## ورود سورس خام ترب؛ A07/A11 / ۲۰۲۶-۱۰-۲۳
 
 روی96a38011 ترب، capture ریشه بدون تغییر source اکنون234فایل/2533177بایت را با hash `8f7b99351417f35048cc7265a99df631824f018eb67f95e56858a157527092a2` می‌خواند. variable reference و placeholder صریح تست از credential واقعی جدا شدند؛ تست‌ها حذف/ویرایش نشدند و exact installed secret همچنان رد است. هفت regression scanner پاس؛ این شاهد فقط ورود source است، نه آمادگی start/build/data/publication. start/port و build ترکیبی، دیسک و انتقال SQLite مرزهای بازند. [شاهد](docs/evidence/raw-torob-source.md).

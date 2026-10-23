@@ -280,6 +280,15 @@ test("a workspace orchestrator is not a single deployable root; selecting its No
     // A saved profile from the older inspector must not inherit deployment readiness.
     const legacy = f.store.saveProjectFlow("alice", { ...ambiguous, id: randomUUID(), status: "ready", profile: { ...ambiguous.profile, start: "npm run start --workspaces" } });
     assert.equal((await restoreProjectFlow(f.config, f.store, "alice", signal(), legacy.id))?.status, "stale");
+    for (const dependencies of [{ react: "19", vite: "7" }, { vue: "3", vite: "7" }, { "@angular/core": "20", "@angular/cli": "20" }]) {
+      await writeFile(join(f.root, "app/package.json"), JSON.stringify({ private: true, workspaces: ["apps/*"], dependencies, scripts: { build: "npm run build --workspaces" } }));
+      const frontendRoot = await prepareProjectFlow(f.config, f.store, "alice", { kind: "local", directory: "app" }, signal());
+      assert.equal(frontendRoot.status, "incomplete");
+      assert.equal(frontendRoot.artifact, null);
+      assert.equal(frontendRoot.profile.start, null);
+      assert.equal(frontendRoot.profile.frontendRuntime, undefined);
+      assert.ok(frontendRoot.profile.missing.some(message => message.includes("زیرپوشه")));
+    }
     const selected = await prepareProjectFlow(f.config, f.store, "alice", { kind: "local", directory: "app/apps/web" }, signal());
     assert.equal(selected.status, "ready");
     assert.equal(selected.profile.port, 8080);

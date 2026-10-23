@@ -12,6 +12,8 @@ import { parsePythonRuntime, pythonStart } from "../../contracts/python-runtime.
 import { staticRuntime } from "../../contracts/static-runtime.ts";
 import { validateStaticFiles } from "./static.ts";
 import { parseNextRuntime } from "../../contracts/next-runtime.ts";
+import { frontendRuntime } from "./frontend.ts";
+import { sourceEnvironmentNames } from "./environment-names.ts";
 import { containsSourceCredential } from "../policy/redaction.ts";
 import { SOURCE_MAX_FILES, SOURCE_MAX_ENTRIES, SOURCE_MAX_BYTES, sourceFileByteLimit, sourceFileLimitMessage } from "../../contracts/source-limits.ts";
 import {
@@ -193,7 +195,7 @@ async function scanProject(
         sha256: createHash("sha256").update(content).digest("hex"),
       });
       // Retain actual bytes, not the full scratch buffer behind readSafeFile's subarray.
-      if (capture || /\.(?:html?|css|m?js)$/i.test(relativePath)) files.push({ path: relativePath, content: Buffer.from(content) });
+      if (capture || relativePath === "angular.json" || /\.(?:html?|css|m?js)$/i.test(relativePath)) files.push({ path: relativePath, content: Buffer.from(content) });
       totalBytes += content.length;
       if (relativePath === "package.json" || relativePath === "liara.json") {
         let parsed: unknown;
@@ -211,20 +213,14 @@ async function scanProject(
         else liaraJson = object(parsed);
       }
       if (/\.[cm]?[jt]sx?$/.test(entry.name)) {
-        for (const match of text.matchAll(
-          /\bprocess\.env(?:\.([A-Z][A-Z0-9_]{0,63})|\[['"]([A-Z][A-Z0-9_]{0,63})['"]\])/g,
-        )) {
-          const name = match[1] || match[2];
-          if (name) envNames.add(name);
-        }
         const candidates = sourcePorts(text);
         for (const value of candidates.ports) ports.add(value);
         unresolvedPort ||= candidates.unresolved;
       }
-      if (entry.name.endsWith(".py")) {
-        for (const match of text.matchAll(/\bos\.(?:getenv\(\s*|environ\[\s*|environ\.get\(\s*)['"]([A-Z][A-Z0-9_]{0,63})['"]/g)) {
-          if (match[1]) envNames.add(match[1]);
-        }
+      const testOnly = /(?:^|\/)(?:tests?|unit|__tests__|e2e)(?:\/|$)|(?:^|\/)(?:test_[^/]+\.py|[^/]+_test\.py)|\.(?:test|spec)\.[cm]?[jt]sx?$/i.test(relativePath);
+      if (!testOnly && /\.(?:py|vue|[cm]?[jt]sx?)$/i.test(relativePath)) {
+        for (const name of sourceEnvironmentNames(text, relativePath)) envNames.add(name);
+        ensure(envNames.size <= 128, "ENV_DISCOVERY_LIMIT", "تعداد نام تنظیمات پروژه بیشتر از سقف این بررسی است.", 413);
       }
     }
   };
@@ -238,7 +234,9 @@ async function scanProject(
     (liara.platform === undefined || liara.platform === "static");
   if (staticSite) validateStaticFiles(files, manifest.map(file => file.path));
   const next = typeof object(pkg.dependencies ?? {}).next === "string" && typeof scripts.start === "string" && /^next start(?:\s|$)/.test(scripts.start) && liara.platform !== "node";
-  const nodeRuntime = resolveNodeRuntime(pkg.engines, next ? liara.next ?? liara.node : liara.node);
+  const nextConfig = object(liara.next ?? {});
+  const frontend = frontendRuntime(pkg, liara, files);
+  const nodeRuntime = resolveNodeRuntime(pkg.engines, frontend ? { version: "20" } : next ? { version: nextConfig.nodeVersion } : liara.node);
   const nextRuntime = next && nodeRuntime.version ? parseNextRuntime({ kind: "next", version: nodeRuntime.version, mirror: object(liara.next ?? {}).mirror ?? false }) : undefined;
   if (
     typeof liara.port === "number" &&
@@ -250,14 +248,14 @@ async function scanProject(
   const nextStart = typeof object(pkg.dependencies ?? {}).next === "string" && typeof scripts.start === "string"
     ? /^next start(?: (?:-H|--hostname) (?:0\.0\.0\.0|127\.0\.0\.1))?(?: (?:-p|--port) (\d{1,5}))?$/.exec(scripts.start) : null;
   const nextPort = nextStart ? Number(nextStart[1] ?? 3000) : null;
-  const port = staticSite ? 80 : literalPort ?? (nextPort && nextPort <= 65535 ? nextPort : null) ?? (!unresolvedPort && ports.size === 1 ? ([...ports][0] ?? null) : null);
+  const port = staticSite || frontend ? 80 : literalPort ?? (nextPort && nextPort <= 65535 ? nextPort : null) ?? (!unresolvedPort && ports.size === 1 ? ([...ports][0] ?? null) : null);
   // A workspace manifest describes multiple packages. Do not treat an orchestrator start
   // as the single Node workload supported by this deployment path; require an explicit leaf.
   const hasWorkspaces = pkg.workspaces !== undefined;
   const python = !packageJson && manifest.some(file => file.path.endsWith(".py"));
   const pythonRuntime = python ? parsePythonRuntime({ kind: "python", version: object(liara.python ?? {}).version ?? "3.12",
     command: Array.isArray(liara.args) && liara.args.length === 1 && typeof liara.args[0] === "string" ? liara.args[0].trim().split(/\s+/) : ["python3", "main.py"] }) : undefined;
-  const start = staticSite ? "liara-static" : pythonRuntime ? (pythonRuntime.command[1] === "-m" || manifest.some(file => file.path === pythonRuntime.command[1]) ? pythonStart(pythonRuntime) : null) : hasWorkspaces ? null : safeScript(scripts.start),
+  const start = staticSite ? "liara-static" : frontend ? "liara-frontend" : pythonRuntime ? (pythonRuntime.command[1] === "-m" || manifest.some(file => file.path === pythonRuntime.command[1]) ? pythonStart(pythonRuntime) : null) : hasWorkspaces ? null : safeScript(scripts.start),
     build = safeScript(scripts.build);
   const missing: string[] = [];
   if (hasWorkspaces) missing.push("این پوشه چند بسته را مدیریت می‌کند؛ زیرپوشه همان برنامه قابل انتشار را انتخاب کنید.");
@@ -276,6 +274,7 @@ async function scanProject(
     nodeVersion: python || staticSite ? null : nodeRuntime.requirement,
     ...(staticSite ? { staticRuntime } : pythonRuntime ? { pythonRuntime } : { nodeRuntime }),
     ...(nextRuntime ? { nextRuntime } : {}),
+    ...(frontend && nodeRuntime.version === "20" ? { frontendRuntime: frontend } : {}),
     port,
     start,
     build,

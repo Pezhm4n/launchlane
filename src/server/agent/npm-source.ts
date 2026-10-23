@@ -24,8 +24,8 @@ export function lockedTarballs(files: readonly SourceFile[]): LockedTarball[] {
   const source = files.find(file => file.path === "package-lock.json");
   ensure(source, "BUILD_LOCK_REQUIRED", "برای نصب قابل تکرار، package-lock.json همان برنامه لازم است.", 409);
   const lock = object(JSON.parse(source.content.toString("utf8"))), packages = object(lock.packages);
-  ensure(lock.lockfileVersion === 3 && Object.keys(packages).length <= 512,
-    "BUILD_LOCK_UNSUPPORTED", "این مسیر فعلاً lockfile نسخه ۳ و حداکثر ۵۱۲ بسته را پشتیبانی می‌کند.", 409);
+  ensure(lock.lockfileVersion === 3 && Object.keys(packages).length <= 2048,
+    "BUILD_LOCK_UNSUPPORTED", "نصب قابل‌تکرار به lockfile نسخه ۳ با حداکثر ۲۰۴۸ ورودی نیاز دارد؛ حجم dependency و مهلت هم جدا کنترل می‌شوند.", 409);
   const result = new Map<string, LockedTarball>(), urlDigests = new Map<string, string>();
   for (const [path, value] of Object.entries(packages)) {
     if (path === "") continue;

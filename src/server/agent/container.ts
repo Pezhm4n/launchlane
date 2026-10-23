@@ -89,7 +89,15 @@ stage='install';if(plan.install!=='none')await npm(['ci','--offline','--no-audit
 stage='build';if(plan.buildCommand!==null)await npm(['run','build']);
 stage='test';if(plan.testCommand!==null)await npm(['test']);
 stage='workload';
-const child=spawn('/usr/local/bin/npm',['start'],{cwd:'/work/project',env:{...env,NODE_ENV:'production'},stdio:['ignore','pipe','pipe']});child.stdout.pipe(process.stdout);child.stderr.pipe(process.stderr);child.on('error',()=>{});
+let child;
+if(plan.frontend){
+const path=require('node:path'),http=require('node:http'),root=fs.realpathSync('/work/project/'+plan.frontend.outputDirectory);
+if(!root.startsWith('/work/project/')||!fs.statSync(root+'/index.html').isFile())throw Error('frontend output index.html missing');
+const mime={'.html':'text/html; charset=utf-8','.js':'application/javascript','.mjs':'application/javascript','.css':'text/css','.json':'application/json','.svg':'image/svg+xml','.png':'image/png','.woff2':'font/woff2'};
+const server=http.createServer((req,res)=>{try{const pathname=decodeURIComponent(new URL(req.url,'http://localhost').pathname);let file=path.resolve(root,'.'+pathname);if(file!==root&&!file.startsWith(root+'/'))throw Error('path denied');if(file===root)file=root+'/index.html';if(!fs.existsSync(file)&&!path.extname(file))file=root+'/index.html';const resolved=fs.realpathSync(file);if(!resolved.startsWith(root+'/')||!fs.statSync(resolved).isFile())throw Error('file denied');res.setHeader('content-type',mime[path.extname(resolved)]||'application/octet-stream');fs.createReadStream(resolved).pipe(res)}catch{res.writeHead(404);res.end('not found')}});
+await new Promise(resolve=>server.listen(plan.port,'127.0.0.1',resolve));child={kill:()=>server.close()};
+const localOrigin=new URL('http://127.0.0.1:'+plan.port).origin,html=fs.readFileSync(root+'/index.html','utf8');for(const match of html.matchAll(/(?:src|href)=["']([^"']+[.](?:js|mjs|css)(?:[?][^"']*)?)["']/g)){const url=new URL(match[1],localOrigin+'/');if(url.origin!==localOrigin)throw Error('external build asset is not verified');const asset=await fetch(url,{redirect:'manual',signal:AbortSignal.timeout(1000)});let size=0;for await(const bytes of asset.body){size+=bytes.length;if(size>2097152)throw Error('built asset limit')};const type=asset.headers.get('content-type')||'';if(asset.status!==200||size===0||!(type.includes('javascript')||type.startsWith('text/css')))throw Error('built asset missing or invalid')}
+}else{child=spawn('/usr/local/bin/npm',['start'],{cwd:'/work/project',env:{...env,NODE_ENV:'production'},stdio:['ignore','pipe','pipe']});child.stdout.pipe(process.stdout);child.stderr.pipe(process.stderr);child.on('error',()=>{});}
 try{let result=null;const deadline=Date.now()+15000;while(Date.now()<deadline){try{const response=await fetch('http://127.0.0.1:'+plan.port+plan.workload.path,{redirect:'manual',signal:AbortSignal.timeout(1000)});const chunks=[];let size=0;for await(const bytes of response.body){size+=bytes.length;if(size>65536)throw Error('response limit');chunks.push(Buffer.from(bytes))};const body=Buffer.concat(chunks).toString('utf8');
 const a=plan.workload.assertion;let matches=false;if(a.kind==='text')matches=body.includes(a.contains);else{try{const json=JSON.parse(body);matches=json!==null&&typeof json==='object'&&!Array.isArray(json)&&Object.hasOwn(json,a.field)&&json[a.field]===a.equals}catch{}}
 if(response.status===plan.workload.status&&matches){result=true;break}}catch{}await new Promise(resolve=>setTimeout(resolve,250))};if(!result)throw Error('original workload expectation not met');console.log('Launchlane: '+(plan.install==='none'?'dependency-free':'locked install')+', build and original workload verified');
@@ -100,7 +108,7 @@ clearTimeout(watchdog);process.exit(0)
 export async function runContainerBuild(workspace: string, tarballs: string, value: ProjectBuildPlan, signal: AbortSignal,
   onCreated?: (id: string) => void, environment: readonly EnvironmentVariable[] = []): Promise<CommandResult & { containerId: string; image: string }> {
   const plan = parseProjectBuildPlan(value), values = environmentVariables(environment);
-  ensure(plan.version === 1 || plan.version === 3, "BUILD_RUNTIME_UNSUPPORTED", "این runner فقط برای Node است.", 409);
+  ensure(plan.version !== 2, "BUILD_RUNTIME_UNSUPPORTED", "این runner فقط برای Node است.", 409);
   ensure(values.every(row => isApplicationEnvironmentKey(row.key)), "ENV_SCOPE_DENIED", "تنظیمات runner از اطلاعات پروژه جداست.", 409);
   ensure(values.map(row => row.key).sort().join("\0") === [...(plan.environment?.keys ?? [])].sort().join("\0"), "ENV_REFERENCE_CHANGED", "ورودی محیط build با تصمیم برابر نیست.", 409);
   ensure(!workspace.includes(",") && !tarballs.includes(","), "SANDBOX_PATH_DENIED", "مسیر ورودی build معتبر نیست.", 403);

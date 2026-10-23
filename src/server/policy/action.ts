@@ -18,6 +18,7 @@ import { parseNetworkSpec } from "../../contracts/network.ts";
 import { parseLifecycleSpec } from "../../contracts/project-lifecycle.ts";
 import { parseStaticRuntime } from "../../contracts/static-runtime.ts";
 import { parseNextRuntime } from "../../contracts/next-runtime.ts";
+import { parseFrontendRuntime } from "../../contracts/frontend-runtime.ts";
 
 export function canonical(value: unknown): string {
   if (
@@ -41,6 +42,12 @@ export function fingerprint(value: unknown): string {
 
 export function parseActionSpec(value: unknown): ActionSpec {
   const input = object(value);
+  if (input.version === 19) {
+    const { runtime, environment, ...rest } = input, parsed = parseFrontendRuntime(runtime), base = parseActionSpec({ ...rest, version: 7 });
+    ensure(base.version === 7 && typeof base.sourceHash === "string" && base.nodeVersion === parsed.nodeVersion && base.args.port === 80, "INVALID_INPUT", "محیط انتشار رابط با پروژه برابر نیست.");
+    return { ...base, version: 19, operation: "deploy", sourceHash: base.sourceHash, nodeVersion: "20", runtime: parsed, environment: environment === null ? null : parseEnvironmentReference(environment) };
+  }
+  if (input.version === 20) return parseProvisionSpec(input);
   if (input.version === 17) {
     const { runtime, environment, ...rest } = input, parsed = parseNextRuntime(runtime), base = parseActionSpec({ ...rest, version: 7 });
     ensure(base.version === 7 && typeof base.sourceHash === "string" && base.nodeVersion === parsed.version, "INVALID_INPUT", "نسخهٔ انتشار Next با پروژه برابر نیست.");
@@ -110,7 +117,7 @@ export function parseActionSpec(value: unknown): ActionSpec {
     "INVALID_INPUT",
     "restart آرگومان انتشار نمی‌پذیرد.",
   );
-  const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12 | 13 | 14 | 16 | 18}>, "scope" | "operation" | "sourceHash" | "args"> = {
+  const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12 | 13 | 14 | 16 | 18 | 20}>, "scope" | "operation" | "sourceHash" | "args"> = {
     scope: { teamId, app },
     operation: input.operation,
     sourceHash,

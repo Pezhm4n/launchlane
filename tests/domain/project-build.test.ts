@@ -68,7 +68,9 @@ test("the build plan fixes the runtime and original independent workload criteri
   assert.equal(node24.image, node24BuildImage);
   assert.throws(() => parseProjectBuildPlan({ ...node24, image: projectBuildImage }), { code: "BUILD_RUNTIME_UNSUPPORTED" });
   assert.throws(() => parseProjectBuildPlan({ ...input, image: node24BuildImage }), { code: "BUILD_RUNTIME_UNSUPPORTED" });
-  assert.throws(() => nodeBuildRuntime("20"), { code: "BUILD_RUNTIME_UNSUPPORTED" });
+  const node20 = { ...input, ...nodeBuildRuntime("20") };
+  assert.deepEqual(parseProjectBuildPlan(node20), node20);
+  assert.throws(() => nodeBuildRuntime("18"), { code: "BUILD_RUNTIME_UNSUPPORTED" });
   assert.throws(() => parseProjectBuildPlan({ ...input, nodeVersion: "24" }), { code: "BUILD_RUNTIME_UNSUPPORTED" });
   assert.throws(() => parseProjectBuildPlan({ ...input, workload: { ...input.workload, path: "//other.test" } }));
   assert.throws(() => parseProjectBuildPlan({ ...input, approved: true }));

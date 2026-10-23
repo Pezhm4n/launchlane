@@ -14,6 +14,7 @@ export type ProjectProfile = Readonly<{
   pythonRuntime?: import("./python-runtime.ts").PythonRuntime;
   staticRuntime?: import("./static-runtime.ts").StaticRuntime;
   nextRuntime?: import("./next-runtime.ts").NextRuntime;
+  frontendRuntime?: import("./frontend-runtime.ts").FrontendRuntime;
   port: number | null;
   start: string | null;
   build: string | null;
@@ -129,6 +130,12 @@ export type ActionSpec = (ActionInputs &
         version: 17; operation: "deploy"; sourceHash: string; artifactHash: string; projectFlowId: string;
         selectionHash: string; accountId: string; targetAppId: string; workload: import("./deployment.ts").WorkloadContract;
         nodeVersion: import("./node-runtime.ts").NodeVersion; runtime: import("./next-runtime.ts").NextRuntime;
+        environment: import("./environment.ts").EnvironmentReference | null;
+      }>
+    | Readonly<{
+        version: 19; operation: "deploy"; sourceHash: string; artifactHash: string; projectFlowId: string;
+        selectionHash: string; accountId: string; targetAppId: string; workload: import("./deployment.ts").WorkloadContract;
+        nodeVersion: "20"; runtime: import("./frontend-runtime.ts").FrontendRuntime;
         environment: import("./environment.ts").EnvironmentReference | null;
       }>
   )) | import("./provision.ts").ProvisionSpec | import("./environment.ts").EnvironmentSpec | import("./network.ts").NetworkSpec | import("./project-lifecycle.ts").LifecycleSpec;

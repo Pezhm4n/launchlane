@@ -214,7 +214,7 @@ const catalogTools: readonly ToolDefinition[] = [
 ];
 const destinationTool: ToolDefinition = { type: "function", function: {
   name: "propose_destination",
-  description: "Propose a native Node, Python or plain Static destination matching the selected inspected project; the host selects the platform from source, never from a model guess. Supply a unique app name, an available plan/bundle from the actual catalog and an existing team network from read_networks. User approval is mandatory before any create. Creation does not publish, resize, set env or prove workload health. For publication with no app, propose this step instead of sending the user to select a nonexistent app. Capacity is unmeasured. Only Iran-region plans and existing networks are implemented.",
+  description: "Propose a native Node, Python, Next, React, Vue, Angular or plain Static destination matching the selected inspected project; the host selects the platform from source, never from a model guess. Supply a unique app name, an available plan/bundle from the actual catalog and an existing team network from read_networks. User approval is mandatory before any create. Creation does not publish, resize, set env or prove workload health. For publication with no app, propose this step instead of sending the user to select a nonexistent app. Capacity is unmeasured. Only Iran-region plans and existing networks are implemented.",
   parameters: { type: "object", additionalProperties: false, required: ["app", "planId", "bundleId", "networkId"], properties: {
     app: { type: "string", maxLength: 63 }, planId: { type: "string", maxLength: 63 },
     bundleId: { type: "string", maxLength: 63 }, networkId: { type: "string", maxLength: 24 },
@@ -229,7 +229,7 @@ const publicationTool: ToolDefinition = {
   type: "function",
   function: {
     name: "propose_publication",
-    description: "Propose publication of the exact selected archive to the selected existing Node or Python app. The host derives app, approved origin, port and current plan; no remote write occurs. Supply the user's intended path and a concrete text/JSON response expectation grounded in source or the user's goal. A user decision is mandatory. Does not create/resize an app or change env. Never weaken a failing assertion to get a green result.",
+    description: "Propose publication of the exact selected archive to the selected existing supported native app. The host derives app, approved origin, port and current plan; no remote write occurs. Supply the user's intended path and a concrete text/JSON response expectation grounded in source or the user's goal. A user decision is mandatory. Does not create/resize an app or change env. Never weaken a failing assertion to get a green result.",
     parameters: { type: "object", additionalProperties: false,
       required: ["path", "status", "assertion"], properties: {
         path: { type: "string", maxLength: 200 }, status: { type: "integer", minimum: 200, maximum: 299 },
@@ -245,7 +245,7 @@ const publicationTool: ToolDefinition = {
 };
 const buildTool: ToolDefinition = { type: "function", function: {
   name: "propose_project_build",
-  description: "Propose a host-reviewed install/build/start and independent workload check in an isolated Node22, Node24 or Python3.12 container selected by the host from the source version constraints. Node uses npm v3 lockfiles; only a package with zero declared dependencies and no lockfile skips install, as verified by the host. For Python, root requirements.txt must pin all packages; the host verifies binary-wheel hashes, installs offline, compiles source and probes the actual start command. Read package/lock/source first; supply the original path/status/text or JSON assertion. Commands and port come from actual source, never invented. The user approves before any install/script runs. No code changes or cloud writes. A monorepo requires its actual leaf. Builds needing undeclared network or secrets fail explicitly.",
+  description: "Propose a host-reviewed install/build/start and independent workload check in an isolated Node20, Node22, Node24 or Python3.12 container selected by the host from the source version constraints. Node uses npm v3 lockfiles; only a package with zero declared dependencies and no lockfile skips install, as verified by the host. For Python, root requirements.txt must pin all packages; the host verifies binary-wheel hashes, installs offline, compiles source and probes the actual start command. Read package/lock/source first; supply the original path/status/text or JSON assertion. Commands and port come from actual source, never invented. The user approves before any install/script runs. No code changes or cloud writes. A monorepo requires its actual leaf. Builds needing undeclared network or secrets fail explicitly.",
   parameters: publicationTool.function.parameters,
 } };
 export const toolLabels: Readonly<Record<string, string>> = {
@@ -354,7 +354,7 @@ export async function executeAgentTool(
         fingerprint(c.buildJob.build?.environment ?? null) !== fingerprint(currentEnvironment(c.store, c.config.sessionSecret, c.actorId, flow.id)),
         "BUILD_NO_PROGRESS", "همان build ناموفق بدون تغییر شواهد تکرار نمی‌شود؛ علت توقف را بررسی کنید.", 409);
       c.budget.take("tool", c.signal);
-      const build = parseProjectBuildPlan({ ...(flow.profile.runtime === "python" ? { version: 2, nodeVersion: null, runtime: flow.profile.pythonRuntime, image: pythonBuildImage }
+      const build = parseProjectBuildPlan({ ...(flow.profile.frontendRuntime ? { ...nodeBuildRuntime("20"), version: 5, frontend: flow.profile.frontendRuntime } : flow.profile.runtime === "python" ? { version: 2, nodeVersion: null, runtime: flow.profile.pythonRuntime, image: pythonBuildImage }
         : { ...nodeBuildRuntime(flow.profile.nodeRuntime?.version), ...(dependencyFreeNode(captured.files) ? { install: "none" } : {}) }),
         buildCommand: flow.profile.build, testCommand: projectTestCommand(captured.files), startCommand: flow.profile.start, port: flow.profile.port, workload,
         environment: currentEnvironment(c.store, c.config.sessionSecret, c.actorId, flow.id) });
@@ -370,6 +370,7 @@ export async function executeAgentTool(
       const verified = rows.some(row => {
         const job = parseCodeRepairJob({ ...object(object(JSON.parse(string(row.data_json, 1024 * 1024))).job), state: row.state });
         return job.build && fingerprint(job.build.environment ?? null) === fingerprint(currentEnvironment(c.store, c.config.sessionSecret, c.actorId, flow.id)) &&
+          (flow.profile.frontendRuntime ? job.build.version === 5 && fingerprint(job.build.frontend) === fingerprint(flow.profile.frontendRuntime) : job.build.version !== 5) &&
           (job.build.version === 2 ? flow.profile.runtime === "python" && fingerprint(job.build.runtime) === fingerprint(flow.profile.pythonRuntime) : job.build.nodeVersion === flow.profile.nodeRuntime?.version) && job.build.buildCommand === flow.profile.build && job.build.testCommand === projectTestCommand(captured.files) && job.build.startCommand === flow.profile.start && job.build.port === flow.profile.port &&
           job.execution === "container" && !!job.containerIds?.length && job.afterTest?.passed && sameBuildWorkload(job.build, parseProjectBuildPlan({ ...job.build, workload }).workload);
       });
@@ -504,6 +505,8 @@ export async function executeAgentTool(
         runtime: flow.profile.runtime,
         nodeVersion: flow.profile.nodeRuntime?.version ?? null,
         ...(flow.profile.pythonRuntime ? { pythonRuntime: flow.profile.pythonRuntime } : {}),
+        ...(flow.profile.nextRuntime ? { nextRuntime: flow.profile.nextRuntime } : {}),
+        ...(flow.profile.frontendRuntime ? { frontendRuntime: flow.profile.frontendRuntime } : {}),
         start: flow.profile.start,
         build: flow.profile.build,
         port: flow.profile.port,

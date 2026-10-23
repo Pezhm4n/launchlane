@@ -1,5 +1,8 @@
 # معیارهای پذیرش محصول
 
+افزوده A07/A08/A11/AC22/23/28: [برش frontend بومی](evidence/native-frontend.md) قرارداد19/20، worker Node20، اصلاح واقعی output پروژه React و کشف تنظیمات را اضافه می‌کند. این شاهد، انتشار زنده React/Vue/Angular یا build ترکیبی و دادهٔ ترب نیست؛ همه۱۴خانواده و workload متناسب همچنان لازم‌اند.
+
+
 افزوده A07/A08/A11/AC28: [Next بومی](evidence/native-next.md) قراردادهای17/18 را از انتخاب source تا ساخت مقصد، env، اختیار، artifact و انتشار به موتور مشترک وصل می‌کند. نصب قفل‌شده، compiler واقعی و start/GET در worker کنترل‌شده گذشتند؛ native cloud و پروژه upstream از source خام هنوز پذیرش زنده ندارند. این مرزها با تشخیص یا payload مصنوعی بسته نمی‌شوند؛ همه۱۴خانواده همچنان لازم‌اند.
 
 افزوده A07/A08/A10/A11: [Static بومی Login](evidence/native-static-login.md) شاهد محدود انتخاب پوشه→upload→مقصد→انتشار Agent→current release→HTML/CSS/JS و رفتار مرورگر است؛ plain Static بدون سؤال Node/port و بدون wrapper انتشار می‌یابد. ساخت از API و تصمیم معتبر، با ساخت از Agent UI یکی نیست؛ live دومی و repair عمومی Static بازند. شکست باید علت/اقدام بعدی نشان دهد؛ پوشه مفقود نباید مدیریت/حذف سابقه را قفل کند و source نامعتبر نباید publication بگیرد. AC28 همچنان تمام۱۴خانواده را لازم دارد.

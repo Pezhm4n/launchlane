@@ -9,3 +9,5 @@
 domain، metadata نوع node به‌جای next را رد و create18→ID readback→deploy17 همان artifact، نسخه/mirror/env و payload native را با transport مصنوعی می‌سنجد. compatibility با Node/Python/Static و candidate نهایی در verification ثبت می‌شود.
 
 candidate46 روی پایه14b18b9: domain390/390، HTTP39/39، build/typecheck و lint بدون error؛ مرورگر platform12حالت و ورود8حالت با دو actor و صفر pageerror. digest و tree در [verification](../verification.md) ثبت‌اند. compiler واقعی پیش از این export اجرا شد و با regression تازه به‌عنوان یک full live pass جمع نمی‌شود. هزینهٔ تازه مدل/ابر در این برش صفر است؛ allowance قبلی تمدید نشد.
+
+افزوده candidate47: platformConfig قبلی به‌اشتباه version داشت؛ منبع رسمی next.nodeVersion می‌خواهد. adapter و fixture اصلاح شدند؛ قرارداد17/18 و hash تاریخی تغییری نکردند. سقف lock اکنون2048 است، پس مانع557 قدیمی دیگر سقف فعلی نیست؛ scanner fixture و اجرای upstream همچنان شاهد مستقل می‌خواهند. این اصلاح به معنی پذیرش cloud نیست.

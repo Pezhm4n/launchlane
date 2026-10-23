@@ -3,6 +3,7 @@ import { exactKeys, integer, object, text } from "./validation.ts";
 import { ensure } from "../server/errors.ts";
 import { parseEnvironmentReference, type EnvironmentReference } from "./environment.ts";
 import { parsePythonRuntime, type PythonRuntime, pythonStart } from "./python-runtime.ts";
+import { parseFrontendRuntime, type FrontendRuntime } from "./frontend-runtime.ts";
 
 export const projectBuildImage = "node:22.23.3-bookworm-slim@sha256:3ed98443660ff48413b5af19ecefce3b9d50845a901a43420d47cc63a9fddbe9";
 export const node24BuildImage = "node:24.18.0-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d";
@@ -26,14 +27,31 @@ export type PythonBuildPlan = Omit<NodeBuildPlan, "version" | "nodeVersion" | "i
 type Node24BuildPlan = Omit<NodeBuildPlan, "version" | "nodeVersion" | "image"> & Readonly<{
   version: 3; nodeVersion: "24"; image: typeof node24BuildImage;
 }>;
-export type ProjectBuildPlan = NodeBuildPlan | PythonBuildPlan | Node24BuildPlan;
+export const node20BuildImage = "docker.io/library/node:20-bookworm-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0";
+type Node20BuildPlan = Omit<NodeBuildPlan, "version" | "nodeVersion" | "image"> & Readonly<{ version: 4; nodeVersion: "20"; image: typeof node20BuildImage }>;
+type FrontendBuildPlan = Omit<Node20BuildPlan, "version" | "install"> & Readonly<{ version: 5; frontend: FrontendRuntime; install?: never }>;
+export type ProjectBuildPlan = NodeBuildPlan | PythonBuildPlan | Node24BuildPlan | Node20BuildPlan | FrontendBuildPlan;
 export function nodeBuildRuntime(version: unknown) {
-  ensure(version === "22" || version === "24", "BUILD_RUNTIME_UNSUPPORTED", "محیط ساخت سازگار با نسخهٔ پروژه در این نصب آماده نیست؛ اجرای ناسازگار روی رایانه انجام نشد.", 409);
-  return version === "24" ? { version: 3, nodeVersion: "24", image: node24BuildImage } as const
+  ensure(version === "20" || version === "22" || version === "24", "BUILD_RUNTIME_UNSUPPORTED", "محیط ساخت سازگار با نسخهٔ پروژه در این نصب آماده نیست؛ اجرای ناسازگار روی رایانه انجام نشد.", 409);
+  return version === "20" ? { version: 4, nodeVersion: "20", image: node20BuildImage } as const : version === "24" ? { version: 3, nodeVersion: "24", image: node24BuildImage } as const
     : { version: 1, nodeVersion: "22", image: projectBuildImage } as const;
 }
 export function parseProjectBuildPlan(value: unknown): ProjectBuildPlan {
   const row = object(value);
+  if (row.version === 5) {
+    const { frontend, ...rest } = row, parsed = parseFrontendRuntime(frontend);
+    ensure(row.install === undefined && row.nodeVersion === parsed.nodeVersion && row.startCommand === "liara-frontend" && typeof row.buildCommand === "string" && row.port === 80,
+      "BUILD_PLAN_CHANGED", "ساخت رابط باید خروجی بومی و پورت ثابت وب را بررسی کند.", 409);
+    const base = parseProjectBuildPlan({ ...rest, version: 4 });
+    ensure(base.version === 4, "BUILD_PLAN_CHANGED", "محیط ساخت رابط معتبر نیست.", 409);
+    const { install: _install, ...fields } = base;
+    return { ...fields, version: 5, frontend: parsed };
+  }
+  if (row.version === 4) {
+    ensure(row.nodeVersion === "20" && row.image === node20BuildImage, "BUILD_RUNTIME_UNSUPPORTED", "نسخه Node20 و image برابر نیستند.", 409);
+    const base = parseProjectBuildPlan({ ...row, version: 1, nodeVersion: "22", image: projectBuildImage });
+    return { ...base, version: 4, nodeVersion: "20", image: node20BuildImage };
+  }
   if (row.version === 3) {
     ensure(row.nodeVersion === "24" && row.image === node24BuildImage, "BUILD_RUNTIME_UNSUPPORTED", "نسخهٔ Node و تصویر محیط ساخت برابر نیستند؛ برنامهٔ تازه لازم است.", 409);
     const base = parseProjectBuildPlan({ ...row, version: 1, nodeVersion: "22", image: projectBuildImage });

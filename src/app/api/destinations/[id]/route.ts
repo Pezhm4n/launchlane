@@ -9,14 +9,14 @@ type Context = { params: Promise<{ id: string }> };
 export async function GET(request: Request, { params }: Context) {
   return endpoint(request, false, async ({ store, session }) => {
     const action = store.getAction(string((await params).id, 36), session.actorId);
-    ensure(action.spec.version === 8 || action.spec.version === 12 || action.spec.version === 16 || action.spec.version === 18, "INVALID_OPERATION", "این اقدام مربوط به ساخت مقصد نیست.");
+    ensure(action.spec.version === 8 || action.spec.version === 12 || action.spec.version === 16 || action.spec.version === 18 || action.spec.version === 20, "INVALID_OPERATION", "این اقدام مربوط به ساخت مقصد نیست.");
     return reply({ action });
   });
 }
 export async function POST(request: Request, { params }: Context) {
   return endpoint(request, true, async ({ config, store, session }) => {
     const id = string((await params).id, 36), input = object(await jsonBody(request)), action = store.getAction(id, session.actorId);
-    ensure(action.spec.version === 8 || action.spec.version === 12 || action.spec.version === 16 || action.spec.version === 18, "INVALID_OPERATION", "این اقدام مربوط به ساخت مقصد نیست.");
+    ensure(action.spec.version === 8 || action.spec.version === 12 || action.spec.version === 16 || action.spec.version === 18 || action.spec.version === 20, "INVALID_OPERATION", "این اقدام مربوط به ساخت مقصد نیست.");
     if (input.operation === "decision") {
       exactKeys(input, ["operation", "hash", "decision"]);
       ensure(input.decision === "approve" || input.decision === "reject", "INVALID_INPUT", "تصمیم معتبر نیست.");

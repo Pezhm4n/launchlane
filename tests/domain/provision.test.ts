@@ -27,10 +27,15 @@ import { object } from "../../src/contracts/validation.ts";
 const team = "a".repeat(24), account = "b".repeat(24), network = "c".repeat(24), createdId = "d".repeat(24), app = "new-agent-app";
 const signal = () => AbortSignal.timeout(3000);
 const code = (expected: string) => (error: unknown) => error instanceof AppError && error.code === expected;
-async function fixture(runtime: "node" | "python" | "static" | "next" = "node") {
+async function fixture(runtime: "node" | "python" | "static" | "next" | "react" | "vue" | "angular" = "node") {
   const f = await agentFixture(), config = { ...f.config, teamId: team, apps: [app], liaraToken: "synthetic-private-provision-key",
     enableLiveLiara: true, enableMutations: true };
   let flow = f.flow;
+  if (runtime === "react" || runtime === "vue" || runtime === "angular") flow = await prepareProjectFlow(config, f.store, f.session.actorId, { kind: "upload", directory: ".", name: `${runtime}-catalog` }, signal(), undefined, undefined,
+    [{ path: "package.json", content: Buffer.from(JSON.stringify({ name: `${runtime}-catalog`, scripts: { build: runtime === "angular" ? "ng build" : "vite build" },
+      dependencies: runtime === "react" ? { react: "19.3.1", vite: "7.0.0" } : runtime === "vue" ? { vue: "3.5.0", vite: "7.0.0" } : { "@angular/core": "20.0.0", "@angular/cli": "20.0.0" } })) },
+      { path: "angular.json", content: Buffer.from(JSON.stringify({ projects: { catalog: { projectType: "application", architect: { build: { builder: "@angular/build:application", options: { outputPath: "dist/catalog" } } } } } })) },
+      { path: "index.html", content: Buffer.from('<!doctype html><html><head><title>Product catalog</title></head><body><div id="app"></div></body></html>') }]);
   if (runtime === "next") flow = await prepareProjectFlow(config, f.store, f.session.actorId, { kind: "upload", directory: ".", name: "next-catalog" }, signal(), undefined, undefined,
     [{ path: "package.json", content: Buffer.from(JSON.stringify({ name: "next-catalog", engines: { node: "24.x" }, scripts: { build: "next build", start: "next start" }, dependencies: { next: "16.4.2", react: "19.3.1", "react-dom": "19.3.1" } })) },
       { path: "app/page.tsx", content: Buffer.from('export default function Page(){return <h1>Product catalog</h1>}') }]);
@@ -162,9 +167,31 @@ test("Next native creation and publication preserve the exact account, artifact,
     assert.throws(() => parseActionSpec({ ...f.action.spec, nodeVersion: "22" }));
     let sent: unknown; const write = new LiaraDeployClient(f.config, async (_url, init) => { sent = JSON.parse(String(init.body)); return Response.json({ releaseID: "next-release" }); });
     await write.release(publication.spec, "next-source", new RunBudget(f.config), signal());
-    assert.deepEqual(sent, { sourceID: "next-source", port: 3000, type: "next", platformConfig: { version: "24", mirror: false } });
+    assert.deepEqual(sent, { sourceID: "next-source", port: 3000, type: "next", platformConfig: { nodeVersion: "24", mirror: false } });
     const wrong = new LiaraReadClient(f.config, async () => Response.json({ project: { _id: createdId, project_id: app, type: "node", planID: "starter", status: "Running", envs: [] } }));
     await assert.rejects(proposeWorkloadDeployment(f.config, f.store, f.session.actorId, { flowId: f.flow.id, app, port: null, workload: publication.spec.workload }, signal(), { read: wrong }), code("DEPLOYMENT_UNSUPPORTED"));
+  } finally { f.close(); }
+});
+
+for (const kind of ["react", "vue", "angular"] as const) test(`${kind} native creation and publication bind the build output and fixed provider runtime without a user start or port`, async () => {
+  const f = await fixture(kind);
+  try {
+    assert.equal(f.flow.profile.port, 80); assert.equal(f.flow.profile.start, "liara-frontend"); assert.equal(f.flow.profile.nodeRuntime?.version, "20");
+    assert.equal(f.action.spec.version, 20); assert.deepEqual(decodeAction(f.action).spec, parseActionSpec(f.action.spec));
+    f.approve(); await executeDestination(f.config, f.store, f.session, f.action.id, signal(), f.deps);
+    assert.equal((await observeDestination(f.config, f.store, f.session, f.action.id, signal(), f.deps)).state, "succeeded");
+    const origin = `https://${app}.example.com`; f.store.setProbeOrigin(f.session.actorId, { teamId: team, app }, origin);
+    const read = new LiaraReadClient(f.config, async () => Response.json({ project: { _id: createdId, project_id: app, type: kind, planID: "starter", status: "Running", envs: [] } }));
+    const publication = await proposeWorkloadDeployment(f.config, f.store, f.session.actorId, { flowId: f.flow.id, app, port: null,
+      workload: { origin, path: "/", status: 200, assertion: { kind: "text", contains: "Product catalog" } } }, signal(), { read });
+    assert.equal(publication.spec.version, 19); if (publication.spec.version !== 19) throw Error("Wrong frontend contract");
+    assert.equal(publication.spec.artifactHash, f.flow.artifact?.archiveHash); assert.deepEqual(decodeAction(publication).spec, parseActionSpec(publication.spec));
+    assert.throws(() => parseActionSpec({ ...publication.spec, nodeVersion: "22" })); assert.throws(() => parseActionSpec({ ...publication.spec, args: { ...publication.spec.args, port: 3000 } }));
+    let sent: unknown; const write = new LiaraDeployClient(f.config, async (_url, init) => { sent = JSON.parse(String(init.body)); return Response.json({ releaseID: "frontend-release" }); });
+    await write.release(publication.spec, "frontend-source", new RunBudget(f.config), signal());
+    assert.deepEqual(sent, { sourceID: "frontend-source", port: 80, type: kind, platformConfig: { mirror: false } });
+    const changed = parseActionSpec({ ...publication.spec, runtime: { ...publication.spec.runtime, mirror: true } });
+    assert.throws(() => f.store.createAction(f.session.actorId, changed), code("FRONTEND_RUNTIME_CHANGED"));
   } finally { f.close(); }
 });
 
