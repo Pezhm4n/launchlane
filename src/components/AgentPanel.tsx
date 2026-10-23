@@ -825,7 +825,7 @@ export function AgentPanel({
                   </div>
                 </>
               ) : (
-                <p role="status">{run.repair.message}</p>
+                <p role="status">{run.publication?.attemptId ? "اصلاح و آزمون‌های محلی گذشتند؛ وضعیت انتشار در کارت زیر ثبت شده است." : run.repair.message}</p>
               )}
               {run.repair.beforeTest || run.repair.afterTest ? (
                 <dl className="profile-facts">
