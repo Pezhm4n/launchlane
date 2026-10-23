@@ -15,6 +15,7 @@ import { AgentRepository, agentView } from "../../../../../server/agent/store.ts
 import { AppError, ensure } from "../../../../../server/errors.ts";
 import { endpoint, jsonBody, reply } from "../../../../../server/http.ts";
 import { resumePublicationMission } from "../../../../../server/application/publication-mission.ts";
+import { proposeMissionAuthority, decideMissionAuthority } from "../../../../../server/application/mission-authority.ts";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 600;
@@ -57,6 +58,7 @@ export async function POST(request: Request, { params }: Context) {
       return reply({ run: agentView(result.run) });
     }
     if (input.operation === "repair-decision") {
+      // Single-job decisions remain compatible; plan authority is a separate explicit choice.
       exactKeys(input, ["operation", "revision", "jobId", "decision"]);
       ensure(
         input.decision === "approve" || input.decision === "reject",
@@ -77,6 +79,17 @@ export async function POST(request: Request, { params }: Context) {
         run = await reviewAgentRepair(config, store, session, id, revision, string(input.jobId, 36), request.signal);
       }
       if (input.decision === "approve" && run.state === "queued") after(() => driveAgentRun(config, store, session, id));
+      return reply({ run: agentView(run) });
+    }
+    if (input.operation === "plan-proposal") {
+      exactKeys(input, ["operation", "revision"]);
+      return reply({ run: agentView(await proposeMissionAuthority(config, store, session, id, revision, request.signal)) });
+    }
+    if (input.operation === "plan-decision") {
+      exactKeys(input, ["operation", "revision", "authorityId", "hash", "decision"]);
+      ensure(input.decision === "approve" || input.decision === "reject", "INVALID_INPUT", "تصمیم معتبر نیست.");
+      const run = await decideMissionAuthority(config, store, session, id, revision, string(input.authorityId, 36), string(input.hash, 64), input.decision);
+      if (run.state === "queued") after(() => driveAgentRun(config, store, session, id));
       return reply({ run: agentView(run) });
     }
     if (input.operation === "publication-decision") {

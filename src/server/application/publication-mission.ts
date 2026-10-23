@@ -18,6 +18,11 @@ export async function createPublicationMission(config: Config, store: Store, ses
   requestKey: string, value: unknown, signal: AbortSignal) {
   config = { ...config, projectSecretValues: projectSecretValues(store, config.sessionSecret, session.actorId) };
   const input = parsePublicationInput(value);
+  const repo = new AgentRepository(store), joined = repo.forProject(session.actorId, input.projectId, "publication");
+  if (joined?.mission) {
+    const { kind: _kind, identity: _identity, ...original } = joined.mission;
+    if (fingerprint(original) === fingerprint(input) && fingerprint(currentAgentContext(config, store, session.actorId)) === fingerprint(joined.context)) return { run: joined, created: false };
+  }
   ensure(config.enableLiveModel && config.modelKey, "LIVE_MODEL_DISABLED", "آماده‌سازی هوشمند در این نصب فعال نیست؛ از مسئول نصب پیگیری کنید.", 403);
   ensure(!containsCredential(input.expectedText ?? "", privateValues(config)), "SENSITIVE_INPUT", "نشانه صفحه نباید مقدار محرمانه باشد.");
   const flow = await restoreProjectFlow(config, store, session.actorId, signal, input.projectId);
@@ -26,8 +31,7 @@ export async function createPublicationMission(config: Config, store: Store, ses
   const context = currentAgentContext(config, store, session.actorId);
   ensure(context.projectId === input.projectId && context.sourceHash === input.sourceHash,
     "AGENT_CONTEXT_CHANGED", "انتخاب پروژه تغییر کرده است.", 409);
-  const repo = new AgentRepository(store),
-    identity = fingerprint({ input, context }), previous = repo.publication(session.actorId, identity);
+  const identity = fingerprint({ input, context }), previous = repo.publication(session.actorId, identity);
   // Two tabs and a lost registration response join the same durable run, even with different client keys.
   if (previous) return { run: previous, created: false };
   const pending = repo.forProject(session.actorId, input.projectId, "publication");

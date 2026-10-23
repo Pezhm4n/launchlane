@@ -11,6 +11,7 @@ import { parseArtifact } from "../../contracts/source.ts";
 import { object, string } from "../../contracts/validation.ts";
 import { AppError, ensure } from "../errors.ts";
 import { fingerprint, parseActionSpec } from "../policy/action.ts";
+import { assertMissionActionClaim } from "../policy/mission-authority.ts";
 import { parseProvisionProgress, providerObjectId, type ProvisionProgress, type ProvisionReadback, type ProvisionObservation } from "../../contracts/provision.ts";
 import { migrations } from "./migrations.ts";
 import { parseEnvironmentProgress, type EnvironmentProgress } from "../../contracts/environment.ts";
@@ -733,6 +734,7 @@ export class Store {
 
   private invalidatePendingAgentDecisions(actorId: string): void {
     for (const row of this.db.prepare("SELECT id,revision,data_json FROM agent_runs WHERE actor_id=? AND state='needs_approval'").all(actorId)) {
+      this.db.prepare("UPDATE mission_authorities SET state='revoked' WHERE actor_id=? AND run_id=? AND state IN ('proposed','approved')").run(actorId, string(row.id, 36));
       const data = object(JSON.parse(string(row.data_json, 512 * 1024)));
       for (const value of [data.publication, data.destination]) {
         if (!value) continue;
@@ -775,6 +777,7 @@ export class Store {
       const row = this.db.prepare("SELECT approval_session_id FROM actions WHERE id=?").get(id);
       this.assertAgentIdle(actorId, id);
       this.assertActionContext(actorId, action.spec, id);
+      assertMissionActionClaim(this, actorId, sessionId, action, now);
       ensure(
         action.state === "approved" && !action.attemptId,
         "ACTION_CONFLICT",

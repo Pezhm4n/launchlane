@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
+import { assertMissionJobExecution } from "../policy/mission-authority.ts";
 import { lstat, mkdir, realpath, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import {
@@ -543,6 +544,7 @@ export class CodeRepairAdapter {
       ensure(parent.repairDecision?.consumed && parent.repairDecision.expiresAt > Date.now() &&
         this.store.sessionExists(parent.repairDecision.sessionId, actor, Date.now()),
         "REPAIR_APPROVAL_EXPIRED", "اختیار همین job پایان یافته است؛ اجرا ادامه نمی‌یابد.", 409);
+      assertMissionJobExecution(this.store, actor, parent.repairDecision.sessionId, record.job);
       ensure(sharedBudget && sharedBudget.maxModelCalls === parent.limits.maxModelCalls &&
         sharedBudget.maxToolCalls === parent.limits.maxToolCalls && sharedBudget.modelCalls === parent.usage.modelCalls &&
         sharedBudget.toolCalls === parent.usage.toolCalls &&

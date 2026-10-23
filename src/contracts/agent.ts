@@ -4,6 +4,7 @@ import { parseCodeRepairJob, type CodeRepairJob } from "./code-repair.ts";
 import { decodeAction } from "./client-decode.ts";
 import type { Action } from "./domain.ts";
 import { parsePublicationMission, type PublicationMission } from "./publication-mission.ts";
+import { parseMissionAuthority, type MissionAuthority } from "./mission-authority.ts";
 
 export const agentStates = [
   "queued",
@@ -51,6 +52,7 @@ export type AgentView = {
   destinationContinued: boolean;
   mission?: PublicationMission | null;
   channel?: "legacy" | "conversation";
+  authority?: MissionAuthority | null;
 };
 export function parseAgentView(value: unknown): AgentView {
   const row = object(value);
@@ -113,5 +115,6 @@ export function parseAgentView(value: unknown): AgentView {
     destinationContinued: row.destinationContinued === true,
     mission: row.mission === undefined || row.mission === null ? null : parsePublicationMission(row.mission),
     channel: row.channel === "conversation" ? "conversation" : "legacy",
+    authority: row.authority === undefined || row.authority === null ? null : parseMissionAuthority(row.authority),
   };
 }

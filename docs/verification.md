@@ -1,5 +1,10 @@
 # شواهد اعتبارسنجی Launchlane
 
+## اختیار برنامه و artifact مشتق؛ A05/AC23 verified_local / ۲۰۲۶-۱۰-۲۳
+
+[شاهد برش](evidence/mission-authority.md): برنامه v1 و migration11، قیمت پایه واقعی با واحد، محدوده build/repair/publication، منشأ artifact و claim مشترک پیاده شدند. یک تصمیم، build fail واقعی، patch بی‌اثر/test fail، patch مؤثر/test pass و publication مصنوعی همان artifact را بدون تأیید دوری جلو برد. candidate03 دارای320domain است؛ candidate04 نهایی با278فایل مطابق index، build/typecheck/lint بدونerror و35warning/9info،22domain مرتبط،37HTTP،5container و43حالت guided browser گذشت. snapshotها full pass تازه واحد نیستند. مدل و cloud واقعی0؛ source خام/انتشار زنده، MCP تا نتیجه و connector اجرایی هنوز بازند. شکست fixture چندخطی، فقدان origin و خودآزمون kit0/52 در شاهد حفظ‌اند. timeoutهای تاریخی fixture با concurrency1 علت‌یابی نشده‌اند.
+
+
 ## خواندن پاسخ و پنل دستیار؛ verified_local / ۲۰۲۶-۱۰-۲۳
 
 AC32 و AC23/AC24: موبایل تمام‌صفحه با VisualViewport، ورودی یک‌خطیِ رشدکننده/دارای سقف با ارسال کنار آن، هدر و metadata فشرده، کپی آیکونی، placeholder فارسی و dir=auto متن، دکمهٔ شناور «آخرین پیام» فقط هنگام فاصله از انتها پیاده شدند. بنا بر آخرین بازخورد مالک، پاسخ موبایل۱۴px و دسکتاپ۱۶px است؛ ورودی۱۶px برای رفتار فوکوس موبایل حفظ شد. در۳۷۵×۶۶۷، ناحیهٔ پیام‌ها 502.109375px، نسبت 75.28٪ و composer 81.5px است. کنتراست واقعی متن/کارت پاسخ 14.37:1 بود. این نسبت، وضعیت اندازه‌گیری‌شدهٔ working با متن بلند است؛ تضمین همهٔ محتواها یا تأیید کامل WCAG نیست.

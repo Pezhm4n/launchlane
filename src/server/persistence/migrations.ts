@@ -126,4 +126,26 @@ CREATE TABLE environment_progress (
 ) STRICT;
 `,
   },
+  {
+    version: 11,
+    sql: `
+CREATE TABLE mission_authorities (
+  id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, run_id TEXT NOT NULL REFERENCES agent_runs(id),
+  plan_json TEXT NOT NULL, plan_hash TEXT NOT NULL,
+  state TEXT NOT NULL CHECK(state IN ('proposed','approved','revoked')), session_id TEXT NOT NULL,
+  created_at INTEGER NOT NULL, UNIQUE(actor_id,run_id)
+) STRICT;
+CREATE TABLE mission_steps (
+  authority_id TEXT NOT NULL REFERENCES mission_authorities(id),
+  kind TEXT NOT NULL CHECK(kind IN ('build','repair','publication')),
+  subject_id TEXT NOT NULL, evidence_hash TEXT NOT NULL, created_at INTEGER NOT NULL,
+  PRIMARY KEY(kind,subject_id)
+) STRICT;
+CREATE TABLE mission_artifacts (
+  authority_id TEXT NOT NULL REFERENCES mission_authorities(id), source_hash TEXT NOT NULL,
+  archive_hash TEXT NOT NULL, base_source_hash TEXT NOT NULL, job_id TEXT NOT NULL UNIQUE REFERENCES code_repair_jobs(id),
+  evidence_hash TEXT NOT NULL, PRIMARY KEY(authority_id,source_hash,archive_hash)
+) STRICT;
+`,
+  },
 ] as const;

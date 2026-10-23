@@ -49,8 +49,10 @@ globalThis.fetch = async (input, init) => {
     typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
   );
   if (process.env.LAUNCHLANE_ENVIRONMENT_FIXTURE === "true" && url.origin === "https://api.liara.ir") {
+    if (url.pathname === "/v1/me" && init?.method === "GET") return Response.json({ user: { _id: "b".repeat(24) }, team: { _id: "a".repeat(24), balance: 10000 }, plans: {
+      projects: { "g2-standard": { available: true, region: "iran", price: 100 } }, projectBundlePlans: { "g2-standard": { basic: { available: true, price: 40 } } } } });
     if (url.pathname === "/v1/projects/sample-node" && init?.method === "GET") return Response.json({ project: {
-      _id: "c".repeat(24), project_id: "sample-node", type: "node", status: "running", planID: "g2-standard", envs: environmentValues } });
+      _id: "c".repeat(24), project_id: "sample-node", type: "node", status: "running", planID: "g2-standard", bundlePlanID: "basic", network: { _id: "d".repeat(24) }, readOnlyRootFilesystem: true, defaultSubdomain: true, envs: environmentValues } });
     if (url.pathname === "/v1/projects/update-envs" && init?.method === "POST") {
       const body = JSON.parse(String(init.body));
       if (body.project !== "sample-node" || !Array.isArray(body.variables)) throw Error("Wrong synthetic environment target");

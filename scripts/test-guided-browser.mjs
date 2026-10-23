@@ -227,6 +227,27 @@ try {
   await page.setViewportSize({ width: 360, height: 844 }); await page.evaluate(() => scrollTo(0, 0)); await page.screenshot({ path: join(output, "environment-build-decision-360.png"), fullPage: true });
   await journey.getByRole("button", { name: "رد آماده‌سازی", exact: true }).click();
   await journey.locator(".badge").filter({ hasText: "منتظر پاسخ شما" }).waitFor(); assert.deepEqual(repo.get(actor, envRun.id).repair.containerIds, []);
+  const programRun = repo.get(actor, envRun.id); programRun.state = "working"; repo.save(actor, programRun);
+  const programJob = await new CodeRepairAdapter(envConfig, store).propose(actor, { projectId: envFlow.id, parentRunId: programRun.id,
+    expectedSourceHash: envFlow.profile.sourceHash, goal: "بررسی برنامه انتشار با همان اطلاعات امن", allowedPaths: [], testFiles: [], execution: "container", build: envBuildPlan, validationOnly: true }, AbortSignal.timeout(5000));
+  programRun.repair = programJob; programRun.state = "needs_approval"; programRun.repairDecision = { sessionId: ownSession, expiresAt: Date.now() + 600000, consumed: false }; repo.save(actor, programRun);
+  await page.reload(); await journey.getByRole("button", { name: "بررسی برنامهٔ انتشار و اصلاح خودکار", exact: true }).click();
+  const program = journey.locator('section[aria-labelledby="mission-authority-title"]');
+  await program.getByRole("button", { name: "تأیید برنامه و شروع انتشار", exact: true }).waitFor();
+  await program.getByText(/۱۴۰|140/).waitFor();
+  assert.equal(await journey.getByRole("button", { name: "تأیید ساخت و بررسی برنامه", exact: true }).count(), 0, "the program review has one approval scope");
+  const beforeProgramReload = await modelRequests(), programBefore = repo.get(actor, envRun.id);
+  await page.reload(); await program.getByRole("button", { name: "تأیید برنامه و شروع انتشار", exact: true }).waitFor();
+  assert.equal(await modelRequests(), beforeProgramReload); assert.equal(repo.get(actor, envRun.id).authority.id, programBefore.authority.id);
+  assert.deepEqual(repo.get(actor, envRun.id).usage, programBefore.usage);
+  for (const width of [320, 360, 390, 768, 1280]) await layout(width, "bounded-publication-program-review");
+  await page.setViewportSize({ width: 360, height: 844 }); await program.getByText("محدوده و اطلاعات فنی برنامه", { exact: true }).click();
+  await program.getByRole("button", { name: "رد برنامه", exact: true }).focus();
+  assert.equal(await program.getByRole("button", { name: "رد برنامه", exact: true }).evaluate(node => node === document.activeElement), true);
+  await page.screenshot({ path: join(output, "program-review-360.png"), fullPage: true });
+  await program.getByRole("button", { name: "رد برنامه", exact: true }).press("Enter");
+  await program.getByText("اختیار برنامه پایان یافته است؛ رسیدها حفظ شده‌اند.", { exact: true }).waitFor();
+  assert.equal(repo.get(actor, envRun.id).repair.state, "cancelled"); assert.deepEqual(repo.get(actor, envRun.id).repair.containerIds, []);
   assert.deepEqual(errors, []); assert.deepEqual(external, []);
   await writeFile(join(output, "results.json"), JSON.stringify({ results, errors, external, model: "synthetic", cloudWrites: 0 }, null, 2));
   console.log(JSON.stringify({ states: results.length, widths: [320,360,390,768,1280], model: "synthetic", cloudWrites: 0, output }));

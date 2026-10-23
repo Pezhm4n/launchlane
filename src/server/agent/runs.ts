@@ -17,6 +17,9 @@ import { RunBudget } from "../policy/budget.ts";
 import { containsCredential, redact } from "../policy/redaction.ts";
 import { prepareProjectFlow, restoreProjectFlow, validateProjectAction } from "../application/project-flows.ts";
 import { CodeRepairAdapter } from "./code-repair.ts";
+import { authorizeMissionJob, authorizeMissionPublication, checkMissionCost } from "../application/mission-authority.ts";
+import type { LiaraAccountClient } from "../liara/catalog.ts";
+import { recordMissionArtifact } from "../policy/mission-authority.ts";
 import type { TarballReader } from "./npm-source.ts";
 import { projectBuildImage, pythonBuildImage } from "../../contracts/project-build.ts";
 import { GoalModelClient, type ModelMessage, type ModelPort, type ToolDefinition } from "./model.ts";
@@ -215,6 +218,7 @@ export async function decideAgentRepair(
   }
   store.db.exec("BEGIN IMMEDIATE");
   try {
+    store.db.prepare("UPDATE mission_authorities SET state='revoked' WHERE actor_id=? AND run_id=? AND state IN ('proposed','approved')").run(session.actorId, id);
     run.repair =
       decision === "approve"
         ? adapter.approve(session.actorId, jobId)
@@ -307,6 +311,7 @@ export async function decideAgentPublication(
     await validateProjectAction(config, store, session.actorId, run.publication.spec, AbortSignal.timeout(5000));
   }
   store.decide(actionId, session.actorId, session.id, run.publication.hash, decision, Date.now(), (action) => {
+    store.db.prepare("UPDATE mission_authorities SET state='revoked' WHERE actor_id=? AND run_id=? AND state IN ('proposed','approved')").run(session.actorId, id);
     run.publication = action;
     run.state = decision === "approve" ? "queued" : "needs_input";
     run.nextAction = decision === "reject" ? "reply" : null;
@@ -407,6 +412,7 @@ export async function driveAgentRun(
     pollDelayMs?: number;
     tarballReader?: TarballReader;
     checkAuthorization?: () => void;
+    authorityAccount?: LiaraAccountClient;
   } = {},
 ): Promise<void> {
   const repo = new AgentRepository(store),
@@ -489,6 +495,7 @@ export async function driveAgentRun(
       preparationMode = sourceProfile?.runtime === "python" || sourceProfile?.build || sourceProfile?.manifest.some(file => file.path === "package-lock.json") ? "build" : "native",
       availableTools = [...(run.channel === "conversation" ? agentTools : toolsForAgent(config, preparationMode)), completionTool],
       seen = new Set<string>();
+    execution: while (true) {
     if (run.destination && !run.destinationContinued &&
       (run.destination.state === "approved" || canReadDestinationResult(run.destination) || run.destination.state === "succeeded")) {
       if (run.destination.state !== "succeeded") {
@@ -606,6 +613,7 @@ export async function driveAgentRun(
         run.repair.message,
         409,
       );
+      if (run.authority?.state === "approved") recordMissionArtifact(store, session.actorId, session.id, run.authority, run.repair);
       const repaired = await prepareProjectFlow(
         config,
         store,
@@ -644,6 +652,7 @@ export async function driveAgentRun(
     while (true) {
       check();
       const messages: ModelMessage[] = [
+        ...(run.authority?.state === "approved" ? [{ role: "system" as const, content: `A human has approved a bounded publication program on the host for this same mission. Continue from actual receipts using the registered build/repair/publication proposal tools; do not ask the user to copy logs or press continue for an in-scope step. Proposals do not grant authority: the server independently checks scope, attempts, unchanged workload, price, provenance and expiry, then either continues or presents a fresh decision. No destination/resource/env/dependency change is covered. Keep the original goal and workload. An uncertain write must be observed, never reissued. Deadline: ${run.authority.plan.expiresAt}.` }] : []),
         { role: "system", content: destinationGuidance },
         { role: "system", content: preparationGuidance },
         { role: "system", content: investigationGuidance },
@@ -810,6 +819,24 @@ export async function driveAgentRun(
       if (name === "propose_publication" && object(result).ok) {
         run.publication = decodeAction(object(object(result).data).publicationProposal);
         ensure(run.publication.spec.version === 7 || run.publication.spec.version === 10 || run.publication.spec.version === 11, "INVALID_RESPONSE", "قرارداد انتشار معتبر نیست.");
+        if (run.authority?.state === "approved") {
+          try {
+            const authority = run.authority;
+            await checkMissionCost(config, store, session, authority, budget, signal, dependencies.authorityAccount);
+            check();
+            store.decide(run.publication.id, session.actorId, session.id, run.publication.hash, "approve", Date.now(), action => {
+              authorizeMissionPublication(store, session, authority, run, action);
+              store.db.prepare("INSERT INTO audit_events(action_id,actor_id,event,at) VALUES (?,?,?,?)").run(action.id, session.actorId, "mission_authorized", Date.now());
+              run.publication = action;
+              addEvent(run, "state", "انتشار این artifact در محدوده برنامه مصوب است؛ همان نسخه آزموده‌شده ارسال می‌شود.");
+              persist();
+            });
+            continue execution;
+          } catch (error) {
+            if (!(error instanceof AppError) || !error.code.startsWith("PLAN_")) throw error;
+            addEvent(run, "state", error.message);
+          }
+        }
         run.state = "needs_approval";
         run.nextAction = null;
         run.question = null;
@@ -836,6 +863,19 @@ export async function driveAgentRun(
           expiresAt: Math.min(session.expiresAt, Date.now() + 10 * 60000),
           consumed: false,
         };
+        if (run.authority?.state === "approved") {
+          store.db.exec("BEGIN IMMEDIATE");
+          try {
+            authorizeMissionJob(store, session, run.authority, run, run.repair, new CodeRepairAdapter(config, store));
+            addEvent(run, "state", "این تلاش اصلاح در محدوده برنامه مصوب است؛ آزمون و اصلاح در نسخه جدا ادامه می‌یابد.");
+            persist(); store.db.exec("COMMIT");
+            continue execution;
+          } catch (error) {
+            store.db.exec("ROLLBACK");
+            if (!(error instanceof AppError) || !error.code.startsWith("PLAN_")) throw error;
+            addEvent(run, "state", error.message);
+          }
+        }
         run.state = "needs_approval";
         run.nextAction = null;
         run.question = null;
@@ -848,6 +888,8 @@ export async function driveAgentRun(
         break;
       }
       persist();
+    }
+    break;
     }
   } catch (error) {
     const current = repo.get(session.actorId, id);
@@ -890,6 +932,7 @@ export function cancelAgentRun(
     409,
   );
   run.state = "cancelled";
+  store.db.prepare("UPDATE mission_authorities SET state='revoked' WHERE actor_id=? AND run_id=? AND state='approved'").run(actor, id);
   addEvent(run, "state", run.effect === "no_remote_changes"
     ? "بررسی متوقف شد. مراحل ثبت‌شده حفظ شدند؛ تغییری منتشر نشده است."
     : "بررسی متوقف شد. تغییر قبلی پس گرفته نشده است؛ رسید آن حفظ شده و نتیجه هنوز باید خوانده شود.");

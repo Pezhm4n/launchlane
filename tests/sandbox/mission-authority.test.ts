@@ -1,0 +1,40 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { test } from "node:test";
+import { missionAuthorityFixture } from "../helpers/mission-authority-fixture.ts";
+import { decideMissionAuthority } from "../../src/server/application/mission-authority.ts";
+import { driveAgentRun } from "../../src/server/agent/runs.ts";
+import { parseCodeRepairJob } from "../../src/contracts/code-repair.ts";
+import { createPublicationMission } from "../../src/server/application/publication-mission.ts";
+import { randomUUID } from "node:crypto";
+
+test("one plan drives actual isolated build failure, rejects an ineffective patch, repairs, tests and publishes only its exact artifact without another decision", async () => {
+  const f = await missionAuthorityFixture(true), authority = f.proposed.authority, actor = f.session.actorId;
+  try {
+    assert.ok(authority); assert.equal(authority.state, "proposed");
+    const original = readFileSync(join(f.project, "invoice.mjs"), "utf8");
+    assert.equal(f.counts().sends, 0); assert.equal(f.counts().patches, 0);
+    await decideMissionAuthority(f.config, f.store, f.session, f.proposed.id, f.proposed.revision, authority.id, authority.hash, "approve");
+    await driveAgentRun(f.config, f.store, f.session, f.proposed.id, f.dependencies);
+    const run = f.repo.get(actor, f.proposed.id);
+    assert.ok(run); assert.equal(run.state, "completed", JSON.stringify(run));
+    assert.equal(run.effect, "remote_changes_verified"); assert.equal(f.counts().patches, 2); assert.equal(f.counts().sends, 2);
+    const jobs = f.store.db.prepare("SELECT data_json,state FROM code_repair_jobs WHERE actor_id=? ORDER BY rowid").all(actor)
+      .map(row => parseCodeRepairJob({ ...JSON.parse(String(row.data_json)).job, state: row.state }));
+    assert.equal(jobs.length, 3); assert.equal(jobs[0]?.validationOnly, true); assert.equal(jobs[0]?.state, "failed");
+    assert.equal(jobs[1]?.state, "failed"); assert.equal(jobs[1]?.afterTest?.passed, false); assert.equal(jobs[1]?.artifact, null);
+    assert.equal(jobs[2]?.state, "succeeded"); assert.equal(jobs[2]?.beforeTest?.passed, false); assert.equal(jobs[2]?.afterTest?.passed, true);
+    assert.ok(run.repair?.artifact); assert.equal(run.publication?.spec.version, 7);
+    assert.ok(run.publication && "artifactHash" in run.publication.spec);
+    assert.equal(run.publication.spec.artifactHash, run.repair.artifact.archiveHash);
+    assert.notEqual(run.repair.artifact.sourceHash, authority.plan.rootSourceHash);
+    assert.equal(f.store.db.prepare("SELECT count(*) n FROM mission_artifacts").get()?.n, 1);
+    assert.equal(f.store.db.prepare("SELECT count(*) n FROM mission_steps").get()?.n, 4);
+    assert.equal(readFileSync(join(f.project, "invoice.mjs"), "utf8"), original);
+    const before = f.counts(); await driveAgentRun(f.config, f.store, f.session, run.id, f.dependencies);
+    const replay = await createPublicationMission(f.config, f.store, f.session, randomUUID(), { projectId: f.flow.id, sourceHash: f.flow.profile.sourceHash, path: "/", expectedText: "invoice service" }, AbortSignal.timeout(5000));
+    assert.equal(replay.created, false); assert.equal(replay.run.id, run.id); assert.deepEqual(replay.run.usage, run.usage);
+    assert.deepEqual(f.counts(), before); assert.equal(f.store.db.prepare("SELECT count(*) n FROM attempts").get()?.n, 1);
+  } finally { f.close(); }
+});

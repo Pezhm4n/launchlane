@@ -8,6 +8,7 @@ import type { ModelMessage } from "./model.ts";
 import { parseCodeRepairJob } from "../../contracts/code-repair.ts";
 import { fingerprint } from "../policy/action.ts";
 import type { PublicationMission } from "../../contracts/publication-mission.ts";
+import { missionAuthority } from "../policy/mission-authority.ts";
 
 export type AgentContext = {
   projectId: string | null;
@@ -184,6 +185,7 @@ export function agentView(run: AgentRecord): AgentView {
     destinationContinued: run.destinationContinued,
     mission: run.mission ?? null,
     channel: run.channel,
+    authority: run.authority ?? null,
   };
 }
 
@@ -216,6 +218,7 @@ export class AgentRepository {
           .get(actorId);
     if (!row) return null;
     const run = parseRecord(JSON.parse(string(row.data_json, 512 * 1024)));
+    run.authority = missionAuthority(this.store, actorId, run.id);
     if (run.publication) {
       run.publication = this.store.getAction(run.publication.id, actorId);
       if (run.publication.state === "succeeded") run.effect = "remote_changes_verified";
@@ -377,6 +380,7 @@ export class AgentRepository {
       const actor = string(row.actor_id),
         run = this.get(actor, string(row.id));
       if (!run) continue;
+      this.store.db.prepare("UPDATE mission_authorities SET state='revoked' WHERE actor_id=? AND run_id=? AND state='approved'").run(actor, run.id);
       for (const action of [run.publication, run.destination]) {
         if (action?.state === "approved" && !action.attemptId) {
           // A queued approval must not become an unattended write after a process restart.

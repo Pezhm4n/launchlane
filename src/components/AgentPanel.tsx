@@ -5,6 +5,7 @@ import { parseAgentView, type AgentView } from "../contracts/agent.ts";
 import { object } from "../contracts/validation.ts";
 import { api, ClientError } from "./api.ts";
 import { AgentPublication } from "./AgentPublication.tsx";
+import { MissionAuthorityReview } from "./MissionAuthorityReview.tsx";
 import { AgentDestination } from "./AgentDestination.tsx";
 import { RichText } from "./RichText.tsx";
 import { FloatingAssistant } from "./FloatingAssistant.tsx";
@@ -506,6 +507,16 @@ export function AgentPanel({
     } catch (cause) { failed(cause); }
     finally { setBusy(false); }
   }
+  async function planRequest(decision?: "approve" | "reject") {
+    if (!run || busy || disabled) return;
+    setBusy(true); setError(null);
+    try {
+      accept(await api(`/api/agent/runs/${run.id}`, decodeRun, { csrf, body: decision && run.authority
+        ? { operation: "plan-decision", revision: run.revision, authorityId: run.authority.id, hash: run.authority.hash, decision }
+        : { operation: "plan-proposal", revision: run.revision } }));
+    } catch (cause) { failed(cause); }
+    finally { setBusy(false); }
+  }
   async function destinationRequest(decision?: "approve" | "reject") {
     if (!run?.destination || busy || disabled) return;
     setRetryable(null);
@@ -866,7 +877,7 @@ export function AgentPanel({
                   </pre>
                 ) : null}
               </details>
-              {run.state === "needs_approval" && run.repair.state === "proposed" ? (
+              {run.state === "needs_approval" && run.repair.state === "proposed" && run.authority?.state !== "proposed" ? (
                 <>
                   <p>
                     این تصمیم فقط {run.repair.validationOnly ? "نصب و بررسی ساخت و اجرای نسخه جدا" : "اصلاح محلی و اجرای معیار بالا"} را مجاز می‌کند. انتشار نیاز به تصمیم
@@ -920,6 +931,10 @@ export function AgentPanel({
               ) : null}
             </section>
           ) : null}
+          {run.authority ? <MissionAuthorityReview authority={run.authority} runState={run.state} disabled={disabled || busy || active || !sameProject}
+            onDecision={decision => void planRequest(decision)} /> : run.mission && run.repair?.validationOnly && run.state === "needs_approval" && appSelected ? (
+              <button type="button" disabled={disabled || busy || !sameProject} onClick={() => void planRequest()}>بررسی برنامهٔ انتشار و اصلاح خودکار</button>
+            ) : null}
           {run.destination && !run.destinationContinued ? <AgentDestination action={run.destination} waiting={run.state === "needs_approval" && (run.destination.state === "awaiting_approval" || run.destination.state === "expired")}
             disabled={disabled || busy || active || !sameProject}
             resumable={run.destination.state === "succeeded" && !run.destinationContinued}
