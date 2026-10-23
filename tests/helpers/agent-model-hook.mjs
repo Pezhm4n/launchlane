@@ -3,6 +3,7 @@ import { appendFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 const nativeFetch = globalThis.fetch;
 let environmentValues = [{ key: "EXISTING_PRIVATE", value: "existing-private-fixture-value" }];
+let lifecycleScale = 1, lifecyclePresent = true;
 const reply = (name, args = {}) =>
   Response.json({
     choices: [
@@ -60,8 +61,17 @@ globalThis.fetch = async (input, init) => {
   if (process.env.LAUNCHLANE_ENVIRONMENT_FIXTURE === "true" && url.origin === "https://api.liara.ir") {
     if (url.pathname === "/v1/me" && init?.method === "GET") return Response.json({ user: { _id: "b".repeat(24) }, team: { _id: "a".repeat(24), balance: 10000 }, plans: {
       projects: { "g2-standard": { available: true, region: "iran", price: 100 } }, projectBundlePlans: { "g2-standard": { basic: { available: true, price: 40 } } } } });
-    if (url.pathname === "/v1/projects/sample-node" && init?.method === "GET") return Response.json({ project: {
-      _id: "c".repeat(24), project_id: "sample-node", type: "node", status: "running", planID: "g2-standard", bundlePlanID: "basic", network: { _id: "d".repeat(24) }, readOnlyRootFilesystem: true, defaultSubdomain: true, envs: environmentValues } });
+    if (url.pathname === "/v1/projects/sample-node" && init?.method === "GET") return lifecyclePresent ? Response.json({ project: {
+      _id: "c".repeat(24), project_id: "sample-node", type: "node", status: "running", scale: lifecycleScale, planID: "g2-standard", bundlePlanID: "basic", network: { _id: "d".repeat(24) }, readOnlyRootFilesystem: true, defaultSubdomain: true, envs: environmentValues.map(row => ({ ...row, encrypted: false, _id: "e".repeat(24) })) } }) : new Response(null, { status: 404 });
+    if (url.pathname === "/v1/projects/sample-node/applets" && init?.method === "GET") return Response.json({ applets: lifecycleScale ? [{ state: "RUNNING" }] : [] });
+    if (url.pathname === "/v1/projects/sample-node/actions/scale" && init?.method === "POST") {
+      if (JSON.stringify(JSON.parse(String(init.body))) !== '{"scale":0}') throw Error("Unexpected lifecycle effect");
+      lifecycleScale = 0; appendFileSync(process.env.LAUNCHLANE_AGENT_FIXTURE_LOG, JSON.stringify({ lifecycleWrite: "stop" }) + "\n"); return new Response();
+    }
+    if (url.pathname === "/v1/projects/sample-node" && init?.method === "DELETE") {
+      if (lifecycleScale !== 0) throw Error("Running app deletion denied");
+      lifecyclePresent = false; appendFileSync(process.env.LAUNCHLANE_AGENT_FIXTURE_LOG, JSON.stringify({ lifecycleWrite: "delete" }) + "\n"); return new Response();
+    }
     if (url.pathname === "/v1/projects/update-envs" && init?.method === "POST") {
       const body = JSON.parse(String(init.body));
       if (body.project !== "sample-node" || !Array.isArray(body.variables)) throw Error("Wrong synthetic environment target");

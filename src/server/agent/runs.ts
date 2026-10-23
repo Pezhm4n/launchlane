@@ -910,7 +910,7 @@ export async function driveAgentRun(
         run,
         "tool",
         `${toolLabels[name]}: ${object(result).ok ? "نتیجه دریافت شد" : "این مرحله کامل نشد"}`,
-        { tool: name, callId: call.id },
+        { tool: name, callId: call.id, outcome: object(result).ok ? "succeeded" : "failed" },
       );
       if (name === "propose_publication" && object(result).ok) {
         run.publication = decodeAction(object(object(result).data).publicationProposal);

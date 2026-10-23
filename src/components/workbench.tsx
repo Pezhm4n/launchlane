@@ -459,7 +459,8 @@ export function Workbench() {
     const saved=await api(`/api/project-flows?id=${projectId}`,decodeFlow);
     applyFlow(saved);
     writeLocation(locationState().mode,projectId,true);
-  },[applyFlow,writeLocation]);
+    await refresh();
+  },[applyFlow,writeLocation,refresh]);
   useEffect(() => {
     const controller = new AbortController(),
       state = locationState();
@@ -1570,7 +1571,8 @@ export function Workbench() {
                 onSessionExpired={onSessionExpired}
               />
             </WorkbenchView>
-            {libraryOpen ? <ProjectLibrary disabled={disabled}
+            {libraryOpen ? <ProjectLibrary disabled={disabled} csrf={workspace?.session.csrfToken ?? ""}
+              onRemoved={async active => { if (active) { applyFlow({ flow: null, action: null }); writeLocation("source", null); setEditingProject(true); } await refresh(); }}
               onExpired={onSessionExpired}
               onClose={() => { setLibraryOpen(false); requestAnimationFrame(() => libraryTrigger.current?.focus()); }}
               onNew={() => { setLibraryOpen(false); setEditingProject(true); navigate("source"); requestAnimationFrame(() => chooseProjectHeading.current?.focus()); }}

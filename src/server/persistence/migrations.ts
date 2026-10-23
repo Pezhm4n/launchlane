@@ -221,4 +221,14 @@ CREATE TABLE mcp_connections (
 CREATE INDEX mcp_connections_actor ON mcp_connections(actor_id,created_at);
 `,
   },
+  {
+    version: 17,
+    sql: `
+CREATE TABLE lifecycle_progress (action_id TEXT PRIMARY KEY REFERENCES actions(id), data_json TEXT NOT NULL) STRICT;
+CREATE TABLE project_archives (
+  project_id TEXT PRIMARY KEY REFERENCES project_flows(id), actor_id TEXT NOT NULL, source_hash TEXT NOT NULL,
+  archived_at INTEGER NOT NULL, session_id TEXT NOT NULL
+) STRICT;
+`,
+  },
 ] as const;

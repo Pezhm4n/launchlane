@@ -14,6 +14,8 @@ import { AgentNetwork } from "./AgentNetwork.tsx";
 import { RichText } from "./RichText.tsx";
 import { FloatingAssistant } from "./FloatingAssistant.tsx";
 import { ProjectEnvironment } from "./ProjectEnvironment.tsx";
+import { AgentSteps } from "./AgentSteps.tsx";
+import { ProjectLifecycle } from "./ProjectLifecycle.tsx";
 import { ChatWelcome } from "./ChatWelcome.tsx";
 import { WorkspaceGlyph } from "./WorkspaceGlyph.tsx";
 import assistantStyles from "./AssistantPublication.module.css";
@@ -141,6 +143,7 @@ export function AgentPanel({
   const [run, setRun] = useState<AgentView | null>(null),
     [draft, setDraft] = useState(""),
     [busy, setBusy] = useState(false),
+    [changingPlan, setChangingPlan] = useState(false),
     [error, setError] = useState<ClientError | null>(null),
     [restoring, setRestoring] = useState(true),
     [newCount, setNewCount] = useState(0),
@@ -152,6 +155,7 @@ export function AgentPanel({
     );
   const [missionPath, setMissionPath] = useState("/"), [expectedText, setExpectedText] = useState("");
   const [environmentLocked, setEnvironmentLocked] = useState(false);
+  const [lifecycleLocked, setLifecycleLocked] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false), [assistantPublication, setAssistantPublication] = useState(false);
   const assistantPublicationHost = useRef<HTMLDivElement>(null);
   const publicationInAssistant = guided && assistantOpen && assistantPublication;
@@ -244,8 +248,8 @@ export function AgentPanel({
     return () => controller.abort();
   }, [accept, failed, projectId, guided, chatOnly]);
   useEffect(() => {
-    onLockChanged?.(busy || active || environmentLocked || ["approved", "executing", "observing", "uncertain"].includes(run?.publication?.state ?? "") || ["approved", "executing", "observing", "uncertain"].includes(run?.destination?.state ?? ""));
-  }, [busy, active, environmentLocked, run?.publication?.state, run?.destination?.state, onLockChanged]);
+    onLockChanged?.(busy || active || environmentLocked || lifecycleLocked || ["approved", "executing", "observing", "uncertain"].includes(run?.publication?.state ?? "") || ["approved", "executing", "observing", "uncertain"].includes(run?.destination?.state ?? ""));
+  }, [busy, active, environmentLocked, lifecycleLocked, run?.publication?.state, run?.destination?.state, onLockChanged]);
   useEffect(() => {
     if (!active || !runId) return;
     const controller = new AbortController();
@@ -557,11 +561,11 @@ export function AgentPanel({
   }
   async function destinationChoice(planId: string, bundleId: string) {
     if (!run?.destination || busy || disabled) return;
-    setBusy(true); setError(null);
+    setBusy(true); setChangingPlan(true); setError(null);
     try { accept(await api(`/api/agent/runs/${run.id}`, decodeRun, { csrf,
       body: { operation: "destination-choice", revision: run.revision, planId, bundleId } })); }
     catch (cause) { failed(cause); }
-    finally { setBusy(false); }
+    finally { setBusy(false); setChangingPlan(false); }
   }
   function follow() {
     const node = transcript.current;
@@ -592,9 +596,7 @@ export function AgentPanel({
     : run.effect === "network_created" ? "شبکه با هویت واقعی تأیید شد؛ ساخت مقصد و انتشار هنوز انجام نشده‌اند."
     : run.effect === "remote_changes_unverified" ? "ارسال به سرویس آغاز شده است؛ نتیجه نهایی هنوز تأیید نشده است."
     : "تغییری در سایت منتشر نشده است."}</p> : null;
-  const runSteps = run ? <details><summary>مراحل بررسی</summary><ol className="agent-events">
-    {run.events.filter(event => event.kind !== "user" && event.kind !== "assistant").map(event => <li key={event.sequence}><p>{event.message}</p></li>)}
-  </ol></details> : null;
+  const runSteps = run ? <AgentSteps run={run} active={active} /> : null;
   const errorNotice = error ? (
         <div id="agent-error" role="alert" className="note note-danger">
           <p>{error.message}</p>
@@ -859,7 +861,7 @@ export function AgentPanel({
       {run && sameProject ? (
         <>
           {!guided ? conversation : null}
-          {guided && !active && run.events.filter(event => event.kind === "assistant").at(-1)?.message ? <div className="mission-summary"><RichText text={run.events.filter(event => event.kind === "assistant").at(-1)?.message ?? ""} /></div> : null}
+          {guided && !active && run.events.filter(event => event.kind === "assistant").at(-1)?.message ? <div className="mission-summary"><p>{run.nextAction === "configure_env" ? "پروژه بررسی شد. برای ادامه، تنظیمات باقی‌ماندهٔ برنامه را تکمیل کنید." : run.state === "completed" ? "نتیجهٔ بررسی انتشار آماده است؛ نسخه و پاسخ سایت را در کارت زیر ببینید." : "نتیجهٔ بررسی آماده است. اقدام بعدی را در کارت‌های زیر دنبال کنید."}</p><details><summary>توضیح کامل بررسی</summary><RichText text={run.events.filter(event => event.kind === "assistant").at(-1)?.message ?? ""} /></details></div> : null}
           {!chatOnly ? runEffect : null}
           {!chatOnly && run.state === "failed" ? (
             <p className="note">
@@ -978,7 +980,7 @@ export function AgentPanel({
             disabled={disabled || busy || active || !sameProject} resumable={run.network.state === "succeeded" && !run.networkContinued}
             onDecision={(decision, acknowledged) => void networkRequest(decision, acknowledged)} onObserve={() => void networkRequest()} /> : null}
           {run.destination && !run.destinationContinued ? <AgentDestination action={run.destination} recommendation={run.destinationRecommendation ?? null}
-            onPlanChange={(planId, bundleId) => void destinationChoice(planId, bundleId)} waiting={run.state === "needs_approval" && (run.destination.state === "awaiting_approval" || run.destination.state === "expired")}
+            changingPlan={changingPlan} onPlanChange={(planId, bundleId) => void destinationChoice(planId, bundleId)} waiting={run.state === "needs_approval" && (run.destination.state === "awaiting_approval" || run.destination.state === "expired")}
             disabled={disabled || busy || active || !sameProject}
             resumable={run.destination.state === "succeeded" && !run.destinationContinued}
             onDecision={(decision) => void destinationRequest(decision)}
@@ -1019,6 +1021,8 @@ export function AgentPanel({
           {!chatOnly ? runSteps : null}
         </>
       ) : null}
+      {guided && projectId ? <ProjectLifecycle key={projectId} projectId={projectId} csrf={csrf} disabled={disabled || busy || active || environmentLocked || run?.state === "needs_approval"}
+        onLockChanged={setLifecycleLocked} onExpired={onExpired} onChanged={() => onProjectChanged(projectId)} /> : null}
       {!chatOnly || !run || !sameProject ? errorNotice : null}
       {!guided ? composer : null}
     </section>;

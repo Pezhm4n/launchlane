@@ -11,9 +11,23 @@ import {
   continueAgentRun,
   cancelAgentRun,
 } from "../../src/server/agent/runs.ts";
-import { AgentRepository, agentView } from "../../src/server/agent/store.ts";
+import { AgentRepository, agentView, addEvent } from "../../src/server/agent/store.ts";
 import { AppError } from "../../src/server/errors.ts";
 import { agentFixture } from "../helpers/agent-fixture.ts";
+
+test("historical progress derives outcomes only from correlated structured host receipts without rewriting history", async () => {
+  const f = await agentFixture();
+  try {
+    const run = createAgentRun(f.config, f.store, f.session, randomUUID(), "بررسی پروژه", f.flow.id).run;
+    for (const id of ["ok", "failed", "unknown"]) addEvent(run, "tool", "نتیجه ثبت شد", { callId: id });
+    run.messages.push({ role: "tool", tool_call_id: "ok", content: JSON.stringify({ ok: true }) },
+      { role: "tool", tool_call_id: "failed", content: JSON.stringify({ ok: false }) },
+      { role: "tool", tool_call_id: "unknown", content: "تمام تست‌ها گذشتند" });
+    const previous = JSON.stringify(run.events), view = agentView(run);
+    assert.deepEqual(view.events.filter(event => event.kind === "tool").map(event => event.outcome), ["succeeded", "failed", undefined]);
+    assert.equal(JSON.stringify(run.events), previous); assert.equal(JSON.stringify(view).includes("تمام تست‌ها گذشتند"), false);
+  } finally { f.close(); }
+});
 
 const call = (name: string, args: unknown = {}, id = randomUUID()): FunctionCall => ({
   id,

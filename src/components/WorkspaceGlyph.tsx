@@ -1,8 +1,12 @@
 import type { CSSProperties } from "react";
 
-export type WorkspaceGlyphName = "cloud" | "code" | "branch" | "arrow" | "spark" | "shield" | "message" | "close" | "send" | "check" | "search" | "expand" | "collapse" | "copy" | "stop" | "down";
+export type WorkspaceGlyphName = "cloud" | "code" | "branch" | "arrow" | "spark" | "shield" | "message" | "close" | "send" | "check" | "search" | "expand" | "collapse" | "copy" | "stop" | "down" | "eye" | "eye-off" | "loader" | "trash";
 
 const paths: Record<WorkspaceGlyphName, string[]> = {
+  eye: ["M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z", "M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"],
+  "eye-off": ["m3 3 18 18M10.6 5.1 12 5c6.5 0 10 7 10 7a20 20 0 0 1-3.1 4M6.2 6.2A23 23 0 0 0 2 12s3.5 7 10 7a12 12 0 0 0 5.8-1.8", "M9.9 9.9a3 3 0 0 0 4.2 4.2"],
+  loader: ["M12 3a9 9 0 1 1-9 9"],
+  trash: ["M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"],
   cloud: ["M7 18a5 5 0 1 1 .7-9.95A6 6 0 0 1 19 10a4 4 0 0 1-1 8", "M12 20V11m-3 3 3-3 3 3"],
   code: ["m8 7-5 5 5 5m8-10 5 5-5 5m-3-13-2 20"],
   branch: ["M6 7v10m0-6h8a4 4 0 0 0 4-4", "M6 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM18 7a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"],

@@ -20,6 +20,7 @@ import { parseNodeRuntime, parseNodeVersion } from "./node-runtime.ts";
 import { sourceFileByteLimit, SOURCE_MAX_BYTES, SOURCE_MAX_FILES } from "./source-limits.ts";
 import { parsePythonRuntime } from "./python-runtime.ts";
 import { parseNetworkSpec, parseNetworkProgress } from "./network.ts";
+import { parseLifecycleSpec, parseLifecycleProgress } from "./project-lifecycle.ts";
 
 function nullableString(value: unknown, max = 256): string | null {
   return value === null ? null : string(value, max);
@@ -81,18 +82,19 @@ export function decodeAction(value: unknown): Action {
   const state = states.find((state) => state === raw.state);
   ensure(
     state &&
-      (spec.version === 1 || spec.version === 2 || spec.version === 3 || spec.version === 4 || spec.version === 5 || spec.version === 6 || spec.version === 7 || spec.version === 8 || spec.version === 9 || spec.version === 13) &&
-      (spec.operation === "deploy" || spec.operation === "restart" || (spec.version === 8 && spec.operation === "create_app") || (spec.version === 9 && spec.operation === "update_env") || (spec.version === 13 && spec.operation === "create_network")),
+      (spec.version === 1 || spec.version === 2 || spec.version === 3 || spec.version === 4 || spec.version === 5 || spec.version === 6 || spec.version === 7 || spec.version === 8 || spec.version === 9 || spec.version === 13 || spec.version === 14) &&
+      (spec.operation === "deploy" || spec.operation === "restart" || (spec.version === 8 && spec.operation === "create_app") || (spec.version === 9 && spec.operation === "update_env") || (spec.version === 13 && spec.operation === "create_network") || (spec.version === 14 && (spec.operation === "stop_app" || spec.operation === "delete_app"))),
     "INVALID_RESPONSE",
     "ساختار اقدام معتبر نیست.",
   );
   let parsedSpec: ActionSpec;
-  if (spec.version === 13) parsedSpec = parseNetworkSpec(spec);
+  if (spec.version === 14) parsedSpec = parseLifecycleSpec(spec);
+  else if (spec.version === 13) parsedSpec = parseNetworkSpec(spec);
   else if (spec.version === 9) parsedSpec = parseEnvironmentSpec(spec);
   else if (spec.version === 8) parsedSpec = parseProvisionSpec(spec);
   else {
     ensure(spec.operation === "deploy" || spec.operation === "restart", "INVALID_RESPONSE", "نوع اقدام معتبر نیست.");
-    const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12 | 13}>, "scope" | "operation" | "sourceHash" | "args"> = {
+    const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12 | 13 | 14}>, "scope" | "operation" | "sourceHash" | "args"> = {
       operation: spec.operation,
       scope: { teamId: string(scope.teamId), app: string(scope.app) },
       sourceHash: nullableString(spec.sourceHash),
@@ -144,6 +146,7 @@ export function decodeAction(value: unknown): Action {
     attemptId: nullableString(raw.attemptId),
     remoteId: nullableString(raw.remoteId),
     errorCode: nullableString(raw.errorCode),
+    ...(raw.lifecycle === undefined ? {} : { lifecycle: parseLifecycleProgress(raw.lifecycle) }),
     ...(raw.deployment === undefined
       ? {}
       : { deployment: parseDeploymentProgress(raw.deployment) }),

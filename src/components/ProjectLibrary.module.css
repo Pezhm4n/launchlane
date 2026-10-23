@@ -9,4 +9,6 @@
 .meta { margin: 0; color: var(--color-muted); font-size: var(--text-sm); overflow-wrap: anywhere; }
 .empty { display: grid; justify-items: start; gap: var(--space-3); padding: var(--space-5); background: var(--color-field); border-radius: var(--radius-lg); }
 .footer { margin-block-start: var(--space-4); display: flex; gap: var(--space-3); flex-wrap: wrap; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.actions button { display: inline-flex; align-items: center; gap: var(--space-2); }
 @media (min-width: 40rem) { .dialog { padding: var(--space-6); } }

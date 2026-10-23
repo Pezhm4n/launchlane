@@ -35,6 +35,7 @@ export type AgentEvent = {
   at: number;
   tool?: string;
   callId?: string;
+  outcome?: "succeeded" | "failed";
 };
 export type AgentView = {
   id: string;
@@ -82,6 +83,7 @@ export function parseAgentView(value: unknown): AgentView {
       sequence = integer(event.sequence, 1, 10000);
     ensure(sequence > previous, "INVALID_RESPONSE", "ترتیب رویدادها معتبر نیست.");
     previous = sequence;
+    ensure(event.outcome === undefined || event.outcome === "succeeded" || event.outcome === "failed", "INVALID_RESPONSE", "نتیجه مرحله معتبر نیست.");
     const kind = event.kind;
     ensure(
       kind === "user" ||
@@ -100,6 +102,7 @@ export function parseAgentView(value: unknown): AgentView {
       at: integer(event.at, 0, Number.MAX_SAFE_INTEGER),
       ...(event.tool === undefined ? {} : { tool: string(event.tool, 80) }),
       ...(event.callId === undefined ? {} : { callId: string(event.callId, 80) }),
+      ...(event.outcome === undefined ? {} : { outcome: event.outcome }),
     };
   });
   const destination = row.destination === null || row.destination === undefined ? null : decodeAction(row.destination);

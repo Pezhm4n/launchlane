@@ -6,6 +6,8 @@ import { decodeAction } from "../contracts/client-decode.ts";
 import { environmentKey, isPublicClientEnvironmentKey } from "../contracts/environment.ts";
 import { object, string } from "../contracts/validation.ts";
 import { api, ClientError } from "./api.ts";
+import { WorkspaceGlyph } from "./WorkspaceGlyph.tsx";
+import styles from "./ProjectEnvironment.module.css";
 
 function result(value: unknown) { return decodeAction(object(value).action); }
 export function ProjectEnvironment({ runId, csrf, disabled, onContinue, onLockChanged, onExpired }: {
@@ -15,6 +17,7 @@ export function ProjectEnvironment({ runId, csrf, disabled, onContinue, onLockCh
     [values, setValues] = useState<Record<string, string>>({}), [busy, setBusy] = useState(false), [loading, setLoading] = useState(true), [error, setError] = useState<string | null>(null);
   const key = useRef<string | null>(null);
   const [publicNames, setPublicNames] = useState<Record<string, boolean>>({});
+  const [visible, setVisible] = useState<Record<string, boolean>>({});
   const [imported, setImported] = useState<{ available: string[]; needsReview: string[]; publicKeys: string[] }>({ available: [], needsReview: [], publicKeys: [] });
   const failed = useCallback((cause: unknown) => {
     if (cause instanceof ClientError && cause.code === "AUTH_REQUIRED") onExpired();
@@ -34,7 +37,7 @@ export function ProjectEnvironment({ runId, csrf, disabled, onContinue, onLockCh
     if (data.action && ["cancelled", "expired", "failed"].includes(data.action.state)) key.current = null;
   }, [runId]);
   useEffect(() => {
-    const controller = new AbortController(); setValues({}); setPublicNames({}); setAction(null); setLoading(true); key.current = null;
+    const controller = new AbortController(); setValues({}); setVisible({}); setPublicNames({}); setAction(null); setLoading(true); key.current = null;
     void load(controller.signal).catch(cause => { if (!controller.signal.aborted) failed(cause); }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [load, failed]);
@@ -61,7 +64,7 @@ export function ProjectEnvironment({ runId, csrf, disabled, onContinue, onLockCh
     key.current ??= crypto.randomUUID(); setBusy(true); setError(null);
     const variables = names.filter(name => values[name]).map(name => ({ key: name, value: values[name], public: publicNames[name] === true }));
     // Values belong only to this submission; neither restoration nor a draft cache may reveal them.
-    setValues({});
+    setValues({}); setVisible({});
     try { setAction(await api("/api/project-environment", result, { csrf, body: { operation: "propose", runId, requestKey: key.current, variables } })); }
     catch (cause) { failed(cause); await load().catch(failed); key.current = null; }
     finally { setBusy(false); }
@@ -74,9 +77,10 @@ export function ProjectEnvironment({ runId, csrf, disabled, onContinue, onLockCh
     catch (cause) { failed(cause); await load().catch(failed); key.current = null; }
     finally { setBusy(false); }
   }
-  return <section className="agent-repair" aria-labelledby="environment-title">
+  return <section className={`agent-repair ${styles.panel}`} aria-labelledby="environment-title" aria-busy={busy}>
     <h3 id="environment-title">اطلاعات امن برنامه</h3>
-    <p>مقصد: <bdi>{app || "در حال دریافت…"}</bdi>. مقدارها وارد گفت‌وگو و سابقه عمومی نمی‌شوند. برای حفظ مقدار فعلی، کادر آن را خالی بگذارید.</p>
+    <p className={styles.intro}>تنظیمات <bdi>{app || "برنامه"}</bdi> اینجا امن نگهداری می‌شوند. تنظیمات پوشه، در صورت وجود، آمادهٔ استفاده‌اند؛ فقط موارد باقی‌مانده را تکمیل کنید.</p>
+    {busy ? <p role="status" className={styles.status}><WorkspaceGlyph name="loader" />در حال بررسی همین تنظیمات…</p> : null}
     {loading ? <p role="status">در حال بازیابی وضعیت…</p> : null}
     {error ? <p className="note" role="alert">{error}</p> : null}
     {!loading && (!action || ["cancelled", "expired", "failed"].includes(action.state)) ? <form onSubmit={event => void submit(event)} autoComplete="off">
@@ -85,14 +89,16 @@ export function ProjectEnvironment({ runId, csrf, disabled, onContinue, onLockCh
         <button type="button" disabled={disabled || busy || imported.publicKeys.filter(name => imported.available.includes(name)).some(name => !publicNames[name])} onClick={() => void reviewImported()}>مرور و استفاده از تنظیمات پوشه</button></div> : null}
       {imported.needsReview.length ? <p className="note">این تنظیمات پیش از استفاده در سایت زنده نیاز به بررسی دارند: {imported.needsReview.map(name => <bdi key={name}> {name} </bdi>)}. نشانی محلی، مقدار کوتاه یا ارجاع به متغیر دیگر خودکار اعمال نمی‌شود.</p> : null}
       <details open={!imported.available.length}><summary>واردکردن یا تغییر دستی مقدارها</summary>
-      {names.map(name => <div key={name}><label htmlFor={`environment-${name}`}><bdi>{name}</bdi></label>
-        <input id={`environment-${name}`} type="password" autoComplete="new-password" dir="ltr" minLength={publicNames[name] ? 0 : 4} maxLength={4096} value={values[name] ?? ""}
+      <div className={styles.fields}>{names.map(name => <div className={styles.field} key={name}><label htmlFor={`environment-${name}`}><bdi>{name}</bdi></label>
+        <div className={styles.input}><input id={`environment-${name}`} type={visible[name] ? "text" : "password"} autoComplete="new-password" dir="ltr" minLength={publicNames[name] ? 0 : 4} maxLength={4096} value={values[name] ?? ""}
           aria-describedby={isPublicClientEnvironmentKey(name) ? `visibility-${name}` : undefined}
           onChange={event => setValues(current => ({ ...current, [name]: event.target.value }))} disabled={disabled || busy} />
+          <button className="button-quiet" type="button" aria-label={`${visible[name] ? "پنهان‌کردن" : "نمایش"} مقدار ${name}`} aria-pressed={visible[name] === true} disabled={disabled || busy}
+            onClick={() => setVisible(current => ({ ...current, [name]: !current[name] }))}><WorkspaceGlyph name={visible[name] ? "eye-off" : "eye"} /></button></div>
         {isPublicClientEnvironmentKey(name) ? <p className="note" id={`visibility-${name}`}>مقدار این متغیر در فایل‌های سایت برای بازدیدکنندگان قابل دیدن است؛ رمز یا کلید محرمانه وارد نکنید.</p> : null}
-        <label className="radio-option"><input type="checkbox" aria-label={`عمومی بودن ${name}`} checked={publicNames[name] === true} onChange={event => setPublicNames(current => ({ ...current, [name]: event.target.checked }))} disabled={disabled || busy} />این مقدار عمومی است؛ مثلاً روشن/خاموش</label></div>)}
+        <label className={styles.visibility}><input type="checkbox" aria-label={`عمومی بودن ${name}`} checked={publicNames[name] === true} onChange={event => setPublicNames(current => ({ ...current, [name]: event.target.checked }))} disabled={disabled || busy} />این مقدار محرمانه نیست</label></div>)}</div>
       <p className="hint">مقدار محرمانه دست‌کم ۴ نویسه دارد. متغیرهای اجرایی مانند PORT توسط تنظیمات اجرا کنترل می‌شوند.</p>
-      <button type="submit" disabled={disabled || busy || !names.some(name => values[name]) || names.some(name => values[name] && isPublicClientEnvironmentKey(name) && !publicNames[name])}>مرور تغییر اطلاعات برنامه</button>
+      <div className={styles.actions}><button type="submit" disabled={disabled || busy || !names.some(name => values[name]) || names.some(name => values[name] && isPublicClientEnvironmentKey(name) && !publicNames[name])}><WorkspaceGlyph name="shield" />مرور تغییر اطلاعات برنامه</button></div>
       </details>
     </form> : null}
     {action?.spec.version === 9 ? <>
@@ -110,6 +116,6 @@ export function ProjectEnvironment({ runId, csrf, disabled, onContinue, onLockCh
           : action.state === "succeeded" ? <><p role="status">ذخیرهٔ تنظیمات مقصد بررسی شد. سلامت برنامه هنوز با این نتیجه تأیید نمی‌شود.</p><button type="button" disabled={disabled || busy} onClick={onContinue}>ادامه بررسی و انتشار</button></>
             : <p role="status">این تغییر اجرا نشده یا تأیید نشده است؛ می‌توانید اطلاعات را دوباره مرور کنید.</p>}
     </> : null}
-    {error ? <button type="button" className="button-secondary" disabled={busy || disabled} onClick={() => void load().catch(failed)}>دریافت وضعیت ثبت‌شده</button> : null}
+    {error ? <div className={styles.actions}><button type="button" className="button-secondary" disabled={busy || disabled} onClick={() => void load().catch(failed)}><WorkspaceGlyph name="search" />دریافت وضعیت ثبت‌شده</button></div> : null}
   </section>;
 }

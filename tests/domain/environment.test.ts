@@ -45,7 +45,7 @@ async function fixture() {
       if (lose) throw new Error("lost sensitive transport body " + changedValue);
       return new Response("discarded provider content " + changedValue);
     }
-    reads++; return Response.json({ project: { _id: targetId, project_id: app, type: "node", planID: "g2-standard", status: "running", envs: invalid ? [{ key: "EXISTING_PRIVATE", value: 9 }] : variables } });
+    reads++; return Response.json({ project: { _id: targetId, project_id: app, type: "node", planID: "g2-standard", status: "running", envs: invalid ? [{ key: "EXISTING_PRIVATE", value: 9 }] : variables.map(row => ({ ...row, encrypted: false, _id: "d".repeat(24) })) } });
   });
   return { ...f, config, flow, repo, run, actor, app, appId, client, bodies, get writes() { return writes; }, get reads() { return reads; },
     get lose() { return lose; }, set lose(value: boolean) { lose = value; }, get invalid() { return invalid; }, set invalid(value: boolean) { invalid = value; }, get targetId() { return targetId; }, set targetId(value: string) { targetId = value; },

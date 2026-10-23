@@ -1,5 +1,15 @@
 # برنامه اجرایی Launchlane
 
+## حذف پروژه و خطای env؛ A03/A05/A07/A08/A17 / ۲۰۲۶-۱۰-۲۳
+
+زیرکار داشبورد: حذف تأییدشدهٔ نسخهٔ بدون اثر ابری، نگهداری journal و source، رد بازکردن نسخهٔ حذف‌شده و حفظ تصمیم پروژهٔ دیگر پیاده شده‌اند. اثر deploy/create ناموفق و خانوادهٔ repair نیز در server بررسی می‌شود؛ وجود منبع/نتیجهٔ نامعلوم مانع حذف ساده از فهرست است. پنل موجود انتشار و همان پنل داخل دستیار، توقف و حذف مقصد را با ActionSpec v14، claim و receipt مشترک عرضه می‌کنند. [ADR0023](docs/decisions/0023-project-removal-and-stop-receipts.md) و [شاهد](docs/evidence/project-removal-and-env-response.md) مرز محلی و زنده را جدا ثبت می‌کنند. scope نمونه‌ها و صورتحساب از scale صفر استنتاج نمی‌شود. A05/A08 کلی partial می‌مانند.
+
+زیرکار A07/AC22: خطای WELCOME_MESSAGE در read-only واقعی به metadata پاسخ لیارا نسبت داده شد؛ fixture اصلی پس از افزودن همان metadata شکست خورد و adapter اصلاح شد. قرارداد browser input همچنان strict است؛ scope، merge و secret redaction ضعیف نشده‌اند. دکمهٔ چشم، چیدمان فرم، summary کوتاه، ردیف واحد پیشرفت از receipt واقعی و loading انتخاب پلن به جریان موجود متصل‌اند. دریافت تنظیمات موجود پوشه حفظ شده؛ مقدار ناموجود یا فاقد معنای قابل‌اعتماد حدس زده نمی‌شود. env write زنده هنوز از این برش نتیجه نمی‌شود.
+
+زیرکار A16: migration16 و service ساخت/لغو grant محلی MCP در `a8384407` با یک تست روی candidate28 ثبت شدند؛ configuration فقط به فایل خصوصی اشاره می‌کند و state اولیه prepared است. API/رابط تازهٔ این setup و handshake این service هنوز exposed/verified نیستند؛ این کار به معنی تکمیل UI اتصال یا connector اجرایی نیست.
+
+برش زندهٔ lifecycle یک مقصد آزمایشی با شناسهٔ ثبت‌شده را از API محصول ساخت و منتشر کرد؛ نخستین بررسی صفحه503 و failed ماند، سپس خواندن مستقل همان سرویس200 داد. توقف یک بار scale صفر کرد؛ به دلیل applets500 فقط configuration تأیید شد. حذف جداگانه یک بار اجرا و با GET404 تأیید شد، سپس همان سابقه کنار رفت. مدل تازه در این سناریو مصرف نشد و شبکهٔ موجود حفظ شد. اولین مرز اثبات‌نشده: نبود workload زنده پس از توقف، grace محدود پس از READY، صورتحساب منتسب، env/DB زنده و دامنهٔ همهٔ runtimeها. candidate35 با370domain،39HTTP،14حالت پروژه،12پلن،54guided و build/type/lint بدونerror گذشت؛ timeout قدیمی fixture به concurrency نسبت داده نشده است. دستور تازهٔ مالک سقف تجمعی مدل را2USD کرد؛ ledger قبلی0.709037USD حفظ شد، allowance از نو شروع نشد.
+
 ## پروژه‌های من و تنظیمات پوشه؛ A03/A07/A08/A17 / ۲۰۲۶-۱۰-۲۳
 
 خواست تازهٔ مالک: انتشارها ترتیبی بمانند؛ اجرای موازی جزو این برش نیست. «پروژه‌های من» به هدر موجود و API scoped وصل شده است؛ فهرست/refresh/open مصرف مدل یا write ابری نمی‌سازند. بازکردن نسخهٔ دیگر، source/archive و مقصد مجاز را بررسی و در transaction، اختیارهای استفاده‌نشده را باطل می‌کند. سابقه و بودجه حفظ می‌شوند؛ نتیجهٔ نامعلوم مانع جابه‌جایی است. زیرکار داشبورد A03/A17 اکنون implemented_verified (local) است؛ candidate27 با361domain/38HTTP/10حالت رابط جدید/2عرض پوشه/54guided و build/type/lint بدونerror گذشت. [شاهد](docs/evidence/project-library-and-environment-import.md) هویت candidate و failureهای واقعی را نگه می‌دارد؛ reader تازه هنوز UNCONFIRMED است.

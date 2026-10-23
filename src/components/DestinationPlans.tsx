@@ -1,16 +1,19 @@
 import type { DestinationRecommendation } from "../contracts/destination-recommendation.ts";
 import styles from "./DestinationPlans.module.css";
+import { WorkspaceGlyph } from "./WorkspaceGlyph.tsx";
 
 const number = new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 2 });
-export function DestinationPlans({ recommendation, selected, disabled, onChange }: {
+export function DestinationPlans({ recommendation, selected, disabled, onChange, changing }: {
   recommendation: DestinationRecommendation; selected: { planId: string; bundleId: string }; disabled: boolean;
   onChange?: (planId: string, bundleId: string) => void;
+  changing?: boolean | undefined;
 }) {
-  return <div className={styles.plans}>
+  return <div className={styles.plans} aria-busy={changing === true}>
     <div className={styles.intro}>
       <span className={styles.eyebrow}>انتخاب منابع برای پروژهٔ شما</span>
       <h4>پیشنهاد شروع برای <bdi>{recommendation.projectName}</bdi></h4>
       <p>{recommendation.summary}</p>
+      {changing ? <p role="status"><WorkspaceGlyph name="loader" /> در حال بررسی قیمت و ثبت پلن انتخابی…</p> : null}
     </div>
     <fieldset className={styles.fieldset} disabled={disabled || !onChange}>
       <legend>پلن انتشار را انتخاب کنید</legend>

@@ -27,10 +27,16 @@ export class LiaraEnvironmentClient {
         if (!response.ok) { void response.body?.cancel().catch(() => undefined); throw httpFailure(response.status); }
         const row = object(object(await boundedJson(response)).project);
         ensure(row._id === spec.targetAppId && row.project_id === spec.scope.app && (row.type === "node" || row.type === "python"), "ENV_TARGET_CHANGED", "هویت یا نوع برنامه تغییر کرده است.", 409);
-        return { planId: string(row.planID, 128), values: environmentVariables(row.envs) };
+        // Provider metadata is not an application variable or a browser input field.
+        ensure(Array.isArray(row.envs) && row.envs.length <= 128, "ENV_RESPONSE_INVALID", "تنظیمات موجود از لیارا قابل خواندن نیست؛ چیزی تغییر نکرده است.", 502);
+        return { planId: string(row.planID, 128), values: environmentVariables(row.envs.map(value => {
+          const variable = object(value);
+          ensure(variable.encrypted !== true, "ENV_ENCRYPTED_VALUE_UNAVAILABLE", "لیارا مقدار یکی از تنظیمات موجود را پنهان کرده است؛ برای حفظ آن، تغییر ارسال نشد.", 409);
+          return { key: variable.key, value: variable.value };
+        })) };
       }, bounded);
     } catch (error) {
-      if (error instanceof AppError) throw error;
+      if (error instanceof AppError && !["INVALID_INPUT", "INVALID_ENV_INPUT", "INVALID_ENV_KEY"].includes(error.code)) throw error;
       throw new AppError("ENV_READ_UNAVAILABLE", "مقادیر موجود قابل دریافت نیستند؛ تغییر ارسال نشد.", 502, true);
     }
   }

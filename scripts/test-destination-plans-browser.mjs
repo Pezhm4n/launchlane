@@ -66,8 +66,17 @@ try {
     assert.equal(await choice.getByRole("radio").first().isChecked(), true);
     const first = fixture.repository.get(fixture.actor, fixture.run.id), beforeTokens = first.usage.modelCalls;
     const change = page.waitForResponse(response => response.url().endsWith(`/api/agent/runs/${first.id}`) && response.request().method() === "POST");
-    await choice.getByRole("radio").first().focus(); await choice.getByRole("radio").first().press("ArrowDown"); assert.equal((await change).status(), 200);
+    let releaseChoice; const choiceGate = new Promise(done => { releaseChoice = done; });
+    await page.route(`**/api/agent/runs/${first.id}`, async route => {
+      if (route.request().method() === "POST" && route.request().postDataJSON().operation === "destination-choice") await choiceGate;
+      await route.continue();
+    });
+    await choice.getByRole("radio").first().focus(); await choice.getByRole("radio").first().press("ArrowDown");
+    await card.getByRole("status").filter({ hasText: "در حال بررسی قیمت و ثبت پلن انتخابی…" }).waitFor();
+    assert.equal(await choice.getByRole("radio").first().isDisabled(), true);
+    releaseChoice(); assert.equal((await change).status(), 200);
     const growth = choice.getByRole("radio", { name: /growth/ }); await growth.waitFor();
+    await page.waitForFunction(label => [...document.querySelectorAll('input[type="radio"]')].some(input => input.getAttribute("aria-label") === label && input.checked), await growth.getAttribute("aria-label"));
     assert.equal(await growth.isChecked(), true);
     const revised = fixture.repository.get(fixture.actor, first.id); assert.notEqual(revised.destination.id, first.destination.id);
     assert.equal(revised.destination.spec.args.planId, "growth"); assert.equal(revised.usage.modelCalls, beforeTokens);

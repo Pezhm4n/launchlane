@@ -5,10 +5,11 @@ import type { DestinationRecommendation } from "../contracts/destination-recomme
 import { DestinationPlans } from "./DestinationPlans.tsx";
 
 const number = new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 2 });
-export function AgentDestination({ action, waiting, disabled, resumable, onDecision, onObserve, recommendation, onPlanChange }: {
+export function AgentDestination({ action, waiting, disabled, resumable, onDecision, onObserve, recommendation, onPlanChange, changingPlan }: {
   action: Action; waiting: boolean; disabled: boolean; resumable: boolean;
   onDecision: (decision: "approve" | "reject") => void; onObserve: () => void;
   recommendation?: DestinationRecommendation | null; onPlanChange?: (planId: string, bundleId: string) => void;
+  changingPlan?: boolean;
 }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -32,7 +33,7 @@ export function AgentDestination({ action, waiting, disabled, resumable, onDecis
     <section className="agent-repair destination-card" aria-labelledby="destination-title">
       <h3 id="destination-title">{verified ? "مقصد ساخته شد" : "ساخت مقصد تازه"}</h3>
       {recommendation ? <DestinationPlans recommendation={recommendation} selected={{ planId: spec.args.planId, bundleId: spec.bundleId }}
-        disabled={disabled || !pending || expired} {...(onPlanChange ? { onChange: onPlanChange } : {})} /> : null}
+        disabled={disabled || !pending || expired} changing={changingPlan === true} {...(onPlanChange ? { onChange: onPlanChange } : {})} /> : null}
       {!recommendation ? <dl className="profile-facts">
         <div><dt>نام برنامه</dt><dd><bdi>{spec.scope.app}</bdi></dd></div>
         <div><dt>هزینه پایه</dt><dd>{number.format(spec.cost.hourlyHundredthsToman / 100)} تومان در ساعت</dd></div>

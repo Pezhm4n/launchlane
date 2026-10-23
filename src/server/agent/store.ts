@@ -157,7 +157,7 @@ export function addEvent(
   run: AgentRecord,
   kind: AgentEvent["kind"],
   message: string,
-  extra: Pick<AgentEvent, "tool" | "callId"> = {},
+  extra: Pick<AgentEvent, "tool" | "callId" | "outcome"> = {},
 ): void {
   ensure(run.events.length < 160, "AGENT_EVENT_LIMIT", "مکالمه به سقف ثبت مراحل رسیده است.", 409);
   run.events.push({
@@ -169,12 +169,23 @@ export function addEvent(
   });
 }
 export function agentView(run: AgentRecord): AgentView {
+  const outcomes = new Map<string, "succeeded" | "failed">();
+  for (const message of run.messages) {
+    if (message.role !== "tool") continue;
+    try {
+      const result = object(JSON.parse(message.content));
+      if (typeof result.ok === "boolean") outcomes.set(message.tool_call_id, result.ok ? "succeeded" : "failed");
+    } catch { /* Legacy free text does not prove success or failure. */ }
+  }
   return {
     id: run.id,
     revision: run.revision,
     projectId: run.projectId,
     state: run.state,
-    events: run.events,
+    events: run.events.map(event => {
+      const outcome = event.kind === "tool" && event.callId ? outcomes.get(event.callId) : undefined;
+      return !event.outcome && outcome ? { ...event, outcome } : event;
+    }),
     nextAction: run.nextAction,
     question: run.question,
     updatedAt: run.updatedAt,

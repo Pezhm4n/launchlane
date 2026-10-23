@@ -1,0 +1,8 @@
+.list { list-style: none; display: grid; gap: var(--space-3); padding: 0; margin-block: var(--space-4); }
+.list li { display: flex; align-items: start; gap: var(--space-3); padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-field); overflow-wrap: anywhere; }
+.icon { display: inline-flex; flex: none; color: var(--color-muted); }
+.list li[data-status="succeeded"] .icon { color: var(--color-primary); }
+.list li[data-status="failed"] .icon { color: var(--color-danger); }
+.list li[data-status="pending"] .icon { color: var(--color-primary); animation: turn 1s linear infinite; }
+@keyframes turn { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .list li[data-status="pending"] .icon { animation: none; } }

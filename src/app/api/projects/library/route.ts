@@ -1,6 +1,6 @@
 import { openLibraryProject, listProjects } from "../../../../server/application/project-library.ts";
 import { endpoint, jsonBody, reply } from "../../../../server/http.ts";
-import { exactKeys, integer, object, string } from "../../../../contracts/validation.ts";
+import { exactKeys, hash, integer, object, string } from "../../../../contracts/validation.ts";
 import { ensure } from "../../../../server/errors.ts";
 
 export const runtime = "nodejs";
@@ -17,5 +17,13 @@ export async function POST(request: Request) {
   return endpoint(request, true, async ({ config, store, session }) => {
     const input = object(await jsonBody(request)); exactKeys(input, ["id"]);
     return reply({ flow: await openLibraryProject(config, store, session.actorId, string(input.id, 36), request.signal), action: null });
+  });
+}
+export async function DELETE(request: Request) {
+  return endpoint(request, true, async ({ store, session }) => {
+    const input = object(await jsonBody(request)); exactKeys(input, ["id", "sourceHash", "confirmed"]);
+    ensure(input.confirmed === true, "CONFIRMATION_REQUIRED", "حذف پروژه را در پنجرهٔ تأیید بپذیرید.", 409);
+    store.archiveProject(session.actorId, session.id, string(input.id, 36), hash(input.sourceHash));
+    return reply({ removed: true });
   });
 }
