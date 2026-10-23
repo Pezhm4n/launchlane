@@ -1,5 +1,9 @@
 # برنامه اجرایی Launchlane
 
+## Node24 در worker مشترک؛ A07/A10/A11 / ۲۰۲۶-۱۰-۲۳
+
+پس از f5d9ace، [ADR0026](docs/decisions/0026-node24-isolated-build.md): ProjectBuildPlan v3 و image رسمی24.18.0 با digest ثابت به ابزار موجود متصل شدند. source نسخه را انتخاب می‌کند؛ approval قدیمی22 عوض نمی‌شود. domain انتخاب/قید/image mismatch و دو container build واقعی گذشتند؛ چرخهٔ یک اختیار، patch بی‌اثر/مؤثر و publication مصنوعی برای22 و24 نیز اجرا شد. نتیجهٔ candidate نهایی جدا در verification ثبت می‌شود. Node24 cloud/Next عمومی هنوز UNCONFIRMED؛ ادامه روی خانواده‌های دیگر در A11، بدون کاهش دامنه۱۴خانواده.
+
 ## Static واقعی و رفع توقف بی‌اثر؛ A07/A08/A10/A11/A18 / ۲۰۲۶-۱۰-۲۳
 
 پس از72618b6: [ADR0025](docs/decisions/0025-native-static-publication.md) و [شاهد Login](docs/evidence/native-static-login.md)، native Static را با create16/deploy15 به همان archive، actor، approval و journal وصل کردند. پوشه اصلی از browser upload، تصمیم هزینه application، انتشار Agent، current release، byte هر سه فایل و تعامل مرورگر گذشت؛ توقف/حذف مقصد تأیید شد. آماده‌سازی بیرون محصول انجام نشد. API-create زنده با Agent-create یکی نیست؛ دو guard تصمیم/ادامه v16 اصلاح و regression شدند، live این قسمت باز است. A11/AC28 همچنان partial و هر۱۴خانواده الزامی‌اند؛ bundler و سایر runtimeها از Static نتیجه نمی‌شوند.

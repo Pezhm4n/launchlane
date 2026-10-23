@@ -5,6 +5,7 @@ import { parseEnvironmentReference, type EnvironmentReference } from "./environm
 import { parsePythonRuntime, type PythonRuntime, pythonStart } from "./python-runtime.ts";
 
 export const projectBuildImage = "node:22.23.3-bookworm-slim@sha256:3ed98443660ff48413b5af19ecefce3b9d50845a901a43420d47cc63a9fddbe9";
+export const node24BuildImage = "node:24.18.0-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d";
 
 export const pythonBuildImage = "docker.arvancloud.ir/python:3.12-slim@sha256:d764629ce0ddd8c71fd371e9901efb324a95789d2315a47db7e4d27e78f1b0e9";
 type NodeBuildPlan = Readonly<{
@@ -22,9 +23,22 @@ type NodeBuildPlan = Readonly<{
 export type PythonBuildPlan = Omit<NodeBuildPlan, "version" | "nodeVersion" | "image"> & Readonly<{
   version: 2; nodeVersion: null; image: typeof pythonBuildImage; runtime: PythonRuntime;
 }>;
-export type ProjectBuildPlan = NodeBuildPlan | PythonBuildPlan;
+type Node24BuildPlan = Omit<NodeBuildPlan, "version" | "nodeVersion" | "image"> & Readonly<{
+  version: 3; nodeVersion: "24"; image: typeof node24BuildImage;
+}>;
+export type ProjectBuildPlan = NodeBuildPlan | PythonBuildPlan | Node24BuildPlan;
+export function nodeBuildRuntime(version: unknown) {
+  ensure(version === "22" || version === "24", "BUILD_RUNTIME_UNSUPPORTED", "محیط ساخت سازگار با نسخهٔ پروژه در این نصب آماده نیست؛ اجرای ناسازگار روی رایانه انجام نشد.", 409);
+  return version === "24" ? { version: 3, nodeVersion: "24", image: node24BuildImage } as const
+    : { version: 1, nodeVersion: "22", image: projectBuildImage } as const;
+}
 export function parseProjectBuildPlan(value: unknown): ProjectBuildPlan {
   const row = object(value);
+  if (row.version === 3) {
+    ensure(row.nodeVersion === "24" && row.image === node24BuildImage, "BUILD_RUNTIME_UNSUPPORTED", "نسخهٔ Node و تصویر محیط ساخت برابر نیستند؛ برنامهٔ تازه لازم است.", 409);
+    const base = parseProjectBuildPlan({ ...row, version: 1, nodeVersion: "22", image: projectBuildImage });
+    return { ...base, version: 3, nodeVersion: "24", image: node24BuildImage };
+  }
   if (row.version === 2) {
     ensure(row.install === undefined, "BUILD_INSTALL_SCOPE", "قرارداد Python نمی‌تواند نصب وابستگی را حذف کند.", 409);
     const { runtime, ...rest } = row;

@@ -100,7 +100,7 @@ clearTimeout(watchdog);process.exit(0)
 export async function runContainerBuild(workspace: string, tarballs: string, value: ProjectBuildPlan, signal: AbortSignal,
   onCreated?: (id: string) => void, environment: readonly EnvironmentVariable[] = []): Promise<CommandResult & { containerId: string; image: string }> {
   const plan = parseProjectBuildPlan(value), values = environmentVariables(environment);
-  ensure(plan.version === 1, "BUILD_RUNTIME_UNSUPPORTED", "این runner فقط برای Node است.", 409);
+  ensure(plan.version === 1 || plan.version === 3, "BUILD_RUNTIME_UNSUPPORTED", "این runner فقط برای Node است.", 409);
   ensure(values.every(row => isApplicationEnvironmentKey(row.key)), "ENV_SCOPE_DENIED", "تنظیمات runner از اطلاعات پروژه جداست.", 409);
   ensure(values.map(row => row.key).sort().join("\0") === [...(plan.environment?.keys ?? [])].sort().join("\0"), "ENV_REFERENCE_CHANGED", "ورودی محیط build با تصمیم برابر نیست.", 409);
   ensure(!workspace.includes(",") && !tarballs.includes(","), "SANDBOX_PATH_DENIED", "مسیر ورودی build معتبر نیست.", 403);
@@ -112,7 +112,7 @@ export async function runContainerBuild(workspace: string, tarballs: string, val
       // npm build tools and native modules must execute inside the otherwise isolated tmpfs.
       "--tmpfs", "/work:rw,exec,nosuid,nodev,size=1073741824,uid=1000,gid=1000,mode=0700",
       "--mount", `type=bind,source=${workspace},target=/source,readonly`, "--mount", `type=bind,source=${tarballs},target=/tarballs,readonly`,
-      node22Image, "node", "-e", buildProgram, "--", JSON.stringify(plan)], signal, 4096);
+      plan.image, "node", "-e", buildProgram, "--", JSON.stringify(plan)], signal, 4096);
     ensure(created.exitCode === 0 && /^[a-f0-9]{64}$/.test(created.output.trim()), "SANDBOX_UNAVAILABLE", "محیط build محدود ایجاد نشد؛ script روی میزبان اجرا نشده است.", 503);
     id = created.output.trim(); onCreated?.(id);
     const input = Buffer.from(JSON.stringify(values));
@@ -120,7 +120,7 @@ export async function runContainerBuild(workspace: string, tarballs: string, val
     try { result = await docker(["start", "--attach", "--interactive", id], signal, 32768, input); }
     finally { input.fill(0); }
     const state = await containerState(id), stopped = result.signal ?? (state.oom ? "OOM" : null);
-    return { ...result, signal: stopped, exitCode: signal.aborted || stopped ? null : state.exitCode, containerId: id, image: node22Image };
+    return { ...result, signal: stopped, exitCode: signal.aborted || stopped ? null : state.exitCode, containerId: id, image: plan.image };
   } finally {
     if (id) {
       const removed = await docker(["rm", "--force", id], AbortSignal.timeout(5000), 4096);

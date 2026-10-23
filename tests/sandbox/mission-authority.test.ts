@@ -9,10 +9,11 @@ import { parseCodeRepairJob } from "../../src/contracts/code-repair.ts";
 import { createPublicationMission } from "../../src/server/application/publication-mission.ts";
 import { randomUUID } from "node:crypto";
 
-test("one plan drives actual isolated build failure, rejects an ineffective patch, repairs, tests and publishes only its exact artifact without another decision", async () => {
-  const f = await missionAuthorityFixture(true), authority = f.proposed.authority, actor = f.session.actorId;
+for (const version of ["22", "24"] as const) test(`one Node${version} plan drives actual isolated build failure, rejects an ineffective patch, repairs, tests and publishes only its exact artifact without another decision`, async () => {
+  const f = await missionAuthorityFixture(true, false, version), authority = f.proposed.authority, actor = f.session.actorId;
   try {
     assert.ok(authority); assert.equal(authority.state, "proposed");
+    assert.equal(authority.plan.build.nodeVersion, version);
     const original = readFileSync(join(f.project, "invoice.mjs"), "utf8");
     assert.equal(f.counts().sends, 0); assert.equal(f.counts().patches, 0);
     await decideMissionAuthority(f.config, f.store, f.session, f.proposed.id, f.proposed.revision, authority.id, authority.hash, "approve");

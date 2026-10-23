@@ -24,7 +24,7 @@ import { parseNodePreparation, type NodePreparation } from "../../contracts/prep
 import { preparationPaths, validatePreparationPatch } from "./preparation.ts";
 import { fingerprint } from "../policy/action.ts";
 import { runContainerTests, runContainerBuild } from "./container.ts";
-import { parseProjectBuildPlan, projectBuildImage, pythonBuildImage, type ProjectBuildPlan } from "../../contracts/project-build.ts";
+import { parseProjectBuildPlan, projectBuildImage, type ProjectBuildPlan } from "../../contracts/project-build.ts";
 import { validateBuildPlan, validateBuildRepairPaths } from "./build-policy.ts";
 import { downloadLockedTarballs, lockedTarballs, type TarballReader } from "./npm-source.ts";
 import { projectEnvironmentValues } from "../environment/secrets.ts";
@@ -421,7 +421,7 @@ export class CodeRepairAdapter {
         signal,
         secrets: privateValues(this.config),
       });
-    if (input.execution === "container") ensure(flow.profile.nodeRuntime?.version === "22" || flow.profile.runtime === "python" && input.build?.version === 2, "SANDBOX_RUNTIME_UNAVAILABLE", "محیط ایزوله فعلی Node 22 یا برنامه محدود Python 3.12 لازم دارد؛ کد روی میزبان اجرا نمی‌شود.", 409);
+    if (input.execution === "container") ensure(flow.profile.nodeRuntime?.version === "22" || flow.profile.nodeRuntime?.version === "24" && input.build?.version === 3 || flow.profile.runtime === "python" && input.build?.version === 2, "SANDBOX_RUNTIME_UNAVAILABLE", "محیط ایزولهٔ سازگار با این پروژه آماده نیست؛ کد روی رایانه اجرا نمی‌شود.", 409);
     ensure(
       captured.profile.sourceHash === input.expectedSourceHash,
       "PROJECT_CHANGED",
@@ -556,7 +556,7 @@ export class CodeRepairAdapter {
     };
     checkParent();
     ensure(this.config.authMode === "operator" || record.job.execution === "container", "SANDBOX_REQUIRED", "اجرای مستقیم پروژه روی سرور عمومی مجاز نیست.", 403);
-    ensure(record.job.execution !== "container" || record.job.containerImage === (record.job.build?.version === 2 ? pythonBuildImage : projectBuildImage),
+    ensure(record.job.execution !== "container" || record.job.containerImage === (record.job.build?.image ?? projectBuildImage),
       "SANDBOX_IMAGE_CHANGED", "محیط اجرای این job تغییر کرده است؛ تصمیم تازه لازم است.", 409);
     const claim = this.store.db
       .prepare(
@@ -652,7 +652,7 @@ export class CodeRepairAdapter {
           "PROJECT_CHANGED", "source هنگام بررسی build تغییر کرد؛ رسید به نسخه تازه تعمیم داده نمی‌شود.", 409);
         record.job.artifact = await prepareArchive({ store: this.store, stateDir: this.config.stateDir, workspaceRoot: record.workspace, actorId: actor, directory: ".",
           sourceHash: verified.profile.sourceHash, signal: bounded, secrets: privateValues(this.config) });
-        record.job.state = "succeeded"; record.job.message = record.job.build?.version === 1 && record.job.build.install === "none" ? "ساخت و پاسخ مصوب برنامهٔ بدون وابستگی در نسخه جدا گذشتند؛ نصب لازم نبود و انتشار هنوز اجرا نشده است." : "نصب قفل‌شده، ساخت و پاسخ مصوب در نسخه جدا گذشتند؛ انتشار هنوز اجرا نشده است.";
+        record.job.state = "succeeded"; record.job.message = record.job.build && record.job.build.version !== 2 && record.job.build.install === "none" ? "ساخت و پاسخ مصوب برنامهٔ بدون وابستگی در نسخه جدا گذشتند؛ نصب لازم نبود و انتشار هنوز اجرا نشده است." : "نصب قفل‌شده، ساخت و پاسخ مصوب در نسخه جدا گذشتند؛ انتشار هنوز اجرا نشده است.";
       }
       if (!record.job.validationOnly) {
       budget.take("tool", bounded);

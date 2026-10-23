@@ -1,5 +1,11 @@
 # شواهد اعتبارسنجی Launchlane
 
+## worker Node24؛ candidate45 / ۲۰۲۶-۱۰-۲۳
+
+پس از f5d9ace، tree `a4c0c377cd72ce93abbe09fcd88b7b0212aca97c`، digest355فایل `7f4628503930f30b552abc3e1898d66ebd7ca4d338ce0172916320b931763aa5` با صفر اختلاف export ایندکس: build/typecheck پاس، lint0error/39warning/12info، domain388/388 و HTTP39/39. دو suite sandbox روی همین snapshot،۵/۵ مورد واقعی را گذراندند: Node22/24 دقیق، native executable در tmpfs، و برنامهٔ یک‌تصمیمی با شکست، patch بی‌اثر ردشده، اصلاح مؤثر، آزمون مستقل و publication مصنوعی همان artifact. containerها محدود، source اصلی محفوظ و model/provider مصنوعی بودند؛ cloud write و مصرف مدل زنده صفر. اجرای قبلی همین منطق در worktree، typecheck را به‌علت capture کردن optional build در callback رد کرد؛ narrowing محلی اصلاح شد و candidate45 موفق است. فرمان lint آزمایشی با آرگومان نامعتبر false اجرا نشد؛ فرمان واقعی candidate بدون آن پاس شد.
+
+[ADR0026](decisions/0026-node24-isolated-build.md) image/version و compatibility را ثبت می‌کند. Node24 live publication، پروژه واقعی Next و دیگر خانواده‌ها از این آزمون نتیجه نمی‌شوند. قرارداد v1/v2 و اختیار تاریخی22 تغییر نکردند؛ اجرای تازه24 برنامهٔ صریح خودش را می‌خواهد. تست Node22 زمانِ بالاتر در یکی از اجرای قبلی داشت؛ این observation علت timeoutهای تاریخی را تعیین نمی‌کند.
+
 ## native Static و خطاهای قابل‌اقدام؛ candidate44 / ۲۰۲۶-۱۰-۲۳
 
 پایه72618b6، tree `d45a7211331f906bce7ee5ed121daf50535d13df`، digest355فایل `f1067260e5ae045edd011fd5db3a4cd9b87fa9ea91ccaffb4bfef1d18b09bb9f`، صفر اختلاف byte با ایندکس. build/typecheck پاس؛ lint صفرerror،39warning،12info. HTTP39/39؛ `test:static` سه viewport320/390/1280 با axe0/pageerror0، source chooser→مأموریت مشترک→کارت v15→refresh بدون job/write/model تازه؛ مدل/provider مصنوعی. تصاویر بررسی شدند؛ این آزمون، cloud یا کار UI همکار را قبول نمی‌کند.

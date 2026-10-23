@@ -4,7 +4,7 @@ import { mkdtemp, readFile, readdir, rm, cp, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { parseProjectBuildPlan, projectBuildImage } from "../../src/contracts/project-build.ts";
+import { parseProjectBuildPlan, projectBuildImage, node24BuildImage, nodeBuildRuntime } from "../../src/contracts/project-build.ts";
 import { downloadLockedTarballs, lockedTarballs } from "../../src/server/agent/npm-source.ts";
 import { AppError } from "../../src/server/errors.ts";
 import { agentFixture } from "../helpers/agent-fixture.ts";
@@ -63,12 +63,34 @@ test("the build plan fixes the runtime and original independent workload criteri
   const input = { version: 1, nodeVersion: "22", image: projectBuildImage, buildCommand: "next build", testCommand: null, startCommand: "next start", port: 3000,
     workload: { path: "/orders", status: 200, assertion: { kind: "json", field: "total", equals: 73 } } };
   assert.deepEqual(parseProjectBuildPlan(input), input);
+  const node24 = { ...input, ...nodeBuildRuntime("24") };
+  assert.deepEqual(parseProjectBuildPlan(node24), node24);
+  assert.equal(node24.image, node24BuildImage);
+  assert.throws(() => parseProjectBuildPlan({ ...node24, image: projectBuildImage }), { code: "BUILD_RUNTIME_UNSUPPORTED" });
+  assert.throws(() => parseProjectBuildPlan({ ...input, image: node24BuildImage }), { code: "BUILD_RUNTIME_UNSUPPORTED" });
+  assert.throws(() => nodeBuildRuntime("20"), { code: "BUILD_RUNTIME_UNSUPPORTED" });
   assert.throws(() => parseProjectBuildPlan({ ...input, nodeVersion: "24" }), { code: "BUILD_RUNTIME_UNSUPPORTED" });
   assert.throws(() => parseProjectBuildPlan({ ...input, workload: { ...input.workload, path: "//other.test" } }));
   assert.throws(() => parseProjectBuildPlan({ ...input, approved: true }));
   for (const path of ["package-lock.json", "package.json", "app/order.test.ts", "tests/order.js", "tsconfig.json", "vitest.config.ts"])
     assert.throws(() => validateBuildRepairPaths([path]), { code: "BUILD_ORACLE_CHANGED" });
   validateBuildRepairPaths(["app/orders/page.tsx"]);
+});
+
+test("Node24 source chooses the exact compatible build image without a user runtime question or a script execution", async () => {
+  const f = await agentFixture();
+  try {
+    await writeFile(join(f.project, "package.json"), JSON.stringify({ name: "node24-project", type: "module", engines: { node: "24.x" }, scripts: { start: "node server.mjs" } }));
+    const config = { ...f.config, enableLocalRepair: true }, flow = await prepareProjectFlow(config, f.store, f.session.actorId, { kind: "local", directory: "service" }, AbortSignal.timeout(5000)),
+      context = { config, store: f.store, actorId: f.session.actorId, context: currentAgentContext(config, f.store, f.session.actorId), budget: new RunBudget(config), createdAt: Date.now(), signal: AbortSignal.timeout(5000) },
+      proposal = await executeAgentTool("propose_project_build", { path: "/", status: 200, assertion: { kind: "text", contains: "invoice" } }, context);
+    assert.ok(typeof proposal === "object" && proposal !== null && "repairProposal" in proposal);
+    const job = parseCodeRepairJob(proposal.repairProposal);
+    assert.equal(job.build?.version, 3); assert.equal(job.containerImage, node24BuildImage); assert.equal(job.baseRevision, flow.profile.sourceHash);
+    assert.deepEqual(job.containerIds, []); assert.equal(job.afterTest, null);
+    const captured = await captureProject(f.project, "."), build = job.build; assert.ok(build);
+    assert.throws(() => validateBuildPlan(captured.files, { ...captured.profile, nodeRuntime: { version: "24", requirement: ">=24.99 <25", source: "package.json", detail: "fixture" } }, build), { code: "BUILD_RUNTIME_UNSUPPORTED" });
+  } finally { f.close(); }
 });
 test("both preparation alternatives fit the real model client's tool bound with every service gate enabled", async () => {
   const f = await agentFixture();

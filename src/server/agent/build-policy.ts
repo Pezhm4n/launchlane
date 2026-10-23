@@ -46,7 +46,7 @@ export function validateBuildPlan(files: readonly SourceFile[], profile: Project
     pythonRequirements(files);
     return plan;
   }
-  ensure(!profile.nodeRuntime?.requirement || semver.satisfies("22.23.3", profile.nodeRuntime.requirement),
+  ensure(!profile.nodeRuntime?.requirement || semver.satisfies(plan.version === 3 ? "24.18.0" : "22.23.3", profile.nodeRuntime.requirement),
     "BUILD_RUNTIME_UNSUPPORTED", "نسخه دقیق image با engines.node پروژه سازگار نیست؛ محیط سازگار لازم است.", 409);
   ensure(profile.nodeRuntime?.version === plan.nodeVersion && profile.start === plan.startCommand && profile.build === plan.buildCommand && profile.port === plan.port && projectTestCommand(files) === plan.testCommand,
     "BUILD_PLAN_CHANGED", "نسخه Node، فرمان‌ها یا پورت با source انتخاب‌شده برابر نیستند.", 409);

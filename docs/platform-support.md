@@ -1,5 +1,7 @@
 # وضعیت پلتفرم‌ها و مسیر انتشار
 
+افزوده worker بعد از f5d9ace: Node24.18.0 با ProjectBuildPlan v3 و image رسمی digest-bound در همان build/repair/authority/artifact اجرا شد؛ candidate45، domain388/388، HTTP39/39 و۵sandbox واقعی پاس شد. این گسترش اجرای محلی22/24 است؛ native cloud Node24 و Next مستقل هنوز UNCONFIRMED هستند. [ADR0026](decisions/0026-node24-isolated-build.md).
+
 افزوده پس از72618b6: [Static واقعی Login](evidence/native-static-login.md) از انتخاب پوشه/upload محصول، create16، انتشار Agent با مدل واقعی، artifact15، current release، تطبیق HTML/CSS/JS و تعامل مرورگر گذشت؛ stop/delete همان app تأیید شد. سؤال Node/port حذف شد. ردیف‌های تاریخی Static/missing پایین با این شاهد جایگزین می‌شوند: وضعیت فعلی **implemented_verified برای plain index/asset**، بدون install/build/start کاربر؛ Nginx80، source/assetهای nested از root انتخابی؛ bundler، SPA rewrite عمومی و repair عمومی باز. این شاهد به خانواده‌های دیگر تعمیم ندارد؛ همه۱۴خانواده الزامی‌اند.
 
 شاهد افزوده `fb67971`: [کتاب‌فروشی upstream با fault صریح](evidence/codex-publication-mission.md) از upload محصول و Codex MCP، شبکه/مقصد تازه، برنامه مصوب، خطای500 در Node22 ایزوله، patch داخلی، آزمون مستقل و انتشار بومی همان artifact تا release جاری و HTML/API صحیح گذشت. source اصلی محفوظ و app با ID/404 پاک شد؛ cleanup خودکار شبکه هنوز تأیید نشده است. این مورد Node22ِ بدون dependency/lock/build-script است؛ Docker worker آن شاهد Docker publication، compiler frontend یا monorepo نیست و وضعیت خانواده‌های دیگر جدول را تغییر نمی‌دهد.

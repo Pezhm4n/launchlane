@@ -21,7 +21,7 @@ import { WorkloadProbe, validateProbePath } from "../liara/probe.ts";
 import { parseProbeOrigins } from "../policy/probe-target.ts";
 import type { PublicationMission } from "../../contracts/publication-mission.ts";
 import type { WorkloadContract } from "../../contracts/deployment.ts";
-import { parseProjectBuildPlan, projectBuildImage, pythonBuildImage } from "../../contracts/project-build.ts";
+import { parseProjectBuildPlan, nodeBuildRuntime, pythonBuildImage } from "../../contracts/project-build.ts";
 import { parseCodeRepairJob, type CodeRepairJob } from "../../contracts/code-repair.ts";
 import { requiresProjectBuild, sameBuildWorkload, projectTestCommand, dependencyFreeNode } from "./build-policy.ts";
 import { currentEnvironment } from "../environment/secrets.ts";
@@ -245,7 +245,7 @@ const publicationTool: ToolDefinition = {
 };
 const buildTool: ToolDefinition = { type: "function", function: {
   name: "propose_project_build",
-  description: "Propose a host-reviewed install/build/start and independent workload check in an isolated Node22 or Python3.12 container. Node uses npm v3 lockfiles; only a package with zero declared dependencies and no lockfile skips install, as verified by the host. For Python, root requirements.txt must pin all packages; the host verifies binary-wheel hashes, installs offline, compiles source and probes the actual start command. Read package/lock/source first; supply the original path/status/text or JSON assertion. Commands and port come from actual source, never invented. The user approves before any install/script runs. No code changes or cloud writes. A monorepo requires its actual leaf. Builds needing undeclared network or secrets fail explicitly.",
+  description: "Propose a host-reviewed install/build/start and independent workload check in an isolated Node22, Node24 or Python3.12 container selected by the host from the source version constraints. Node uses npm v3 lockfiles; only a package with zero declared dependencies and no lockfile skips install, as verified by the host. For Python, root requirements.txt must pin all packages; the host verifies binary-wheel hashes, installs offline, compiles source and probes the actual start command. Read package/lock/source first; supply the original path/status/text or JSON assertion. Commands and port come from actual source, never invented. The user approves before any install/script runs. No code changes or cloud writes. A monorepo requires its actual leaf. Builds needing undeclared network or secrets fail explicitly.",
   parameters: publicationTool.function.parameters,
 } };
 export const toolLabels: Readonly<Record<string, string>> = {
@@ -355,11 +355,11 @@ export async function executeAgentTool(
         "BUILD_NO_PROGRESS", "همان build ناموفق بدون تغییر شواهد تکرار نمی‌شود؛ علت توقف را بررسی کنید.", 409);
       c.budget.take("tool", c.signal);
       const build = parseProjectBuildPlan({ ...(flow.profile.runtime === "python" ? { version: 2, nodeVersion: null, runtime: flow.profile.pythonRuntime, image: pythonBuildImage }
-        : { version: 1, nodeVersion: flow.profile.nodeRuntime?.version, image: projectBuildImage, ...(dependencyFreeNode(captured.files) ? { install: "none" } : {}) }),
+        : { ...nodeBuildRuntime(flow.profile.nodeRuntime?.version), ...(dependencyFreeNode(captured.files) ? { install: "none" } : {}) }),
         buildCommand: flow.profile.build, testCommand: projectTestCommand(captured.files), startCommand: flow.profile.start, port: flow.profile.port, workload,
         environment: currentEnvironment(c.store, c.config.sessionSecret, c.actorId, flow.id) });
       const job = await new CodeRepairAdapter(c.config, c.store).propose(c.actorId, {
-        projectId: flow.id, expectedSourceHash: c.context.sourceHash, goal: build.version === 1 && build.install === "none" ? "بررسی ساخت و پاسخ برنامهٔ بدون وابستگی در محیط ایزوله؛ نصب لازم نیست" : "نصب قفل‌شده، ساخت و بررسی پاسخ همان برنامه در محیط ایزوله",
+        projectId: flow.id, expectedSourceHash: c.context.sourceHash, goal: build.version !== 2 && build.install === "none" ? "بررسی ساخت و پاسخ برنامهٔ بدون وابستگی در محیط ایزوله؛ نصب لازم نیست" : "نصب قفل‌شده، ساخت و بررسی پاسخ همان برنامه در محیط ایزوله",
         ...(c.parentRunId ? { parentRunId: c.parentRunId } : {}),
         allowedPaths: [], testFiles: [], execution: "container", build, validationOnly: true,
       }, c.signal);

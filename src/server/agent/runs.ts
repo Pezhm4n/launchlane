@@ -26,7 +26,7 @@ import { recordMissionArtifact } from "../policy/mission-authority.ts";
 import { missionRepairProvider } from "./coding-provider.ts";
 import { parseDestinationRecommendation } from "../../contracts/destination-recommendation.ts";
 import type { TarballReader } from "./npm-source.ts";
-import { projectBuildImage, pythonBuildImage } from "../../contracts/project-build.ts";
+import { projectBuildImage } from "../../contracts/project-build.ts";
 import { GoalModelClient, type ModelMessage, type ModelPort, type ToolDefinition } from "./model.ts";
 import { addEvent, AgentRepository, type AgentRecord } from "./store.ts";
 import {
@@ -188,7 +188,7 @@ export async function decideAgentRepair(
   );
   const adapter = new CodeRepairAdapter(config, store);
   if (decision === "approve") {
-    ensure(run.repair.execution === "container" && run.repair.containerImage === (run.repair.build?.version === 2 ? pythonBuildImage : projectBuildImage), "HISTORICAL_RUNNER_DISABLED", "تصمیم قدیمی با runner میزبان یا image متفاوت اجرا نمی‌شود؛ یک محدوده ایزوله تازه لازم است.", 409);
+    ensure(run.repair.execution === "container" && run.repair.containerImage === (run.repair.build?.image ?? projectBuildImage), "HISTORICAL_RUNNER_DISABLED", "تصمیم قدیمی با runner میزبان یا image متفاوت اجرا نمی‌شود؛ یک محدوده ایزوله تازه لازم است.", 409);
     ensure(
       config.enableLocalRepair && config.enableLiveModel,
       "REPAIR_DISABLED",
@@ -254,7 +254,7 @@ export async function reviewAgentRepair(config: Config, store: Store, session: S
     run.repair.state === "proposed" && !run.repairDecision?.consumed, "AGENT_CONFLICT", "محدوده قبلی دیگر منتظر بررسی نیست.", 409);
   ensure(store.sessionExists(session.id, session.actorId, Date.now()), "AUTH_REQUIRED", "دوباره وارد شوید.", 401);
   ensure(config.enableLocalRepair && config.enableLiveModel && run.repair.execution === "container" &&
-    run.repair.containerImage === (run.repair.build?.version === 2 ? pythonBuildImage : projectBuildImage),
+    run.repair.containerImage === (run.repair.build?.image ?? projectBuildImage),
     "HISTORICAL_RUNNER_DISABLED", "این محدوده با محیط فعلی قابل بازبینی نیست؛ پیشنهاد تازه لازم است.", 409);
   assertAgentContext(config, store, session.actorId, run.context);
   ensure(run.usage.toolCalls < run.limits.maxToolCalls && run.usage.elapsedMs < run.limits.runTimeoutMs,
@@ -674,7 +674,7 @@ export async function driveAgentRun(
       ensure(run.repairDecision.expiresAt > Date.now() && run.repairDecision.sessionId === session.id && store.sessionExists(session.id, session.actorId, Date.now()),
         "REPAIR_APPROVAL_EXPIRED", "تصمیم پیش از شروع اجرا منقضی شده است؛ اجرای تازه تصمیم تازه لازم دارد.", 409);
       ensure(config.enableLocalRepair, "REPAIR_DISABLED", "اصلاح محلی در این نصب خاموش است.", 403);
-      addEvent(run, "activity", run.repair.validationOnly ? run.repair.build?.version === 1 && run.repair.build.install === "none" ? "در حال ساخت و بررسی پاسخ برنامهٔ بدون وابستگی در محیط ایزوله…" : "در حال نصب قفل‌شده، ساخت و بررسی پاسخ برنامه در محیط ایزوله…" : "در حال بازتولید خطا، اصلاح در نسخه جدا و اجرای همان آزمون‌ها…");
+      addEvent(run, "activity", run.repair.validationOnly ? run.repair.build && run.repair.build.version !== 2 && run.repair.build.install === "none" ? "در حال ساخت و بررسی پاسخ برنامهٔ بدون وابستگی در محیط ایزوله…" : "در حال نصب قفل‌شده، ساخت و بررسی پاسخ برنامه در محیط ایزوله…" : "در حال بازتولید خطا، اصلاح در نسخه جدا و اجرای همان آزمون‌ها…");
       persist();
       run.repair = await new CodeRepairAdapter(config, store, repairModel, dependencies.tarballReader).run(
         session.actorId,
