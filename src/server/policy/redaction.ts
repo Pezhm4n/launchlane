@@ -29,6 +29,11 @@ function scrub(value: string, secrets: readonly string[], assignment: RegExp, so
       const literal = quote ? assigned.slice(1, -1) : assigned;
       // Minified input-type maps use e.g. password:!0; a boolean/null expression contains no credential value.
       if (source && !quote && /^(?:true|false|null|undefined|!0|!1)$/.test(literal)) return match;
+      // Public autocomplete alternatives in a complete ternary are UI labels, not credential-map keys.
+      // Keep real assignments, object maps, operators and exact installed-secret checks conservative.
+      if (javascript && quote && /^(?:new-password|current-password)["']?\s*:\s*$/.test(prefix) &&
+        /^(?:new-password|current-password)$/.test(literal) && /\?\s*["']$/.test(original.slice(Math.max(0, offset - 128), offset)) &&
+        /^\s*(?:[),;}\]]|$)/.test(original.slice(offset + match.length))) return match;
       // Test API keys may be explicit dummy labels or deliberately invalid words with spaces.
       if (source && testPlaceholders && quote && /api[_-]?key["']?\s*:\s*$/i.test(prefix) &&
         (/^(?:synthetic|dummy|fixture|test|fake|sample)[-_](?:[a-z]+[-_]*)+$/i.test(literal) || /^[A-Za-z]+(?: [A-Za-z]+)+$/.test(literal) && literal.length <= 32)) return match;

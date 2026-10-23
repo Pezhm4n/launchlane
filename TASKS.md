@@ -1,5 +1,9 @@
 # برنامه اجرایی Launchlane
 
+## ورود source دموی جدید؛ AC19/AC22 / ۲۰۲۶-۱۰-۲۳
+
+بررسی فقط‌خواندنی واقعی Login تازه، ternary استاندارد autocomplete را با SENSITIVE_SOURCE رد کرد. regression پیش از اصلاح شکست خورد؛ فقط دو برچسب عمومی در ternary کامل پذیرفته شدند و assignment واقعی، object map، literal دیگر، operator/default، JSON و exact secret همچنان رد می‌شوند. workspace/archive۱۴/۱۴ و inspect واقعی sourceHash `41badd06ce0ca2e804df8583b1a47f3a16298bff1e79bd55cc3402feed898f8f`،۵فایل/۹۰۹۹۵بایت، static80 و missing خالی پاس شدند؛ تشخیص source به معنی انتشار نیست. انتشار خود Launchlane بنا بر دستور تازهٔ مالک، اولویت بعدی و نیازمند backend، دسترسی عمومی، state پایدار و execution واقعی است.
+
 ## تحویل قیمت و نتیجهٔ انتشار؛ candidate51 / ۲۰۲۶-۱۰-۲۳
 
 اصلاح قیمت `d320874` و کارت موفقیت `6e9cd5c` روی سرور اصلی فعال‌اند؛ [شواهد](docs/evidence/publication-price-and-success.md). build/typecheck و lint مرتبط،۱۱domain مرتبط، plans۱۴ و expiry/success/copy۸ حالت پاس؛۹asset واقعی و حفظ۲۸جدول state/۵جدول ledger/تنظیمات بررسی شدند. همان تب واقعی کاربر، لینک و کارت نتیجهٔ انتشار ذخیره‌شدهٔ Login را نشان داد. مدل/cloud write تازه و تمدید allowance صفر؛ full-domain و انتشار تازه در این delta اجرا نشدند.

@@ -151,6 +151,26 @@ test("JavaScript environment/member references are source expressions while lite
   assert.equal(containsSourceCredential("env={'SERVICE_API_KEY': 'sample-123abc-private'}", [], "tests/test_voice.py"), true);
 });
 
+test("HTML autocomplete ternaries are public UI labels while credential maps, defaults and installed values stay blocked", () => {
+  const sources = [
+    'input.autocomplete = registration ? "new-password" : "current-password";',
+    "input.autocomplete = registration\n ? 'current-password'\n : 'new-password';",
+  ];
+  for (const source of sources) {
+    assert.equal(containsSourceCredential(source, [], "script.js"), false);
+    assert.equal(containsSourceCredential(source, ["current-password"], "script.js"), true);
+    assert.notEqual(redact(source), source);
+  }
+  for (const source of [
+    'const password = registration ? "new-password" : "current-password";',
+    '{"new-password":"current-password"}',
+    'input.autocomplete = registration ? "new-password" : "do-not-publish";',
+    'input.autocomplete = registration ? "new-password" : "current-password" + privateValue;',
+    'const api_key = registration ? "new-password" : "current-password";',
+  ]) assert.equal(containsSourceCredential(source, [], "script.js"), true, source);
+  assert.equal(containsSourceCredential(sources[0] ?? "", [], "settings.json"), true);
+});
+
 test("a bounded data asset and normal lockfile/design vocabulary survive inspection; config stays smaller", async () => {
   const f = await fixture();
   try {
