@@ -1,5 +1,11 @@
 # برنامه اجرایی Launchlane
 
+## میزبانی خود Launchlane؛ ۲۰۲۶-۱۰-۲۳ — در حال اجرا
+
+مالک ساخت VPSچهارGB و ورودی کوچک دامنهٔ پیش‌فرض را در همان سقف قبلی۲میلیون تومان تأیید کرد؛ allowance مدل تمدید نشد. account/plan/OS واقعی فقط‌خواندنی تطبیق داده شد. نام بیش‌از۲۰کاراکتر با400 رد شد؛ با رعایت محدودیت کنسول رسمی، یک VPS `launchlane-exec-1023` روی Ubuntu24.04 ساخته و ID/plan/IP خوانده شد. SSH عادی banner timeout داشت؛ اتصال خصوصی همان میزبان از رابط فیزیکی، با host-key و بدون تغییر VPN برقرار شد. Docker29.1.3 و CA/server/client certificate روی همان VPS آماده‌اند. build image محلی به readonly metadata موتور خورد و هنوز موفق معرفی نمی‌شود. بستهٔ standalone، state bind، ingress mTLS و guard همان ledger آماده‌اند؛۹regression مربوط وlint/typecheck پاس. استقرار عمومی، ورود، build/repair و restart persistence تا ثبت شواهد مقصد بازند.
+
+candidate53 از `6a27c66` با output رویC و module lookup همان نصب، پس از failureهای ENOSPC/module-resolve با build موفق روی3000 فعال شد؛۳۸۵runtimefile/index و۹asset واقعی match شدند. ledger۵جدول/config ثابت ماندند؛ مقایسهٔ strict همهٔ stateها ابتدا به دلیل upload تازهٔ Login هنگام تعامل کاربر fail شد، تمام۲۱flow قبلی byte-equal حفظ و flowجدید اضافه شد. نمونهٔ operator_progress نیز با تعامل هم‌زمان تغییر کرد؛ snapshotها ثابت فرض نشدند و reset نشد. grant واقعی MCP و آزمون مرورگر این delta به همکار مربوط واگذار شده‌اند؛ scope عمومی MCP از آن نتیجه نمی‌شود.
+
 ## اتصال MCP از نشست ورود لیارا؛ AC28 / ۲۰۲۶-۱۰-۲۳
 
 script قدیمی setup فقط operator-token می‌پذیرفت و با ورود لیارا کار نمی‌کرد. رابط حساب‌ها اکنون grant همان actor/CSRF را یک‌بار صادر و فایل خصوصی آن را دانلود می‌کند؛ CLI با `--from-file`، origin محلی/expiry/scope را validate و `launchlane_context` واقعی را پیش از ذخیره بررسی می‌کند. مسیر operator حفظ شد؛ grant نمی‌تواند scope بیشتری بسازد و token در DOM/log قرار نمی‌گیرد. unit۳/۳، lint مرتبط و typecheck پاس شدند؛ آزمون مرورگر و اتصال همین actor پس از فعال‌سازی candidate53 هنوز بازند. MCP عمومی از این تغییر نتیجه نمی‌شود.

@@ -1,0 +1,5 @@
+{
+  "platform": "node",
+  "port": 8080,
+  "node": { "version": "24", "mirror": false }
+}

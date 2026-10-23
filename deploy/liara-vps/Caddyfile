@@ -1,0 +1,16 @@
+https://:8443 {
+    tls /etc/launchlane/tls/server.crt /etc/launchlane/tls/server.key {
+        client_auth {
+            mode require_and_verify
+            trust_pool file {
+                pem_file /etc/launchlane/tls/ca.crt
+            }
+        }
+    }
+    request_body {
+        max_size 30MB
+    }
+    reverse_proxy web:3000 {
+        header_up Host {$LAUNCHLANE_DOMAIN}
+    }
+}

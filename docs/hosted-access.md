@@ -35,3 +35,13 @@ reverse proxy باید TLS معتبر، Host مطابق origin، محدودیت 
 - sandbox در دسترس نیست: build/test عمومی روی shell میزبان fallback نمی‌شود. سرویس اجرای ایزولهٔ مجاز در مقصد باید فراهم و آزموده شود؛ دسترسی عمومی به Docker socket راه‌حل این راهنما نیست.
 
 تا بستن موارد باز [شاهد ورود](evidence/liara-identity-login.md)، این راهنما تنظیم تکرارپذیر مسیر دسترسی است، نه گواه آماده‌بودن کامل برای داورها.
+
+## بستهٔ Linux و دامنهٔ پیش‌فرض لیارا
+
+`Dockerfile` با Node24.18 دارای digest ثابت، `npm ci` و خروجی standalone همان Next نصب‌شده، web را می‌سازد. assets عمومی و static همراه خروجی قرار می‌گیرند؛ runtime با کاربر node اجرا می‌شود. Docker context یک allowlist است؛ `.env`، state، source archives، کلیدها و یادداشت‌های محلی داخل image نمی‌روند. build محلی این برش به خطای read-only در metadata موتور Docker خورد؛ این failure به معنی build موفق image نیست.
+
+فایل‌های `deploy/liara-vps` استقرار یک writer و مسیر یکسان `/var/lib/launchlane` روی میزبان و orchestrator را تعریف می‌کنند. workerهای محدود موجود فقط source/cache مجاز خود را mount می‌کنند؛ socket در اختیار پروژهٔ کاربر قرار نمی‌گیرد و هیچ پورت Docker منتشر نمی‌شود. startup با gate اصلاح روشن، engine لینوکس و هر سه image فعلی را بررسی می‌کند. دسترسی orchestrator به socket اختیار بالای نصب است؛ آن را عمومی یا به پروژه‌ها واگذار نکنید.
+
+برای دامنهٔ پیش‌فرض، `deploy/liara-ingress` برنامهٔ Node بدون dependency است که HTTPS ورودی لیارا را به VPS با mTLS می‌رساند. مقصد و Host ثابت‌اند؛ client certificate، key و CA فقط تنظیمات امن نصب هستند. TLS verification خاموش نمی‌شود و proxy هیچ write ناموفق را replay نمی‌کند. Caddy روی8443 گواهی client را لازم دارد؛ web3000 در host منتشر نمی‌شود. فایل خصوصی `/etc/launchlane/runtime.compose.json` متغیرهای runtime را به compose می‌دهد؛ imageها در deployment.env با digest واقعی مشخص می‌شوند. وجود این فایل‌ها، پذیرش live این معماری نیست؛ build، مسیر عمومی، ورود و restart persistence باید در مقصد ثبت شوند.
+
+مدل زنده در `start:hosted` به `LAUNCHLANE_MODEL_LEDGER_PATH` مطلق و `LAUNCHLANE_MODEL_LEDGER_PHASE` موجود نیاز دارد. guard هیچ ledger، migration، allowance یا reserve تاریخی را از نو نمی‌سازد. reserve قبل از ارسال در transaction ثبت می‌شود؛ پاسخ نامعلوم reserve کامل را نگه می‌دارد. هزینهٔ تسویه‌شده همان ceiling محافظه‌کارانهٔ قبلی gpt-6-luna است، نه invoice. بدون انتقال مالکیت مصرف یا partition مستندِ همان باقیمانده، دو کپی ledger نباید هم‌زمان اختیار خرج کامل داشته باشند.

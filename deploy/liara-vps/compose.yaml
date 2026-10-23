@@ -1,0 +1,46 @@
+services:
+  web:
+    image: ${LAUNCHLANE_IMAGE:?set the reviewed immutable image digest}
+    restart: unless-stopped
+    init: true
+    environment:
+      LAUNCHLANE_AUTH_MODE: liara
+      LAUNCHLANE_ORIGIN: https://${LAUNCHLANE_DOMAIN:?set the approved domain}
+      LAUNCHLANE_STATE_DIR: /var/lib/launchlane
+      LAUNCHLANE_MODEL_LEDGER_PATH: /var/lib/launchlane/model-consumption.sqlite
+      LAUNCHLANE_MODEL_LEDGER_PHASE: python-20261023
+    volumes:
+      # Keep the same absolute path on the host: sibling sandbox bind mounts use it.
+      - /var/lib/launchlane:/var/lib/launchlane
+      - /var/run/docker.sock:/var/run/docker.sock
+    group_add:
+      - ${LAUNCHLANE_DOCKER_GID:?set the private socket group id}
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=100m
+    mem_limit: 1g
+    pids_limit: 256
+    expose:
+      - "3000"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+  proxy:
+    image: ${LAUNCHLANE_PROXY_IMAGE:?set a reviewed Caddy image digest}
+    restart: unless-stopped
+    environment:
+      LAUNCHLANE_DOMAIN: ${LAUNCHLANE_DOMAIN:?set the approved domain}
+    ports:
+      - "8443:8443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - /etc/launchlane/tls:/etc/launchlane/tls:ro
+      - proxy_data:/data
+      - proxy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+volumes:
+  proxy_data:
+  proxy_config:
