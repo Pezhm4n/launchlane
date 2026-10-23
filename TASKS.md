@@ -4,6 +4,8 @@
 
 descriptor محدود ASGI/Vite، اعتبارسنجی مستقل manifest/بایت خروجی و مولد entry بدون تداخل root با۱۸آزمون domain و۱آزمون قرارداد bootstrap ثبت شدند. همهٔ این‌ها هنوز foundation مستقل‌اند و descriptor صریحاً `publishable:false` است؛ به application یا اختیار انتشار متصل نشده‌اند. [شواهد و مرز باز](docs/evidence/composite-preparation.md). ترب فعلی root mount و readiness خودش را دارد؛ bootstrap جایگزین آن نمی‌شود. اتصال export واقعی، artifact نهایی، منابع/داده و انتشار کامل در همان Aها باز می‌ماند.
 
+خواندن محدود خروجی container و تطبیق مستقل بایت‌ها،۶regression میزبان دارد؛ parser/MIME خروجی frontend نیز۳/۳ بررسی سبک دارد. export lifecycle هنوز متصل نیست و actual container pass تازه نداریم: baselinefrontend پیش از assertion با cleanup نامعلوم و fixtureexport پیش از export با timeout متوقف شدند. شکاف cleanup تست پس از پاسخ گم‌شده اصلاح و همان منبع با identity پاک شد؛ deadlineها افزایش نیافتند. این برش انتشار کامل ترب یا تأیید container را ادعا نمی‌کند.
+
 ## جمع‌بندی برش‌های آماده؛ A02/A03/A04/A17/A18 / ۲۰۲۶-۱۰-۲۳
 
 خلاصهٔ correlated مراحل و برآورد صحیح۲۴ساعت/۳۰روز با۴آزمون رندر/محاسبه بررسی شدند؛ انتخاب پلن همان quote و اختیار موجود را نگه می‌دارد. projection فقط متن source تکراری با رسید کاملِ برابر در همان درخواست را جایگزین می‌کند؛ evidence یکتا، جفت ابزار، oracle و history پایدار حفظ می‌شوند. پیشنهاد انتشار منقضی‌شده در همان کارت بسته می‌شود. بستهٔ مستقل پس از review در `f6a748f` ثبت شد؛ [شواهد و حدود](docs/evidence/reference-improvements.md). نتیجهٔ هدفمند مشترک۱۴/۱۴ است؛ این عدد full-domain یا پذیرش سرور اصلی نیست. پذیرش candidate تازه و مسیر کامل ترب، منابع و سایر۱۴خانواده همچنان ادامه دارند.

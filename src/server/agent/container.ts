@@ -75,7 +75,49 @@ export async function runContainerTests(workspace: string, testFiles: readonly s
   }
 }
 
+// Read only executable/style references from bounded HTML, including normal unquoted HTML attributes.
+export const frontendAssetProgram = String.raw`const frontendScriptMimes=new Set(['application/javascript','text/javascript','application/ecmascript','text/ecmascript']);
+function frontendAssetMime(kind,value){const type=(value||'').split(';')[0].trim().toLowerCase();return kind==='style'?type==='text/css':kind==='script'&&frontendScriptMimes.has(type)}
+function frontendAssets(html){
+if(Buffer.byteLength(html)>65536)throw Error('frontend document limit');
+const lower=html.replace(/[A-Z]/g,value=>value.toLowerCase()),references=[];let cursor=0,base=null,tags=0;
+const space=value=>/[\t\n\f\r ]/.test(value||'');
+const decode=value=>value.replace(/&(?:#(x[0-9a-f]+|[0-9]+);?|([a-z]+);)/gi,(whole,number,name)=>{if(number){const code=number[0].toLowerCase()==='x'?parseInt(number.slice(1),16):parseInt(number,10);if(code===0||code>1114111||code>=55296&&code<=57343)throw Error('invalid asset character reference');return String.fromCodePoint(code)}return ({amp:'&',quot:'"',apos:"'",lt:'<',gt:'>'})[name.toLowerCase()]||whole});
+while(cursor<html.length){
+const start=html.indexOf('<',cursor);if(start<0)break;
+if(html.startsWith('<!--',start)){if(html[start+4]==='>'){cursor=start+5;continue}if(html.slice(start+4,start+6)==='->'){cursor=start+6;continue}
+const normal=html.indexOf('-->',start+4),abrupt=html.indexOf('--!>',start+4),end=normal<0?abrupt:abrupt<0?normal:Math.min(normal,abrupt);
+if(end<0)throw Error('incomplete frontend comment');cursor=end+(end===abrupt?4:3);continue}
+let at=start+1;if(!/[a-z]/i.test(html[at]||'')){cursor=at;continue}
+const nameStart=at;while(/[a-z0-9:-]/i.test(html[at]||''))at++;
+const tag=lower.slice(nameStart,at),attributes=Object.create(null);let closed=false;
+if(++tags>2048)throw Error('frontend tag limit');
+while(at<html.length){
+while(space(html[at]))at++;
+if(html[at]==='>'){at++;closed=true;break}
+if(html[at]==='/'&&html[at+1]==='>'){at+=2;closed=true;break}
+const attributeStart=at;while(at<html.length&&!space(html[at])&&!/[=/> <]/.test(html[at]))at++;
+if(at===attributeStart){at++;continue}
+const name=lower.slice(attributeStart,at);while(space(html[at]))at++;
+let value='';if(html[at]==='='){at++;while(space(html[at]))at++;const quote=html[at];
+if(quote==='"'||quote==="'"){const valueStart=++at;while(at<html.length&&html[at]!==quote)at++;value=html.slice(valueStart,at);if(at<html.length)at++}
+else{const valueStart=at;while(at<html.length&&!space(html[at])&&html[at]!=='>')at++;value=html.slice(valueStart,at)}}
+if(!Object.hasOwn(attributes,name))attributes[name]=value;
+}
+cursor=at;if(!closed)throw Error('incomplete frontend tag');
+if(tag==='base'&&base===null&&Object.hasOwn(attributes,'href'))base=decode(attributes.href);
+const scriptType=(attributes.type||'').trim().toLowerCase().split(';')[0];
+if(tag==='script'&&Object.hasOwn(attributes,'src')&&(!scriptType||scriptType==='module'||frontendScriptMimes.has(scriptType)))references.push({path:decode(attributes.src),kind:'script'});
+if(tag==='link'&&Object.hasOwn(attributes,'href')){const rel=(attributes.rel||'').toLowerCase().split(/[\t\n\f\r ]+/),as=(attributes.as||'').trim().toLowerCase();
+const kind=rel.includes('stylesheet')?'style':rel.includes('modulepreload')?'script':rel.includes('preload')&&(as==='script'||as==='style')?as:null;
+if(kind)references.push({path:decode(attributes.href),kind})}
+if(['script','style','textarea','title'].includes(tag)){let end=lower.indexOf('</'+tag,cursor);while(end>=0&&!/[\t\n\f\r />]/.test(lower[end+tag.length+2]||''))end=lower.indexOf('</'+tag,end+2);cursor=end<0?html.length:end}
+}
+return {base,references};
+}`;
+
 const buildProgram = `const fs=require('node:fs'),{spawn}=require('node:child_process'),{createHash}=require('node:crypto');
+${frontendAssetProgram}
 const plan=JSON.parse(process.argv[1]);let stage='cache';const watchdog=setTimeout(()=>process.exit(124),110000);
 const env={PATH:'/usr/local/bin:/usr/bin:/bin',HOME:'/work',TMPDIR:'/work',CI:'true',NEXT_TELEMETRY_DISABLED:'1',PORT:String(plan.port),NODE_OPTIONS:'--max-old-space-size=512',npm_config_cache:'/work/cache',npm_config_offline:'true',npm_config_audit:'false',npm_config_fund:'false'};
 for(const item of JSON.parse(fs.readFileSync(0,'utf8')||'[]')){if(!/^[A-Za-z_][A-Za-z0-9_]*$/.test(item.key)||/^(?:PATH|HOME|TMPDIR|NODE_OPTIONS|NODE_ENV|PORT|CI|NEXT_TELEMETRY_DISABLED|npm_config_.*)$/i.test(item.key)||typeof item.value!=='string')throw Error('invalid project environment');env[item.key]=item.value}
@@ -96,7 +138,11 @@ if(!root.startsWith('/work/project/')||!fs.statSync(root+'/index.html').isFile()
 const mime={'.html':'text/html; charset=utf-8','.js':'application/javascript','.mjs':'application/javascript','.css':'text/css','.json':'application/json','.svg':'image/svg+xml','.png':'image/png','.woff2':'font/woff2'};
 const server=http.createServer((req,res)=>{try{const pathname=decodeURIComponent(new URL(req.url,'http://localhost').pathname);let file=path.resolve(root,'.'+pathname);if(file!==root&&!file.startsWith(root+'/'))throw Error('path denied');if(file===root)file=root+'/index.html';if(!fs.existsSync(file)&&!path.extname(file))file=root+'/index.html';const resolved=fs.realpathSync(file);if(!resolved.startsWith(root+'/')||!fs.statSync(resolved).isFile())throw Error('file denied');res.setHeader('content-type',mime[path.extname(resolved)]||'application/octet-stream');fs.createReadStream(resolved).pipe(res)}catch{res.writeHead(404);res.end('not found')}});
 await new Promise(resolve=>server.listen(plan.port,'127.0.0.1',resolve));child={kill:()=>server.close()};
-const localOrigin=new URL('http://127.0.0.1:'+plan.port).origin,html=fs.readFileSync(root+'/index.html','utf8');for(const match of html.matchAll(/(?:src|href)=["']([^"']+[.](?:js|mjs|css)(?:[?][^"']*)?)["']/g)){const url=new URL(match[1],localOrigin+'/');if(url.origin!==localOrigin)throw Error('external build asset is not verified');const asset=await fetch(url,{redirect:'manual',signal:AbortSignal.timeout(1000)});let size=0;for await(const bytes of asset.body){size+=bytes.length;if(size>2097152)throw Error('built asset limit')};const type=asset.headers.get('content-type')||'';if(asset.status!==200||size===0||!(type.includes('javascript')||type.startsWith('text/css')))throw Error('built asset missing or invalid')}
+const localOrigin=new URL('http://127.0.0.1:'+plan.port).origin,html=fs.readFileSync(root+'/index.html','utf8'),assets=frontendAssets(html),base=new URL(assets.base??'/',localOrigin+'/'),seen=new Set();let totalAssetBytes=0;
+if(base.origin!==localOrigin)throw Error('external build asset is not verified');
+for(const reference of assets.references){const url=new URL(reference.path,base);if(url.origin!==localOrigin)throw Error('external build asset is not verified');const key=reference.kind+':'+url.href;if(seen.has(key))continue;seen.add(key);if(seen.size>16)throw Error('built asset count limit');
+const asset=await fetch(url,{redirect:'manual',signal:AbortSignal.timeout(1000)});let size=0;for await(const bytes of asset.body){size+=bytes.length;totalAssetBytes+=bytes.length;if(size>2097152||totalAssetBytes>8388608)throw Error('built asset limit')};
+if(asset.status!==200||size===0||!frontendAssetMime(reference.kind,asset.headers.get('content-type')))throw Error('built asset missing or invalid')}
 }else{child=spawn('/usr/local/bin/npm',['start'],{cwd:'/work/project',env:{...env,NODE_ENV:'production'},stdio:['ignore','pipe','pipe']});child.stdout.pipe(process.stdout);child.stderr.pipe(process.stderr);child.on('error',()=>{});}
 try{let result=null;const deadline=Date.now()+15000;while(Date.now()<deadline){try{const response=await fetch('http://127.0.0.1:'+plan.port+plan.workload.path,{redirect:'manual',signal:AbortSignal.timeout(1000)});const chunks=[];let size=0;for await(const bytes of response.body){size+=bytes.length;if(size>65536)throw Error('response limit');chunks.push(Buffer.from(bytes))};const body=Buffer.concat(chunks).toString('utf8');
 const a=plan.workload.assertion;let matches=false;if(a.kind==='text')matches=body.includes(a.contains);else{try{const json=JSON.parse(body);matches=json!==null&&typeof json==='object'&&!Array.isArray(json)&&Object.hasOwn(json,a.field)&&json[a.field]===a.equals}catch{}}
