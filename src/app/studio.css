@@ -151,6 +151,11 @@ html {
 .project-summary .section-heading > div { display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; min-inline-size: 0; max-inline-size: 100%; }
 .project-summary .section-heading p { margin: 0; min-inline-size: 0; max-inline-size: 100%; overflow-wrap: anywhere; }
 .project-summary > .hint { font-size: var(--text-xs); }
+.platform-badge { display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-2); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-md); background: var(--color-field); color: var(--color-ink); font-size: var(--text-xs); line-height: 1.4; max-inline-size: 100%; }
+.platform-mark { display: block; inline-size: var(--space-5); block-size: var(--space-5); flex: 0 0 auto; background: var(--color-primary); mask-size: contain; mask-position: center; mask-repeat: no-repeat; transition: transform var(--motion-feedback); }
+.platform-badge[data-platform="node"] .platform-mark { mask-image: url("/icon/platform/node.svg"); }
+.platform-badge[data-platform="python"] .platform-mark { mask-image: url("/icon/platform/python.svg"); }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) { .platform-badge:hover .platform-mark { transform: translateY(calc(var(--border-width) * -1)); } }
 .task-main .project-technical { margin-block: var(--space-3) var(--space-5); }
 .project-technical > summary { font-size: var(--text-sm); }
 .task-main .publication-journey { margin-block-start: var(--space-4); }

@@ -56,13 +56,14 @@ async function audit(name, { width = 375, height = 667, zoom = false, keyboard =
     const log = node.querySelector('[role="log"]'), field = node.querySelector("textarea"), form = node.querySelector("form"), button = node.querySelector('button[type="submit"]'), text = node.querySelector(".agent-answer .rich-text");
     return { panel: rect(node), log: rect(log), input: rect(field), form: rect(form), send: rect(button), overflow: node.scrollWidth > node.clientWidth,
       textFont: parseFloat(getComputedStyle(text).fontSize), textColor: getComputedStyle(text).color, background: getComputedStyle(text.closest("article")).backgroundColor,
+      inputFont: parseFloat(getComputedStyle(field).fontSize), copyGlyph: node.querySelector(".agent-message-copy svg").getBoundingClientRect().width, copyTarget: node.querySelector(".agent-message-copy").getBoundingClientRect().height,
       inputDirection: getComputedStyle(field).direction, alignment: getComputedStyle(field).textAlign, inputOverflow: getComputedStyle(field).overflowY,
       visibleTop: visualViewport.offsetTop, visibleBottom: visualViewport.offsetTop + visualViewport.height };
   });
   assert.equal(geometry.overflow, false, name);
   assert.ok(geometry.log.height >= 44 && geometry.send.y >= geometry.panel.y && geometry.send.bottom <= geometry.visibleBottom + 1, JSON.stringify({ name, geometry }));
   if (width < 768) assert.ok(Math.abs(geometry.panel.x) < 1 && Math.abs(geometry.panel.y - geometry.visibleTop) < 1 && Math.abs(geometry.panel.bottom - geometry.visibleBottom) < 1, name);
-  if (!zoom && !keyboard && height >= 600) assert.ok(geometry.log.height / geometry.panel.height >= .65 && geometry.form.height <= 100 && geometry.input.height <= 48 && geometry.textFont === (width < 768 ? 14 : 16), JSON.stringify({ name, geometry }));
+  if (!zoom && !keyboard && height >= 600) assert.ok(geometry.log.height / geometry.panel.height >= .65 && geometry.form.height <= 100 && geometry.input.height <= 48 && geometry.textFont === 14 && geometry.inputFont === 16 && geometry.copyGlyph <= 14 && geometry.copyTarget >= 44, JSON.stringify({ name, geometry }));
   const lum = color => {
     const values = color.match(/[\d.]+/g).slice(0, 3).map(Number).map(value => { const x = value / 255; return x <= .04045 ? x / 12.92 : ((x + .055) / 1.055) ** 2.4; });
     return values[0] * .2126 + values[1] * .7152 + values[2] * .0722;
@@ -111,9 +112,18 @@ try {
   assert.ok(separation.content >= separation.panel, JSON.stringify(separation));
   assert.equal(await chat.evaluate(node => node.matches(":modal")), false);
   await page.locator(".brand").focus(); assert.equal(await page.locator(".brand").evaluate(node => node === document.activeElement), true);
-  await chat.getByRole("button", { name: "بزرگ‌کردن گفتگو", exact: true }).click(); assert.ok((await chat.boundingBox()).width > 1300);
-  await page.waitForFunction(() => document.querySelector(".assistant-float").matches(":modal"));
-  await page.locator(".brand").evaluate(node => node.focus()); assert.equal(await chat.evaluate(node => node.contains(document.activeElement)), true);
+  await chat.getByRole("button", { name: "بزرگ‌کردن گفتگو", exact: true }).click();
+  const expanded = await chat.boundingBox(); assert.ok(expanded.width >= 800 && expanded.width <= 1000);
+  assert.equal(await chat.evaluate(node => node.matches(":modal")), false);
+  const centered = await chat.locator(".optional-chat").evaluate(node => {
+    const column = node.getBoundingClientRect(), panel = node.closest("dialog").getBoundingClientRect();
+    return Math.abs(column.left + column.width / 2 - panel.left - panel.width / 2);
+  }); assert.ok(centered < 1, `Expanded conversation center differs by ${centered}px`);
+  await page.screenshot({ path: join(output, "expanded-desktop.png") });
+  await page.locator(".brand").focus(); assert.equal(await page.locator(".brand").evaluate(node => node === document.activeElement), true);
+  const priorMinHeight = await page.locator("main").evaluate(node => { const value = node.style.minHeight; node.style.minHeight = "1800px"; return value; });
+  await page.mouse.move(1400, 740); await page.mouse.wheel(0, 450); await page.waitForFunction(() => scrollY > 0);
+  await page.locator("main").evaluate((node, value) => { node.style.minHeight = value; scrollTo(0, 0); }, priorMinHeight);
   await chat.getByRole("button", { name: "کوچک‌کردن گفتگو", exact: true }).click();
   await page.setViewportSize({ width: 375, height: 667 });
   await chat.getByRole("button", { name: "گفت‌وگوی تازه", exact: true }).click(); run = null; failOnce = true;

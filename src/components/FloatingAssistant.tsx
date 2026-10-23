@@ -27,13 +27,13 @@ export function FloatingAssistant({ children, blocked, projectName }: {
     function show() {
       if (!node) return;
       if (node.open) node.close();
-      if (media.matches || expanded) node.showModal(); else node.show();
+      if (media.matches) node.showModal(); else node.show();
       close.current?.focus();
     }
     show();
     media.addEventListener("change", show);
     return () => media.removeEventListener("change", show);
-  }, [open, blocked, expanded]);
+  }, [open, blocked]);
   useEffect(() => {
     const viewport = window.visualViewport;
     const resize = () => {

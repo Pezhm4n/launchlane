@@ -24,6 +24,7 @@ import { AgentPanel } from "./AgentPanel.tsx";
 import { workbenchLocation } from "../contracts/navigation.ts";
 import { WorkbenchNavigation } from "./WorkbenchNavigation.tsx";
 import { WorkbenchView } from "./WorkbenchView.tsx";
+import { PlatformBadge } from "./PlatformBadge.tsx";
 
 type FlowResult = { flow: ProjectFlow | null; action: Action | null };
 type WorkbenchMode="source"|"incident";
@@ -1047,7 +1048,7 @@ export function Workbench() {
             ) : null}
             <WorkbenchView active={mode === "source"} kind="source">
               {flow && !editingProject ? <section className="panel project-summary" aria-label="پروژه انتخاب‌شده">
-                <div className="section-heading"><div><span className="hint">پروژه انتخاب‌شده</span><p><strong><bdi>{projectName(flow)}</bdi></strong></p></div>
+                <div className="section-heading"><div><span className="hint">پروژه انتخاب‌شده</span><p><strong><bdi>{projectName(flow)}</bdi></strong></p><PlatformBadge runtime={flow.profile.runtime} version={flow.profile.pythonRuntime?.version} /></div>
                 <button type="button" className="button-quiet" disabled={disabled} onClick={() => setEditingProject(true)}>تغییر پروژه</button></div>
                 <p className="hint">{flow.selection.kind === "github" ? "از GitHub؛ نسخه انتخاب‌شده ثبت شده" : flow.selection.kind === "repair" ? "نسخه اصلاح‌شده و آزموده‌شده" : flow.selection.kind === "upload" ? "کپی واردشده از رایانه؛ فایل اصلی شما تغییر نمی‌کند" : "از پوشه‌های مجاز همین رایانه"}</p>
                 {flow.selection.kind === "sample" ? <span className="badge badge-warning">پروژه نمونه</span> : null}
@@ -1227,7 +1228,7 @@ export function Workbench() {
                         <div>
                           <dt>نوع پروژه</dt>
                           <dd>
-                            {profile.runtime === "node" ? <bdi>Node.js</bdi> : profile.runtime === "python" ? <bdi>Python {profile.pythonRuntime?.version}</bdi> : "هنوز شناسایی نشده"}
+                            {profile.runtime === "unknown" ? "هنوز شناسایی نشده" : <PlatformBadge runtime={profile.runtime} version={profile.pythonRuntime?.version} />}
                           </dd>
                         </div>
                         <div>

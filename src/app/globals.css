@@ -1208,7 +1208,7 @@ button[aria-busy="true"] {
   block-size: var(--icon-size);
   flex-shrink: 0;
 }
-html:has(dialog[open]) {
+html:has(dialog:modal) {
   overflow: hidden;
 }
 dialog {
