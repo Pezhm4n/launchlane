@@ -23,11 +23,13 @@ import { parseNodePreparation, type NodePreparation } from "../../contracts/prep
 import { preparationPaths, validatePreparationPatch } from "./preparation.ts";
 import { fingerprint } from "../policy/action.ts";
 import { runContainerTests, runContainerBuild } from "./container.ts";
-import { parseProjectBuildPlan, projectBuildImage, type ProjectBuildPlan } from "../../contracts/project-build.ts";
+import { parseProjectBuildPlan, projectBuildImage, pythonBuildImage, type ProjectBuildPlan } from "../../contracts/project-build.ts";
 import { validateBuildPlan, validateBuildRepairPaths } from "./build-policy.ts";
 import { downloadLockedTarballs, lockedTarballs, type TarballReader } from "./npm-source.ts";
 import { projectEnvironmentValues } from "../environment/secrets.ts";
 import { connectedLiaraConfig } from "../connections/liara.ts";
+import { downloadPythonWheels, pythonRequirements } from "./python-source.ts";
+import { runPythonBuild } from "./python-container.ts";
 
 const patchTool: ToolDefinition = {
   type: "function",
@@ -94,7 +96,7 @@ export function repairConsent(input: Omit<RepairInput, "localWorkConsent">): str
         testFiles: input.testFiles,
         expectedSourceHash: input.expectedSourceHash,
         ...(input.preparation ? { preparation: parseNodePreparation(input.preparation) } : {}),
-        ...(input.execution ? { execution: input.execution, image: projectBuildImage } : {}),
+        ...(input.execution ? { execution: input.execution, image: input.build?.image ?? projectBuildImage } : {}),
         ...(input.build ? { build: parseProjectBuildPlan(input.build) } : {}),
         ...(input.validationOnly ? { validationOnly: true } : {}),
       }),
@@ -336,7 +338,7 @@ export class CodeRepairAdapter {
           testFiles: input.testFiles,
           expectedSourceHash: input.expectedSourceHash,
           ...(input.preparation ? { preparation: parseNodePreparation(input.preparation) } : {}),
-          ...(input.execution ? { execution: input.execution, image: projectBuildImage } : {}),
+          ...(input.execution ? { execution: input.execution, image: input.build?.image ?? projectBuildImage } : {}),
           ...(input.build ? { build: parseProjectBuildPlan(input.build) } : {}),
           ...(input.validationOnly ? { validationOnly: true } : {}),
         }),
@@ -367,7 +369,7 @@ export class CodeRepairAdapter {
         signal,
         secrets: privateValues(this.config),
       });
-    if (input.execution === "container") ensure(flow.profile.nodeRuntime?.version === "22", "SANDBOX_RUNTIME_UNAVAILABLE", "محیط ایزوله فعلی فقط Node 22 آزموده شده دارد؛ نسخه دیگری روی میزبان اجرا نمی‌شود.", 409);
+    if (input.execution === "container") ensure(flow.profile.nodeRuntime?.version === "22" || flow.profile.runtime === "python" && input.build?.version === 2, "SANDBOX_RUNTIME_UNAVAILABLE", "محیط ایزوله فعلی Node 22 یا برنامه محدود Python 3.12 لازم دارد؛ کد روی میزبان اجرا نمی‌شود.", 409);
     ensure(
       captured.profile.sourceHash === input.expectedSourceHash,
       "PROJECT_CHANGED",
@@ -396,15 +398,15 @@ export class CodeRepairAdapter {
       );
     ensure(
       input.testFiles.every(
-        (path) => /\.(?:test|spec)\.[cm]?js$/.test(path) && !input.allowedPaths.includes(path),
+        (path) => (build?.version === 2 ? /(?:^|\/)test_[A-Za-z0-9_]+\.py$/.test(path) : /\.(?:test|spec)\.[cm]?js$/.test(path)) && !input.allowedPaths.includes(path),
       ),
       "REPAIR_TEST_DENIED",
       "آزمون پذیرش باید فایل موجود و خارج محدوده تغییر باشد.",
       403,
     );
     const pkg = captured.files.find((file) => file.path === "package.json");
-    ensure(pkg, "REPAIR_TEST_DENIED", "فرمان آزمون پروژه مشخص نیست.", 409);
-    const scripts = object(object(JSON.parse(pkg.content.toString("utf8"))).scripts);
+    ensure(pkg || build?.version === 2, "REPAIR_TEST_DENIED", "فرمان آزمون پروژه مشخص نیست.", 409);
+    const scripts = pkg ? object(object(JSON.parse(pkg.content.toString("utf8"))).scripts) : {};
     if (!build) ensure(
       scripts.test === "node --test" || scripts.test === `node --test ${input.testFiles.join(" ")}`,
       "REPAIR_TEST_UNSUPPORTED",
@@ -434,7 +436,7 @@ export class CodeRepairAdapter {
         ...(preparation ? { preparation } : {}),
         ...(build ? { build } : {}),
         ...(input.validationOnly ? { validationOnly: true } : {}),
-        ...(input.execution ? { execution: input.execution, containerImage: projectBuildImage, containerIds: [] } : {}),
+        ...(input.execution ? { execution: input.execution, containerImage: build?.image ?? projectBuildImage, containerIds: [] } : {}),
         allowedPaths: input.allowedPaths,
         testFiles: input.testFiles,
         changedPaths: [],
@@ -478,7 +480,7 @@ export class CodeRepairAdapter {
     sharedBudget?: RunBudget,
   ): Promise<CodeRepairJob> {
     const record = this.record(actor, id);
-    ensure(record.job.execution !== "container" || record.job.containerImage === projectBuildImage,
+    ensure(record.job.execution !== "container" || record.job.containerImage === (record.job.build?.version === 2 ? pythonBuildImage : projectBuildImage),
       "SANDBOX_IMAGE_CHANGED", "محیط اجرای این job تغییر کرده است؛ تصمیم تازه لازم است.", 409);
     const claim = this.store.db
       .prepare(
@@ -529,16 +531,19 @@ export class CodeRepairAdapter {
       if (record.job.build) {
         projectEnvironmentValues(this.store, this.config.sessionSecret, actor, record.job.projectId, record.job.build.environment);
         validateBuildPlan(base.files, base.profile, record.job.build);
-        await downloadLockedTarballs(lockedTarballs(base.files), tarballs, bounded, () => budget.take("tool", bounded), this.tarballReader);
+        if (record.job.build.version === 2) await downloadPythonWheels(pythonRequirements(base.files), tarballs, bounded, () => budget.take("tool", bounded));
+        else await downloadLockedTarballs(lockedTarballs(base.files), tarballs, bounded, () => budget.take("tool", bounded), this.tarballReader);
       }
       const tests = async (): Promise<RepairTestReceipt> => {
         if (record.job.build) {
           const environment = projectEnvironmentValues(this.store, this.config.sessionSecret, actor, record.job.projectId, record.job.build.environment),
             infrastructure = [record.job.build.environment ? connectedLiaraConfig(this.config, this.store, actor).liaraToken : this.config.liaraToken, this.config.modelKey, this.config.operatorToken, this.config.sessionSecret].filter(Boolean);
           ensure(environment.every(row => infrastructure.every(secret => !row.value.includes(secret))), "ENV_INFRASTRUCTURE_CREDENTIAL", "کلید زیرساخت وارد worker نمی‌شود.", 409);
-          const started = Date.now(), result = await runContainerBuild(record.workspace, tarballs, record.job.build,
-            AbortSignal.any([bounded, AbortSignal.timeout(120000)]), containerId => { record.job.containerIds = [...(record.job.containerIds ?? []), containerId]; this.save(record); }, environment);
-          return { command: `npm ci --offline${record.job.build.buildCommand ? " && npm run build" : ""}${record.job.build.testCommand ? " && npm test" : ""} && npm start; GET ${record.job.build.workload.path}`,
+          const started = Date.now(), onCreated = (containerId: string) => { record.job.containerIds = [...(record.job.containerIds ?? []), containerId]; this.save(record); },
+            testSignal = AbortSignal.any([bounded, AbortSignal.timeout(120000)]), result = record.job.build.version === 2
+              ? await runPythonBuild(record.workspace, tarballs, record.job.build, record.job.testFiles, testSignal, onCreated, environment)
+              : await runContainerBuild(record.workspace, tarballs, record.job.build, testSignal, onCreated, environment);
+          return { command: record.job.build.version === 2 ? `pip install --no-index --require-hashes; compileall; unittest ${record.job.testFiles.join(" ")}; ${record.job.build.startCommand}; GET ${record.job.build.workload.path}` : `npm ci --offline${record.job.build.buildCommand ? " && npm run build" : ""}${record.job.build.testCommand ? " && npm test" : ""} && npm start; GET ${record.job.build.workload.path}`,
             exitCode: result.exitCode, signal: result.signal, durationMs: Date.now() - started, output: redact(result.output, [...privateValues(this.config), ...environment.map(row => row.value).filter(value => value.length >= 4)]),
             passed: result.exitCode === 0 && !bounded.aborted && !result.signal };
         }
@@ -567,6 +572,7 @@ export class CodeRepairAdapter {
       record.job.beforeTest = await tests();
       this.save(record);
       ensure(!record.job.beforeTest.signal && record.job.beforeTest.exitCode !== null, "REPAIR_EXECUTION_INCONCLUSIVE", "قطع آزمون، کمبود حافظه یا خروجی بیش از حد، مجوز اصلاح کد نیست.", 409);
+      if (record.job.build) ensure([72, 73, 76].includes(record.job.beforeTest.exitCode), "REPAIR_EXECUTION_INCONCLUSIVE", "خطای دریافت یا نصب dependency مجوز تغییر کد نیست.", 409);
       ensure(
         !record.job.beforeTest.passed,
         "REPAIR_NOT_REPRODUCED",
@@ -656,7 +662,7 @@ export class CodeRepairAdapter {
           409,
         );
         ensure(
-          !containsSourceCredential(content, privateValues(this.config)),
+          !containsSourceCredential(content, privateValues(this.config), path),
           "SENSITIVE_SOURCE",
           "وصله شامل مقدار محرمانه است.",
           403,
@@ -704,7 +710,7 @@ export class CodeRepairAdapter {
       const beforePackage = base.files.find((file) => file.path === "package.json"),
         afterPackage = patched.files.find((file) => file.path === "package.json");
       if (record.job.preparation) validatePreparationPatch(base.files, patched.files, record.job.preparation);
-      else ensure(beforePackage && afterPackage && beforePackage.content.equals(afterPackage.content),
+      else ensure(record.job.build?.version === 2 ? !beforePackage && !afterPackage : beforePackage && afterPackage && beforePackage.content.equals(afterPackage.content),
         "REPAIR_COMMAND_CHANGED", "تغییر فرمان‌ها یا وابستگی‌ها در این قرارداد مجاز نیست.", 409);
       record.job.changedPaths = [...replacements.keys()];
       record.job.diff = record.job.changedPaths

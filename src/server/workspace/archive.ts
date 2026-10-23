@@ -227,7 +227,7 @@ export async function createSourceArchive(input: {
     409,
   );
   ensure(
-    files.length > 0 && profile.runtime === "node" && profile.start,
+    files.length > 0 && (profile.runtime === "node" || profile.runtime === "python") && profile.start,
     "PROJECT_INCOMPLETE",
     "پروژه به package.json و دستور start نیاز دارد.",
     409,

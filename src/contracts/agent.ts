@@ -96,7 +96,7 @@ export function parseAgentView(value: unknown): AgentView {
     };
   });
   const destination = row.destination === null || row.destination === undefined ? null : decodeAction(row.destination);
-  ensure(!destination || destination.spec.version === 8, "INVALID_RESPONSE", "رسید مقصد با قرارداد ساخت تطبیق ندارد.");
+  ensure(!destination || (destination.spec.version === 8 || destination.spec.version === 12), "INVALID_RESPONSE", "رسید مقصد با قرارداد ساخت تطبیق ندارد.");
   return {
     id: string(row.id, 36),
     revision: integer(row.revision, 1, 10000),

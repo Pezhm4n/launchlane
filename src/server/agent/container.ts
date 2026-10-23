@@ -7,7 +7,7 @@ import { environmentVariables, isApplicationEnvironmentKey, type EnvironmentVari
 
 export const node22Image = projectBuildImage;
 export type CommandResult = { output: string; exitCode: number | null; signal: string | null };
-function docker(args: string[], signal: AbortSignal, maxBytes = 32768, input?: Buffer): Promise<CommandResult> {
+export function docker(args: string[], signal: AbortSignal, maxBytes = 32768, input?: Buffer): Promise<CommandResult> {
   ensure(!signal.aborted, "CANCELLED", "اجرای ایزوله متوقف شد.", 409);
   return new Promise((resolve, reject) => {
     const child = spawn("docker", args, { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
@@ -30,7 +30,7 @@ function docker(args: string[], signal: AbortSignal, maxBytes = 32768, input?: B
   });
 }
 
-async function containerState(id: string) {
+export async function containerState(id: string) {
   const inspected = await docker(["inspect", "--format", "{{json .State}}", id], AbortSignal.timeout(5000), 4096);
   ensure(inspected.exitCode === 0, "SANDBOX_UNCERTAIN", "رسید پایان محیط ایزوله قابل بررسی نیست.", 409);
   const state = object(JSON.parse(inspected.output));
@@ -100,6 +100,7 @@ clearTimeout(watchdog);process.exit(0)
 export async function runContainerBuild(workspace: string, tarballs: string, value: ProjectBuildPlan, signal: AbortSignal,
   onCreated?: (id: string) => void, environment: readonly EnvironmentVariable[] = []): Promise<CommandResult & { containerId: string; image: string }> {
   const plan = parseProjectBuildPlan(value), values = environmentVariables(environment);
+  ensure(plan.version === 1, "BUILD_RUNTIME_UNSUPPORTED", "این runner فقط برای Node است.", 409);
   ensure(values.every(row => isApplicationEnvironmentKey(row.key)), "ENV_SCOPE_DENIED", "تنظیمات runner از اطلاعات پروژه جداست.", 409);
   ensure(values.map(row => row.key).sort().join("\0") === [...(plan.environment?.keys ?? [])].sort().join("\0"), "ENV_REFERENCE_CHANGED", "ورودی محیط build با تصمیم برابر نیست.", 409);
   ensure(!workspace.includes(",") && !tarballs.includes(","), "SANDBOX_PATH_DENIED", "مسیر ورودی build معتبر نیست.", 403);

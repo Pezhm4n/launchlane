@@ -273,7 +273,7 @@ export class Store {
     });
   }
   assertProjectAction(actorId: string, spec: ActionSpec, existingId?: string): void {
-    if (spec.version !== 3 && spec.version !== 4 && spec.version !== 5 && (spec.version !== 7 && spec.version !== 10) && spec.version !== 8 && spec.version !== 9) return;
+    if (spec.version !== 3 && spec.version !== 4 && spec.version !== 5 && (spec.version !== 7 && spec.version !== 10 && spec.version !== 11) && (spec.version !== 8 && spec.version !== 12) && spec.version !== 9) return;
     const flow = this.getProjectFlow(actorId);
     ensure(
       flow &&
@@ -287,16 +287,19 @@ export class Store {
       "پروژه یا فایل‌های آن تغییر کرده‌اند. پروژه را دوباره بررسی و پیشنهاد تازه دریافت کنید.",
       409,
     );
-    ensure((spec.version !== 5 && (spec.version !== 7 && spec.version !== 10) && spec.version !== 8) || flow.profile.nodeRuntime?.version === spec.nodeVersion, "NODE_VERSION_CHANGED", "نسخه Node پیشنهاد با بررسی پروژه برابر نیست؛ پیشنهاد تازه دریافت کنید.", 409);
+    if (spec.version === 11 || spec.version === 12) ensure(fingerprint(flow.profile.pythonRuntime) === fingerprint(spec.runtime), "PYTHON_RUNTIME_CHANGED", "تنظیمات اجرای Python تغییر کرده است؛ پیشنهاد تازه لازم است.", 409);
+    else ensure((spec.version !== 5 && (spec.version !== 7 && spec.version !== 10) && spec.version !== 8) || flow.profile.nodeRuntime?.version === spec.nodeVersion, "NODE_VERSION_CHANGED", "نسخه Node پیشنهاد با بررسی پروژه برابر نیست؛ پیشنهاد تازه دریافت کنید.", 409);
     const connection = this.getConnection(actorId, "liara")?.view;
-    if (spec.version === 10) {
-      const environment = this.getAction(spec.environment.actionId, actorId), input = environment.spec;
-      ensure(input.version === 9 && environment.state === "succeeded" && input.effectiveFingerprint === spec.environment.fingerprint &&
+    if (spec.version === 10 || spec.version === 11 && spec.environment !== null) {
+      const reference = spec.environment;
+      ensure(reference, "ENV_REFERENCE_CHANGED", "مرجع اطلاعات انتشار مشخص نیست.", 409);
+      const environment = this.getAction(reference.actionId, actorId), input = environment.spec;
+      ensure(input.version === 9 && environment.state === "succeeded" && input.effectiveFingerprint === reference.fingerprint &&
         input.accountId === spec.accountId && input.scope.teamId === spec.scope.teamId && input.scope.app === spec.scope.app && input.targetAppId === spec.targetAppId &&
-        environmentProjectIds(this, actorId, flow.id).has(input.projectFlowId) && spec.environment.keys.every(key => flow.profile.envNames.includes(key)),
+        environmentProjectIds(this, actorId, flow.id).has(input.projectFlowId) && reference.keys.every(key => flow.profile.envNames.includes(key)),
         "ENV_REFERENCE_CHANGED", "مرجع اطلاعات برنامه به همین پروژه، حساب و مقصد تعلق ندارد.", 409);
     }
-    if (spec.version === 8) {
+    if ((spec.version === 8 || spec.version === 12)) {
       const previous = connection?.apps.find((app) => app.name === connection.selectedApp)?.id ?? null;
       ensure(connection?.status === "connected" && connection.identityId === spec.accountId &&
         connection.teamId === spec.scope.teamId && previous === spec.previousAppId,
@@ -306,7 +309,7 @@ export class Store {
     ensure(
       connection?.status === "connected" &&
         connection.teamId === spec.scope.teamId &&
-        (((spec.version !== 7 && spec.version !== 10) && spec.version !== 9) || connection.identityId === spec.accountId) &&
+        (((spec.version !== 7 && spec.version !== 10 && spec.version !== 11) && spec.version !== 9) || connection.identityId === spec.accountId) &&
         connection.selectedApp === spec.scope.app &&
         connection.apps.some(
           (app) =>
@@ -577,8 +580,8 @@ export class Store {
       this.ensureNoConflict(spec);
       this.assertActionContext(actorId, spec);
       if (
-        ((spec.version === 2 || spec.version === 3 || spec.version === 4 || spec.version === 5 || (spec.version === 7 || spec.version === 10)) &&
-        spec.operation === "deploy") || spec.version === 8 || spec.version === 9
+        ((spec.version === 2 || spec.version === 3 || spec.version === 4 || spec.version === 5 || (spec.version === 7 || spec.version === 10 || spec.version === 11)) &&
+        spec.operation === "deploy") || (spec.version === 8 || spec.version === 12) || spec.version === 9
       ) {
         const artifact = this.getArtifact(actorId, spec.artifactHash ?? "");
         ensure(
@@ -624,7 +627,7 @@ export class Store {
           .run(action.id, spec.secretRef, actorId, now);
         ensure(linked.changes === 1, "ENV_INPUT_EXPIRED", "اطلاعات امن مصرف شده یا منقضی است.", 409);
       }
-      if (spec.version === 3 || spec.version === 4 || spec.version === 5 || (spec.version === 7 || spec.version === 10) || spec.version === 8 || spec.version === 9) {
+      if (spec.version === 3 || spec.version === 4 || spec.version === 5 || (spec.version === 7 || spec.version === 10 || spec.version === 11) || (spec.version === 8 || spec.version === 12) || spec.version === 9) {
         const flow = this.getProjectFlow(actorId);
         if (flow) this.invalidateProjectAction(flow, actorId);
         this.db
@@ -810,7 +813,7 @@ export class Store {
         });
       if (action.spec.version === 6)
         this.writeRestartProgress(id, { stage: "claimed", acceptedAt: null, observation: null });
-      if (action.spec.version === 8)
+      if ((action.spec.version === 8 || action.spec.version === 12))
         this.writeProvisionProgress(id, { stage: "claimed", appId: null, observation: null });
       if (action.spec.version === 9) this.writeEnvironmentProgress(id, { stage: "claimed", checkedAt: null, outcome: null });
       this.audit(action, "claimed", now);
@@ -830,7 +833,7 @@ export class Store {
         409,
       );
       const safeId = string(remoteId, 128);
-      if (action.spec.version === 8)
+      if ((action.spec.version === 8 || action.spec.version === 12))
         ensure(action.provision?.stage === "created" && action.provision.appId === safeId,
           "PROVISION_RECEIPT_REQUIRED", "رسید داخلی ساخت مقصد هنوز ثبت نشده است.", 409);
       ensure(
@@ -849,7 +852,7 @@ export class Store {
         this.writeDeploymentProgress(id, {
           ...action.deployment,
           stage: "release_accepted",
-          ...((action.spec.version === 7 || action.spec.version === 10) ? { releaseAcceptedAt: now } : {}),
+          ...((action.spec.version === 7 || action.spec.version === 10 || action.spec.version === 11) ? { releaseAcceptedAt: now } : {}),
         });
       }
       this.db
@@ -868,7 +871,7 @@ export class Store {
   invalidateEnvironmentPublication(id: string, actorId: string): Action {
     return this.transaction(() => {
       const action = this.getAction(id, actorId);
-      ensure(action.spec.version === 10 && action.state === "approved" && !action.attemptId, "ACTION_CONFLICT", "این تصمیم دیگر قابل ابطال پیش از اجرا نیست.", 409);
+      ensure((action.spec.version === 10 || action.spec.version === 11 && action.spec.environment !== null) && action.state === "approved" && !action.attemptId, "ACTION_CONFLICT", "این تصمیم دیگر قابل ابطال پیش از اجرا نیست.", 409);
       this.db.prepare("UPDATE actions SET state='failed',error_code='ENV_REFERENCE_CHANGED' WHERE id=?").run(id);
       this.audit(action, "environment_approval_invalidated", Date.now()); return this.getAction(id, actorId);
     });
@@ -914,7 +917,7 @@ export class Store {
   provisionStep(id: string, actorId: string, stage: "request_started" | "created", appId: string | null = null): void {
     this.transaction(() => {
       const action = this.getAction(id, actorId);
-      ensure(action.spec.version === 8 && action.state === "executing" && action.attemptId &&
+      ensure((action.spec.version === 8 || action.spec.version === 12) && action.state === "executing" && action.attemptId &&
         ((stage === "request_started" && action.provision?.stage === "claimed" && appId === null) ||
           (stage === "created" && action.provision?.stage === "request_started" && appId !== null)),
         "ACTION_CONFLICT", "مرحله ساخت مقصد تکراری یا خارج از ترتیب است.", 409);
@@ -928,7 +931,7 @@ export class Store {
   recordProvisionObservation(id: string, actorId: string, observation: ProvisionObservation, proof: ProvisionReadback | null): Action {
     return this.transaction(() => {
       const action = this.getAction(id, actorId), progress = action.provision;
-      ensure(action.spec.version === 8 && progress && (action.state === "observing" || action.state === "uncertain"),
+      ensure((action.spec.version === 8 || action.spec.version === 12) && progress && (action.state === "observing" || action.state === "uncertain"),
         "ACTION_CONFLICT", "ساخت مقصد نتیجه‌ای منتظر بررسی ندارد.", 409);
       const spec = action.spec, connection = this.getConnection(actorId, "liara"),
         started = this.db.prepare("SELECT started_at FROM attempts WHERE action_id=?").get(id);
@@ -939,7 +942,7 @@ export class Store {
       if (proof) ensure(proof.scope.app === spec.scope.app && proof.scope.teamId === spec.scope.teamId &&
         proof.observedAt >= Number(started.started_at) && proof.observedAt <= observation.checkedAt,
         "EVIDENCE_MISMATCH", "پاسخ خوانده‌شده متعلق به همین مقصد و زمان نیست.", 409);
-      const matches = proof && progress.stage === "created" && progress.appId === proof.id && proof.platform === "node" &&
+      const matches = proof && progress.stage === "created" && progress.appId === proof.id && proof.platform === (spec.version === 12 ? "python" : "node") &&
         proof.planId === spec.args.planId && proof.bundleId === spec.bundleId && proof.networkId === spec.networkId && proof.readOnlyRootFilesystem === true;
       ensure(observation.outcome !== "verified" || matches, "EVIDENCE_MISMATCH", "هویت یا تنظیمات برنامه ساخته‌شده با پیشنهاد برابر نیست.", 409);
       ensure(observation.outcome !== "changed" || (proof && !matches), "EVIDENCE_MISMATCH", "تغییر مقصد شاهد معتبر ندارد.", 409);
@@ -956,7 +959,7 @@ export class Store {
         const select = flow?.id === spec.projectFlowId && flow.status === "ready" && flow.actionId === id &&
           flow.profile.sourceHash === spec.sourceHash && previous === spec.previousAppId;
         this.saveConnection(actorId, { ...connection, view: { ...connection.view, checkedAt: Date.now(),
-          apps: [...connection.view.apps.filter((app) => app.name !== spec.scope.app), { name: spec.scope.app, id: proof.id, platform: "node" }],
+          apps: [...connection.view.apps.filter((app) => app.name !== spec.scope.app), { name: spec.scope.app, id: proof.id, platform: proof.platform }],
           selectedApp: select ? spec.scope.app : connection.view.selectedApp } });
         if (select && proof.defaultSubdomain === true && !this.getProbeOrigin(actorId, spec.scope.teamId, spec.scope.app)) {
           // Only an enabled provider-owned subdomain on the exact returned app may supply the first probe target.
@@ -1089,7 +1092,7 @@ export class Store {
       ensure(
         connection?.status === "connected" &&
           connection.teamId === action.spec.scope.teamId &&
-        ((action.spec.version !== 7 && action.spec.version !== 10) || connection.identityId === action.spec.accountId) &&
+        ((action.spec.version !== 7 && action.spec.version !== 10 && action.spec.version !== 11) || connection.identityId === action.spec.accountId) &&
           connection.selectedApp === action.spec.scope.app &&
           connection.apps.some(
             (app) =>
@@ -1203,7 +1206,7 @@ export class Store {
     return this.transaction(() => {
       const action = this.getAction(id, actorId);
       ensure(action.spec.version !== 6, "RESTART_OBSERVATION_REQUIRED", "این اقدام باید با بازخوانی مخصوص راه‌اندازی دوباره بررسی شود.", 409);
-      ensure(action.spec.version !== 8, "PROVISION_OBSERVATION_REQUIRED", "ساخت مقصد باید با هویت و تنظیمات همان برنامه بررسی شود.", 409);
+      ensure((action.spec.version !== 8 && action.spec.version !== 12), "PROVISION_OBSERVATION_REQUIRED", "ساخت مقصد باید با هویت و تنظیمات همان برنامه بررسی شود.", 409);
       ensure(
         !isDeploymentSpec(action.spec),
         "DEPLOYMENT_OBSERVATION_REQUIRED",

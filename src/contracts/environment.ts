@@ -27,7 +27,7 @@ export function environmentKey(value: unknown): string {
   return key;
 }
 export function isApplicationEnvironmentKey(key: string): boolean {
-  return !/^(?:PATH|HOME|TMPDIR|NODE_OPTIONS|NODE_ENV|PORT|CI|NEXT_TELEMETRY_DISABLED|npm_config_.*)$/i.test(key);
+  return !/^(?:PATH|HOME|TMPDIR|NODE_OPTIONS|NODE_ENV|PORT|CI|NEXT_TELEMETRY_DISABLED|PYTHON.*|PIP_.*|LD_.*|npm_config_.*)$/i.test(key);
 }
 export function isPublicClientEnvironmentKey(key: string): boolean { return key.startsWith("NEXT_PUBLIC_"); }
 export function validateEnvironmentVisibility(secretKeys: readonly string[]): void {

@@ -376,3 +376,8 @@ snapshot جدا روی `a697eba`، دو پاسخ 200 و همان oracle را د�
 اصلاح conversation/پیام خالی و template منبع در e6fe795 و 41e5080 ثبت شد. ۲۶۶ domain، HTTP نهایی ۳۷/۳۷، browser واقعی ۱۲/۱۲ در پنج عرض، lint/typecheck/build و identity هر ۲۴۱ فایل candidate گذشتند؛ مرزهای هر snapshot در گزارش آمده‌اند. محیط و credential واقعی بودند؛ providerهای domain عمدتاً مصنوعی‌اند.
 
 یک مقصد و release واقعی Node22 ساخته شدند؛ READY و HTTP200 با total=36 به‌جای 73 به WORKLOAD_MISMATCH منجر شد. readback پس از قطع harness، بدون attempt تازه ادامه یافت؛ app با ID و 404 پاک شد. سقف تجمعی مصوب، مدل را پیش از patch متوقف کرد؛ اصلاح و انتشار مجدد در این چرخه پذیرفته نیستند. ترب پس از رفع مانع README انتخاب شد، اما Python/runtime/data/archive آن هنوز پشتیبانی کامل ندارد. افزایش سقف مدل جای این implementation را نمی‌گیرد. تغییرات باز Agent موازی از این ارزیابی پذیرش تازه نمی‌گیرند.
+
+
+## A10/A11 — Python و تکمیل چرخه اصلاح، ۲۰۲۶-۱۰-۲۳
+
+برش Python 3.12 بومی با ActionSpec v11/v12، archive واقعی، تأیید و journal موجود و worker Docker ایزوله پیاده شد؛ ADR0015 حدود آن را مشخص می‌کند. آزمون domain برای source/secret/argv/wheel/approval و مسیر واقعی حلقه Agent اضافه شد. آزمون Docker با مدل مصنوعی، fail→patch→همان unittest و workload→artifact→انتخاب دقیق را گذراند. API واقعی ترب، بدون دیتابیس و با ۱۸ dependency قفل‌شده، در همان محیط Python نصب و اجرا شد و OpenAPI صحیح داد. این نتیجه local است؛ انتشار واقعی و چرخهٔ کامل مدل/ابر هنوز در حال اعتبارسنجی‌اند و A10/A11 کامل علامت نمی‌خورند. کار UI موازی در این شواهد پذیرفته نیست؛ فقط نمایش نوع Python و قرارداد تازه به آن متصل می‌شود.

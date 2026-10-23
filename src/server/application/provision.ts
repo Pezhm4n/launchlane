@@ -12,6 +12,7 @@ import { authorizeScope } from "../policy/action.ts";
 import { RunBudget } from "../policy/budget.ts";
 import { executeApproved } from "./execute.ts";
 import { restoreProjectFlow } from "./project-flows.ts";
+import { parseNodeVersion } from "../../contracts/node-runtime.ts";
 
 type Dependencies = { read?: LiaraAccountClient; write?: LiaraProvisionClient; budget?: RunBudget };
 function scopedConfig(config: Config, store: Store, actor: string, app: string): Config {
@@ -56,8 +57,9 @@ export async function proposeDestination(config: Config, store: Store, actor: st
   const app = identifier(input.app), scoped = scopedConfig(config, store, actor, app), connection = store.getConnection(actor, "liara")?.view;
   ensure(connection?.status === "connected", "LIARA_AUTH_REQUIRED", "ابتدا حساب را متصل کنید.", 403);
   const flow = await restoreProjectFlow(scoped, store, actor, signal, input.flowId);
-  ensure(flow?.status === "ready" && flow.artifact && flow.profile.runtime === "node" && flow.profile.nodeRuntime?.version && flow.profile.start,
-    "PROJECT_INCOMPLETE", "یک پروژه Node آماده با دستور اجرا و نسخه مشخص لازم است.", 409);
+  ensure(flow?.status === "ready" && flow.artifact && flow.profile.start &&
+    (flow.profile.runtime === "node" && flow.profile.nodeRuntime?.version || flow.profile.runtime === "python" && flow.profile.pythonRuntime),
+    "PROJECT_INCOMPLETE", "یک پروژه Node یا Python آماده با دستور اجرا و نسخه مشخص لازم است.", 409);
   const budget = dependencies.budget ?? new RunBudget(scoped), client = dependencies.read ?? new LiaraAccountClient(scoped, connection.identityId),
     catalog = await client.catalog(budget, signal), quote = quotePaaSOffer(catalog, identifier(input.planId), identifier(input.bundleId)),
     networkId = providerObjectId(input.networkId);
@@ -65,10 +67,12 @@ export async function proposeDestination(config: Config, store: Store, actor: st
   ensure(quote.creditCoversOneBaseHour, "INSUFFICIENT_CREDIT", "اعتبار حساب هزینه پایه یک ساعت این پیشنهاد را پوشش نمی‌دهد.", 409);
   ensure((await client.networks(budget, signal)).some((network) => network.id === networkId), "NETWORK_CHANGED", "شبکه متعلق به همین فهرست تیم نیست.", 409);
   ensure(await client.projectMetadata(app, budget, signal) === null, "APP_ALREADY_EXISTS", "این نام قبلاً استفاده شده است؛ برنامه موجود جایگزین نمی‌شود.", 409);
-  const spec: ProvisionSpec = { version: 8, operation: "create_app", scope: { teamId: scoped.teamId, app },
+  const spec: ProvisionSpec = { ...(flow.profile.runtime === "python" && flow.profile.pythonRuntime
+    ? { version: 12 as const, nodeVersion: null, runtime: flow.profile.pythonRuntime }
+    : { version: 8 as const, nodeVersion: parseNodeVersion(flow.profile.nodeRuntime?.version) }), operation: "create_app", scope: { teamId: scoped.teamId, app },
     sourceHash: flow.profile.sourceHash, artifactHash: flow.artifact.archiveHash, projectFlowId: flow.id, selectionHash: flow.selectionHash,
     accountId: connection.identityId, previousAppId: connection.apps.find((app) => app.name === connection.selectedApp)?.id ?? null,
-    nodeVersion: flow.profile.nodeRuntime.version, networkId, bundleId: quote.selected.bundleId, readOnlyRootFilesystem: true,
+    networkId, bundleId: quote.selected.bundleId, readOnlyRootFilesystem: true,
     args: { port: null, planId: quote.selected.planId }, cost: { catalogFingerprint: quote.catalogFingerprint,
       observedAt: quote.observedAt, expiresAt: quote.expiresAt, hourlyHundredthsToman: quote.selected.hourlyHundredthsToman,
       region: quote.selected.region, currency: "toman", period: "hour", extras: "tax_traffic_storage_not_included" } };
@@ -80,7 +84,7 @@ export async function executeDestination(config: Config, store: Store, session: 
   signal: AbortSignal, dependencies: Dependencies = {}): Promise<Action> {
   ensure(config.enableMutations && config.enableLiveLiara, "MUTATIONS_DISABLED", "ساخت مقصد در این نصب خاموش است.", 403);
   const action = store.getAction(id, session.actorId);
-  ensure(action.spec.version === 8 && action.state === "approved" && !action.attemptId && action.expiresAt > Date.now(),
+  ensure((action.spec.version === 8 || action.spec.version === 12) && action.state === "approved" && !action.attemptId && action.expiresAt > Date.now(),
     "ACTION_CONFLICT", "پیشنهاد ساخت معتبر و تأییدشده‌ای برای اجرا وجود ندارد.", 409);
   const spec = action.spec, scoped = assertAccount(config, store, session.actorId, spec), budget = dependencies.budget ?? new RunBudget(scoped),
     client = dependencies.read ?? new LiaraAccountClient(scoped, spec.accountId), writer = dependencies.write ?? new LiaraProvisionClient(scoped);
@@ -106,7 +110,7 @@ export async function executeDestination(config: Config, store: Store, session: 
 export async function observeDestination(config: Config, store: Store, session: Session, id: string,
   signal: AbortSignal, dependencies: Dependencies = {}): Promise<Action> {
   const action = store.getAction(id, session.actorId);
-  ensure(action.spec.version === 8 && action.provision && (action.state === "observing" || action.state === "uncertain"),
+  ensure((action.spec.version === 8 || action.spec.version === 12) && action.provision && (action.state === "observing" || action.state === "uncertain"),
     "ACTION_CONFLICT", "ساخت مقصد منتظر نتیجه نیست.", 409);
   const spec = action.spec, scoped = assertAccount(config, store, session.actorId, spec), budget = dependencies.budget ?? new RunBudget(scoped),
     client = dependencies.read ?? new LiaraAccountClient(scoped, spec.accountId);
@@ -117,7 +121,7 @@ export async function observeDestination(config: Config, store: Store, session: 
       await client.identity(budget, signal);
       proof = await client.projectMetadata(spec.scope.app, budget, signal);
       if (proof) {
-        const matches = proof.id === action.provision.appId && proof.platform === "node" && proof.planId === spec.args.planId &&
+        const matches = proof.id === action.provision.appId && proof.platform === (spec.version === 12 ? "python" : "node") && proof.planId === spec.args.planId &&
           proof.bundleId === spec.bundleId && proof.networkId === spec.networkId && proof.readOnlyRootFilesystem === true;
         result = { ...result, outcome: matches ? "verified" : "changed", code: matches ? "DESTINATION_VERIFIED" : "DESTINATION_CHANGED" };
       } else result = { ...result, code: "DESTINATION_NOT_VISIBLE" };

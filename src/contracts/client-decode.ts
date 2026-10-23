@@ -18,6 +18,7 @@ import { parseProvisionSpec, parseProvisionProgress } from "./provision.ts";
 import { parseEnvironmentSpec, parseEnvironmentProgress, parseEnvironmentReference } from "./environment.ts";
 import { parseNodeRuntime, parseNodeVersion } from "./node-runtime.ts";
 import { sourceFileByteLimit, SOURCE_MAX_BYTES, SOURCE_MAX_FILES } from "./source-limits.ts";
+import { parsePythonRuntime } from "./python-runtime.ts";
 
 function nullableString(value: unknown, max = 256): string | null {
   return value === null ? null : string(value, max);
@@ -48,6 +49,18 @@ export function decodeAction(value: unknown): Action {
     spec = object(raw.spec),
     scope = object(spec.scope),
     args = object(spec.args);
+  if (spec.version === 11) {
+    ensure(spec.nodeVersion === null, "INVALID_RESPONSE", "نسخه انتشار Python معتبر نیست.");
+    const { runtime, environment, ...rest } = spec, base = decodeAction({ ...raw, spec: { ...rest, version: 7, nodeVersion: "22" } });
+    ensure(base.spec.version === 7 && typeof base.spec.sourceHash === "string", "INVALID_RESPONSE", "پیشنهاد انتشار معتبر نیست.");
+    return { ...base, spec: { ...base.spec, version: 11, operation: "deploy", sourceHash: base.spec.sourceHash, nodeVersion: null,
+      runtime: parsePythonRuntime(runtime), environment: environment === null ? null : parseEnvironmentReference(environment) } };
+  }
+  if (spec.version === 12) {
+    const parsed = parseProvisionSpec(spec), { runtime: _runtime, ...rest } = spec,
+      base = decodeAction({ ...raw, spec: { ...rest, version: 8, nodeVersion: "22" } });
+    return { ...base, spec: parsed };
+  }
   if (spec.version === 10) {
     const { environment, ...rest } = spec, base = decodeAction({ ...raw, spec: { ...rest, version: 7 } });
     ensure(base.spec.version === 7 && typeof base.spec.sourceHash === "string", "INVALID_RESPONSE", "پیشنهاد انتشار معتبر نیست.");
@@ -77,7 +90,7 @@ export function decodeAction(value: unknown): Action {
   else if (spec.version === 8) parsedSpec = parseProvisionSpec(spec);
   else {
     ensure(spec.operation === "deploy" || spec.operation === "restart", "INVALID_RESPONSE", "نوع اقدام معتبر نیست.");
-    const common: Pick<Exclude<ActionSpec, {version: 8 | 9}>, "scope" | "operation" | "sourceHash" | "args"> = {
+    const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12}>, "scope" | "operation" | "sourceHash" | "args"> = {
       operation: spec.operation,
       scope: { teamId: string(scope.teamId), app: string(scope.app) },
       sourceHash: nullableString(spec.sourceHash),
@@ -191,7 +204,7 @@ export function decodeWorkspace(value: unknown): WorkspaceView {
 export function decodeProfile(value: unknown): ProjectProfile {
   const raw = object(object(value).profile);
   ensure(
-    raw.runtime === "node" || raw.runtime === "unknown",
+    raw.runtime === "node" || raw.runtime === "python" || raw.runtime === "unknown",
     "INVALID_RESPONSE",
     "runtime پاسخ معتبر نیست.",
   );
@@ -205,6 +218,7 @@ export function decodeProfile(value: unknown): ProjectProfile {
     runtime: raw.runtime,
     nodeVersion: nullableString(raw.nodeVersion),
     ...(raw.nodeRuntime === undefined ? {} : { nodeRuntime: parseNodeRuntime(raw.nodeRuntime) }),
+    ...(raw.pythonRuntime === undefined ? {} : { pythonRuntime: parsePythonRuntime(raw.pythonRuntime) }),
     port: raw.port === null ? null : integer(raw.port, 1, 65535),
     start: nullableString(raw.start),
     build: nullableString(raw.build),

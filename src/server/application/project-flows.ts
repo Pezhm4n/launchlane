@@ -104,7 +104,7 @@ export async function prepareProjectFlow(
     });
     if(selection.kind==="repair") ensure(store.getArtifact(actorId,selection.artifactHash).sourceHash===profile.sourceHash,"REPAIR_ARTIFACT_CHANGED","فایل‌های اصلاح‌شده با نسخه آزموده‌شده برابر نیستند.",409);
     const artifact =
-      profile.runtime === "node" && profile.start && profile.nodeRuntime?.version
+      profile.start && (profile.runtime === "node" && profile.nodeRuntime?.version || profile.runtime === "python" && profile.pythonRuntime)
         ? await prepareArchive({
             store,
             stateDir: config.stateDir,
@@ -133,8 +133,8 @@ export async function prepareProjectFlow(
         : profile.runtime === "node" && profile.start && !profile.nodeRuntime?.version
           ? profile.nodeRuntime?.detail || "نسخه Node را در تنظیمات پروژه تعیین کنید."
         : profile.manifest.length === 0
-          ? "این پوشه خالی است یا فایل پروژه قابل بررسی ندارد. پوشه دارای package.json را انتخاب کنید."
-          : "پوشه یک برنامه Node با package.json معتبر و دستور start مشخص را انتخاب کنید؛ در پروژه چندبخشی، زیرپوشه همان برنامه لازم است.",
+          ? "این پوشه خالی است یا فایل پروژه قابل بررسی ندارد. پوشه همان برنامه Node یا Python را انتخاب کنید."
+          : "پوشه همان برنامه Node با start مشخص یا Python با فرمان مستقیم و تنظیمات معتبر را انتخاب کنید؛ در پروژه چندبخشی، زیرپوشه همان برنامه لازم است.",
       updatedAt: Date.now(),
       actionId: null,
     });
@@ -183,9 +183,11 @@ export async function restoreProjectFlow(
         flow.id,
         "فایل‌های پروژه پس از بررسی تغییر کرده‌اند. پیش از ادامه، پروژه را دوباره بررسی کنید.",
       );
-    if (flow.status === "ready" && (current.runtime !== "node" || !current.start))
+    if (flow.status === "ready" && (current.runtime === "unknown" || !current.start))
       return store.staleProjectFlow(actorId, flow.id, current.missing[0] || "پروژه با محدوده پشتیبانی‌شده این نسخه تطبیق ندارد؛ پوشه همان برنامه را دوباره انتخاب کنید.");
-    if (flow.status === "ready" && (!current.nodeRuntime?.version || flow.profile.nodeRuntime?.version !== current.nodeRuntime.version))
+    if (flow.status === "ready" && (current.runtime !== flow.profile.runtime || (current.runtime === "python"
+      ? fingerprint(current.pythonRuntime) !== fingerprint(flow.profile.pythonRuntime)
+      : !current.nodeRuntime?.version || flow.profile.nodeRuntime?.version !== current.nodeRuntime.version)))
       return store.staleProjectFlow(actorId, flow.id, "نسخه Node این نتیجه نیاز به بررسی تازه دارد؛ پروژه را دوباره بررسی و پیشنهاد تازه دریافت کنید.");
     if (flow.artifact)
       await readArtifact(config.stateDir, store.getArtifact(actorId, flow.artifact.archiveHash));
@@ -208,7 +210,7 @@ export async function validateProjectAction(
   spec: ActionSpec,
   signal: AbortSignal,
 ): Promise<void> {
-  if (spec.version !== 3 && spec.version !== 4 && spec.version !== 5 && (spec.version !== 7 && spec.version !== 10) && spec.version !== 8 && spec.version !== 9) return;
+  if (spec.version !== 3 && spec.version !== 4 && spec.version !== 5 && (spec.version !== 7 && spec.version !== 10 && spec.version !== 11) && (spec.version !== 8 && spec.version !== 12) && spec.version !== 9) return;
   const flow = await restoreProjectFlow(config, store, actorId, signal, spec.projectFlowId);
   ensure(
     flow?.status === "ready",
@@ -217,8 +219,9 @@ export async function validateProjectAction(
     409,
   );
   store.assertProjectAction(actorId, spec);
-  if (spec.version === 10) projectEnvironmentValues(store, config.sessionSecret, actorId, spec.projectFlowId, spec.environment);
-  ensure((spec.version !== 5 && (spec.version !== 7 && spec.version !== 10) && spec.version !== 8) || flow.profile.nodeRuntime?.version === spec.nodeVersion, "NODE_VERSION_CHANGED", "نسخه Node پیشنهاد با پروژه برابر نیست؛ پیشنهاد تازه دریافت کنید.", 409);
+  if (spec.version === 10 || spec.version === 11 && spec.environment !== null) projectEnvironmentValues(store, config.sessionSecret, actorId, spec.projectFlowId, spec.environment);
+  if (spec.version === 11 || spec.version === 12) ensure(fingerprint(flow.profile.pythonRuntime) === fingerprint(spec.runtime), "PYTHON_RUNTIME_CHANGED", "تنظیمات اجرای Python تغییر کرده است؛ پیشنهاد تازه لازم است.", 409);
+  else ensure((spec.version !== 5 && (spec.version !== 7 && spec.version !== 10) && spec.version !== 8) || flow.profile.nodeRuntime?.version === spec.nodeVersion, "NODE_VERSION_CHANGED", "نسخه Node پیشنهاد با پروژه برابر نیست؛ پیشنهاد تازه دریافت کنید.", 409);
 }
 
 export async function proposeProjectFlow(

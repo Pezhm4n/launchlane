@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { writeFileSync, rmSync } from "node:fs";
+import { writeFileSync, rmSync, cpSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { test } from "node:test";
@@ -15,13 +15,19 @@ import { fingerprint, parseActionSpec } from "../../src/server/policy/action.ts"
 import { LiaraReadClient } from "../../src/server/liara/client.ts";
 import { proposeWorkloadDeployment } from "../../src/server/application/deployment.ts";
 import { RunBudget } from "../../src/server/policy/budget.ts";
+import { prepareProjectFlow } from "../../src/server/application/project-flows.ts";
 
 const team = "a".repeat(24), account = "b".repeat(24), network = "c".repeat(24), createdId = "d".repeat(24), app = "new-agent-app";
 const signal = () => AbortSignal.timeout(3000);
 const code = (expected: string) => (error: unknown) => error instanceof AppError && error.code === expected;
-async function fixture() {
+async function fixture(runtime: "node" | "python" = "node") {
   const f = await agentFixture(), config = { ...f.config, teamId: team, apps: [app], liaraToken: "synthetic-private-provision-key",
     enableLiveLiara: true, enableMutations: true };
+  let flow = f.flow;
+  if (runtime === "python") {
+    cpSync(resolve("tests/fixtures/python-service"), join(f.workspace, "python"), { recursive: true });
+    flow = await prepareProjectFlow(config, f.store, f.session.actorId, { kind: "local", directory: "python" }, signal());
+  }
   let store = f.store, writes = 0, exists = false, price = 500, balance = 10000, hasNetwork = true, lost = false,
     returnedId = createdId, observedId = createdId, afterSend: (() => void) | null = null;
   store.saveConnection(f.session.actorId, { source: "token", ciphertext: sealCredential(config.liaraToken, config.sessionSecret, f.session.actorId, "liara"),
@@ -35,7 +41,7 @@ async function fixture() {
     } });
     if (path === "/v1/networks") return Response.json({ networks: hasNetwork ? [{ _id: network, name: "test-network" }] : [] });
     assert.equal(path, `/v1/projects/${app}`);
-    return exists ? Response.json({ project: { _id: observedId, project_id: app, type: "node", planID: "starter", bundlePlanID: "basic",
+    return exists ? Response.json({ project: { _id: observedId, project_id: app, type: runtime, planID: "starter", bundlePlanID: "basic",
       network: { _id: network }, readOnlyRootFilesystem: true, envs: [{ key: "DO_NOT_EXPORT", value: "secret-not-in-readback" }] } }) : new Response(null, { status: 404 });
   });
   const write = new LiaraProvisionClient(config, async (url, init) => {
@@ -44,7 +50,7 @@ async function fixture() {
     assert.equal(init.method, "POST"); assert.equal(init.redirect, "error");
     const current = store.getAction(store.getProjectFlow(f.session.actorId)?.actionId ?? "", f.session.actorId);
     assert.equal(current.provision?.stage, "request_started"); assert.ok(current.attemptId);
-    assert.deepEqual(JSON.parse(String(init.body)), { name: app, planID: "starter", bundlePlanID: "basic", platform: "node", network, readOnlyRootFilesystem: true });
+    assert.deepEqual(JSON.parse(String(init.body)), { name: app, planID: "starter", bundlePlanID: "basic", platform: runtime, network, readOnlyRootFilesystem: true });
     exists = true;
     afterSend?.();
     if (lost) throw new TypeError("lost response with private text must not escape", {
@@ -53,8 +59,8 @@ async function fixture() {
     return Response.json({ projectID: returnedId });
   });
   const deps = { read, write }, action = await proposeDestination(config, store, f.session.actorId,
-    { flowId: f.flow.id, app, planId: "starter", bundleId: "basic", networkId: network }, signal(), deps);
-  return { ...f, config, action, deps,
+    { flowId: flow.id, app, planId: "starter", bundleId: "basic", networkId: network }, signal(), deps);
+  return { ...f, flow, config, action, deps,
     get store() { return store; }, get writes() { return writes; },
     approve() { return store.decide(action.id, f.session.actorId, f.session.id, action.hash, "approve"); },
     set(v: { exists?: boolean; price?: number; balance?: number; hasNetwork?: boolean; lost?: boolean; returnedId?: string; observedId?: string; afterSend?: () => void }) {
@@ -216,5 +222,20 @@ test("duplicate execution has one create owner and approval binds cost, network,
     const executions = await Promise.allSettled([1, 2].map(() => executeDestination(f.config, f.store, f.session, f.action.id, signal(), f.deps)));
     assert.equal(executions.filter((result) => result.status === "fulfilled").length, 1);
     assert.equal(f.writes, 1); assert.equal(f.store.db.prepare("SELECT COUNT(*) n FROM attempts WHERE action_id=?").get(f.action.id)?.n, 1);
+  } finally { f.close(); }
+});
+
+test("Python destination uses v12 with identity-bound readback and one create, preserving Node v8 history", async () => {
+  const f = await fixture("python");
+  try {
+    assert.equal(f.action.spec.version, 12);
+    assert.deepEqual(decodeAction(f.action).spec, parseActionSpec(f.action.spec));
+    f.approve();
+    await executeDestination(f.config, f.store, f.session, f.action.id, signal(), f.deps);
+    const checked = await observeDestination(f.config, f.store, f.session, f.action.id, signal(), f.deps);
+    assert.equal(checked.state, "succeeded");
+    assert.equal(f.store.getConnection(f.session.actorId, "liara")?.view.apps[0]?.platform, "python");
+    await assert.rejects(executeDestination(f.config, f.store, f.session, f.action.id, signal(), f.deps), code("ACTION_CONFLICT"));
+    assert.equal(f.writes, 1);
   } finally { f.close(); }
 });

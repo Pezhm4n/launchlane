@@ -2,8 +2,9 @@ import { ensure } from "../server/errors.ts";
 import { exactKeys, hash, identifier, integer, object, string } from "./validation.ts";
 import { parseNodeVersion, type NodeVersion } from "./node-runtime.ts";
 import type { Scope } from "./domain.ts";
+import { parsePythonRuntime, type PythonRuntime } from "./python-runtime.ts";
 
-export type ProvisionSpec = Readonly<{
+type NodeProvisionSpec = Readonly<{
   version: 8;
   operation: "create_app";
   scope: Scope;
@@ -22,6 +23,9 @@ export type ProvisionSpec = Readonly<{
     hourlyHundredthsToman: number; region: string; currency: "toman"; period: "hour";
     extras: "tax_traffic_storage_not_included" }>;
 }>;
+export type ProvisionSpec = NodeProvisionSpec | (Omit<NodeProvisionSpec, "version" | "nodeVersion"> & Readonly<{
+  version: 12; nodeVersion: null; runtime: PythonRuntime;
+}>);
 export type ProvisionObservation = Readonly<{
   outcome: "verified" | "changed" | "inconclusive" | "not_started";
   checkedAt: number;
@@ -38,7 +42,7 @@ export type ProvisionReadback = Readonly<{
   defaultSubdomain?: boolean;
 }>;
 export function canReadDestinationResult(action: import("./domain.ts").Action): boolean {
-  return action.spec.version === 8 && !!action.provision &&
+  return (action.spec.version === 8 || action.spec.version === 12) && !!action.provision &&
     (action.state === "observing" || action.state === "uncertain");
 }
 export function providerObjectId(value: unknown): string {
@@ -48,6 +52,11 @@ export function providerObjectId(value: unknown): string {
 }
 export function parseProvisionSpec(value: unknown): ProvisionSpec {
   const row = object(value);
+  if (row.version === 12) {
+    ensure(row.nodeVersion === null, "INVALID_INPUT", "مقصد Python نسخه Node نمی‌پذیرد.");
+    const { runtime, ...rest } = row, base = parseProvisionSpec({ ...rest, version: 8, nodeVersion: "22" });
+    return { ...base, version: 12, nodeVersion: null, runtime: parsePythonRuntime(runtime) };
+  }
   exactKeys(row, ["version", "operation", "scope", "sourceHash", "artifactHash", "projectFlowId", "selectionHash", "accountId", "previousAppId", "nodeVersion", "networkId", "bundleId", "readOnlyRootFilesystem", "args", "cost"]);
   ensure(row.version === 8 && row.operation === "create_app" && row.readOnlyRootFilesystem === true,
     "INVALID_OPERATION", "قرارداد ساخت برنامه معتبر نیست.");

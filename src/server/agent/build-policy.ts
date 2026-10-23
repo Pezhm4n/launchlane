@@ -6,8 +6,11 @@ import { fingerprint } from "../policy/action.ts";
 import type { SourceFile } from "../workspace/inspect.ts";
 import { lockedTarballs } from "./npm-source.ts";
 import semver from "semver";
+import { pythonRequirements } from "./python-source.ts";
+import { pythonStart } from "../../contracts/python-runtime.ts";
 
 export function requiresProjectBuild(files: readonly SourceFile[]): boolean {
+  if (files.some(file => file.path.endsWith(".py")) && !files.some(file => file.path === "package.json")) return true;
   const file = files.find(file => file.path === "package.json");
   if (!file) return false;
   const pkg = object(JSON.parse(file.content.toString("utf8")));
@@ -15,6 +18,7 @@ export function requiresProjectBuild(files: readonly SourceFile[]): boolean {
     .some(value => value !== undefined && Object.keys(object(value)).length > 0);
 }
 export function projectTestCommand(files: readonly SourceFile[]): string | null {
+  if (!files.some(file => file.path === "package.json") && files.some(file => file.path.endsWith(".py"))) return null;
   const file = files.find(file => file.path === "package.json");
   ensure(file, "BUILD_PLAN_CHANGED", "package.json موجود نیست.", 409);
   const value = object(object(JSON.parse(file.content.toString("utf8"))).scripts ?? {}).test;
@@ -23,11 +27,18 @@ export function projectTestCommand(files: readonly SourceFile[]): string | null 
 }
 export function validateBuildRepairPaths(paths: readonly string[]) {
   ensure(paths.every(path => !/(?:^|\/)(?:tests?|specs?|__tests__|__mocks__|cypress|e2e)(?:\/|$)|\.(?:test|spec|cy)\.[cm]?[jt]sx?$/i.test(path) &&
-    !/(?:^|\/)(?:package(?:-lock)?\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb?|tsconfig(?:\.[^/]+)?\.json|(?:vitest|jest|playwright|cypress|eslint)\.config\.[^/]+|\.eslintrc[^/]*|biome\.jsonc?)$/i.test(path)),
+    !/(?:^|\/)(?:test_[^/]+\.py|[^/]+_test\.py|requirements[^/]*\.txt|pyproject\.toml|setup\.py|setup\.cfg|liara\.json|package(?:-lock)?\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb?|tsconfig(?:\.[^/]+)?\.json|(?:vitest|jest|playwright|cypress|eslint)\.config\.[^/]+|\.eslintrc[^/]*|biome\.jsonc?)$/i.test(path)),
     "BUILD_ORACLE_CHANGED", "تست، تنظیمات سنجش یا dependency در این قرارداد تغییر نمی‌کند؛ محدوده مستقل لازم است.", 403);
 }
 export function validateBuildPlan(files: readonly SourceFile[], profile: ProjectProfile, value: ProjectBuildPlan): ProjectBuildPlan {
   const plan = parseProjectBuildPlan(value);
+  if (plan.version === 2) {
+    ensure(profile.runtime === "python" && fingerprint(profile.pythonRuntime) === fingerprint(plan.runtime) && profile.start === pythonStart(plan.runtime) &&
+      profile.start === plan.startCommand && profile.port === plan.port && profile.build === null,
+      "BUILD_PLAN_CHANGED", "فرمان، پورت یا نسخه Python با پروژه برابر نیست.", 409);
+    pythonRequirements(files);
+    return plan;
+  }
   ensure(!profile.nodeRuntime?.requirement || semver.satisfies("22.23.3", profile.nodeRuntime.requirement),
     "BUILD_RUNTIME_UNSUPPORTED", "نسخه دقیق image با engines.node پروژه سازگار نیست؛ محیط سازگار لازم است.", 409);
   ensure(profile.nodeRuntime?.version === plan.nodeVersion && profile.start === plan.startCommand && profile.build === plan.buildCommand && profile.port === plan.port && projectTestCommand(files) === plan.testCommand,

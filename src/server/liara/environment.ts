@@ -26,7 +26,7 @@ export class LiaraEnvironmentClient {
           headers: { Authorization: `Bearer ${this.config.liaraToken}`, Accept: "application/json" } }, budget, bounded);
         if (!response.ok) { void response.body?.cancel().catch(() => undefined); throw httpFailure(response.status); }
         const row = object(object(await boundedJson(response)).project);
-        ensure(row._id === spec.targetAppId && row.project_id === spec.scope.app && row.type === "node", "ENV_TARGET_CHANGED", "هویت یا نوع برنامه تغییر کرده است.", 409);
+        ensure(row._id === spec.targetAppId && row.project_id === spec.scope.app && (row.type === "node" || row.type === "python"), "ENV_TARGET_CHANGED", "هویت یا نوع برنامه تغییر کرده است.", 409);
         return { planId: string(row.planID, 128), values: environmentVariables(row.envs) };
       }, bounded);
     } catch (error) {

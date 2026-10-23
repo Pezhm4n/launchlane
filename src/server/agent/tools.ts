@@ -20,7 +20,7 @@ import { WorkloadProbe, validateProbePath } from "../liara/probe.ts";
 import { parseProbeOrigins } from "../policy/probe-target.ts";
 import type { PublicationMission } from "../../contracts/publication-mission.ts";
 import type { WorkloadContract } from "../../contracts/deployment.ts";
-import { parseProjectBuildPlan, projectBuildImage } from "../../contracts/project-build.ts";
+import { parseProjectBuildPlan, projectBuildImage, pythonBuildImage } from "../../contracts/project-build.ts";
 import { parseCodeRepairJob, type CodeRepairJob } from "../../contracts/code-repair.ts";
 import { requiresProjectBuild, sameBuildWorkload, projectTestCommand } from "./build-policy.ts";
 import { currentEnvironment } from "../environment/secrets.ts";
@@ -217,7 +217,7 @@ const publicationTool: ToolDefinition = {
   type: "function",
   function: {
     name: "propose_publication",
-    description: "Propose publication of the exact selected archive to the selected existing Node app. The host derives app, approved origin, port and current plan; no remote write occurs. Supply the user's intended path and a concrete text/JSON response expectation grounded in source or the user's goal. A user decision is mandatory. Does not create/resize an app or change env. Never weaken a failing assertion to get a green result.",
+    description: "Propose publication of the exact selected archive to the selected existing Node or Python app. The host derives app, approved origin, port and current plan; no remote write occurs. Supply the user's intended path and a concrete text/JSON response expectation grounded in source or the user's goal. A user decision is mandatory. Does not create/resize an app or change env. Never weaken a failing assertion to get a green result.",
     parameters: { type: "object", additionalProperties: false,
       required: ["path", "status", "assertion"], properties: {
         path: { type: "string", maxLength: 200 }, status: { type: "integer", minimum: 200, maximum: 299 },
@@ -233,7 +233,7 @@ const publicationTool: ToolDefinition = {
 };
 const buildTool: ToolDefinition = { type: "function", function: {
   name: "propose_project_build",
-  description: "Propose a host-reviewed locked npm install, existing build script, existing start script and independent workload check in an isolated Node22 container. Read package/lock/source first; supply the original path/status/text or JSON assertion. Commands and port come from actual source, never invented. The user approves before any install/script runs. No code changes or cloud writes. A monorepo requires a leaf with its own npm v3 lockfile. Builds needing undeclared network or secrets fail explicitly.",
+  description: "Propose a host-reviewed locked install, build/start and independent workload check in an isolated Node22 or Python3.12 container. For Python, root requirements.txt must pin all packages; the host verifies binary-wheel hashes, installs offline, compiles source and probes the actual start command. Read package/lock/source first; supply the original path/status/text or JSON assertion. Commands and port come from actual source, never invented. The user approves before any install/script runs. No code changes or cloud writes. A monorepo requires a leaf with its own npm v3 lockfile. Builds needing undeclared network or secrets fail explicitly.",
   parameters: publicationTool.function.parameters,
 } };
 export const toolLabels: Readonly<Record<string, string>> = {
@@ -340,7 +340,8 @@ export async function executeAgentTool(
         fingerprint(c.buildJob.build?.environment ?? null) !== fingerprint(currentEnvironment(c.store, c.config.sessionSecret, c.actorId, flow.id)),
         "BUILD_NO_PROGRESS", "همان build ناموفق بدون تغییر شواهد تکرار نمی‌شود؛ علت توقف را بررسی کنید.", 409);
       c.budget.take("tool", c.signal);
-      const build = parseProjectBuildPlan({ version: 1, nodeVersion: flow.profile.nodeRuntime?.version, image: projectBuildImage,
+      const build = parseProjectBuildPlan({ ...(flow.profile.runtime === "python" ? { version: 2, nodeVersion: null, runtime: flow.profile.pythonRuntime, image: pythonBuildImage }
+        : { version: 1, nodeVersion: flow.profile.nodeRuntime?.version, image: projectBuildImage }),
         buildCommand: flow.profile.build, testCommand: projectTestCommand(captured.files), startCommand: flow.profile.start, port: flow.profile.port, workload,
         environment: currentEnvironment(c.store, c.config.sessionSecret, c.actorId, flow.id) });
       const job = await new CodeRepairAdapter(c.config, c.store).propose(c.actorId, {
@@ -353,7 +354,8 @@ export async function executeAgentTool(
       const rows = c.store.db.prepare("SELECT state,data_json FROM code_repair_jobs WHERE actor_id=? AND state='succeeded' AND json_extract(data_json,'$.job.artifact.sourceHash')=? ORDER BY updated_at DESC LIMIT 10").all(c.actorId, c.context.sourceHash);
       const verified = rows.some(row => {
         const job = parseCodeRepairJob({ ...object(object(JSON.parse(string(row.data_json, 1024 * 1024))).job), state: row.state });
-        return job.build && fingerprint(job.build.environment ?? null) === fingerprint(currentEnvironment(c.store, c.config.sessionSecret, c.actorId, flow.id)) && job.build.nodeVersion === flow.profile.nodeRuntime?.version && job.build.buildCommand === flow.profile.build && job.build.testCommand === projectTestCommand(captured.files) && job.build.startCommand === flow.profile.start && job.build.port === flow.profile.port &&
+        return job.build && fingerprint(job.build.environment ?? null) === fingerprint(currentEnvironment(c.store, c.config.sessionSecret, c.actorId, flow.id)) &&
+          (job.build.version === 2 ? flow.profile.runtime === "python" && fingerprint(job.build.runtime) === fingerprint(flow.profile.pythonRuntime) : job.build.nodeVersion === flow.profile.nodeRuntime?.version) && job.build.buildCommand === flow.profile.build && job.build.testCommand === projectTestCommand(captured.files) && job.build.startCommand === flow.profile.start && job.build.port === flow.profile.port &&
           job.execution === "container" && !!job.containerIds?.length && job.afterTest?.passed && sameBuildWorkload(job.build, parseProjectBuildPlan({ ...job.build, workload }).workload);
       });
       ensure(verified, "PROJECT_BUILD_REQUIRED", "این پروژه پیش از پیشنهاد انتشار به نصب، ساخت و بررسی پاسخ در محیط ایزوله نیاز دارد؛ ابتدا propose_project_build را اجرا کنید.", 409);
@@ -443,7 +445,7 @@ export async function executeAgentTool(
       siteOriginConfigured: !!(c.context.target && (c.config.probeOrigins[c.context.target.app] ||
         c.store.getProbeOrigin(c.actorId, c.context.target.teamId, c.context.target.app))),
       limitation:
-        "Publication requires a separate exact-artifact decision. New Node destinations can be proposed with the actual catalog and an existing team network when creationAvailable is true. Env changes and network creation are unavailable. No remote changes were made by this read.",
+        "Publication requires a separate exact-artifact decision. New Node or Python destinations can be proposed with the actual catalog and an existing team network when creationAvailable is true. Env values use the secure project form; network creation is unavailable. No remote changes were made by this read.",
     };
   }
   if (name === "inspect_project" || name === "read_project_file") {
@@ -475,6 +477,7 @@ export async function executeAgentTool(
         state: flow.status,
         runtime: flow.profile.runtime,
         nodeVersion: flow.profile.nodeRuntime?.version ?? null,
+        ...(flow.profile.pythonRuntime ? { pythonRuntime: flow.profile.pythonRuntime } : {}),
         start: flow.profile.start,
         build: flow.profile.build,
         port: flow.profile.port,

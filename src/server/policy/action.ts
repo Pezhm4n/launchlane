@@ -13,6 +13,7 @@ import { parseWorkloadContract, parseWorkloadExpectation, parseWorkloadTarget } 
 import { parseNodeVersion } from "../../contracts/node-runtime.ts";
 import { parseProvisionSpec } from "../../contracts/provision.ts";
 import { parseEnvironmentSpec, parseEnvironmentReference } from "../../contracts/environment.ts";
+import { parsePythonRuntime } from "../../contracts/python-runtime.ts";
 
 export function canonical(value: unknown): string {
   if (
@@ -36,13 +37,20 @@ export function fingerprint(value: unknown): string {
 
 export function parseActionSpec(value: unknown): ActionSpec {
   const input = object(value);
+  if (input.version === 11) {
+    ensure(input.nodeVersion === null && input.operation === "deploy", "INVALID_INPUT", "قرارداد انتشار Python معتبر نیست.");
+    const { runtime, environment, ...rest } = input, base = parseActionSpec({ ...rest, version: 7, nodeVersion: "22" });
+    ensure(base.version === 7 && typeof base.sourceHash === "string", "INVALID_INPUT", "پیشنهاد انتشار معتبر نیست.");
+    return { ...base, version: 11, operation: "deploy", sourceHash: base.sourceHash, nodeVersion: null,
+      runtime: parsePythonRuntime(runtime), environment: environment === null ? null : parseEnvironmentReference(environment) };
+  }
   if (input.version === 10) {
     const { environment, ...rest } = input, base = parseActionSpec({ ...rest, version: 7 });
     ensure(base.version === 7 && typeof base.sourceHash === "string", "INVALID_INPUT", "پیشنهاد انتشار معتبر نیست.");
     return { ...base, version: 10, operation: "deploy", sourceHash: base.sourceHash, environment: parseEnvironmentReference(environment) };
   }
   if (input.version === 9) return parseEnvironmentSpec(input);
-  if (input.version === 8) return parseProvisionSpec(input);
+  if (input.version === 8 || input.version === 12) return parseProvisionSpec(input);
   exactKeys(input, [
     "version",
     "scope",
@@ -83,7 +91,7 @@ export function parseActionSpec(value: unknown): ActionSpec {
     "INVALID_INPUT",
     "restart آرگومان انتشار نمی‌پذیرد.",
   );
-  const common: Pick<Exclude<ActionSpec, {version: 8 | 9}>, "scope" | "operation" | "sourceHash" | "args"> = {
+  const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12}>, "scope" | "operation" | "sourceHash" | "args"> = {
     scope: { teamId, app },
     operation: input.operation,
     sourceHash,

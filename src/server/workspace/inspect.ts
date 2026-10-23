@@ -8,6 +8,7 @@ import { AppError, ensure } from "../errors.ts";
 import { resolveNodeRuntime } from "./node-runtime.ts";
 import { sourcePorts } from "./ports.ts";
 import { fingerprint } from "../policy/action.ts";
+import { parsePythonRuntime, pythonStart } from "../../contracts/python-runtime.ts";
 import { containsSourceCredential } from "../policy/redaction.ts";
 import { SOURCE_MAX_FILES, SOURCE_MAX_ENTRIES, SOURCE_MAX_BYTES, sourceFileByteLimit, sourceFileLimitMessage } from "../../contracts/source-limits.ts";
 import {
@@ -178,7 +179,7 @@ async function scanProject(
       const text = content.toString("utf8");
       const relativePath = relative(target, path).split(sep).join("/");
       ensure(
-        !containsSourceCredential(text, options.secrets),
+        !containsSourceCredential(text, options.secrets, relativePath),
         "SENSITIVE_SOURCE",
         `فایل «${relativePath}» احتمالاً مقدار محرمانه دارد. آن را به متغیر محیطی منتقل و پروژه را دوباره بررسی کنید.`,
       );
@@ -217,6 +218,11 @@ async function scanProject(
         for (const value of candidates.ports) ports.add(value);
         unresolvedPort ||= candidates.unresolved;
       }
+      if (entry.name.endsWith(".py")) {
+        for (const match of text.matchAll(/\bos\.(?:getenv\(\s*|environ\[\s*|environ\.get\(\s*)['"]([A-Z][A-Z0-9_]{0,63})['"]/g)) {
+          if (match[1]) envNames.add(match[1]);
+        }
+      }
     }
   };
   await visit(target, 0);
@@ -239,11 +245,14 @@ async function scanProject(
   // A workspace manifest describes multiple packages. Do not treat an orchestrator start
   // as the single Node workload supported by this deployment path; require an explicit leaf.
   const hasWorkspaces = pkg.workspaces !== undefined;
-  const start = hasWorkspaces ? null : safeScript(scripts.start),
+  const python = !packageJson && manifest.some(file => file.path.endsWith(".py"));
+  const pythonRuntime = python ? parsePythonRuntime({ kind: "python", version: object(liara.python ?? {}).version ?? "3.12",
+    command: Array.isArray(liara.args) && liara.args.length === 1 && typeof liara.args[0] === "string" ? liara.args[0].trim().split(/\s+/) : ["python3", "main.py"] }) : undefined;
+  const start = pythonRuntime ? (pythonRuntime.command[1] === "-m" || manifest.some(file => file.path === pythonRuntime.command[1]) ? pythonStart(pythonRuntime) : null) : hasWorkspaces ? null : safeScript(scripts.start),
     build = safeScript(scripts.build);
   const missing: string[] = [];
   if (hasWorkspaces) missing.push("این پوشه چند بسته را مدیریت می‌کند؛ زیرپوشه همان برنامه قابل انتشار را انتخاب کنید.");
-  if (!packageJson) missing.push("package.json پیدا نشد؛ پروژه Node تأیید نشده است.");
+  if (!packageJson && !python) missing.push("پروژه Node یا Python قابل تشخیص نیست.");
   if (!start) missing.push("دستور start مشخص نیست؛ قبل از انتشار آن را تعیین کنید.");
   if (port === null) missing.push("پورت قطعی نیست؛ پورت برنامه را وارد کنید.");
   if (packageJson && !nodeRuntime.version) missing.push(nodeRuntime.detail);
@@ -252,9 +261,9 @@ async function scanProject(
   manifest.sort((a, b) => a.path.localeCompare(b.path, "en"));
   const profile: ProjectProfile = {
     directory,
-    runtime: packageJson ? "node" : "unknown",
-    nodeVersion: nodeRuntime.requirement,
-    nodeRuntime,
+    runtime: packageJson ? "node" : python ? "python" : "unknown",
+    nodeVersion: python ? null : nodeRuntime.requirement,
+    ...(pythonRuntime ? { pythonRuntime } : { nodeRuntime }),
     port,
     start,
     build,

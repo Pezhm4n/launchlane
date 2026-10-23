@@ -10,7 +10,7 @@ export function redact(value: string, secrets: readonly string[] = []): string {
   return scrub(value, secrets, sensitiveAssignment);
 }
 
-function scrub(value: string, secrets: readonly string[], assignment: RegExp, source = false): string {
+function scrub(value: string, secrets: readonly string[], assignment: RegExp, source = false, python = false): string {
   let result = value
     .replace(credentialUrl, "[REDACTED_URL]")
     .replace(/\bBearer\s+[^\s"'<>]+/gi, "Bearer [REDACTED]")
@@ -18,6 +18,8 @@ function scrub(value: string, secrets: readonly string[], assignment: RegExp, so
       const quote = assigned.startsWith('"') ? '"' : assigned.startsWith("'") ? "'" : "";
       // Public setup templates contain no credential; exact installed secrets are still checked below.
       const literal = quote ? assigned.slice(1, -1) : assigned;
+      // Python annotations and variable expressions are not literal credentials. Known installed values are checked independently.
+      if (python && (!quote && !/^\d/.test(assigned) || quote && literal === "")) return match;
       if (source && /^YOUR_(?:[A-Z]+_)*(?:KEY|TOKEN|SECRET|PASSWORD)$/.test(literal)) return match;
       return `${prefix}${quote}[REDACTED]${quote}`;
     })
@@ -38,6 +40,19 @@ export function containsCredential(value: string, secrets: readonly string[] = [
   return redact(value, secrets) !== value;
 }
 
-export function containsSourceCredential(value: string, secrets: readonly string[] = []): boolean {
+export function containsSourceCredential(value: string, secrets: readonly string[] = [], path = ""): boolean {
+  if (path.endsWith(".py")) {
+    for (const secret of secrets) {
+      if (secret.length >= 4 && [secret, JSON.stringify(secret).slice(1, -1), encodeURIComponent(secret.toWellFormed())].some(part => value.includes(part))) return true;
+    }
+    // Preserve assignment detection after a Python type annotation or dataclass default.
+    const normalized = value.replace(/(\b\w*(?:api_key|token|password|secret)\s*(?::\s*str\s*)?=\s*)[rubf]{0,2}("""|''')([\s\S]*?)\2/gi,
+      (_match, prefix: string, _quote: string, body: string) => `${prefix}${JSON.stringify(body)}`)
+      .replace(/\b([A-Za-z_]\w*)\s*:\s*str\s*(?==)/g, "$1 ")
+      .replace(/(\b\w*(?:api_key|token|password|secret)\s*=\s*)field\(\s*default\s*=/gi, "$1")
+      .replace(/f(["'])(?:Bearer )?\{[A-Za-z_][A-Za-z0-9_.]*\}\1/g, "credential_reference")
+      .replace(/([:=]\s*)[rubf]{1,2}(?=["'])/gi, "$1");
+    return scrub(normalized, secrets, sourceSensitiveAssignment, true, true) !== normalized;
+  }
   return scrub(value, secrets, sourceSensitiveAssignment, true) !== value;
 }
