@@ -55,3 +55,9 @@ Stop در12:57:46UTC یک POST انجام داد. همان ID با scale صفر 
 - Candidate34:370/370 domain و39/39 HTTP؛ مرورگر در Escape خطای واقعی bubbling پنجرهٔ حذف به library را یافت. parent هم بسته می‌شد؛ stopPropagation روی cancel پنجرهٔ فرزند اضافه شد. آزمون plan پس از response و قبل از commit شدن state به DOM، checked را زود می‌خواند؛ انتظارِ همان radio بررسی‌شده اضافه شد و assert اصلی حفظ شد. این‌ها full browser pass قبلی محسوب نمی‌شوند.
 
 پوشش همهٔ خانواده‌ها، DB، connectorهای اجرایی Claude/OpenCode و پذیرش کامل مأموریت همچنان از این برش نتیجه نمی‌شود. [ADR0023](../decisions/0023-project-removal-and-stop-receipts.md) قرارداد و محدودیت‌ها را شرح می‌دهد.
+
+## تحویل به نصب اصلی
+
+Commit `9bb87c1` از نظر runtime با candidate35 یکسان است؛ فقط شش سند پذیرش/شاهد/طراحی به tree آزموده‌شده اضافه شده‌اند. در13:28:42UTC سرور اصلی `http://127.0.0.1:3000` روی همین candidate بررسی شد. پیش از راه‌اندازی، backup سازگار SQLite گرفته شد و queued/working run یا action در executing وجود نداشت. PID قدیمی دیگر وجود نداشت و پورت آزاد بود؛ مالک اجرای دوم روی دیتابیس شروع نشد.
+
+state/workspace اصلی، secret نشست و اتصال‌ها حفظ شدند. schema17 و17 رکورد پروژه باقی ماندند؛ ciphertext همهٔ اتصال‌ها با backup یکسان بود. Chromium واقعی روی نصب اصلی، فهرست17 پروژه در390/1280، بازکردن تأیید حذف و Escape بدون بستن library، focus برگشتی و صفر page error را بررسی کرد. حذف یا انتشار واقعی در این بررسی انجام نشد؛ action/run تازه صفر بودند و نشست آزمایشی جداگانه لغو شد. فایل‌های ثبت‌نشدهٔ همکار وارد کامیت/نسخهٔ frozen نشدند. این handover پذیرش پروژهٔ واقعی تازه یا live env write محسوب نمی‌شود.
