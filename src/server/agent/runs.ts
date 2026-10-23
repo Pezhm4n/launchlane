@@ -262,7 +262,8 @@ export async function reviewAgentRepair(config: Config, store: Store, session: S
     ensure(!signal.aborted && run.usage.elapsedMs + Date.now() - started < run.limits.runTimeoutMs,
       "BUDGET_EXHAUSTED", "بررسی تازه از زمان همان مأموریت فراتر رفت؛ اجرا انجام نشد.", 409);
     const prepared = proposal;
-    return store.transaction(() => {
+    store.db.exec("BEGIN IMMEDIATE");
+    try {
       const current = repo.get(session.actorId, id);
       ensure(current?.revision === reserved && current.state === "needs_approval" && current.repair?.id === old.id,
         "AGENT_CONFLICT", "نتیجه هم‌زمان تغییر کرده است؛ وضعیت تازه را ببینید.", 409);
@@ -273,8 +274,12 @@ export async function reviewAgentRepair(config: Config, store: Store, session: S
       current.repairDecision = { sessionId: session.id, expiresAt: Date.now() + 600000, consumed: false };
       addEvent(current, "state", "اعتبار بررسی قبلی پایان یافته بود. محدوده از فایل‌های فعلی دوباره بررسی شد؛ چیزی اجرا نشد. پیشنهاد تازه را ببینید و دوباره تصمیم بگیرید.");
       repo.save(session.actorId, current, reserved);
+      store.db.exec("COMMIT");
       return current;
-    });
+    } catch (error) {
+      store.db.exec("ROLLBACK");
+      throw error;
+    }
   } catch (error) {
     if (proposal) adapter.cancel(session.actorId, proposal.id);
     const current = repo.get(session.actorId, id);
