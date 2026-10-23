@@ -1,5 +1,11 @@
 # شواهد اعتبارسنجی Launchlane
 
+## نسخهٔ فعال؛ قیمت و نتیجهٔ انتشار candidate51 / ۲۰۲۶-۱۰-۲۳
+
+کد فعال `6e9cd5c` شامل اصلاح قیمت `d320874` است؛ tree `ad5e9022800491534134cb57dbabcf701645024f`، digest۳۸۲فایل `e1e8c4cc4e3e1f190b66312cf4739f3a7d3169325e1a7288bf896f2df9c2dd9a` و اختلاف snapshot صفر. build/typecheck/lint مرتبط موفق،۱۱domain مرتبط،۱۴حالت plans و۸حالت expiry/success/copy موفق‌اند. success/clipboard در regression مصنوعی‌اند؛ انتشار زندهٔ تازه، full domain و aggregate مرورگر ادعا نمی‌شوند.
+
+سرور۳۰۰۰ در۱۹:۱۳:۴۸UTC به51 منتقل شد؛۹asset واقعی برابر و هر۲۸جدول state/۵جدول دفتر مصرف و تنظیمات با backup برابرند. تب واقعی کاربر همان نتیجهٔ ذخیره‌شدهٔ Login را با کارت موفقیت، دامنه و دکمه‌های جدید نمایش داد؛ mission/write/model تازه‌ای آغاز نشد. [گزارش دقیق، حدود و شکست‌های اولیه](evidence/publication-price-and-success.md). candidate49 زیر، snapshot پیشین است.
+
 ## نسخهٔ فعال و تثبیت نهایی؛ candidate49 / ۲۰۲۶-۱۰-۲۳
 
 کد فعال `e170930` با tree `8ca1526603660f0936474e45c4fc6463556922ec` و digest۳۸۲فایل `1bdb38f71b79d5d7bd68bedfe50cbe9dce14a626bc9685531936dea7ac2b6467` است؛ اختلاف snapshot با ایندکس صفر. build/typecheck موفق، lint0error/43warning/13info، domain۴۴۱/۴۴۱، HTTP۳۹/۳۹ و۱۰host/VM check پاس شدند. مرورگر همان build: expiry۴، ورود۸/دوکاربر، پلن۱۴ و platform۱۲ حالت؛ این چهار suite جای aggregate کامل یا Docker واقعی نیستند.
