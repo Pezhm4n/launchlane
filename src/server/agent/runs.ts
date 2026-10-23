@@ -22,6 +22,7 @@ import { CodeRepairAdapter } from "./code-repair.ts";
 import { authorizeMissionJob, authorizeMissionPublication, checkMissionCost } from "../application/mission-authority.ts";
 import type { LiaraAccountClient } from "../liara/catalog.ts";
 import { recordMissionArtifact } from "../policy/mission-authority.ts";
+import { missionRepairProvider } from "./coding-provider.ts";
 import type { TarballReader } from "./npm-source.ts";
 import { projectBuildImage, pythonBuildImage } from "../../contracts/project-build.ts";
 import { GoalModelClient, type ModelMessage, type ModelPort, type ToolDefinition } from "./model.ts";
@@ -532,12 +533,15 @@ export async function driveAgentRun(
           return turn;
         },
       },
-      repairModel: ModelPort = dependencies.repairModel ? { complete: async (...args) => {
-        check(); const turn = await dependencies.repairModel?.complete(...args);
-        ensure(turn, "REPAIR_PROVIDER_UNAVAILABLE", "اتصال اصلاح در دسترس نیست.", 503);
+      repairUpstream = run.authority?.state === "approved" && run.authority.plan.version === 2 && run.authority.plan.codingAgent.kind === "codex"
+        ? missionRepairProvider(config, store, session, run.id, upstream, code => {
+          addEvent(run, "state", "پیش از شروع اصلاح بیرونی، اتصال آماده نبود. طبق برنامه مصوب، همان کار با عامل داخلی و بودجه باقی‌مانده پیگیری می‌شود.", { tool: "coding_fallback", callId: code }); persist();
+        }, dependencies.repairModel) : dependencies.repairModel ?? upstream,
+      repairModel: ModelPort = { complete: async (...args) => {
+        check(); const turn = await repairUpstream.complete(...args);
         if (turn.usage !== null) run.usage.unknownModelCalls = Math.max(0, run.usage.unknownModelCalls - 1);
         check(); persist(); return turn;
-      } } : model,
+      } },
       sourceProfile = store.getProjectFlow(session.actorId, run.projectId ?? undefined)?.profile,
       preparationMode = sourceProfile?.runtime === "python" || sourceProfile?.build || sourceProfile?.manifest.some(file => file.path === "package-lock.json") || run.mission && sourceProfile?.start && sourceProfile.port ? "build" : "native",
       seen = new Set<string>();

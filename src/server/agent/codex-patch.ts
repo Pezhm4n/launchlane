@@ -9,8 +9,9 @@ import type { Store } from "../persistence/store.ts";
 import type { RunBudget } from "../policy/budget.ts";
 import { fingerprint } from "../policy/action.ts";
 import type { ModelMessage, ModelPort, ToolDefinition, ToolTurn } from "./model.ts";
+import { codexWorkerVersion, codexWorkerModel } from "../../contracts/coding-agent.ts";
 
-const verifiedVersion = "codex-cli 0.163.0-alpha.11";
+const verifiedVersion = codexWorkerVersion;
 const disabledFeatures = ["shell_tool", "apps", "remote_plugin", "computer_use", "browser_use", "browser_use_external", "browser_use_full_cdp_access",
   "view_image", "skill_search", "skill_mcp_dependency_install", "unbounded_connection_retries", "multi_agent", "code_mode_host", "memories", "goals", "sleep_tool", "tool_suggest", "workspace_dependencies"];
 const patchSchema = { type: "object", additionalProperties: false, required: ["baseRevision", "files"], properties: {
@@ -59,7 +60,7 @@ export function codexPatchArguments(schemaPath: string, instructionsPath?: strin
   return ["exec", "--ignore-user-config", "--ignore-rules", "--strict-config", "--skip-git-repo-check", "--ephemeral", "--json", "--color", "never",
     ...disabledFeatures.flatMap(feature => ["--disable", feature]),
     "-c", 'approval_policy="never"', "-c", 'web_search="disabled"', "-c", "project_doc_max_bytes=0",
-    "-c", 'model_provider="openai"', "-c", 'model_reasoning_effort="low"',
+    "-c", 'model_provider="openai"', "--model", codexWorkerModel, "-c", 'model_reasoning_effort="low"',
     "-c", 'default_permissions="launchlane-packet"', "-c", 'permissions.launchlane-packet.filesystem={":minimal"="read",":workspace_roots"="read"}',
     "-c", "permissions.launchlane-packet.network.enabled=false", "-c", 'shell_environment_policy.inherit="none"',
     ...(instructionsPath ? ["-c", `model_instructions_file=${JSON.stringify(instructionsPath.replaceAll("\\", "/"))}`] : []), "--output-schema", schemaPath, "-"];

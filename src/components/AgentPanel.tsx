@@ -6,6 +6,8 @@ import { object } from "../contracts/validation.ts";
 import { api, ClientError } from "./api.ts";
 import { AgentPublication } from "./AgentPublication.tsx";
 import { MissionAuthorityReview } from "./MissionAuthorityReview.tsx";
+import { CodingAgentSelection } from "./CodingAgentSelection.tsx";
+import type { CodingAgentChoice } from "../contracts/coding-agent.ts";
 import { AgentDestination } from "./AgentDestination.tsx";
 import { AgentNetwork } from "./AgentNetwork.tsx";
 import { RichText } from "./RichText.tsx";
@@ -148,6 +150,8 @@ export function AgentPanel({
     );
   const [missionPath, setMissionPath] = useState("/"), [expectedText, setExpectedText] = useState("");
   const [environmentLocked, setEnvironmentLocked] = useState(false);
+  const [editingAgentFor, setEditingAgentFor] = useState<string | null>(null);
+  const editingAgent = !!run && editingAgentFor === run.id;
   const missionKey = useRef<{ input: string; key: string } | null>(null);
   const resumeKey = useRef<{ revision: number; key: string } | null>(null);
   const input = useRef<HTMLTextAreaElement>(null),
@@ -508,13 +512,14 @@ export function AgentPanel({
     } catch (cause) { failed(cause); }
     finally { setBusy(false); }
   }
-  async function planRequest(decision?: "approve" | "reject") {
+  async function planRequest(decision?: "approve" | "reject", codingAgent?: CodingAgentChoice) {
     if (!run || busy || disabled) return;
     setBusy(true); setError(null);
     try {
       accept(await api(`/api/agent/runs/${run.id}`, decodeRun, { csrf, body: decision && run.authority
         ? { operation: "plan-decision", revision: run.revision, authorityId: run.authority.id, hash: run.authority.hash, decision }
-        : { operation: "plan-proposal", revision: run.revision } }));
+        : { operation: "plan-proposal", revision: run.revision, ...(codingAgent ? { codingAgent } : {}) } }));
+      setEditingAgentFor(null);
     } catch (cause) { failed(cause); }
     finally { setBusy(false); }
   }
@@ -944,9 +949,15 @@ export function AgentPanel({
               ) : null}
             </section>
           ) : null}
-          {run.authority ? <MissionAuthorityReview authority={run.authority} runState={run.state} disabled={disabled || busy || active || !sameProject}
-            onDecision={decision => void planRequest(decision)} /> : run.mission && run.repair?.validationOnly && run.state === "needs_approval" && appSelected ? (
-              <button type="button" disabled={disabled || busy || !sameProject} onClick={() => void planRequest()}>بررسی برنامهٔ انتشار و اصلاح خودکار</button>
+          {run.authority ? <>
+            <MissionAuthorityReview authority={run.authority} runState={run.state} disabled={disabled || busy || active || !sameProject || editingAgent}
+              onDecision={decision => void planRequest(decision)} />
+            {run.authority.state === "proposed" && run.state === "needs_approval" ? editingAgent
+              ? <CodingAgentSelection key={run.authority.id} selected={run.authority.plan.version === 2 ? run.authority.plan.codingAgent : { kind: "internal" }}
+                  disabled={disabled || busy || !sameProject} onPropose={choice => void planRequest(undefined, choice)} onCancel={() => setEditingAgentFor(null)} />
+              : <button type="button" className="button-secondary" disabled={disabled || busy || !sameProject} onClick={() => setEditingAgentFor(run.id)}>تغییر عامل پیش از تأیید</button> : null}
+          </> : run.mission && run.repair?.validationOnly && run.state === "needs_approval" && appSelected ? (
+              <CodingAgentSelection key={run.repair.id} disabled={disabled || busy || !sameProject} onPropose={choice => void planRequest(undefined, choice)} />
             ) : null}
           {run.network && !run.networkContinued ? <AgentNetwork key={run.network.id} action={run.network} waiting={run.state === "needs_approval"}
             disabled={disabled || busy || active || !sameProject} resumable={run.network.state === "succeeded" && !run.networkContinued}

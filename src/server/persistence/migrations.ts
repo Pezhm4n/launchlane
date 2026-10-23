@@ -165,4 +165,14 @@ CREATE TABLE coding_agent_executions (
 ) STRICT;
 `,
   },
+  {
+    version: 14,
+    sql: `
+CREATE TABLE mission_authority_history (
+  id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, run_id TEXT NOT NULL,
+  plan_json TEXT NOT NULL, plan_hash TEXT NOT NULL, state TEXT NOT NULL,
+  session_id TEXT NOT NULL, created_at INTEGER NOT NULL, archived_at INTEGER NOT NULL
+) STRICT;
+`,
+  },
 ] as const;

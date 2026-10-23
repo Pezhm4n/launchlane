@@ -1,5 +1,7 @@
 # ADR0018 — اختیار محدود مأموریت و artifact مشتق‌شده
 
+به‌روزرسانی ۲۰۲۶-۱۰-۲۳: [چرخه زنده روی candidate06](../evidence/codex-publication-mission.md) build fail، patch داخلی، آزمون مستقل و انتشار همان artifact را با یک برنامه مصوب گذراند؛ عبارت‌های UNCONFIRMED پایین، وضعیت تاریخی هنگام این ADR هستند. [ADR0020](0020-codex-packet-worker.md) قرارداد v2 انتخاب عامل و تاریخچه بازبینی را اضافه می‌کند؛ canonicalization نسخه۱ و ActionSpecهای قبلی محفوظ است. پذیرش عمومی AC23، همه runtimeها و منابع وابسته همچنان بازند.
+
 وضعیت: implemented_verified در محدودهٔ آزمون قطعی محلی؛ [شاهد candidate](../evidence/mission-authority.md). این برش تمام AC23 نیست و انتشار زنده آن هنوز UNCONFIRMED است.
 
 ## مسئله و انتخاب

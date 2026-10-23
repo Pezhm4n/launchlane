@@ -1,5 +1,9 @@
 # برنامه اجرایی Launchlane
 
+## انتخاب عامل در برنامه و شکاف مقصد؛ A05/A06/A08 / ۲۰۲۶-۱۰-۲۳
+
+انتخاب داخلی/Codex و fallback محدود به پیش از dispatch در MissionPlan v2 پیاده شد؛ بازبینی پیش از اجرا تاریخچه و ID/hash تازه دارد و approval قدیمی رد می‌شود. روی candidate10،341domain/38HTTP/53حالت مرورگر/2container fallback و build/type/lint بدونerror گذشتند؛ [شاهد](docs/evidence/coding-agent-selection.md). تلاش زنده۵درخواست مدل/23040token و0write ابری/0Codex داشت، اما مدل build را پیش از مقصد پیشنهاد کرد و مسیر برنامه متوقف شد. این failure حفظ است؛ ادامه باید مقصد/پیشنهاد پلن را داخل محصول کامل کند و همان run/budget را نگه دارد. A06/A08 partial؛ budget باقیمانده BoxAPI-only برابر0.217836USD، اشتراک Codex unpriced. درخواست تازه مالک: حذف بن‌بست انتخاب برنامه، پلن متناسب با پروژه، ادامه پس از توقف و راهنمای ساده دامنه در همان مسیر موجود، بدون دورزدن uncertain.
+
 ## اتصال اجرایی Codex؛ A06/A18 / ۲۰۲۶-۱۰-۲۳
 
 یک رفت‌وبرگشت واقعی Launchlane→Codex0.163.0-alpha.11 در حالت packet-only، patch محدود و آزمون مستقل Node22 را گذراند و همان parent/authority را تا publication مصنوعی ادامه داد. دو failure اولیه decoder و مصرف نامعلوم اول حفظ شدند؛ ErrorItem رسمی non-fatal بود. accounting خارجی و توقف پیش از fallback موازی اصلاح شدند. [شاهد مستقل](docs/evidence/codex-executable-worker.md) و [ADR0020](docs/decisions/0020-codex-packet-worker.md) حدود را ثبت می‌کنند. A06/AC26 partial؛ اقدام بعد اتصال انتخاب نسخه‌دار و fallback مجاز به همان مأموریت، سپس سایر میزبان‌ها و ماتریس است. باقی‌مانده۰٫۲۴۰۹۷۰دلار فقط ceiling محافظه‌کارانه BoxAPI است؛ مصرف اشتراک Codex قیمت نامعلوم دارد و صفر فرض نمی‌شود.

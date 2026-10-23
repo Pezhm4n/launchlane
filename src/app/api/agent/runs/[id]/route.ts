@@ -18,6 +18,7 @@ import { AppError, ensure } from "../../../../../server/errors.ts";
 import { endpoint, jsonBody, reply } from "../../../../../server/http.ts";
 import { resumePublicationMission } from "../../../../../server/application/publication-mission.ts";
 import { proposeMissionAuthority, decideMissionAuthority } from "../../../../../server/application/mission-authority.ts";
+import { parseCodingAgentChoice } from "../../../../../contracts/coding-agent.ts";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 600;
@@ -84,8 +85,9 @@ export async function POST(request: Request, { params }: Context) {
       return reply({ run: agentView(run) });
     }
     if (input.operation === "plan-proposal") {
-      exactKeys(input, ["operation", "revision"]);
-      return reply({ run: agentView(await proposeMissionAuthority(config, store, session, id, revision, request.signal)) });
+      exactKeys(input, ["operation", "revision", "codingAgent"]);
+      return reply({ run: agentView(await proposeMissionAuthority(config, store, session, id, revision, request.signal, undefined, undefined,
+        input.codingAgent === undefined ? undefined : parseCodingAgentChoice(input.codingAgent))) });
     }
     if (input.operation === "plan-decision") {
       exactKeys(input, ["operation", "revision", "authorityId", "hash", "decision"]);

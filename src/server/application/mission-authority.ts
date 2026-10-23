@@ -17,9 +17,10 @@ import { LiaraReadClient } from "../liara/client.ts";
 import { LiaraAccountClient, quotePaaSOffer } from "../liara/catalog.ts";
 import { connectedLiaraConfig } from "../connections/liara.ts";
 import { restoreProjectFlow } from "./project-flows.ts";
+import { parseCodingAgentChoice, type CodingAgentChoice } from "../../contracts/coding-agent.ts";
 
 export async function proposeMissionAuthority(config: Config, store: Store, session: Session, id: string, revision: number,
-  signal: AbortSignal, read?: LiaraReadClient, account?: LiaraAccountClient): Promise<AgentRecord> {
+  signal: AbortSignal, read?: LiaraReadClient, account?: LiaraAccountClient, codingAgent?: CodingAgentChoice): Promise<AgentRecord> {
   const repo = new AgentRepository(store), run = repo.get(session.actorId, id);
   ensure(run?.mission && run.revision === revision && run.state === "needs_approval" && run.repair?.state === "proposed" &&
     run.repair.validationOnly && run.repair.build && run.repair.parentRunId === run.id && run.context.target && run.projectId,
@@ -27,7 +28,12 @@ export async function proposeMissionAuthority(config: Config, store: Store, sess
   ensure(store.sessionExists(session.id, session.actorId, Date.now()), "AUTH_REQUIRED", "دوباره وارد شوید.", 401);
   assertAgentContext(config, store, session.actorId, run.context);
   const existing = missionAuthority(store, session.actorId, id);
-  if (existing) { run.authority = existing; return run; }
+  const selectedAgent = codingAgent === undefined ? null : parseCodingAgentChoice(codingAgent);
+  if (existing && (codingAgent === undefined || fingerprint(existing.plan.version === 2 ? existing.plan.codingAgent : { kind: "internal" }) === fingerprint(selectedAgent))) {
+    run.authority = existing; return run;
+  }
+  ensure(!existing || existing.state === "proposed" && !store.db.prepare("SELECT subject_id FROM mission_steps WHERE authority_id=? LIMIT 1").get(existing.id),
+    "PLAN_AGENT_CHANGED", "عامل برنامه اجراشده را نمی‌توان عوض کرد؛ اجرای قبلی ابتدا باید تعیین تکلیف شود.", 409);
   const target = run.context.target, started = Date.now(), budget = new RunBudget({ ...run.limits, runTimeoutMs: Math.max(1, run.limits.runTimeoutMs - run.usage.elapsedMs) });
   budget.modelCalls = run.usage.modelCalls; budget.toolCalls = run.usage.toolCalls;
   const take = budget.take.bind(budget);
@@ -51,7 +57,7 @@ export async function proposeMissionAuthority(config: Config, store: Store, sess
       if (!/\.(?:[cm]?[jt]sx?|py|html|css|json)$/.test(path)) return false;
       try { validateBuildRepairPaths([path]); return true; } catch { return false; }
     }).sort();
-    const plan = parseMissionPlan({ version: 1, revision: 1, runId: run.id, rootProjectId: run.projectId, rootSourceHash: flow.profile.sourceHash,
+    const plan = parseMissionPlan({ version: selectedAgent ? 2 : 1, ...(selectedAgent ? { codingAgent: selectedAgent } : {}), revision: existing ? existing.plan.revision + 1 : 1, runId: run.id, rootProjectId: run.projectId, rootSourceHash: flow.profile.sourceHash,
       rootArtifactHash: flow.artifact.archiveHash, rootSelectionHash: flow.selectionHash, initialJobId: run.repair.id,
       target: { ...target, planId: project.planId, bundleId: metadata.bundleId, networkId: metadata.networkId, origin }, costEffect: "existing_plan_unchanged",
       cost: { hourlyHundredthsToman: quote.selected.hourlyHundredthsToman, currency: "toman", period: "hour", catalogFingerprint: catalog.fingerprint, observedAt: catalog.observedAt, extras: "tax_traffic_storage_not_included" }, build: run.repair.build,
@@ -62,7 +68,13 @@ export async function proposeMissionAuthority(config: Config, store: Store, sess
     store.db.exec("BEGIN IMMEDIATE");
     try {
       if (!configuredOrigin) store.setProbeOrigin(session.actorId, { teamId: target.teamId, app: target.app }, origin);
-      store.db.prepare("INSERT INTO mission_authorities VALUES (?,?,?,?,?,?,?,?)").run(authority.id, session.actorId, id, JSON.stringify(plan), authority.hash, "proposed", session.id, Date.now());
+      if (existing) {
+        const archived = store.db.prepare("INSERT INTO mission_authority_history SELECT id,actor_id,run_id,plan_json,plan_hash,state,session_id,created_at,? FROM mission_authorities WHERE id=? AND actor_id=? AND state='proposed' AND session_id=?")
+          .run(Date.now(), existing.id, session.actorId, session.id);
+        ensure(archived.changes === 1, "PLAN_CONFLICT", "برنامه هم‌زمان تغییر کرده است.", 409);
+        store.db.prepare("UPDATE mission_authorities SET id=?,plan_json=?,plan_hash=?,session_id=?,created_at=? WHERE id=? AND state='proposed'")
+          .run(authority.id, JSON.stringify(plan), authority.hash, session.id, Date.now(), existing.id);
+      } else store.db.prepare("INSERT INTO mission_authorities VALUES (?,?,?,?,?,?,?,?)").run(authority.id, session.actorId, id, JSON.stringify(plan), authority.hash, "proposed", session.id, Date.now());
       run.authority = authority;
       addEvent(run, "state", "برنامه build، اصلاح محدود و انتشار به همین مقصد آماده بررسی است؛ هنوز چیزی اجرا نشده است.");
       repo.save(session.actorId, run);

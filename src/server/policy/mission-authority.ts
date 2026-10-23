@@ -29,6 +29,10 @@ export function assertMissionAuthority(store: Store, actor: string, sessionId: s
     Number(usage.toolCalls) <= current.plan.limits.maxToolCalls && Number(usage.elapsedMs) < current.plan.limits.runTimeoutMs &&
     target.accountId === current.plan.target.accountId && target.teamId === current.plan.target.teamId && target.app === current.plan.target.app && target.appId === current.plan.target.appId,
     "PLAN_SCOPE_CHANGED", "مقصد یا بودجه مأموریت از اختیار مصوب خارج شده است.", 409);
+  if (current.plan.version === 2 && current.plan.codingAgent.kind === "codex") {
+    ensure(!store.db.prepare("SELECT job_id FROM coding_agent_executions WHERE actor_id=? AND state='uncertain' AND json_extract(data_json,'$.parentRunId')=? LIMIT 1")
+      .get(actor, current.plan.runId), "CODING_EXECUTION_UNCERTAIN", "نتیجه اجرای بیرونی تعیین نشده است؛ اختیار انتشار یا worker دیگری فعال نمی‌شود.", 409);
+  }
   return current.plan;
 }
 function jobEvidence(job: CodeRepairJob): string {
