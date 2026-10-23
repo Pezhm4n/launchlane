@@ -207,4 +207,18 @@ DROP TABLE mission_steps_v11;
 DROP TABLE mission_authorities_v11;
 `,
   },
+  {
+    version: 16,
+    sql: `
+CREATE TABLE mcp_connections (
+  id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, request_key TEXT NOT NULL,
+  host TEXT NOT NULL CHECK(host IN ('codex','claude','opencode')), missions INTEGER NOT NULL CHECK(missions IN (0,1)),
+  parent_session_id TEXT NOT NULL, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL,
+  revoked_at INTEGER, initialized_at INTEGER, discovered_at INTEGER, last_tool_at INTEGER,
+  protocol_version TEXT, reported_client TEXT, access_path TEXT NOT NULL,
+  UNIQUE(actor_id,request_key)
+) STRICT;
+CREATE INDEX mcp_connections_actor ON mcp_connections(actor_id,created_at);
+`,
+  },
 ] as const;
