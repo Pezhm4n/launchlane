@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { test } from "node:test";
 import { setTimeout as pause } from "node:timers/promises";
+import { readFile } from "node:fs/promises";
 import { startTestServer } from "../../scripts/test-server.mjs";
 
 test("guided HTTP registration, scoped replay, context locks and read-only questions", async t => {
@@ -63,6 +64,8 @@ test("guided HTTP registration, scoped replay, context locks and read-only quest
       }
       assert.equal((await settled(before.id)).id, before.id);
     });
+    const modelCalls = async () => (await readFile(server.modelLog, "utf8")).trim().split("\n").filter(Boolean).length;
+    const callsBeforeQuestion = await modelCalls();
     const question = await expect(await request("/api/agent/runs", { operation: "question", requestKey: randomUUID(), goal: "آزمون توقف", projectId: publication.projectId }), 201);
     await t.test("an active optional question cannot start parallel source selection, account changes or a technical write", async () => {
       await expect(await request("/api/project-flows", { operation: "prepare", selection: { kind: "sample", directory: "examples/node-service" } }), 409, "AGENT_BUSY");
@@ -70,7 +73,12 @@ test("guided HTTP registration, scoped replay, context locks and read-only quest
       await expect(await request("/api/actions/restart", { incidentRunId: randomUUID() }), 409, "AGENT_BUSY");
       assert.equal((await expect(await request(`/api/agent/runs?project=${publication.projectId}&kind=publication`),200)).run.id, values[0].run.id);
     });
+    // Registration, claim and durable model reservation advance revisions. Wait until the blocking fixture owns the request.
+    for (let poll = 0; poll < 100 && await modelCalls() === callsBeforeQuestion; poll++) await pause(50);
+    assert.ok(await modelCalls() > callsBeforeQuestion, "The cancellable synthetic model request must have started");
     const active = await expect(await request(`/api/agent/runs/${question.run.id}`),200);
+    assert.ok(active.run.revision > question.run.revision);
+    await expect(await request(`/api/agent/runs/${question.run.id}`, { operation: "cancel", revision: question.run.revision }),409,"AGENT_CONFLICT");
     const cancelled = await request(`/api/agent/runs/${question.run.id}`, { operation: "cancel", revision: active.run.revision });
     assert.equal(cancelled.status,200);
     assert.equal((await settled(question.run.id)).state,"cancelled");

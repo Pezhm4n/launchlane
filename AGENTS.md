@@ -4,6 +4,8 @@ Read this file first. Then read [project-overview.md](project-overview.md), [the
 
 ## Current scope and truth
 
+- Native Python 3.12 publication/provisioning use ActionSpec v11/v12 and the existing approval/journal services. A prepared copy of the real Torob FastAPI/React project, without its database, completed real-model repair and two native Liara releases; local tests, same-origin assets, browser readback and ID-bound cleanup passed. This does not verify raw-monorepo preparation, other Python versions/frameworks, dependency edits or live Python env. Read [Python evidence](docs/evidence/python-real-project.md) and ADR0015. New runs default to 24 model calls/160 tools/600 seconds; stored limits never renew on recovery.
+
 - The guided flow has scoped environment forms and ActionSpec v9 with encrypted inputs, merge-preserving update, journal and configuration readback. Migration 10 appends tables without changing 1–9. A bounded Node22 Docker case now injects the exact reviewed reference through stdin into install/build/test/start, with no secret archive or host file. Environment-bound publication uses v10; historical v1–v9 canonicalization is preserved. Read ADRs 0013/0014. Live env, general Next/GitHub acceptance and restart completion remain unverified; configuration readback is not workload verification.
 
 - The operator-local workbench implements source inspection, private immutable archives, durable approvals, bounded Liara deployment and evidence collection. A controlled Node 22 live cycle verified three releases, a real 500, one grounded diagnosis, an ineffective change and an approved source correction with same-page readback. This does not verify arbitrary projects, automatic code editing, env writes or restart completion.
@@ -41,7 +43,8 @@ Run from the repository root with Node **24.15+ within 24.x** and npm. Dependenc
 | Bootstrap smoke | `npm test` | Requires the running dev/production server; loopback only |
 | Domain regressions | `npm run test:domain` | Node native test runner; temporary SQLite/filesystem and synthetic transports; no server/provider required |
 | HTTP boundary | `npm run test:http` | Requires a successful build; starts an isolated production server with synthetic scope and empty provider keys |
-| Container worker | `npm run test:sandbox` | Docker Linux engine and the pinned Node22 image; actual bounded tests, synthetic patch model |
+| Container worker | `npm run test:sandbox` | Docker Linux engine, pinned Node22 and Python3.12 images; project-build cases also need public npm reads or an explicit cache; actual tools, synthetic patch model |
+| Python/native regressions | `node --test tests/sandbox/python-build.test.ts tests/sandbox/native-build.test.ts` | Docker Linux and both pinned images; four actual bounded cases, synthetic patch model, no provider credentials |
 | Locked project build | `npm run test:build-sandbox` | Docker and pinned Node22 image; actual npm ci/build/start/GET, synthetic model; public npm read or explicit `LAUNCHLANE_TEST_NPM_CACHE` content cache |
 | Browser flow | `npm run test:browser` | Requires build and Playwright Chromium; seven isolated suites for workbench/deployment/restart/domain/guided/destination/studio; model transport synthetic, repair Node tests actual; no real account |
 | Frontend studio | `npm run test:studio` | Requires build; checks chat placement, starters, draft/focus, independent scroll, reduced motion, host logo and responsive reports with synthetic transport |

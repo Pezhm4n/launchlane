@@ -140,7 +140,7 @@ export function readConfig(env: Environment = process.env) {
     enableLocalRepair: flag(env, "LAUNCHLANE_ENABLE_LOCAL_REPAIR"),
     maxModelCalls: limit(env, "LAUNCHLANE_MAX_MODEL_CALLS", 8, 1, 8),
     maxToolCalls: limit(env, "LAUNCHLANE_MAX_TOOL_CALLS", 12, 1, 12),
-    agentMaxModelCalls: limit(env, "LAUNCHLANE_AGENT_MAX_MODEL_CALLS", 16, 1, 24),
+    agentMaxModelCalls: limit(env, "LAUNCHLANE_AGENT_MAX_MODEL_CALLS", 24, 1, 24),
     // Dependency reads, a bounded repair and release readback share one durable allowance.
     agentMaxToolCalls: limit(env, "LAUNCHLANE_AGENT_MAX_TOOL_CALLS", 160, 1, 160),
     agentTimeoutMs: limit(env, "LAUNCHLANE_AGENT_TIMEOUT_MS", 600_000, 100, 900_000),
