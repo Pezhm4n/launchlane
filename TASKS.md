@@ -1,5 +1,9 @@
 # برنامه اجرایی Launchlane
 
+## خطاهای قابل اقدام سرویس؛ A06/A08/A18 / ۲۰۲۶-۱۰-۲۳
+
+402/409/413 اکنون اعتبار/پرداخت، تعارض وضعیت و حجم درخواست را جدا گزارش می‌کنند؛ احراز هویت، rate limit و شبکه اقدام بعدی فارسی دارند و به تغییر بی‌دلیل کد راهنمایی نمی‌شوند. ۱۸ آزمون هدفمند و lint سه فایل پاس شدند؛ مدل/provider مصنوعی و write زنده صفر. claimed write همچنان uncertain و نیازمند journal/readback است؛ این تغییر مجوز retry نیست. [شاهد](docs/evidence/provider-failures.md).
+
 ## native Next؛ A07/A08/A11 / ۲۰۲۶-۱۰-۲۳
 
 پس از8b08364، [ADR0027](docs/decisions/0027-native-next-publication.md) و [شاهد](docs/evidence/native-next.md): قرارداد17/18، source/runtime، env، creation/publication/readback، mission authority و UI به مسیر Next متصل شدند؛ platform node نمی‌تواند receipt Next شود. compiler واقعی با dependency قفل‌شده/build/start/GET در Node22 گذشت؛ cloud/model آن صفر و case کنترل‌شده است. پروژه upstream خام در fixture شبیه credential و lock557 متوقف شد؛ تست‌ها حذف یا ویرایش نشدند. **A11 همچنان partial**؛ native Next زنده/پروژه عمومی، سایر خانواده‌ها و source-preparation عمومی الزامی‌اند. بخش‌های تاریخی Next missing با همین مقدار implementation جایگزین می‌شوند، نه با ادعای تأیید کامل.

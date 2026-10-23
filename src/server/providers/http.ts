@@ -103,7 +103,25 @@ export function httpFailure(status: number): AppError {
   if (status === 401 || status === 403)
     return new AppError(
       "PROVIDER_AUTH",
-      "دسترسی سرویس پذیرفته نشد؛ credential و محدوده را بررسی کنید.",
+      "اتصال حساب یا دسترسی انتخاب‌شده پذیرفته نشد؛ اتصال و مجوزهای حساب را بررسی کنید.",
+      502,
+    );
+  if (status === 402)
+    return new AppError(
+      "PROVIDER_PAYMENT_REQUIRED",
+      "سرویس برای ادامهٔ عملیات پرداخت یا اعتبار حساب می‌خواهد؛ وضعیت مالی همان حساب را بررسی کنید.",
+      502,
+    );
+  if (status === 409)
+    return new AppError(
+      "PROVIDER_CONFLICT",
+      "درخواست با وضعیت فعلی سرویس تعارض دارد؛ وضعیت همان منبع باید دوباره بررسی شود.",
+      502,
+    );
+  if (status === 413)
+    return new AppError(
+      "PROVIDER_REQUEST_TOO_LARGE",
+      "حجم درخواست از سقف سرویس بیشتر است؛ اندازهٔ بسته یا اطلاعات ارسالی باید بررسی شود.",
       502,
     );
   if (status === 429)
