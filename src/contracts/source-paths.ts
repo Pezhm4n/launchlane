@@ -13,5 +13,6 @@ export function excludedPath(name: string): boolean {
 
 export function sourceFileAllowed(name: string): boolean {
   return /\.(?:py|toml|[cm]?[jt]sx?|json|lock|md|txt|html?|css|scss|svg|png|jpe?g|webp|ico|woff2?|ya?ml)$/i.test(name) ||
-    ["Dockerfile", "Procfile", ".dockerignore", ".gitignore"].includes(name);
+    ["Dockerfile", "Procfile", ".dockerignore", ".gitignore"].includes(name) ||
+    /^(?:LICENSE|LICENCE|COPYING|NOTICE)(?:[-.][A-Z0-9-]+)?$/i.test(name);
 }

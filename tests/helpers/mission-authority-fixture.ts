@@ -17,11 +17,11 @@ import { WorkloadProbe } from "../../src/server/liara/probe.ts";
 import { ensure } from "../../src/server/errors.ts";
 import { object, string, text } from "../../src/contracts/validation.ts";
 
-export async function missionAuthorityFixture(ineffectiveFirst = false) {
+export async function missionAuthorityFixture(ineffectiveFirst = false, withoutLock = false) {
   const f = await agentFixture(), actor = f.session.actorId, app = "authority-test", teamId = "a".repeat(24), appId = "b".repeat(24), origin = "https://authority-test.example.com";
   const config = { ...f.config, teamId, apps: [app], liaraToken: "synthetic-mission-provider-token", probeOrigins: { [app]: origin }, enableLiveLiara: true, enableMutations: true, enableLocalRepair: true, agentTimeoutMs: 600000 };
   writeFileSync(join(f.project, "package.json"), JSON.stringify({ name: "authority-test", version: "1.0.0", type: "module", engines: { node: "22.x" }, scripts: { start: "node server.mjs", build: "node --check server.mjs", test: "node --test invoice.test.mjs" } }));
-  writeFileSync(join(f.project, "package-lock.json"), JSON.stringify({ name: "authority-test", version: "1.0.0", lockfileVersion: 3, packages: { "": { name: "authority-test", version: "1.0.0", engines: { node: "22.x" } } } }));
+  if (!withoutLock) writeFileSync(join(f.project, "package-lock.json"), JSON.stringify({ name: "authority-test", version: "1.0.0", lockfileVersion: 3, packages: { "": { name: "authority-test", version: "1.0.0", engines: { node: "22.x" } } } }));
   const flow = await prepareProjectFlow(config, f.store, actor, { kind: "local", directory: "service" }, AbortSignal.timeout(5000));
   f.store.saveConnection(actor, { source: "token", ciphertext: sealCredential("synthetic-mission-provider-token", config.sessionSecret, actor, "liara"), view: {
     provider: "liara", status: "connected", identityId: "mission-account", displayName: "آزمون", login: "test@example.test", teamId, teamName: "آزمون", checkedAt: Date.now(),

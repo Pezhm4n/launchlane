@@ -614,7 +614,7 @@ export class CodeRepairAdapter {
             await reusePythonWheels(pythonRequirements(base.files), join(this.config.stateDir, "repair-tarballs", parent.id), tarballs, bounded);
           } else await downloadPythonWheels(pythonRequirements(base.files), tarballs, bounded, () => budget.take("tool", bounded));
         }
-        else await downloadLockedTarballs(lockedTarballs(base.files), tarballs, bounded, () => budget.take("tool", bounded), this.tarballReader);
+        else await downloadLockedTarballs(record.job.build.install === "none" ? [] : lockedTarballs(base.files), tarballs, bounded, () => budget.take("tool", bounded), this.tarballReader);
       }
       const tests = async (): Promise<RepairTestReceipt> => {
         if (record.job.build) {
@@ -625,7 +625,7 @@ export class CodeRepairAdapter {
             testSignal = AbortSignal.any([bounded, AbortSignal.timeout(120000)]), result = record.job.build.version === 2
               ? await runPythonBuild(record.workspace, tarballs, record.job.build, record.job.testFiles, testSignal, onCreated, environment)
               : await runContainerBuild(record.workspace, tarballs, record.job.build, testSignal, onCreated, environment);
-          return { command: record.job.build.version === 2 ? `pip install --no-index --require-hashes; compileall; unittest ${record.job.testFiles.join(" ")}; ${record.job.build.startCommand}; GET ${record.job.build.workload.path}` : `npm ci --offline${record.job.build.buildCommand ? " && npm run build" : ""}${record.job.build.testCommand ? " && npm test" : ""} && npm start; GET ${record.job.build.workload.path}`,
+          return { command: record.job.build.version === 2 ? `pip install --no-index --require-hashes; compileall; unittest ${record.job.testFiles.join(" ")}; ${record.job.build.startCommand}; GET ${record.job.build.workload.path}` : `${record.job.build.install === "none" ? "no dependencies to install" : "npm ci --offline"}${record.job.build.buildCommand ? " && npm run build" : ""}${record.job.build.testCommand ? " && npm test" : ""} && npm start; GET ${record.job.build.workload.path}`,
             exitCode: result.exitCode, signal: result.signal, durationMs: Date.now() - started, output: redact(result.output, [...privateValues(this.config), ...environment.map(row => row.value).filter(value => value.length >= 4)]),
             passed: result.exitCode === 0 && !bounded.aborted && !result.signal };
         }
@@ -648,7 +648,7 @@ export class CodeRepairAdapter {
           "PROJECT_CHANGED", "source هنگام بررسی build تغییر کرد؛ رسید به نسخه تازه تعمیم داده نمی‌شود.", 409);
         record.job.artifact = await prepareArchive({ store: this.store, stateDir: this.config.stateDir, workspaceRoot: record.workspace, actorId: actor, directory: ".",
           sourceHash: verified.profile.sourceHash, signal: bounded, secrets: privateValues(this.config) });
-        record.job.state = "succeeded"; record.job.message = "نصب قفل‌شده، ساخت و پاسخ مصوب در نسخه جدا گذشتند؛ انتشار هنوز اجرا نشده است.";
+        record.job.state = "succeeded"; record.job.message = record.job.build?.version === 1 && record.job.build.install === "none" ? "ساخت و پاسخ مصوب برنامهٔ بدون وابستگی در نسخه جدا گذشتند؛ نصب لازم نبود و انتشار هنوز اجرا نشده است." : "نصب قفل‌شده، ساخت و پاسخ مصوب در نسخه جدا گذشتند؛ انتشار هنوز اجرا نشده است.";
       }
       if (!record.job.validationOnly) {
       budget.take("tool", bounded);

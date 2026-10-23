@@ -85,14 +85,14 @@ const npm=async args=>new Promise((resolve,reject)=>{const p=spawn('/usr/local/b
 (async()=>{
 const cacache=require('/usr/local/lib/node_modules/npm/node_modules/cacache');
 for(const item of JSON.parse(fs.readFileSync('/tarballs/manifest.json','utf8'))){if(!/^[a-f0-9]{64}\\.tgz$/.test(item.file)||!['sha512','sha256'].includes(item.algorithm))throw Error('invalid cache manifest');const bytes=fs.readFileSync('/tarballs/'+item.file);if(item.algorithm+'-'+createHash(item.algorithm).update(bytes).digest('base64')!==item.integrity)throw Error('cache integrity changed');await cacache.put('/work/cache/_cacache','launchlane:'+item.file,bytes,{algorithms:[item.algorithm]})}
-stage='install';await npm(['ci','--offline','--no-audit','--no-fund','--userconfig=/work/user.npmrc','--globalconfig=/work/global.npmrc']);
+stage='install';if(plan.install!=='none')await npm(['ci','--offline','--no-audit','--no-fund','--userconfig=/work/user.npmrc','--globalconfig=/work/global.npmrc']);
 stage='build';if(plan.buildCommand!==null)await npm(['run','build']);
 stage='test';if(plan.testCommand!==null)await npm(['test']);
 stage='workload';
 const child=spawn('/usr/local/bin/npm',['start'],{cwd:'/work/project',env:{...env,NODE_ENV:'production'},stdio:['ignore','pipe','pipe']});child.stdout.pipe(process.stdout);child.stderr.pipe(process.stderr);child.on('error',()=>{});
 try{let result=null;const deadline=Date.now()+15000;while(Date.now()<deadline){try{const response=await fetch('http://127.0.0.1:'+plan.port+plan.workload.path,{redirect:'manual',signal:AbortSignal.timeout(1000)});const chunks=[];let size=0;for await(const bytes of response.body){size+=bytes.length;if(size>65536)throw Error('response limit');chunks.push(Buffer.from(bytes))};const body=Buffer.concat(chunks).toString('utf8');
 const a=plan.workload.assertion;let matches=false;if(a.kind==='text')matches=body.includes(a.contains);else{try{const json=JSON.parse(body);matches=json!==null&&typeof json==='object'&&!Array.isArray(json)&&Object.hasOwn(json,a.field)&&json[a.field]===a.equals}catch{}}
-if(response.status===plan.workload.status&&matches){result=true;break}}catch{}await new Promise(resolve=>setTimeout(resolve,250))};if(!result)throw Error('original workload expectation not met');console.log('Launchlane: locked install, build and original workload verified');
+if(response.status===plan.workload.status&&matches){result=true;break}}catch{}await new Promise(resolve=>setTimeout(resolve,250))};if(!result)throw Error('original workload expectation not met');console.log('Launchlane: '+(plan.install==='none'?'dependency-free':'locked install')+', build and original workload verified');
 }finally{child.kill()}
 clearTimeout(watchdog);process.exit(0)
 })().catch(error=>{console.error('Launchlane build check failed:',stage,error.message);process.exit({cache:74,install:71,build:72,workload:73,test:76}[stage]??75)});`;

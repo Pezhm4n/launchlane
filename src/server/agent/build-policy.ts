@@ -25,6 +25,13 @@ export function projectTestCommand(files: readonly SourceFile[]): string | null 
   ensure(value === undefined || (typeof value === "string" && value.length <= 1000), "BUILD_PLAN_CHANGED", "فرمان آزمون معتبر و محدود لازم است.", 409);
   return typeof value === "string" && value.trim() ? value : null;
 }
+export function dependencyFreeNode(files: readonly SourceFile[]): boolean {
+  const file = files.find(file => file.path === "package.json");
+  if (!file || files.some(file => /^(?:package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb?)$/.test(file.path))) return false;
+  const pkg = object(JSON.parse(file.content.toString("utf8")));
+  return pkg.workspaces === undefined && [pkg.dependencies, pkg.devDependencies, pkg.optionalDependencies, pkg.peerDependencies]
+    .every(value => value === undefined || Object.keys(object(value)).length === 0);
+}
 export function validateBuildRepairPaths(paths: readonly string[]) {
   ensure(paths.every(path => !/(?:^|\/)(?:tests?|specs?|__tests__|__mocks__|cypress|e2e)(?:\/|$)|\.(?:test|spec|cy)\.[cm]?[jt]sx?$/i.test(path) &&
     !/(?:^|\/)(?:test_[^/]+\.py|[^/]+_test\.py|requirements[^/]*\.txt|pyproject\.toml|setup\.py|setup\.cfg|liara\.json|package(?:-lock)?\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb?|tsconfig(?:\.[^/]+)?\.json|(?:vitest|jest|playwright|cypress|eslint)\.config\.[^/]+|\.eslintrc[^/]*|biome\.jsonc?)$/i.test(path)),
@@ -46,7 +53,8 @@ export function validateBuildPlan(files: readonly SourceFile[], profile: Project
   const file = files.find(file => file.path === "package.json");
   ensure(file && object(JSON.parse(file.content.toString("utf8"))).workspaces === undefined,
     "BUILD_LEAF_REQUIRED", "پوشه همان برنامه را انتخاب کنید؛ root چندبخشی اجرا نمی‌شود.", 409);
-  lockedTarballs(files);
+  if (plan.install === "none") ensure(dependencyFreeNode(files), "BUILD_INSTALL_SCOPE", "حذف نصب فقط برای پروژهٔ بدون وابستگی و بدون lockfile مجاز است؛ lock یا dependency باید با مسیر خودش بررسی شود.", 409);
+  else lockedTarballs(files);
   return plan;
 }
 export function sameBuildWorkload(plan: ProjectBuildPlan, value: ProjectBuildPlan["workload"]): boolean {

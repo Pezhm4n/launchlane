@@ -38,3 +38,19 @@ test("one plan drives actual isolated build failure, rejects an ineffective patc
     assert.deepEqual(f.counts(), before); assert.equal(f.store.db.prepare("SELECT count(*) n FROM attempts").get()?.n, 1);
   } finally { f.close(); }
 });
+
+test("a raw dependency-free project without a manufactured lockfile follows the same bounded repair and publication path", async () => {
+  const f = await missionAuthorityFixture(false, true), authority = f.proposed.authority;
+  try {
+    assert.ok(authority); assert.equal(authority.plan.build.version, 1); assert.equal(authority.plan.build.install, "none");
+    await decideMissionAuthority(f.config, f.store, f.session, f.proposed.id, f.proposed.revision, authority.id, authority.hash, "approve");
+    await driveAgentRun(f.config, f.store, f.session, f.proposed.id, f.dependencies);
+    const run = f.repo.get(f.session.actorId, f.proposed.id); assert.ok(run);
+    assert.equal(run.state, "completed", JSON.stringify(run)); assert.equal(f.counts().patches, 1);
+    assert.ok(run.repair?.afterTest?.passed); assert.match(run.repair.afterTest.command, /^no dependencies to install/);
+    const flow = f.store.getProjectFlow(f.session.actorId); assert.ok(flow);
+    assert.equal(flow.profile.manifest.some(file => file.path === "package-lock.json"), false);
+    assert.ok(run.publication && "artifactHash" in run.publication.spec); assert.equal(run.publication.spec.artifactHash, run.repair.artifact?.archiveHash);
+    assert.equal(f.counts().sends, 2);
+  } finally { f.close(); }
+});

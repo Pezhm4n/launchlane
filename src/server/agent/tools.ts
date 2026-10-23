@@ -22,7 +22,7 @@ import type { PublicationMission } from "../../contracts/publication-mission.ts"
 import type { WorkloadContract } from "../../contracts/deployment.ts";
 import { parseProjectBuildPlan, projectBuildImage, pythonBuildImage } from "../../contracts/project-build.ts";
 import { parseCodeRepairJob, type CodeRepairJob } from "../../contracts/code-repair.ts";
-import { requiresProjectBuild, sameBuildWorkload, projectTestCommand } from "./build-policy.ts";
+import { requiresProjectBuild, sameBuildWorkload, projectTestCommand, dependencyFreeNode } from "./build-policy.ts";
 import { currentEnvironment } from "../environment/secrets.ts";
 import { isApplicationEnvironmentKey } from "../../contracts/environment.ts";
 
@@ -234,7 +234,7 @@ const publicationTool: ToolDefinition = {
 };
 const buildTool: ToolDefinition = { type: "function", function: {
   name: "propose_project_build",
-  description: "Propose a host-reviewed locked install, build/start and independent workload check in an isolated Node22 or Python3.12 container. For Python, root requirements.txt must pin all packages; the host verifies binary-wheel hashes, installs offline, compiles source and probes the actual start command. Read package/lock/source first; supply the original path/status/text or JSON assertion. Commands and port come from actual source, never invented. The user approves before any install/script runs. No code changes or cloud writes. A monorepo requires a leaf with its own npm v3 lockfile. Builds needing undeclared network or secrets fail explicitly.",
+  description: "Propose a host-reviewed install/build/start and independent workload check in an isolated Node22 or Python3.12 container. Node uses npm v3 lockfiles; only a package with zero declared dependencies and no lockfile skips install, as verified by the host. For Python, root requirements.txt must pin all packages; the host verifies binary-wheel hashes, installs offline, compiles source and probes the actual start command. Read package/lock/source first; supply the original path/status/text or JSON assertion. Commands and port come from actual source, never invented. The user approves before any install/script runs. No code changes or cloud writes. A monorepo requires its actual leaf. Builds needing undeclared network or secrets fail explicitly.",
   parameters: publicationTool.function.parameters,
 } };
 export const toolLabels: Readonly<Record<string, string>> = {
@@ -343,17 +343,17 @@ export async function executeAgentTool(
         "BUILD_NO_PROGRESS", "همان build ناموفق بدون تغییر شواهد تکرار نمی‌شود؛ علت توقف را بررسی کنید.", 409);
       c.budget.take("tool", c.signal);
       const build = parseProjectBuildPlan({ ...(flow.profile.runtime === "python" ? { version: 2, nodeVersion: null, runtime: flow.profile.pythonRuntime, image: pythonBuildImage }
-        : { version: 1, nodeVersion: flow.profile.nodeRuntime?.version, image: projectBuildImage }),
+        : { version: 1, nodeVersion: flow.profile.nodeRuntime?.version, image: projectBuildImage, ...(dependencyFreeNode(captured.files) ? { install: "none" } : {}) }),
         buildCommand: flow.profile.build, testCommand: projectTestCommand(captured.files), startCommand: flow.profile.start, port: flow.profile.port, workload,
         environment: currentEnvironment(c.store, c.config.sessionSecret, c.actorId, flow.id) });
       const job = await new CodeRepairAdapter(c.config, c.store).propose(c.actorId, {
-        projectId: flow.id, expectedSourceHash: c.context.sourceHash, goal: "نصب قفل‌شده، ساخت و بررسی پاسخ همان برنامه در محیط ایزوله",
+        projectId: flow.id, expectedSourceHash: c.context.sourceHash, goal: build.version === 1 && build.install === "none" ? "بررسی ساخت و پاسخ برنامهٔ بدون وابستگی در محیط ایزوله؛ نصب لازم نیست" : "نصب قفل‌شده، ساخت و بررسی پاسخ همان برنامه در محیط ایزوله",
         ...(c.parentRunId ? { parentRunId: c.parentRunId } : {}),
         allowedPaths: [], testFiles: [], execution: "container", build, validationOnly: true,
       }, c.signal);
       return { repairProposal: job };
     }
-    if (requiresProjectBuild(captured.files)) {
+    if (c.mission || requiresProjectBuild(captured.files)) {
       const rows = c.store.db.prepare("SELECT state,data_json FROM code_repair_jobs WHERE actor_id=? AND state='succeeded' AND json_extract(data_json,'$.job.artifact.sourceHash')=? ORDER BY updated_at DESC LIMIT 10").all(c.actorId, c.context.sourceHash);
       const verified = rows.some(row => {
         const job = parseCodeRepairJob({ ...object(object(JSON.parse(string(row.data_json, 1024 * 1024))).job), state: row.state });

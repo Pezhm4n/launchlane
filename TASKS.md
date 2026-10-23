@@ -1,5 +1,9 @@
 # برنامه اجرایی Launchlane
 
+## source بدون وابستگی و حفظ مجوز؛ برش A07/A11 / ۲۰۲۶-۱۰-۲۳
+
+Node بدون dependency و lock با `install=none` سرور-اعتبارسنجی‌شده از همان build/repair/workload/artifact می‌گذرد؛ lock خراب و dependency اعلام‌شده از این استثنا استفاده نمی‌کنند. همه مأموریت‌های structured پیش از publication به رسید واقعی همین بسته نیاز دارند. فایل LICENSE/NOTICE بدون پسوند در archive حفظ می‌شود. candidate05 با322domain،37HTTP،6container واقعی مرتبط و43حالت guided browser، build/typecheck/lint بدونerror گذشت؛ provider/model مصنوعی و source اصلی محفوظ‌اند. [ادامه ADR0012](docs/decisions/0012-locked-project-build.md) شرایط و compatibility را ثبت می‌کند. A07/A11 همچنان partial؛ اقدام بعد، همین چرخه از انتخاب source خام و میزبان MCP تا نتیجه زنده، و سپس آماده‌سازی واقعی monorepo/وابستگی و تعمیم ماتریس است. نمونه کتاب‌فروشیِ upstream صرفاً یک case کنترل‌شده است؛ از آن ادعای عمومی پروژه‌های دلخواه ساخته نمی‌شود.
+
 ## مرکزچین دسکتاپ، اسکرول آزاد و نشان runtime؛ verified_local / ۲۰۲۶-۱۰-۲۳
 
 AC32: پنل بزرگ دسکتاپ با سقف۹۲۸px و ستون وسط۸۳۲px، پاسخ۱۴px در موبایل/دسکتاپ، آیکون کپی۱۴px با هدف۴۴px، تب‌های وسط‌چین دسکتاپ و نشان محلی Node.js/Python از runtime بررسی‌شده پیاده شدند. دسکتاپ در هر دو اندازه non-modal است؛ قفل سراسری فقط dialog:modal را دنبال می‌کند و موبایل تمام‌صفحه/modal می‌ماند. unknown برند حدسی نمی‌گیرد. روی مبنای695773d و tree کد49a07739d0a7391bafdef0028cdbc8fc2fe4a748، build/typecheck/lint بدونerror،۳۷HTTP و۷suite مرورگر/۱۶۹حالت گذشتند؛ full aggregate۱۲suite ادعا نمی‌شود. شواهد و failure اولیه در verification ثبت‌اند. گوشی/کیبورد فیزیکی و پذیرش بصری هنوز بازند. بنا بر درخواست تازه مالک آزمون دیگری اجرا نمی‌شود؛ اقدام بعد آزمون انسانی همین نسخه است. تغییرات backend همکار خارج این برش حفظ شده‌اند.

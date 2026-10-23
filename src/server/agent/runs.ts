@@ -492,7 +492,7 @@ export async function driveAgentRun(
         },
       },
       sourceProfile = store.getProjectFlow(session.actorId, run.projectId ?? undefined)?.profile,
-      preparationMode = sourceProfile?.runtime === "python" || sourceProfile?.build || sourceProfile?.manifest.some(file => file.path === "package-lock.json") ? "build" : "native",
+      preparationMode = sourceProfile?.runtime === "python" || sourceProfile?.build || sourceProfile?.manifest.some(file => file.path === "package-lock.json") || run.mission && sourceProfile?.start && sourceProfile.port ? "build" : "native",
       availableTools = [...(run.channel === "conversation" ? agentTools : toolsForAgent(config, preparationMode)), completionTool],
       seen = new Set<string>();
     execution: while (true) {
@@ -592,7 +592,7 @@ export async function driveAgentRun(
       ensure(run.repairDecision.expiresAt > Date.now() && run.repairDecision.sessionId === session.id && store.sessionExists(session.id, session.actorId, Date.now()),
         "REPAIR_APPROVAL_EXPIRED", "تصمیم پیش از شروع اجرا منقضی شده است؛ اجرای تازه تصمیم تازه لازم دارد.", 409);
       ensure(config.enableLocalRepair, "REPAIR_DISABLED", "اصلاح محلی در این نصب خاموش است.", 403);
-      addEvent(run, "activity", run.repair.validationOnly ? "در حال نصب قفل‌شده، ساخت و بررسی پاسخ برنامه در محیط ایزوله…" : "در حال بازتولید خطا، اصلاح در نسخه جدا و اجرای همان آزمون‌ها…");
+      addEvent(run, "activity", run.repair.validationOnly ? run.repair.build?.version === 1 && run.repair.build.install === "none" ? "در حال ساخت و بررسی پاسخ برنامهٔ بدون وابستگی در محیط ایزوله…" : "در حال نصب قفل‌شده، ساخت و بررسی پاسخ برنامه در محیط ایزوله…" : "در حال بازتولید خطا، اصلاح در نسخه جدا و اجرای همان آزمون‌ها…");
       persist();
       run.repair = await new CodeRepairAdapter(config, store, model, dependencies.tarballReader).run(
         session.actorId,
@@ -652,6 +652,7 @@ export async function driveAgentRun(
     while (true) {
       check();
       const messages: ModelMessage[] = [
+        ...(run.mission ? [{ role: "system" as const, content: "Every structured publication requires the actual isolated build/start/workload receipt for the selected artifact before proposing publication, including dependency-free Node projects. For Node with no declared dependencies and no lockfile, propose_project_build can skip installation after host validation; never ask the user to manufacture a lockfile for that case. Existing start, port and the original workload must still be verified. A declared dependency without a usable lockfile is a different preparation boundary and must not use install=none." }] : []),
         ...(run.authority?.state === "approved" ? [{ role: "system" as const, content: `A human has approved a bounded publication program on the host for this same mission. Continue from actual receipts using the registered build/repair/publication proposal tools; do not ask the user to copy logs or press continue for an in-scope step. Proposals do not grant authority: the server independently checks scope, attempts, unchanged workload, price, provenance and expiry, then either continues or presents a fresh decision. No destination/resource/env/dependency change is covered. Keep the original goal and workload. An uncertain write must be observed, never reissued. Deadline: ${run.authority.plan.expiresAt}.` }] : []),
         { role: "system", content: destinationGuidance },
         { role: "system", content: preparationGuidance },
