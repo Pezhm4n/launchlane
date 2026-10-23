@@ -61,3 +61,13 @@ The first browser runner failed before product interaction because it opened SQL
 Screenshots on candidate25 exposed the browser-default square white border/background on the library, despite passing axe/overflow. The library now explicitly uses shared surface/border/radius/overlay tokens and bounded scrolling. Invalid UTF-8 rejection and redaction of imported values even under a public-looking name were also added before the final candidate.
 
 No paid model request or live Liara write has been made for this slice. Existing allowance is unchanged; unknown subscription costs remain unknown. Synthetic environment readback is not live workload verification.
+
+## Primary local server handover
+
+The existing server on `http://127.0.0.1:3000` still returned404for the new library route after source delivery. This was a real running-build gap. The configured operator login identified the existing service, and read-only state inspection found schema15,0active/uncertain actions and0queued/working runs. A consistent SQLite backup was made before stopping its exact listening process. The first ordinary Windows stop failed with `Access is denied`; following the owner's explicit instruction to stop it, the standard elevated Windows helper stopped only that verified Node/PID/port. It did not change account resources or network/VPN settings.
+
+The tested candidate27 application (code matching commit `9be6df6`) now runs on the same origin with the original absolute state/workspace paths, credentials, session-signing key and existing gates. It remains the single execution-store owner. The installation-local model hook uses the existing cumulative ledger/allowance and does not renew it. Concurrent unstaged UI edits remain on disk and were not overwritten or represented as this candidate's acceptance.
+
+At `2026-10-23T12:09:19.009Z`, authenticated library GET returned200 and actual Chromium rendered the same16persisted snapshot rows, with0page errors and the pre-handover verification session still valid. Evidence is in ignored `main-current-browser/result.json` and `projects-1280.png` under the authority-mission directory. The temporary verification session was then revoked; the user's existing sessions were not revoked. No publication, worker or model was started by this check.
+
+Aggregate BoxAPI phase readback remained70requests/664482reported tokens, conservative consumed ceiling0.668007USD and0.131993USD remaining from the same0.8USD authorization. These are cumulative ledger figures, not a provider invoice or a new allowance. External subscription cost remains unknown. Source/customer data were retained, no cloud cleanup was necessary and no cloud resource was created by the handover.
