@@ -1,5 +1,11 @@
 # برنامه اجرایی Launchlane
 
+## جمع‌بندی برش‌های آماده؛ A02/A03/A04/A17/A18 / ۲۰۲۶-۱۰-۲۳
+
+خلاصهٔ correlated مراحل و برآورد صحیح۲۴ساعت/۳۰روز با۴آزمون رندر/محاسبه بررسی شدند؛ انتخاب پلن همان quote و اختیار موجود را نگه می‌دارد. projection فقط متن source تکراری با رسید کاملِ برابر در همان درخواست را جایگزین می‌کند؛ evidence یکتا، جفت ابزار، oracle و history پایدار حفظ می‌شوند. پیشنهاد انتشار منقضی‌شده در همان کارت بسته می‌شود. بستهٔ مستقل پس از review در `f6a748f` ثبت شد؛ [شواهد و حدود](docs/evidence/reference-improvements.md). نتیجهٔ هدفمند مشترک۱۴/۱۴ است؛ این عدد full-domain یا پذیرش سرور اصلی نیست. پذیرش candidate تازه و مسیر کامل ترب، منابع و سایر۱۴خانواده همچنان ادامه دارند.
+
+پاک‌سازی شکست setup آزمون در `d5a3a4d`، مالک SQLite و پوشهٔ موقت را آزاد می‌کند؛ regression تزریق failure و مجموعهٔ repair هدفمند۹/۹ گذشتند. deadline و oracle قبلی تغییر نکردند. علت timeoutهای تاریخی candidate47 هنوز UNCONFIRMED است؛ subset موفق جای نتیجهٔ کامل۴۰۹/۴۱۰ آن را نمی‌گیرد.
+
 ## Native React/Vue/Angular؛ A07/A08/A11 / ۲۰۲۶-۱۰-۲۳
 
 قرارداد19/20، worker بومی Node20 و build واقعی خروجی frontend به موتور مشترک وصل شدند. React خام upstream با failure واقعی output، patch فقط Vite config و آزمون مستقل گذشت؛ Vue/Angular فعلاً قرارداد و تشخیص/runner دارند، نه شاهد compiler و cloud. اصلاح next.nodeVersion، کشف env واقعی و خلاصهٔ وضعیت/برآورد هزینه نیز در همین candidate بررسی می‌شوند. [ADR0028](docs/decisions/0028-native-frontend-build.md)، [شاهد](docs/evidence/native-frontend.md). A11 و پذیرش همه۱۴خانواده همچنان partial؛ ساخت ترکیبی ترب، دیسک/داده، cloud frontend و بقیه خانواده‌ها ادامه دارند.

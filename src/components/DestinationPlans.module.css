@@ -120,6 +120,17 @@
   color: var(--color-muted);
   font-size: var(--text-xs);
 }
+.estimates {
+  display: grid;
+  gap: var(--space-2);
+  margin-block: var(--space-1);
+  padding-block: var(--space-3);
+  border-block: var(--border-width) solid var(--color-control-border);
+  font-size: var(--text-xs);
+}
+.estimateLabel { color: var(--color-muted); }
+.estimate { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-1) var(--space-2); }
+.estimate > span:last-child { color: var(--color-ink); font-variant-numeric: tabular-nums; }
 .planName {
   color: var(--color-muted);
   font-family: var(--font-code);

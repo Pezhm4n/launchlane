@@ -45,6 +45,12 @@ try {
   await page.goto(server.origin); await page.getByLabel("کلید ورود محلی", { exact: true }).fill(server.token);
   await page.getByRole("button", { name: "ورود به میز کار", exact: true }).click();
   const card = page.locator(".destination-card"); await card.getByRole("heading", { name: "ساخت مقصد تازه", exact: true }).waitFor();
+  if (!baseline) {
+    const starter = card.locator("label").filter({ has: page.getByRole("radio", { name: /^starter/ }) });
+    await starter.getByText("۱۲٬۹۶۰", { exact: true }).waitFor();
+    await starter.getByText("۳۸۸٬۸۰۰", { exact: true }).waitFor();
+    await card.getByText(/ثابت‌ماندن نرخ همین پیشنهاد/).waitFor();
+  }
   for (const width of [320, 390, 768, 1280]) await layout(width, "plan-choice");
   await page.getByRole("button", { name: "حساب‌ها", exact: true }).click();
   const accounts = page.getByRole("dialog", { name: "حساب‌ها و دسترسی", exact: true }); await accounts.waitFor();
@@ -78,6 +84,9 @@ try {
     const growth = choice.getByRole("radio", { name: /growth/ }); await growth.waitFor();
     await page.waitForFunction(label => [...document.querySelectorAll('input[type="radio"]')].some(input => input.getAttribute("aria-label") === label && input.checked), await growth.getAttribute("aria-label"));
     assert.equal(await growth.isChecked(), true);
+    const growthCard = choice.locator("label").filter({ has: page.getByRole("radio", { name: /growth/ }) });
+    await growthCard.getByText("۲۴٬۹۶۰", { exact: true }).waitFor();
+    await growthCard.getByText("۷۴۸٬۸۰۰", { exact: true }).waitFor();
     const revised = fixture.repository.get(fixture.actor, first.id); assert.notEqual(revised.destination.id, first.destination.id);
     assert.equal(revised.destination.spec.args.planId, "growth"); assert.equal(revised.usage.modelCalls, beforeTokens);
     assert.equal(fixture.store.getAction(first.destination.id, fixture.actor).state, "cancelled");
@@ -92,6 +101,43 @@ try {
     await page.evaluate(() => document.documentElement.style.fontSize = "200%"); await layout(320, "plan-text-200");
     await page.evaluate(() => document.documentElement.style.fontSize = "");
     await card.getByRole("button", { name: "رد ساخت مقصد", exact: true }).click(); await card.getByText("ساخت مقصد رد شد؛ برنامه‌ای ساخته نشد.", { exact: true }).waitFor();
+    assert.equal(fixture.store.db.prepare("SELECT count(*) n FROM attempts").get().n, 0);
+    // Only the browser's read response is varied: polling must not reopen a manually closed failure.
+    let stepPhase = 0;
+    const usageBeforeSteps = fixture.repository.get(fixture.actor, first.id).usage,
+      stepEvents = () => [
+        { sequence: 1, kind: "activity", message: "خواندن قیمت", at: 1, callId: "quote-ui" },
+        { sequence: 2, kind: "tool", message: "قیمت دریافت شد", at: 2, callId: "quote-ui", outcome: "succeeded" },
+        { sequence: 3, kind: "activity", message: "بررسی فایل‌های ساخته‌شده", at: 3, callId: "assets-ui" },
+        ...(stepPhase > 0 ? [{ sequence: 4, kind: "tool", message: "خروجی ساخت کامل نیست", at: 4, callId: "assets-ui", outcome: "failed", failure: {
+          code: "ASSET_MISSING", message: "فایل رابط در خروجی ساخت موجود نیست.", nextStep: "مسیر خروجی ساخت باید اصلاح و دوباره بررسی شود." } }] : []),
+        ...(stepPhase > 1 ? [{ sequence: 5, kind: "activity", message: "بررسی اتصال", at: 5, callId: "account-ui" },
+          { sequence: 6, kind: "tool", message: "حساب نیاز به بررسی دارد", at: 6, callId: "account-ui", outcome: "failed", failure: {
+            code: "PROVIDER_AUTH", message: "اتصال حساب تأیید نشد.", nextStep: "اتصال حساب را دوباره بررسی کنید." } }] : []),
+      ];
+    await page.route("**/api/agent/runs**", async route => {
+      if (route.request().method() !== "GET") return route.continue();
+      const response = await route.fetch(), body = await response.json();
+      if (body.run?.id === first.id) { body.run.state = "working"; body.run.events = stepEvents(); }
+      return route.fulfill({ response, json: body });
+    });
+    await page.reload();
+    const stepSummary = page.locator("summary").filter({ has: page.getByText("مراحل بررسی", { exact: true }) }), stepDetails = stepSummary.locator("..");
+    await stepSummary.getByText("بررسی فایل‌های ساخته‌شده", { exact: true }).waitFor();
+    assert.equal(await stepDetails.evaluate(node => node.open), false);
+    stepPhase = 1;
+    await stepDetails.getByText("مسیر خروجی ساخت باید اصلاح و دوباره بررسی شود.", { exact: true }).waitFor();
+    assert.equal(await stepDetails.evaluate(node => node.open), true);
+    await stepSummary.press("Enter");
+    await page.waitForFunction(() => [...document.querySelectorAll("details")].some(node => node.querySelector("summary")?.textContent.includes("مراحل بررسی") && !node.open));
+    for (let read = 0; read < 2; read++) await page.waitForResponse(response => response.request().method() === "GET" && response.url().includes(`/api/agent/runs/${first.id}`));
+    assert.equal(await stepDetails.evaluate(node => node.open), false, "Unchanged polled failure preserves the user's closed view");
+    stepPhase = 2;
+    await stepDetails.getByText("اتصال حساب را دوباره بررسی کنید.", { exact: true }).waitFor();
+    assert.equal(await stepDetails.evaluate(node => node.open), true);
+    await stepSummary.getByText("۲ ناموفق", { exact: true }).waitFor();
+    await layout(320, "new-failure-with-action"); await layout(1280, "new-failure-with-action");
+    assert.deepEqual(fixture.repository.get(fixture.actor, first.id).usage, usageBeforeSteps);
     assert.equal(fixture.store.db.prepare("SELECT count(*) n FROM attempts").get().n, 0);
   }
   assert.deepEqual(errors, []); assert.deepEqual(external, []);

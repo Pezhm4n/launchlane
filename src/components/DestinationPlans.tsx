@@ -3,6 +3,20 @@ import styles from "./DestinationPlans.module.css";
 import { WorkspaceGlyph } from "./WorkspaceGlyph.tsx";
 
 const number = new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 2 });
+const integer = new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 0 }),
+  digits = Array.from({ length: 10 }, (_, digit) => integer.format(digit)),
+  decimal = number.formatToParts(0.1).find(part => part.type === "decimal")?.value ?? "٫";
+function formatHundredths(value: bigint): string {
+  const whole = integer.format(value / 100n), remainder = value % 100n;
+  if (remainder === 0n) return whole;
+  const fraction = String(remainder).padStart(2, "0").replace(/0$/, "");
+  return `${whole}${decimal}${[...fraction].map(digit => digits[Number(digit)]).join("")}`;
+}
+export function planCostProjection(hourlyHundredthsToman: number) {
+  if (!Number.isSafeInteger(hourlyHundredthsToman) || hourlyHundredthsToman < 0) throw new RangeError("Expected a nonnegative integer hourly quote");
+  const hourly = BigInt(hourlyHundredthsToman);
+  return { day: formatHundredths(hourly * 24n), month: formatHundredths(hourly * 720n) };
+}
 export function DestinationPlans({ recommendation, selected, disabled, onChange, changing }: {
   recommendation: DestinationRecommendation; selected: { planId: string; bundleId: string }; disabled: boolean;
   onChange?: (planId: string, bundleId: string) => void;
@@ -20,7 +34,8 @@ export function DestinationPlans({ recommendation, selected, disabled, onChange,
       <div className={styles.grid}>
         {recommendation.offers.map((offer, index) => {
           const active = offer.planId === selected.planId && offer.bundleId === selected.bundleId,
-            recommended = offer.planId === recommendation.recommended.planId && offer.bundleId === recommendation.recommended.bundleId;
+            recommended = offer.planId === recommendation.recommended.planId && offer.bundleId === recommendation.recommended.bundleId,
+            projection = planCostProjection(offer.hourlyHundredthsToman);
           return <label key={`${offer.planId}/${offer.bundleId}`} className={styles.option} data-selected={active}>
             <span className={styles.topline}>
               <input type="radio" name="destination-plan" checked={active} onChange={() => onChange?.(offer.planId, offer.bundleId)}
@@ -30,6 +45,11 @@ export function DestinationPlans({ recommendation, selected, disabled, onChange,
             <span className={styles.title}>{recommended ? "شروع کم‌هزینه" : `گزینهٔ ${number.format(index + 1)}`}</span>
             <span className={styles.price}>{number.format(offer.hourlyHundredthsToman / 100)}</span>
             <span className={styles.unit}>تومان در ساعت</span>
+            <span className={styles.estimates}>
+              <span className={styles.estimateLabel}>برآورد روشن‌ماندن پیوسته</span>
+              <span className={styles.estimate}><span>۲۴ ساعت</span><span><bdi>{projection.day}</bdi> تومان</span></span>
+              <span className={styles.estimate}><span>۳۰ روز</span><span><bdi>{projection.month}</bdi> تومان</span></span>
+            </span>
             <span className={styles.planName}><bdi>{offer.planId}</bdi> · <bdi>{offer.bundleId}</bdi></span>
             <span className={styles.selection}>{active ? "انتخاب فعلی" : "انتخاب این پلن"}</span>
           </label>;
@@ -37,6 +57,7 @@ export function DestinationPlans({ recommendation, selected, disabled, onChange,
       </div>
     </fieldset>
     <p className={styles.reason}>{recommendation.reason}</p>
+    <p className="hint">برآوردهای ۲۴ ساعت و ۳۰ روز با فرض روشن‌ماندن پیوسته و ثابت‌ماندن نرخ همین پیشنهاد محاسبه شده‌اند؛ صورتحساب واقعی ممکن است متفاوت باشد.</p>
     <p className="hint">هزینه از زمان ساخت تا حذف مقصد ادامه دارد. مالیات، ترافیک و فضای اضافه جدا هستند. تغییر پلن ابتدا پیشنهاد و تأیید قبلی را نامعتبر می‌کند؛ بدون تصمیم شما خریدی انجام نمی‌شود.</p>
   </div>;
 }

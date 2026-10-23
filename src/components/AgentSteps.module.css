@@ -1,3 +1,11 @@
+.steps { min-inline-size: 0; }
+.summary { overflow-wrap: anywhere; }
+.heading { font-weight: 600; }
+.state { display: block; margin-block-start: var(--space-2); color: var(--color-muted); font-size: var(--text-sm); line-height: var(--leading-body); }
+.counts { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); margin-block-start: var(--space-2); font-size: var(--text-xs); }
+.counts > span { display: inline-flex; align-items: center; gap: var(--space-1); }
+.counts > span[data-status="succeeded"] { color: var(--color-primary); }
+.counts > span[data-status="failed"] { color: var(--color-danger); }
 .list { list-style: none; display: grid; gap: var(--space-3); padding: 0; margin-block: var(--space-4); }
 .list li { display: flex; align-items: start; gap: var(--space-3); padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-field); overflow-wrap: anywhere; }
 .icon { display: inline-flex; flex: none; color: var(--color-muted); }
