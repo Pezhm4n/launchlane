@@ -11,13 +11,25 @@ export type PublicationMission = PublicationInput & {
   kind: "publication";
   identity: string;
 };
+const expectedTextLimit = 240;
+export const publicationInputSchema = {
+  type: "object" as const,
+  additionalProperties: false,
+  required: ["projectId", "sourceHash", "path", "expectedText"],
+  properties: {
+    projectId: { type: "string", pattern: "^[a-f0-9-]{36}$", maxLength: 36 },
+    sourceHash: { type: "string", pattern: "^[a-f0-9]{64}$" },
+    path: { type: "string", maxLength: 200 },
+    expectedText: { type: ["string", "null"], minLength: 3, maxLength: expectedTextLimit },
+  },
+};
 export function parsePublicationInput(value: unknown): PublicationInput {
   const row = object(value);
   exactKeys(row, ["projectId", "sourceHash", "path", "expectedText"]);
   const projectId = string(row.projectId, 36), path = string(row.path, 200);
   ensure(/^[a-f0-9-]{36}$/.test(projectId), "INVALID_INPUT", "پروژه انتخاب‌شده معتبر نیست.");
   ensure(/^\/(?!\/)[^?#\\\s]*$/.test(path) && [...path].every(char => char.charCodeAt(0) >= 32 && char.charCodeAt(0) !== 127), "INVALID_INPUT", "مسیر صفحه باید با / شروع شود و نشانی کامل یا پارامتر نداشته باشد.");
-  const expectedText = row.expectedText === null ? null : text(row.expectedText, 240).trim();
+  const expectedText = row.expectedText === null ? null : text(row.expectedText, expectedTextLimit).trim();
   ensure(expectedText === null || expectedText.length >= 3, "INVALID_INPUT", "نشانه پاسخ باید دست‌کم سه نویسه باشد؛ یا انتخاب خودکار را نگه دارید.");
   return { projectId, sourceHash: hash(row.sourceHash), path, expectedText };
 }

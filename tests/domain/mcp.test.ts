@@ -5,6 +5,7 @@ import { issueMcpAccess, requireMcpAccess } from "../../src/server/mcp/access.ts
 import { callMcpTool, mcpTools } from "../../src/server/mcp/server.ts";
 import { AgentRepository, agentView } from "../../src/server/agent/store.ts";
 import { object } from "../../src/contracts/validation.ts";
+import { parsePublicationInput } from "../../src/contracts/publication-mission.ts";
 import { agentFixture } from "../helpers/agent-fixture.ts";
 
 function data(result: Awaited<ReturnType<typeof callMcpTool>>) {
@@ -66,6 +67,12 @@ test("MCP joins the web mission, replays authoritative receipts and cancels with
   try {
     const queued: Array<() => Promise<void>> = [], c = { config: f.config, store: f.store, access: { session: f.session, missions: true }, schedule: (work: () => Promise<void>) => { queued.push(work); } }, signal = AbortSignal.timeout(5000);
     const input = { requestKey: randomUUID(), publication: { projectId: f.flow.id, sourceHash: f.flow.profile.sourceHash, path: "/", expectedText: "invoice service" } };
+    const schema = object(object(mcpTools(f.config, c.access).find(tool => tool.name === "launchlane_publish")?.inputSchema.properties).publication);
+    assert.equal(object(object(schema.properties).expectedText).maxLength, 240);
+    assert.equal(parsePublicationInput({ ...input.publication, expectedText: "x".repeat(240) }).expectedText?.length, 240);
+    assert.throws(() => parsePublicationInput({ ...input.publication, expectedText: "x".repeat(241) }), { code: "INVALID_INPUT" });
+    assert.equal(object(data(await callMcpTool(c, "launchlane_publish", { ...input, publication: { ...input.publication, expectedText: "x".repeat(241) } }, signal)).error).code, "INVALID_INPUT");
+    assert.equal(queued.length, 0);
     const first = object(data(await callMcpTool(c, "launchlane_publish", input, signal)).data), initial = object(first.run);
     const duplicate = object(data(await callMcpTool(c, "launchlane_publish", { ...input, requestKey: randomUUID() }, signal)).data);
     assert.equal(object(duplicate.run).id, initial.id); assert.equal(queued.length, 1);
