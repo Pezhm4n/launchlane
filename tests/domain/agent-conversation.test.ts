@@ -6,6 +6,37 @@ import { createAgentRun, driveAgentRun, continueAgentRun } from "../../src/serve
 import { AgentRepository } from "../../src/server/agent/store.ts";
 import { agentFixture } from "../helpers/agent-fixture.ts";
 import { AppError } from "../../src/server/errors.ts";
+import { executeAgentTool } from "../../src/server/agent/tools.ts";
+import { LiaraAccountClient } from "../../src/server/liara/catalog.ts";
+import { sealCredential } from "../../src/server/connections/credentials.ts";
+
+test("assistant price questions use the shared scoped catalog and quote application without creating a proposal or a write", async () => {
+  const f = await agentFixture(), accountId = "b".repeat(24), teamId = "a".repeat(24), config = { ...f.config, teamId, enableLiveLiara: true, enableMutations: true, liaraToken: "synthetic-chat-catalog" };
+  try {
+    f.store.saveConnection(f.session.actorId, { source: "token", ciphertext: sealCredential(config.liaraToken, config.sessionSecret, f.session.actorId, "liara"),
+      view: { provider: "liara", status: "connected", identityId: accountId, displayName: "آزمون", login: "test@example.test", checkedAt: Date.now(), teamId, teamName: "آزمون", apps: [], selectedApp: null } });
+    let turn = 0, reads = 0;
+    const account = new LiaraAccountClient(config, accountId, async (url, input) => {
+      assert.equal(input.method, "GET"); assert.equal(new URL(url).pathname, "/v1/me"); reads++;
+      return Response.json({ user: { _id: accountId }, team: { _id: teamId, balance: 10000 }, plans: {
+        projects: { starter: { available: true, region: "iran", price: 250 } }, projectBundlePlans: { starter: { basic: { available: true, price: 40 } } } } });
+    });
+    const model = new GoalModelClient(config, async (_url, input) => {
+      const packet = JSON.parse(String(input.body)), names = packet.tools.map((tool: { function: { name: string } }) => tool.function.name);
+      assert.ok(names.includes("read_catalog") && names.includes("quote_resource_plan")); assert.ok(!names.some((name: string) => name.startsWith("propose_")));
+      if (++turn === 3) return final("هزینه پایهٔ این گزینه ۲۹۰ تومان در ساعت است؛ ظرفیت لازم هنوز اندازه‌گیری نشده است.");
+      return Response.json({ choices: [{ finish_reason: "tool_calls", message: { role: "assistant", tool_calls: [{ id: randomUUID(), type: "function", function: {
+        name: turn === 1 ? "read_catalog" : "quote_resource_plan", arguments: turn === 1 ? "{}" : JSON.stringify({ planId: "starter", bundleId: "basic" }) } }] } }], usage: { total_tokens: 50 } });
+    });
+    const run = createAgentRun(config, f.store, f.session, randomUUID(), "چه پلنی موجود است و هزینه پایهٔ starter چقدر است؟", f.flow.id, "conversation").run;
+    await driveAgentRun(config, f.store, f.session, run.id, { model, tool: (name, args, context) => executeAgentTool(name, args, { ...context, account }) });
+    const result = new AgentRepository(f.store).get(f.session.actorId, run.id); assert.ok(result);
+    assert.equal(result.state, "partially_completed"); assert.equal(reads, 2); assert.equal(result.usage.modelCalls, 3); assert.equal(result.usage.toolCalls, 2);
+    assert.ok(result.messages.some(message => message.role === "tool" && message.content.includes('"hourlyHundredthsToman":29000')));
+    assert.equal(result.destination, null); assert.equal(result.effect, "no_remote_changes");
+    assert.equal(f.store.db.prepare("SELECT count(*) n FROM actions").get()?.n, 0); assert.equal(f.store.db.prepare("SELECT count(*) n FROM attempts").get()?.n, 0);
+  } finally { f.close(); }
+});
 
 const final = (message: string, state = "partially_completed", question: string | null = null) =>
   Response.json({ choices: [{ finish_reason: "tool_calls", message: { role: "assistant", tool_calls: [{

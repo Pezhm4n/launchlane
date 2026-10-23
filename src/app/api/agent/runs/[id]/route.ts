@@ -19,6 +19,7 @@ import { endpoint, jsonBody, reply } from "../../../../../server/http.ts";
 import { resumePublicationMission } from "../../../../../server/application/publication-mission.ts";
 import { proposeMissionAuthority, decideMissionAuthority } from "../../../../../server/application/mission-authority.ts";
 import { parseCodingAgentChoice } from "../../../../../contracts/coding-agent.ts";
+import { reviseAgentDestination } from "../../../../../server/application/agent-destination.ts";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 600;
@@ -130,6 +131,11 @@ export async function POST(request: Request, { params }: Context) {
         string(input.actionId, 36), input.decision);
       if (input.decision === "approve") after(() => driveAgentRun(config, store, session, id));
       return reply({ run: agentView(run) });
+    }
+    if (input.operation === "destination-choice") {
+      exactKeys(input, ["operation", "revision", "planId", "bundleId"]);
+      return reply({ run: agentView(await reviseAgentDestination(config, store, session, id, revision,
+        string(input.planId, 63), string(input.bundleId, 63), request.signal)) });
     }
     if (input.operation === "destination-observe") {
       exactKeys(input, ["operation", "revision"]);

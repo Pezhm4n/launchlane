@@ -575,7 +575,7 @@ export class Store {
     });
   }
 
-  createAction(actorId: string, input: ActionSpec, now = Date.now(), ttlMs = 10 * 60_000): Action {
+  createAction(actorId: string, input: ActionSpec, now = Date.now(), ttlMs = 10 * 60_000, onCreated?: (action: Action) => void): Action {
     const spec = parseActionSpec(input);
     ensure(ttlMs > 0 && ttlMs <= 10 * 60_000, "INVALID_INPUT", "مهلت تأیید معتبر نیست.");
     return this.transaction(() => {
@@ -636,6 +636,7 @@ export class Store {
           .prepare("UPDATE project_flows SET action_id=? WHERE id=? AND actor_id=?")
           .run(action.id, spec.projectFlowId, actorId);
       }
+      onCreated?.(action);
       return action;
     });
   }
@@ -763,12 +764,12 @@ export class Store {
     }
   }
 
-  assertAgentIdle(actorId: string, actionId: string | null = null, allowPendingDecision = false): void {
+  assertAgentIdle(actorId: string, actionId: string | null = null, allowPendingDecision = false, resumingRunId: string | null = null): void {
     if (actionId === null) ensure(!this.db.prepare("SELECT id FROM actions WHERE actor_id=? AND json_extract(spec,'$.version') IN (9,13) AND state IN ('awaiting_approval','approved','executing','observing','uncertain') AND (expires_at>? OR state IN ('executing','observing','uncertain')) LIMIT 1").get(actorId, Date.now()),
       "UNRESOLVED_EFFECT", "ابتدا نتیجه تغییر اطلاعات برنامه را بررسی کنید.", 409);
     const active = this.db.prepare(
-      "SELECT id FROM agent_runs WHERE actor_id=? AND (state IN ('queued','working') OR (state='needs_approval' AND ?=0)) AND (? IS NULL OR (COALESCE(json_extract(data_json,'$.publication.id'),'')<>? AND COALESCE(json_extract(data_json,'$.destination.id'),'')<>? AND COALESCE(json_extract(data_json,'$.network.id'),'')<>?)) LIMIT 1",
-    ).get(actorId, allowPendingDecision ? 1 : 0, actionId, actionId, actionId, actionId);
+      "SELECT id FROM agent_runs WHERE actor_id=? AND (? IS NULL OR id<>?) AND (state IN ('queued','working') OR (state='needs_approval' AND ?=0)) AND (? IS NULL OR (COALESCE(json_extract(data_json,'$.publication.id'),'')<>? AND COALESCE(json_extract(data_json,'$.destination.id'),'')<>? AND COALESCE(json_extract(data_json,'$.network.id'),'')<>?)) LIMIT 1",
+    ).get(actorId, resumingRunId, resumingRunId, allowPendingDecision ? 1 : 0, actionId, actionId, actionId, actionId);
     ensure(!active, "AGENT_BUSY", "یک مأموریت یا تصمیم در جریان است؛ ابتدا آن را تمام یا متوقف کنید. تغییر تب، مجوز عملیات موازی نمی‌دهد.", 409);
     if (actionId === null) ensure(!this.db.prepare("SELECT a.id FROM actions a JOIN agent_runs r ON r.actor_id=a.actor_id AND (json_extract(r.data_json,'$.publication.id')=a.id OR json_extract(r.data_json,'$.destination.id')=a.id OR json_extract(r.data_json,'$.network.id')=a.id) WHERE a.actor_id=? AND json_extract(r.data_json,'$.mission.kind')='publication' AND a.state IN ('executing','observing','uncertain') LIMIT 1").get(actorId),
       "UNRESOLVED_EFFECT", "نتیجه عملیات قبلی هنوز قطعی نیست؛ ابتدا همان رسید را بررسی کنید.", 409);

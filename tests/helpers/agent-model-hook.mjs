@@ -48,6 +48,15 @@ globalThis.fetch = async (input, init) => {
   const url = new URL(
     typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
   );
+  if (process.env.LAUNCHLANE_DESTINATION_FIXTURE === "true" && url.origin === "https://api.liara.ir") {
+    if (init?.method !== "GET") throw new Error("Destination plan fixture forbids every provider write");
+    if (url.pathname === "/v1/me") return Response.json({ user: { _id: "b".repeat(24) }, team: { _id: "a".repeat(24), balance: 10000 }, plans: {
+      projects: { starter: { available: true, region: "iran", price: 500 }, growth: { available: true, region: "iran", price: 1000 }, scale: { available: true, region: "iran", price: 1500 } },
+      projectBundlePlans: { starter: { basic: { available: true, price: 40 } }, growth: { basic: { available: true, price: 40 } }, scale: { basic: { available: true, price: 40 } } } } });
+    if (url.pathname === "/v1/networks") return Response.json({ networks: [{ _id: "c".repeat(24), name: "existing-network" }] });
+    if (url.pathname === "/v1/projects/sample-node") return new Response(null, { status: 404 });
+    throw new Error("Unregistered provider request denied in destination fixture");
+  }
   if (process.env.LAUNCHLANE_ENVIRONMENT_FIXTURE === "true" && url.origin === "https://api.liara.ir") {
     if (url.pathname === "/v1/me" && init?.method === "GET") return Response.json({ user: { _id: "b".repeat(24) }, team: { _id: "a".repeat(24), balance: 10000 }, plans: {
       projects: { "g2-standard": { available: true, region: "iran", price: 100 } }, projectBundlePlans: { "g2-standard": { basic: { available: true, price: 40 } } } } });
@@ -68,7 +77,7 @@ globalThis.fetch = async (input, init) => {
     return nativeFetch(input, init);
   }
   const body = JSON.parse(String(init?.body)),
-    last = body.messages.at(-1),
+    last = body.messages.filter(message => message.role !== "system").at(-1),
     first = body.messages.find((message) => message.role === "user")?.content ?? "";
   appendFileSync(
     process.env.LAUNCHLANE_AGENT_FIXTURE_LOG,

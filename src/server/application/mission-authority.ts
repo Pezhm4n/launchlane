@@ -28,11 +28,11 @@ export async function proposeMissionAuthority(config: Config, store: Store, sess
   ensure(store.sessionExists(session.id, session.actorId, Date.now()), "AUTH_REQUIRED", "دوباره وارد شوید.", 401);
   assertAgentContext(config, store, session.actorId, run.context);
   const existing = missionAuthority(store, session.actorId, id);
-  const selectedAgent = codingAgent === undefined ? null : parseCodingAgentChoice(codingAgent);
-  if (existing && (codingAgent === undefined || fingerprint(existing.plan.version === 2 ? existing.plan.codingAgent : { kind: "internal" }) === fingerprint(selectedAgent))) {
+  const selectedAgent = codingAgent === undefined ? existing?.state === "revoked" ? { kind: "internal" as const } : null : parseCodingAgentChoice(codingAgent);
+  if (existing?.state === "proposed" && (codingAgent === undefined || fingerprint(existing.plan.version === 2 ? existing.plan.codingAgent : { kind: "internal" }) === fingerprint(selectedAgent))) {
     run.authority = existing; return run;
   }
-  ensure(!existing || existing.state === "proposed" && !store.db.prepare("SELECT subject_id FROM mission_steps WHERE authority_id=? LIMIT 1").get(existing.id),
+  ensure(!existing || existing.state === "revoked" || existing.state === "proposed" && !store.db.prepare("SELECT subject_id FROM mission_steps WHERE authority_id=? LIMIT 1").get(existing.id),
     "PLAN_AGENT_CHANGED", "عامل برنامه اجراشده را نمی‌توان عوض کرد؛ اجرای قبلی ابتدا باید تعیین تکلیف شود.", 409);
   const target = run.context.target, started = Date.now(), budget = new RunBudget({ ...run.limits, runTimeoutMs: Math.max(1, run.limits.runTimeoutMs - run.usage.elapsedMs) });
   budget.modelCalls = run.usage.modelCalls; budget.toolCalls = run.usage.toolCalls;
@@ -68,7 +68,7 @@ export async function proposeMissionAuthority(config: Config, store: Store, sess
     store.db.exec("BEGIN IMMEDIATE");
     try {
       if (!configuredOrigin) store.setProbeOrigin(session.actorId, { teamId: target.teamId, app: target.app }, origin);
-      if (existing) {
+      if (existing?.state === "proposed") {
         const archived = store.db.prepare("INSERT INTO mission_authority_history SELECT id,actor_id,run_id,plan_json,plan_hash,state,session_id,created_at,? FROM mission_authorities WHERE id=? AND actor_id=? AND state='proposed' AND session_id=?")
           .run(Date.now(), existing.id, session.actorId, session.id);
         ensure(archived.changes === 1, "PLAN_CONFLICT", "برنامه هم‌زمان تغییر کرده است.", 409);

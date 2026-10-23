@@ -187,6 +187,7 @@ export function agentView(run: AgentRecord): AgentView {
     channel: run.channel,
     authority: run.authority ?? null,
     network: run.network ?? null, networkContinued: run.networkContinued === true,
+    destinationRecommendation: run.destinationRecommendation ?? null,
   };
 }
 

@@ -1,6 +1,8 @@
 # معیارهای پذیرش محصول
 
-شاهد A06/AC26: [اجرای واقعی Codex و patch با آزمون مستقل](evidence/codex-executable-worker.md) از اتصال MCP جداست. publication آن مصنوعی بود؛ انتخاب عامل در محصول، fallback مجاز و انتشار زنده با connector هنوز UNCONFIRMED هستند. هزینه اشتراک نامعلوم و failureهای decoder/accounting حفظ شده‌اند.
+شاهد تازه A03/A04/A05/A06/A08/A17: [پلن مشترک و بازیابی توقف](evidence/destination-choice-and-resume.md) و [انتخاب Codex در محصول تا انتشار واقعی](evidence/codex-product-publication.md) مرز قبلی انتخاب عامل/انتشار زنده را برای یک case بومی Node22 می‌بندند. همین مأموریت و بودجه، source بارگذاری‌شده، خطای واقعیِ پیش از انتشار، patch خارجی، آزمون مستقل، artifact مشتق و release جاری بررسی شدند. همه۱۴خانواده، DB، ساختارهای متفاوت، داشبورد چندپروژه و اجرای موازی همچنان بازند؛ status کامل از یک case نتیجه نمی‌شود.
+
+شاهد قبلی A06/AC26: [اجرای واقعی Codex و patch با آزمون مستقل](evidence/codex-executable-worker.md) از اتصال MCP جداست. publication آن مصنوعی بود و در آن برش، انتخاب عامل در محصول، fallback مجاز و انتشار زنده با connector هنوز UNCONFIRMED بودند. هزینه اشتراک نامعلوم و failureهای decoder/accounting حفظ شده‌اند.
 
 شاهد `fb67971`: [یک برنامه مصوب با artifact مشتق، worker داخلی و انتشار بومی Node22 از میزبان واقعی MCP تا نتیجه](evidence/codex-publication-mission.md) گذشت. این پذیرش محدود، failure/repair در اجرای ایزوله پیش از انتشار را پوشش می‌دهد؛ repair پس از failure زنده و release دوم، همه runtimeها/DB و connectorهای اجرایی همچنان بازند. A05/AC23/A08/A10/A16 کامل اعلام نمی‌شوند.
 

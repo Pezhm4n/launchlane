@@ -12,13 +12,23 @@ import type { AgentPublication } from "../../src/components/AgentPublication.tsx
 import type { AgentDestination } from "../../src/components/AgentDestination.tsx";
 import { parseActionSpec } from "../../src/server/policy/action.ts";
 
-// Node strips TS but does not parse TSX. Compile only these trusted components with the pinned project compiler.
-async function component(path: string): Promise<Record<string, unknown>> {
+// Node does not parse TSX/CSS imports; compile the trusted component graph, preserving the same render assertions.
+async function componentUrl(path: string): Promise<string> {
   const absolute = resolve(path), source = await readFile(absolute, "utf8");
-  const code = transpileModule(source, { compilerOptions: { module: ModuleKind.ESNext, jsx: JsxEmit.ReactJSX } }).outputText
-    .replace(/from ["']([^"']+)["']/g, (_whole, specifier: string) => `from ${JSON.stringify(specifier.startsWith(".") ? pathToFileURL(resolve(dirname(absolute), specifier)).href : import.meta.resolve(specifier))}`);
-  return import(`data:text/javascript;base64,${Buffer.from(code).toString("base64")}`);
+  if (absolute.endsWith(".module.css")) {
+    const classes = Object.fromEntries([...source.matchAll(/\.([A-Za-z][A-Za-z0-9_-]*)/g)].map(match => [match[1], match[1]]));
+    return `data:text/javascript;base64,${Buffer.from(`export default ${JSON.stringify(classes)}`).toString("base64")}`;
+  }
+  let code = transpileModule(source, { compilerOptions: { module: ModuleKind.ESNext, jsx: JsxEmit.ReactJSX } }).outputText;
+  for (const match of [...code.matchAll(/from ["']([^"']+)["']/g)]) {
+    const specifier = match[1]; assert.ok(specifier);
+    const target = specifier.startsWith(".") ? resolve(dirname(absolute), specifier) : null;
+    const url = target ? /\.(?:tsx|module\.css)$/.test(target) ? await componentUrl(target) : pathToFileURL(target).href : import.meta.resolve(specifier);
+    code = code.replace(match[0], `from ${JSON.stringify(url)}`);
+  }
+  return `data:text/javascript;base64,${Buffer.from(code).toString("base64")}`;
 }
+async function component(path: string): Promise<Record<string, unknown>> { return import(await componentUrl(path)); }
 const runtime = { kind: "python", version: "3.12", command: ["python3", "main.py"] } as const;
 const common = { scope: { teamId: "a".repeat(24), app: "python-ui-test" }, sourceHash: "1".repeat(64), artifactHash: "2".repeat(64),
   projectFlowId: randomUUID(), selectionHash: "3".repeat(64), accountId: "b".repeat(24) };

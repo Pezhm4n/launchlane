@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
+import { createPortal } from "react-dom";
 import { parseAgentView, type AgentView } from "../contracts/agent.ts";
 import { object } from "../contracts/validation.ts";
 import { api, ClientError } from "./api.ts";
@@ -15,6 +16,7 @@ import { FloatingAssistant } from "./FloatingAssistant.tsx";
 import { ProjectEnvironment } from "./ProjectEnvironment.tsx";
 import { ChatWelcome } from "./ChatWelcome.tsx";
 import { WorkspaceGlyph } from "./WorkspaceGlyph.tsx";
+import assistantStyles from "./AssistantPublication.module.css";
 
 function decodeRun(value: unknown): AgentView | null {
   const row = object(value);
@@ -150,8 +152,14 @@ export function AgentPanel({
     );
   const [missionPath, setMissionPath] = useState("/"), [expectedText, setExpectedText] = useState("");
   const [environmentLocked, setEnvironmentLocked] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false), [assistantPublication, setAssistantPublication] = useState(false);
+  const assistantPublicationHost = useRef<HTMLDivElement>(null);
+  const publicationInAssistant = guided && assistantOpen && assistantPublication;
   const [editingAgentFor, setEditingAgentFor] = useState<string | null>(null);
   const editingAgent = !!run && editingAgentFor === run.id;
+  useEffect(() => {
+    if (publicationInAssistant) document.getElementById("publication-agent-title")?.focus();
+  }, [publicationInAssistant]);
   const missionKey = useRef<{ input: string; key: string } | null>(null);
   const resumeKey = useRef<{ revision: number; key: string } | null>(null);
   const input = useRef<HTMLTextAreaElement>(null),
@@ -547,6 +555,14 @@ export function AgentPanel({
     } catch (cause) { failed(cause); }
     finally { setBusy(false); }
   }
+  async function destinationChoice(planId: string, bundleId: string) {
+    if (!run?.destination || busy || disabled) return;
+    setBusy(true); setError(null);
+    try { accept(await api(`/api/agent/runs/${run.id}`, decodeRun, { csrf,
+      body: { operation: "destination-choice", revision: run.revision, planId, bundleId } })); }
+    catch (cause) { failed(cause); }
+    finally { setBusy(false); }
+  }
   function follow() {
     const node = transcript.current;
     if (!node) return;
@@ -754,8 +770,7 @@ export function AgentPanel({
           </p>
         </form>
       ) : null;
-  return (<>
-    <section className={`panel agent-panel ${guided ? "publication-journey" : "optional-chat"}`} hidden={guided && (!activeView || !projectId)} aria-labelledby={guided ? "publication-agent-title" : "agent-title"} aria-busy={busy || active}>
+  const panel = <section className={`panel agent-panel ${guided ? "publication-journey" : "optional-chat"}`} hidden={guided && (!activeView || !projectId)} aria-labelledby={guided ? "publication-agent-title" : "agent-title"} aria-busy={busy || active}>
       <div className="section-heading">
         <h2 id={guided ? "publication-agent-title" : "agent-title"} tabIndex={-1}>{guided ? "آماده‌سازی و انتشار پروژه" : "گفت‌وگوی پروژه"}</h2>
         {run ? <span className="badge badge-quiet">{stateLabels[run.state]}</span> : null}
@@ -819,10 +834,10 @@ export function AgentPanel({
           <button type="submit" disabled={busy || disabled}>{busy ? "در حال ثبت…" : "بررسی و آماده‌سازی انتشار"}</button>
         </form>
       ) : null}
-      {guided && run?.mission && run.nextAction !== "configure_env" && !active && ["needs_input", "partially_completed", "failed", "interrupted"].includes(run.state) &&
+      {guided && run?.mission && run.nextAction !== "configure_env" && !active && (["needs_input", "partially_completed", "failed", "interrupted", "cancelled"].includes(run.state) || run.state === "needs_approval" && !appSelected && run.repair?.validationOnly && run.repair.state === "proposed" && !run.authority) &&
         ![run.publication?.state, run.destination?.state, run.network?.state].some(state => state === "executing" || state === "observing" || state === "uncertain") &&
-        (run.nextAction !== "connect_account" || accountReady) && (run.nextAction !== "select_app" || appSelected) ?
-        <button type="button" disabled={busy || disabled || restoring} onClick={() => void resumePublication()}>{busy ? "در حال ثبت ادامه…" : "ادامه همان مأموریت"}</button> : null}
+        (run.state === "cancelled" || run.nextAction !== "connect_account" || accountReady) && (run.state === "cancelled" || run.nextAction !== "select_app" || appSelected) ?
+        <button type="button" disabled={busy || disabled || restoring} onClick={() => void resumePublication()}>{busy ? "در حال ثبت ادامه…" : run.state === "cancelled" ? "ادامه انتشار پس از توقف" : "ادامه همان مأموریت"}</button> : null}
       {!enabled ? (
         <section className="note agent-unavailable" aria-labelledby="agent-unavailable-title">
           <h3 id="agent-unavailable-title">دستیار در این نصب خاموش است</h3>
@@ -962,7 +977,8 @@ export function AgentPanel({
           {run.network && !run.networkContinued ? <AgentNetwork key={run.network.id} action={run.network} waiting={run.state === "needs_approval"}
             disabled={disabled || busy || active || !sameProject} resumable={run.network.state === "succeeded" && !run.networkContinued}
             onDecision={(decision, acknowledged) => void networkRequest(decision, acknowledged)} onObserve={() => void networkRequest()} /> : null}
-          {run.destination && !run.destinationContinued ? <AgentDestination action={run.destination} waiting={run.state === "needs_approval" && (run.destination.state === "awaiting_approval" || run.destination.state === "expired")}
+          {run.destination && !run.destinationContinued ? <AgentDestination action={run.destination} recommendation={run.destinationRecommendation ?? null}
+            onPlanChange={(planId, bundleId) => void destinationChoice(planId, bundleId)} waiting={run.state === "needs_approval" && (run.destination.state === "awaiting_approval" || run.destination.state === "expired")}
             disabled={disabled || busy || active || !sameProject}
             resumable={run.destination.state === "succeeded" && !run.destinationContinued}
             onDecision={(decision) => void destinationRequest(decision)}
@@ -1005,12 +1021,25 @@ export function AgentPanel({
       ) : null}
       {!chatOnly || !run || !sameProject ? errorNotice : null}
       {!guided ? composer : null}
-    </section>
-    {guided ? <FloatingAssistant blocked={blocked || environmentLocked || run?.nextAction === "configure_env" || run?.state === "needs_approval"} projectName={projectName}>
+    </section>;
+  return (<>
+    {publicationInAssistant && assistantPublicationHost.current ? createPortal(panel, assistantPublicationHost.current) : panel}
+    {publicationInAssistant ? <p className="note">همان مأموریت انتشار در دستیار باز است. بستن دستیار، اجرای آن را متوقف نمی‌کند.</p> : null}
+    {guided ? <FloatingAssistant blocked={blocked || !publicationInAssistant && (environmentLocked || run?.nextAction === "configure_env")} projectName={projectName} onOpenChanged={setAssistantOpen}>
+      <div className={assistantStyles.shell}>
+      <div className={assistantStyles.navigation}>
+        <button type="button" className="button-secondary" aria-label="گفت‌وگو و راهنمایی" aria-pressed={!assistantPublication} onClick={() => setAssistantPublication(false)}>گفت‌وگو</button>
+        <button type="button" aria-label={run?.mission ? "پیگیری انتشار و انتخاب پلن" : "انتشار همین پروژه"} aria-pressed={assistantPublication} disabled={!projectId} onClick={() => setAssistantPublication(true)}>انتشار</button>
+      </div>
+      {assistantPublication ? <p className={assistantStyles.hint}>همان مأموریت صفحهٔ انتشار، با همان تصمیم‌ها و پیشرفت.</p> : null}
+      <div ref={assistantPublicationHost} className={assistantStyles.publication} />
+      <div hidden={assistantPublication} className={assistantStyles.chat}>
       <AgentPanel projectId={projectId} projectName={projectName} csrf={csrf} enabled={enabled} disabled={disabled}
         activeView chatOnly onAccounts={onAccounts} onChooseProject={onChooseProject} onGitHub={onGitHub} onReview={onReview}
         onManualPublish={onManualPublish} onExpired={onExpired} onProjectChanged={onProjectChanged}
         {...(onChatLockChanged ? { onLockChanged: onChatLockChanged } : {})} />
+      </div>
+      </div>
     </FloatingAssistant> : null}
     </>
   );

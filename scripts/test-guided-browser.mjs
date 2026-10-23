@@ -14,6 +14,7 @@ import { projectBuildImage } from "../src/contracts/project-build.ts";
 import { fingerprint } from "../src/server/policy/action.ts";
 import { sealCredential } from "../src/server/connections/credentials.ts";
 import { currentEnvironment } from "../src/server/environment/secrets.ts";
+import { cancelAgentRun } from "../src/server/agent/runs.ts";
 
 const server = await startTestServer({ agentFixture: true, environmentFixture: true }), browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ locale: "fa-IR", reducedMotion: "reduce" }), page = await context.newPage();
@@ -90,6 +91,15 @@ try {
   await journey.getByRole("button", { name: "اتصال حساب", exact: true }).waitFor();
   for (const width of [320, 360, 390, 768, 1280]) await layout(width, "needs-account-without-chat");
   const previousCalls = await modelRequests(); await page.reload(); await journey.locator(".badge").filter({ hasText: "منتظر پاسخ شما" }).waitFor(); assert.equal(await modelRequests(), previousCalls);
+  const pendingPublication = repo.get(actor, run.id); pendingPublication.state = "queued"; pendingPublication.nextAction = null; repo.save(actor, pendingPublication);
+  const stoppedPublication = cancelAgentRun(store, actor, run.id, pendingPublication.revision);
+  await page.reload(); await journey.getByRole("button", { name: "ادامه انتشار پس از توقف", exact: true }).waitFor();
+  assert.equal(await modelRequests(), previousCalls); await layout(320, "cancelled-publication-has-a-next-action");
+  await journey.getByRole("button", { name: "ادامه انتشار پس از توقف", exact: true }).click();
+  await journey.locator(".badge").filter({ hasText: "منتظر پاسخ شما" }).waitFor();
+  const resumedPublication = repo.get(actor, run.id); assert.equal(resumedPublication.id, run.id);
+  assert.deepEqual(resumedPublication.limits, stoppedPublication.limits); assert.ok(resumedPublication.usage.modelCalls > stoppedPublication.usage.modelCalls);
+  assert.equal(store.db.prepare("SELECT COUNT(*) n FROM agent_runs WHERE json_extract(data_json,'$.mission.kind')='publication'").get().n, 1);
   await openChat();
   await sendQuestion("آزمون قالب‌بندی پاسخ"); await chat.locator(".md-heading").filter({ hasText: "نتیجه بررسی" }).waitFor();
   assert.equal(await chat.locator(".agent-answer .md-list li").count(), 2); assert.equal(await chat.locator(".agent-answer img").count(), 0);

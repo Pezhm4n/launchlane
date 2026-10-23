@@ -5,6 +5,7 @@ import { decodeAction } from "./client-decode.ts";
 import type { Action } from "./domain.ts";
 import { parsePublicationMission, type PublicationMission } from "./publication-mission.ts";
 import { parseMissionAuthority, type MissionAuthority } from "./mission-authority.ts";
+import { parseDestinationRecommendation, type DestinationRecommendation } from "./destination-recommendation.ts";
 
 export const agentStates = [
   "queued",
@@ -55,6 +56,7 @@ export type AgentView = {
   authority?: MissionAuthority | null;
   network?: Action | null;
   networkContinued?: boolean;
+  destinationRecommendation?: DestinationRecommendation | null;
 };
 export function parseAgentView(value: unknown): AgentView {
   const row = object(value);
@@ -103,6 +105,13 @@ export function parseAgentView(value: unknown): AgentView {
   const destination = row.destination === null || row.destination === undefined ? null : decodeAction(row.destination);
   ensure(!destination || (destination.spec.version === 8 || destination.spec.version === 12), "INVALID_RESPONSE", "رسید مقصد با قرارداد ساخت تطبیق ندارد.");
   const network = row.network === null || row.network === undefined ? null : decodeAction(row.network);
+  const destinationRecommendation = row.destinationRecommendation === null || row.destinationRecommendation === undefined ? null : parseDestinationRecommendation(row.destinationRecommendation);
+  const destinationSpec = destination?.spec;
+  ensure(!destinationRecommendation || destinationSpec && (destinationSpec.version === 8 || destinationSpec.version === 12) &&
+    destinationRecommendation.projectId === destinationSpec.projectFlowId && destinationRecommendation.sourceHash === destinationSpec.sourceHash &&
+    destinationRecommendation.catalogFingerprint === destinationSpec.cost.catalogFingerprint && destinationRecommendation.offers.some(offer =>
+      offer.planId === destinationSpec.args.planId && offer.bundleId === destinationSpec.bundleId && offer.hourlyHundredthsToman === destinationSpec.cost.hourlyHundredthsToman),
+    "INVALID_RESPONSE", "پیشنهاد پلن به همان پروژه، مقصد و قیمت تعلق ندارد.", 502);
   ensure(!network || network.spec.version === 13, "INVALID_RESPONSE", "رسید شبکه معتبر نیست.");
   return {
     id: string(row.id, 36),
@@ -122,5 +131,6 @@ export function parseAgentView(value: unknown): AgentView {
     channel: row.channel === "conversation" ? "conversation" : "legacy",
     authority: row.authority === undefined || row.authority === null ? null : parseMissionAuthority(row.authority),
     network, networkContinued: row.networkContinued === true,
+    destinationRecommendation,
   };
 }

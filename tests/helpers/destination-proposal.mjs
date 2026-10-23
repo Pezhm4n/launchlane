@@ -26,14 +26,17 @@ export async function seedDestinationProposal(server) {
     const read = new LiaraAccountClient(config, accountId, async (url) => {
       const path = new URL(url).pathname;
       if (path === "/v1/me") return Response.json({ user: { _id: accountId }, team: { _id: server.teamId, balance: 10000 },
-        plans: { projects: { starter: { available: true, region: "iran", price: 500 } }, projectBundlePlans: { starter: { basic: { available: true, price: 40 } } } } });
+        plans: { projects: { starter: { available: true, region: "iran", price: 500 }, growth: { available: true, region: "iran", price: 1000 }, scale: { available: true, region: "iran", price: 1500 } },
+          projectBundlePlans: { starter: { basic: { available: true, price: 40 } }, growth: { basic: { available: true, price: 40 } }, scale: { basic: { available: true, price: 40 } } } } });
       if (path === "/v1/networks") return Response.json({ networks: [{ _id: networkId, name: "existing-network" }] });
       if (path === `/v1/projects/${server.app}`) return new Response(null, { status: 404 });
       throw new Error("Unexpected proposal read");
     });
-    const action = await proposeDestination(config, store, actor, { flowId: flow.id, app: server.app, planId: "starter", bundleId: "basic", networkId }, AbortSignal.timeout(5000), { read });
+    let recommendation = null;
+    const action = await proposeDestination(config, store, actor, { flowId: flow.id, app: server.app, planId: "starter", bundleId: "basic", networkId }, AbortSignal.timeout(5000), { read, onRecommendation: value => { recommendation = value; } });
     const repository = new AgentRepository(store), run = repository.create(actor, randomUUID(), currentAgentContext(config, store, actor), "مقصد تازه بساز و هزینه را پیش از ساخت نشان بده", { maxModelCalls: 16, maxToolCalls: 80, runTimeoutMs: 600000 }).run;
     run.destination = action;
+    run.destinationRecommendation = recommendation;
     run.state = "needs_approval";
     addEvent(run, "assistant", "پیشنهاد ساخت مقصد آماده است؛ نام و هزینه را بررسی کنید. انتشار تصمیم جدا دارد.");
     repository.save(actor, run);

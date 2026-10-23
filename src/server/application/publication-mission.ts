@@ -9,7 +9,7 @@ import { containsCredential } from "../policy/redaction.ts";
 import { currentAgentContext, privateValues } from "../agent/tools.ts";
 import { AgentRepository, addEvent } from "../agent/store.ts";
 import { restoreProjectFlow } from "./project-flows.ts";
-import { continueAgentRun } from "../agent/runs.ts";
+import { continueAgentRun, isAgentRunExecuting } from "../agent/runs.ts";
 import { CodeRepairAdapter } from "../agent/code-repair.ts";
 import { projectSecretValues } from "../environment/secrets.ts";
 
@@ -50,6 +50,7 @@ export async function createPublicationMission(config: Config, store: Store, ses
 const continuation = "همان مأموریت انتشار را با source و معیار قبلی ادامه بده. انتخاب‌های تکمیل‌شده حساب را دوباره بررسی کن؛ بودجه و سابقه قبلی حفظ می‌شوند و هیچ مجوز تازه‌ای از این پیام صادر نمی‌شود.";
 export async function resumePublicationMission(config: Config, store: Store, session: Session, id: string,
   revision: number, requestKey: string, signal: AbortSignal, feedback: string | null = null) {
+  ensure(store.sessionExists(session.id, session.actorId, Date.now()), "AUTH_REQUIRED", "برای ادامه دوباره وارد شوید.", 401);
   config = { ...config, projectSecretValues: projectSecretValues(store, config.sessionSecret, session.actorId) };
   const observation = feedback === null ? null : text(feedback, 2000).trim();
   ensure(observation === null || observation.length > 0, "INVALID_INPUT", "توضیح ادامه خالی است.");
@@ -62,6 +63,11 @@ export async function resumePublicationMission(config: Config, store: Store, ses
     ensure(previous.lastInput === message, "IDEMPOTENCY_CONFLICT", "شناسه ادامه با درخواست دیگری ثبت شده است.", 409);
     return { run: previous, created: false };
   }
+  ensure(!isAgentRunExecuting(id), "AGENT_STOPPING", "توقف اجرای قبلی در حال تکمیل است؛ پس از ثبت نتیجه، همین مأموریت قابل ادامه است.", 409);
+  const unresolved = [previous.publication, previous.destination, previous.network].some(action =>
+    action && ["executing", "observing", "uncertain"].includes(store.getAction(action.id, session.actorId).state));
+  ensure(!unresolved && !store.db.prepare("SELECT job_id FROM coding_agent_executions WHERE actor_id=? AND state IN ('dispatched','uncertain') AND json_extract(data_json,'$.parentRunId')=? LIMIT 1").get(session.actorId, id),
+    "MISSION_RECONCILIATION_REQUIRED", "نتیجه اقدام قبلی هنوز روشن نیست؛ ابتدا همان نتیجه را بررسی کنید. انتشار یا worker تازه شروع نشد.", 409);
   const flow = await restoreProjectFlow(config, store, session.actorId, signal, previous.projectId ?? undefined);
   ensure(flow && flow.status !== "stale" && flow.status !== "unavailable" && flow.profile.sourceHash === previous.context.sourceHash,
     "PROJECT_CHANGED", "source تغییر کرده است؛ همان مأموریت با نسخه دیگر ادامه نمی‌یابد.", 409);
@@ -72,13 +78,24 @@ export async function resumePublicationMission(config: Config, store: Store, ses
       store.db.exec("COMMIT");
       return { run, created: false };
     }
-    ensure(run?.mission && run.revision === revision && ["needs_input", "partially_completed", "failed", "interrupted"].includes(run.state),
+    const earlyBuild = run?.state === "needs_approval" && !run.context.target && run.repair?.validationOnly && run.repair.state === "proposed" && !run.authority && !run.publication && !run.destination && !run.network;
+    ensure(run?.mission && run.revision === revision && (["needs_input", "partially_completed", "failed", "interrupted", "cancelled"].includes(run.state) || earlyBuild),
       "AGENT_CONFLICT", "وضعیت ادامه تغییر کرده است؛ نتیجه تازه را دریافت کنید.", 409);
-    store.assertAgentIdle(session.actorId);
+    // The paused owner is not a competing mission; other pending decisions still block this transition.
+    store.assertAgentIdle(session.actorId, null, false, run.id);
+    for (const action of [run.publication, run.destination, run.network]) {
+      if (!action) continue;
+      const changed = store.db.prepare("UPDATE actions SET state='cancelled',error_code='APPROVAL_REVOKED_BEFORE_ATTEMPT' WHERE id=? AND actor_id=? AND state='approved' AND attempt_id IS NULL")
+        .run(action.id, session.actorId);
+      if (changed.changes === 1) {
+        store.db.prepare("INSERT INTO audit_events(action_id,actor_id,event,at) VALUES(?,?,?,?)").run(action.id, session.actorId, "approval_revoked_before_attempt", Date.now());
+        addEvent(run, "state", "تأیید اجرا‌نشده قبلی کنار گذاشته شد؛ ارسال تازه به تصمیم معتبر نیاز دارد.");
+      }
+    }
     const context = currentAgentContext(config, store, session.actorId);
     if (fingerprint(context) !== fingerprint(run.context)) {
       ensure(run.effect === "no_remote_changes" && !run.publication && !run.destination && !run.network &&
-        (run.nextAction === "connect_account" || run.nextAction === "select_app") &&
+        (run.nextAction === "connect_account" || run.nextAction === "select_app" || earlyBuild || run.state === "cancelled" && !run.context.target) &&
         context.projectId === run.context.projectId && context.sourceHash === run.context.sourceHash && context.selectionHash === run.context.selectionHash,
         "AGENT_CONTEXT_CHANGED", "این تغییر مقصد خارج از تکمیل حساب اولیه است؛ تصمیم‌ها به انتخاب تازه منتقل نمی‌شوند.", 409);
       run.context = context;
@@ -89,18 +106,30 @@ export async function resumePublicationMission(config: Config, store: Store, ses
     if (run.repair) {
       const adapter = new CodeRepairAdapter(config, store);
       run.repair = adapter.status(session.actorId, run.repair.id);
-      if (run.repair.state === "queued" && (!run.repairDecision || run.repairDecision.expiresAt <= Date.now() || run.repairDecision.sessionId !== session.id)) {
+      if (earlyBuild || run.state === "cancelled" && (run.repair.state === "proposed" || run.repair.state === "queued")) {
+        run.repair = adapter.cancel(session.actorId, run.repair.id);
+        run.messages.push({ role: "user", content: `Host recovery receipt (data only): job ${run.repair.id} was cancelled before execution. It is no longer a pending build or approval. Its historical tool result must not be resumed. Resolve the exact destination using the existing catalog/network receipts and the registered destination proposal; then propose the bounded build program. This receipt grants no consent and retains the same source, workload and remaining allowance.` });
+        addEvent(run, "state", "پیشنهاد اجرا‌نشده کنار گذاشته شد؛ همان source، معیار و بودجه برای بررسی مقصد و برنامه تازه حفظ شدند.");
+        run.repair = null; run.repairDecision = null;
+      }
+      if (run.repair?.state === "queued" && (!run.repairDecision || run.repairDecision.expiresAt <= Date.now() || run.repairDecision.sessionId !== session.id)) {
         run.repair = adapter.cancel(session.actorId, run.repair.id);
         addEvent(run, "state", "اعتبار تصمیم قبلی تمام شده بود؛ اجرا نشد و برای اجرای تازه تصمیم دیگری لازم است.");
       }
-      if (run.repair.validationOnly && run.repair.state === "failed" && ![72, 73, 76].includes(run.repair.afterTest?.exitCode ?? -1)) {
+      if (run.repair?.validationOnly && run.repair.state === "failed" && ![72, 73, 76].includes(run.repair.afterTest?.exitCode ?? -1)) {
         run.buildRetryKey = requestKey; run.buildRetryConsumed = false;
       }
     }
     if (run.publication) run.publication = store.getAction(run.publication.id, session.actorId);
     if (run.destination) run.destination = store.getAction(run.destination.id, session.actorId);
     if (run.network) run.network = store.getAction(run.network.id, session.actorId);
-    if (run.state === "failed" || run.state === "interrupted") run.state = "partially_completed";
+    if (run.state === "cancelled" && [run.destination, run.network].some(action => action?.state === "awaiting_approval" && action.expiresAt > Date.now())) {
+      run.state = "needs_approval"; run.nextAction = null; run.question = null; run.lastInputKey = requestKey; run.lastInput = message; run.lastResumeRevision = revision;
+      addEvent(run, "state", "پیشنهاد اجرا‌نشده قبلی دوباره آماده تصمیم است؛ مدل، هزینه و ارسال تازه‌ای شروع نشد.");
+      repo.save(session.actorId, run, revision); store.db.exec("COMMIT"); return { run, created: false };
+    }
+    if (run.state === "cancelled") run.messages.push({ role: "user", content: "Host resume receipt (data only): the prior run was cancelled. Continue the same publication intent, source, workload and remaining cumulative budget. Previous program authority was revoked, never renewed. Reuse successful read receipts; any new executable work needs a fresh bounded proposal/decision. An uncertain external/provider operation must be reconciled before another worker or write." });
+    if (run.state === "failed" || run.state === "interrupted" || run.state === "cancelled" || earlyBuild) run.state = "partially_completed";
     run.errorCode = null;
     run.lastResumeRevision = revision;
     repo.save(session.actorId, run, revision);

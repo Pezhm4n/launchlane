@@ -5,7 +5,9 @@ import { providerObjectId } from "../../contracts/provision.ts";
 import type { Config } from "../config.ts";
 import { connectedLiaraAccountConfig } from "../connections/liara.ts";
 import { ensure, AppError } from "../errors.ts";
-import { LiaraAccountClient, quotePaaSOffer } from "../liara/catalog.ts";
+import { LiaraAccountClient, quotePaaSOffer, type PaaSCatalog } from "../liara/catalog.ts";
+import type { ProjectFlow } from "../../contracts/project-flow.ts";
+import { parseDestinationRecommendation, type DestinationRecommendation } from "../../contracts/destination-recommendation.ts";
 import { LiaraProvisionClient } from "../liara/provision.ts";
 import type { Store } from "../persistence/store.ts";
 import { authorizeScope } from "../policy/action.ts";
@@ -14,7 +16,23 @@ import { executeApproved } from "./execute.ts";
 import { restoreProjectFlow } from "./project-flows.ts";
 import { parseNodeVersion } from "../../contracts/node-runtime.ts";
 
-type Dependencies = { read?: LiaraAccountClient; write?: LiaraProvisionClient; budget?: RunBudget };
+type Dependencies = { read?: LiaraAccountClient; write?: LiaraProvisionClient; budget?: RunBudget;
+  onRecommendation?: (recommendation: DestinationRecommendation) => void; onProposed?: (action: Action) => void };
+export function recommendDestination(flow: ProjectFlow, catalog: PaaSCatalog, selected?: { planId: string; bundleId: string }): DestinationRecommendation {
+  ensure(flow.profile.runtime === "node" || flow.profile.runtime === "python", "PROJECT_INCOMPLETE", "روش اجرای پروژه هنوز مشخص نیست؛ پیشنهاد اختصاصی آماده نشد.", 409);
+  const available = catalog.offers.filter(offer => offer.region === "iran" && offer.hourlyHundredthsToman !== null), plans = new Set<string>();
+  const choices = available.filter(offer => { if (plans.has(offer.planId)) return false; plans.add(offer.planId); return true; }).slice(0, 3);
+  const current = selected && available.find(offer => offer.planId === selected.planId && offer.bundleId === selected.bundleId);
+  if (current && !choices.some(offer => offer.planId === current.planId && offer.bundleId === current.bundleId)) choices.push(current);
+  ensure(choices[0], "PLAN_UNAVAILABLE", "پلن با قیمت مشخص در حساب موجود نیست؛ قیمت نامعلوم پیشنهاد هزینه نمی‌شود.", 409);
+  const runtime = flow.profile.runtime === "python" ? `Python ${flow.profile.pythonRuntime?.version ?? ""}` : `Node.js ${flow.profile.nodeRuntime?.version ?? ""}`;
+  return parseDestinationRecommendation({ version: 1, projectId: flow.id, sourceHash: flow.profile.sourceHash, catalogFingerprint: catalog.fingerprint,
+    observedAt: catalog.observedAt, projectName: flow.displayName || (flow.selection.kind === "upload" || flow.selection.kind === "github" ? flow.selection.name : flow.selection.directory.split(/[\\/]/).at(-1)) || "پروژه شما",
+    summary: `${runtime}؛ ${flow.profile.build ? "فرمان ساخت شناسایی شده است" : "فرمان ساخت جداگانه‌ای در پروژه پیدا نشده است"}؛ ${flow.profile.envNames.length ? `${flow.profile.envNames.length} نام تنظیم نیاز به بررسی دارد` : "نام تنظیم الزامی از بررسی ایستا استخراج نشده است"}.`,
+    reason: "برای اولین انتشار و بررسی همین پروژه، کم‌هزینه‌ترین ترکیب موجود با قیمت مشخص پیشنهاد می‌شود. نیاز واقعی به حافظه و پردازنده هنوز اندازه‌گیری نشده؛ انتخاب نهایی با شماست.",
+    capacity: "unmeasured", recommended: { planId: choices[0].planId, bundleId: choices[0].bundleId },
+    offers: choices.map(offer => ({ planId: offer.planId, bundleId: offer.bundleId, region: offer.region, hourlyHundredthsToman: offer.hourlyHundredthsToman })) });
+}
 function scopedConfig(config: Config, store: Store, actor: string, app: string): Config {
   ensure(/^[a-z0-9][a-z0-9-]{0,62}$/.test(app) && (!config.apps.length || config.apps.includes(app)),
     "SCOPE_DENIED", "نام برنامه در محدوده مجاز این نصب نیست.", 403);
@@ -77,7 +95,8 @@ export async function proposeDestination(config: Config, store: Store, actor: st
       observedAt: quote.observedAt, expiresAt: quote.expiresAt, hourlyHundredthsToman: quote.selected.hourlyHundredthsToman,
       region: quote.selected.region, currency: "toman", period: "hour", extras: "tax_traffic_storage_not_included" } };
   ensure(!signal.aborted, "CANCELLED", "پیشنهاد ساخت متوقف شد.", 409);
-  return store.createAction(actor, spec, Date.now(), Math.min(600000, spec.cost.expiresAt - Date.now()));
+  dependencies.onRecommendation?.(recommendDestination(flow, catalog, { planId: spec.args.planId, bundleId: spec.bundleId }));
+  return store.createAction(actor, spec, Date.now(), Math.min(600000, spec.cost.expiresAt - Date.now()), dependencies.onProposed);
 }
 
 export async function executeDestination(config: Config, store: Store, session: Session, id: string,

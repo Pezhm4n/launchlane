@@ -8,7 +8,7 @@ import { ensure } from "../errors.ts";
 import { fingerprint } from "./action.ts";
 
 export function missionAuthority(store: Store, actor: string, runId: string): MissionAuthority | null {
-  const row = store.db.prepare("SELECT * FROM mission_authorities WHERE actor_id=? AND run_id=?").get(actor, runId);
+  const row = store.db.prepare("SELECT * FROM mission_authorities WHERE actor_id=? AND run_id=? ORDER BY created_at DESC,rowid DESC LIMIT 1").get(actor, runId);
   if (!row) return null;
   const state = row.state, plan = parseMissionPlan(JSON.parse(string(row.plan_json, 128 * 1024)));
   ensure((state === "proposed" || state === "approved" || state === "revoked") &&

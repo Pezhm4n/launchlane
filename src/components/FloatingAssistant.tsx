@@ -4,14 +4,15 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { WorkspaceGlyph } from "./WorkspaceGlyph.tsx";
 import { useDialogExit } from "./useDialogExit.ts";
 
-export function FloatingAssistant({ children, blocked, projectName }: {
-  children: ReactNode; blocked: boolean; projectName: string | null;
+export function FloatingAssistant({ children, blocked, projectName, onOpenChanged }: {
+  children: ReactNode; blocked: boolean; projectName: string | null; onOpenChanged?: (open: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const panel = useRef<HTMLDialogElement>(null), launcher = useRef<HTMLButtonElement>(null), close = useRef<HTMLButtonElement>(null);
   const wasOpen = useRef(false);
   const exit = useDialogExit(panel);
+  useEffect(() => { onOpenChanged?.(open && !blocked); }, [open, blocked, onOpenChanged]);
   useEffect(() => {
     const node = panel.current;
     if (!node) return;

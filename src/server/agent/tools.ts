@@ -25,6 +25,7 @@ import { parseProjectBuildPlan, projectBuildImage, pythonBuildImage } from "../.
 import { parseCodeRepairJob, type CodeRepairJob } from "../../contracts/code-repair.ts";
 import { requiresProjectBuild, sameBuildWorkload, projectTestCommand, dependencyFreeNode } from "./build-policy.ts";
 import { currentEnvironment } from "../environment/secrets.ts";
+import type { DestinationRecommendation } from "../../contracts/destination-recommendation.ts";
 import { isApplicationEnvironmentKey } from "../../contracts/environment.ts";
 
 export function privateValues(c: Config): string[] {
@@ -178,10 +179,14 @@ function registeredTools(config: Config): readonly ToolDefinition[] {
     ...(config.enableLiveLiara ? catalogTools : []),
     ...(config.enableMutations && config.enableLiveLiara ? [publicationTool, destinationTool, networkTool] : [])];
 }
-export function toolsForAgent(config: Config, preparation: "native" | "build" = "native", hasTarget = true): readonly ToolDefinition[] {
+export function toolsForConversation(config: Config): readonly ToolDefinition[] {
+  return [...agentTools, ...(config.enableLiveLiara ? catalogTools : [])];
+}
+export function toolsForAgent(config: Config, preparation: "native" | "build" = "native", hasTarget = true, publicationProgram = false): readonly ToolDefinition[] {
   // Native start/port preparation cannot handle dependencies; its applicable alternative keeps the model's 16-tool bound.
   const omitted = preparation === "build" ? "propose_project_preparation" : "propose_project_build";
-  return registeredTools(config).filter(tool => tool.function.name !== omitted && tool.function.name !== (hasTarget ? "propose_network" : "read_metrics"));
+  return registeredTools(config).filter(tool => tool.function.name !== omitted && tool.function.name !== (hasTarget ? "propose_network" : "read_metrics") &&
+    !(publicationProgram && !hasTarget && ["propose_project_build", "propose_publication"].includes(tool.function.name)));
 }
 const preparationTool: ToolDefinition = { type: "function", function: {
   name: "propose_project_preparation",
@@ -394,12 +399,13 @@ export async function executeAgentTool(
     ensure(c.context.projectId && c.context.account, "AGENT_PROJECT_REQUIRED", "پروژه و حساب مقصد لازم است؛ انتخاب app قبلی لازم نیست.", 409);
     const proposedApp = string(args.app, 63);
     ensure(!c.config.apps.length || c.config.apps.includes(proposedApp), "DESTINATION_NAME_NOT_ALLOWED", "نام مقصد باید از فهرست مجازِ read_destination انتخاب شود؛ پیشنهادی ثبت یا درخواستی به لیارا ارسال نشد.", 409);
+    let recommendation: DestinationRecommendation | null = null;
     const action = await proposeDestination(c.config, c.store, c.actorId,
       { flowId: c.context.projectId, app: proposedApp, planId: string(args.planId, 63),
         bundleId: string(args.bundleId, 63), networkId: string(args.networkId, 24) },
-      c.signal, { budget: c.budget, ...(c.account ? { read: c.account } : {}) });
+      c.signal, { budget: c.budget, ...(c.account ? { read: c.account } : {}), onRecommendation: value => { recommendation = value; } });
     assertAgentContext(c.config, c.store, c.actorId, c.context);
-    return { destinationProposal: action };
+    return { destinationProposal: action, destinationRecommendation: recommendation };
   }
   if (name === "propose_code_repair" || name === "propose_project_preparation") {
     c.budget.take("tool", c.signal);

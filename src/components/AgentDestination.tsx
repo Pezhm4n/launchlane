@@ -1,11 +1,14 @@
 import type { Action } from "../contracts/domain.ts";
 import { useEffect, useState } from "react";
 import { canReadDestinationResult } from "../contracts/provision.ts";
+import type { DestinationRecommendation } from "../contracts/destination-recommendation.ts";
+import { DestinationPlans } from "./DestinationPlans.tsx";
 
 const number = new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 2 });
-export function AgentDestination({ action, waiting, disabled, resumable, onDecision, onObserve }: {
+export function AgentDestination({ action, waiting, disabled, resumable, onDecision, onObserve, recommendation, onPlanChange }: {
   action: Action; waiting: boolean; disabled: boolean; resumable: boolean;
   onDecision: (decision: "approve" | "reject") => void; onObserve: () => void;
+  recommendation?: DestinationRecommendation | null; onPlanChange?: (planId: string, bundleId: string) => void;
 }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -28,13 +31,15 @@ export function AgentDestination({ action, waiting, disabled, resumable, onDecis
   return (
     <section className="agent-repair destination-card" aria-labelledby="destination-title">
       <h3 id="destination-title">{verified ? "مقصد ساخته شد" : "ساخت مقصد تازه"}</h3>
-      <dl className="profile-facts">
+      {recommendation ? <DestinationPlans recommendation={recommendation} selected={{ planId: spec.args.planId, bundleId: spec.bundleId }}
+        disabled={disabled || !pending || expired} {...(onPlanChange ? { onChange: onPlanChange } : {})} /> : null}
+      {!recommendation ? <dl className="profile-facts">
         <div><dt>نام برنامه</dt><dd><bdi>{spec.scope.app}</bdi></dd></div>
         <div><dt>هزینه پایه</dt><dd>{number.format(spec.cost.hourlyHundredthsToman / 100)} تومان در ساعت</dd></div>
         <div><dt>موقعیت</dt><dd>{spec.cost.region === "iran" ? "ایران" : spec.cost.region}</dd></div>
-      </dl>
-      <p>یک برنامه تازه در حساب متصل و شبکه موجود ساخته می‌شود. فایل‌های همین پروژه پس از ساخت، با پیشنهاد و تصمیم جدا منتشر می‌شوند.</p>
-      <p className="hint">هزینه پایه از زمان ساخت تا حذف برنامه ادامه دارد. مالیات، ترافیک و فضای اضافه در نرخ بالا حساب نشده‌اند؛ این مبلغ صورتحساب نهایی نیست. نیاز واقعی پروژه به منابع هنوز اندازه‌گیری نشده است.</p>
+      </dl> : null}
+      <p>مقصد <bdi>{spec.scope.app}</bdi> در حساب متصل ساخته می‌شود. سپس ساخت، اصلاح مجاز و انتشار پروژه با برنامه‌ای روشن و تصمیم شما پیگیری می‌شود.</p>
+      {!recommendation ? <p className="hint">هزینه پایه از زمان ساخت تا حذف برنامه ادامه دارد. مالیات، ترافیک و فضای اضافه در نرخ بالا حساب نشده‌اند؛ این مبلغ صورتحساب نهایی نیست. نیاز واقعی پروژه به منابع هنوز اندازه‌گیری نشده است.</p> : null}
       <details>
         <summary>پلن، شبکه و اعتبار برآورد</summary>
         <dl className="profile-facts">

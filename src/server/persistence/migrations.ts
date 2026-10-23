@@ -175,4 +175,36 @@ CREATE TABLE mission_authority_history (
 ) STRICT;
 `,
   },
+  {
+    version: 15,
+    sql: `
+ALTER TABLE mission_artifacts RENAME TO mission_artifacts_v11;
+ALTER TABLE mission_steps RENAME TO mission_steps_v11;
+ALTER TABLE mission_authorities RENAME TO mission_authorities_v11;
+CREATE TABLE mission_authorities (
+  id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, run_id TEXT NOT NULL REFERENCES agent_runs(id),
+  plan_json TEXT NOT NULL, plan_hash TEXT NOT NULL,
+  state TEXT NOT NULL CHECK(state IN ('proposed','approved','revoked')), session_id TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+) STRICT;
+INSERT INTO mission_authorities SELECT * FROM mission_authorities_v11;
+CREATE INDEX mission_authorities_run ON mission_authorities(actor_id,run_id,created_at);
+CREATE TABLE mission_steps (
+  authority_id TEXT NOT NULL REFERENCES mission_authorities(id),
+  kind TEXT NOT NULL CHECK(kind IN ('build','repair','publication')),
+  subject_id TEXT NOT NULL, evidence_hash TEXT NOT NULL, created_at INTEGER NOT NULL,
+  PRIMARY KEY(kind,subject_id)
+) STRICT;
+INSERT INTO mission_steps SELECT * FROM mission_steps_v11;
+CREATE TABLE mission_artifacts (
+  authority_id TEXT NOT NULL REFERENCES mission_authorities(id), source_hash TEXT NOT NULL,
+  archive_hash TEXT NOT NULL, base_source_hash TEXT NOT NULL, job_id TEXT NOT NULL UNIQUE REFERENCES code_repair_jobs(id),
+  evidence_hash TEXT NOT NULL, PRIMARY KEY(authority_id,source_hash,archive_hash)
+) STRICT;
+INSERT INTO mission_artifacts SELECT * FROM mission_artifacts_v11;
+DROP TABLE mission_artifacts_v11;
+DROP TABLE mission_steps_v11;
+DROP TABLE mission_authorities_v11;
+`,
+  },
 ] as const;

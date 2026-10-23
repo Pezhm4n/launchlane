@@ -147,11 +147,15 @@
 @media (prefers-reduced-motion: reduce) {
   :root dialog {
     transform: none;
-    transition: opacity var(--motion-panel-exit) ease;
+    transition: none;
   }
   :root dialog[open] {
     transform: none;
-    transition: opacity var(--motion-panel-enter) ease;
+    transition: none;
+  }
+  :root dialog::backdrop,
+  :root dialog[open]::backdrop {
+    transition: none;
   }
   main .panel,
   .project-picker-actions .studio-source-button,
@@ -161,12 +165,12 @@
   .incident-guidance,
   .incident-report > details,
   .assistant-float .agent-transcript article {
-    animation: gentle-fade-in var(--motion-enter) ease both;
+    animation: none;
     transform: none;
   }
   .assistant-float[open] {
     transform: none;
-    transition: opacity var(--motion-panel-enter) ease;
+    transition: none;
   }
   button:active:not(:disabled) {
     transform: none;
