@@ -26,7 +26,7 @@ await context.route("**/*", route => {
   if (new URL(route.request().url()).origin !== server.origin) { external.push(route.request().url()); return route.abort(); }
   return route.continue();
 });
-const journey = page.locator(".publication-journey"), chat = page.locator(".assistant-float .optional-chat"), launcher = page.getByRole("button", { name: "باز کردن راهنمای پروژه", exact: true });
+const journey = page.locator(".publication-journey"), chat = page.locator(".assistant-float .optional-chat"), launcher = page.getByRole("button", { name: "باز کردن دستیار هوشمند", exact: true });
 let store;
 async function modelRequests() {
   try { return (await readFile(server.modelLog, "utf8")).trim().split("\n").filter(Boolean).length; } catch { return 0; }
@@ -39,8 +39,8 @@ async function layout(width, name, height = 844) {
   assert.deepEqual(axe.violations.map(item => ({ id: item.id, nodes: item.nodes.map(node => node.target) })), [], name);
   results.push({ width, height, name, axeViolations: 0, overflow: false });
 }
-async function openChat() { await launcher.click(); await page.getByRole("dialog", { name: "راهنمای پروژه", exact: true }).waitFor(); }
-async function closeChat() { await page.getByRole("button", { name: "بستن راهنمای پروژه", exact: true }).click(); await launcher.waitFor(); }
+async function openChat() { await launcher.click(); await page.getByRole("dialog", { name: "دستیار هوشمند", exact: true }).waitFor(); }
+async function closeChat() { await page.getByRole("button", { name: "بستن دستیار هوشمند", exact: true }).click(); await launcher.waitFor(); }
 async function freshChat() { const fresh = chat.getByRole("button", { name: "گفت‌وگوی تازه", exact: true }); if (await fresh.count()) await fresh.click(); }
 async function sendQuestion(text) { await chat.getByRole("textbox").fill(text); await chat.getByRole("button", { name: "ارسال درخواست", exact: true }).click(); }
 try {
@@ -58,7 +58,7 @@ try {
   for (const width of [320, 360, 390, 768, 1280]) { await layout(width, "default-publication"); await page.screenshot({ path: join(output, `empty-${width}.png`), fullPage: true }); }
   await openChat();
   await chat.getByRole("textbox").fill("پیش‌نویس درباره پروژه");
-  await page.getByRole("dialog", { name: "راهنمای پروژه", exact: true }).press("Escape");
+  await page.getByRole("dialog", { name: "دستیار هوشمند", exact: true }).press("Escape");
   await launcher.waitFor();
   assert.equal(await launcher.evaluate(node => node === document.activeElement), true);
   const beforeNavigation = posts.length;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { WorkspaceGlyph } from "./WorkspaceGlyph.tsx";
 
 export function FloatingAssistant({ children, blocked, projectName }: {
   children: ReactNode; blocked: boolean; projectName: string | null;
@@ -46,14 +47,14 @@ export function FloatingAssistant({ children, blocked, projectName }: {
   }
   return <>
     <button ref={launcher} type="button" className="assistant-launcher" hidden={blocked || open}
-      aria-label="باز کردن راهنمای پروژه" aria-controls="optional-assistant" aria-expanded={open}
-      onClick={() => setOpen(true)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 4h14v12H11l-5 4v-4H5z" /><path d="M10 8.5a2 2 0 0 1 4 .5c0 1.5-2 1.5-2 3M12 14h.01" /></svg><span className="sr-only">راهنمای پروژه</span></button>
+      aria-label="باز کردن دستیار هوشمند" aria-controls="optional-assistant" aria-expanded={open}
+      onClick={() => setOpen(true)}><span className="assistant-launcher-mark"><WorkspaceGlyph name="spark" /></span><span className="assistant-launcher-label">دستیار هوشمند</span></button>
     <dialog ref={panel} id="optional-assistant" className="assistant-float" aria-labelledby="assistant-float-title"
       onCancel={event => { event.preventDefault(); dismiss(); }}
       onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); dismiss(); } }}>
       <div className="assistant-float-heading">
-        <div><h2 id="assistant-float-title">راهنمای پروژه</h2><p className="hint">{projectName ?? "پروژه انتخاب نشده"}</p></div>
-        <button ref={close} type="button" className="button-quiet" aria-label="بستن راهنمای پروژه" onClick={dismiss}>بستن</button>
+        <div className="assistant-identity"><span className="assistant-avatar" aria-hidden="true"><WorkspaceGlyph name="spark" /></span><div><h2 id="assistant-float-title">دستیار هوشمند</h2><p className="hint">{projectName ?? "راهنمای انتخاب و انتشار پروژه"}</p></div></div>
+        <button ref={close} type="button" className="button-quiet assistant-close" aria-label="بستن دستیار هوشمند" onClick={dismiss}><WorkspaceGlyph name="close" /></button>
       </div>
       <div className="assistant-float-content">{children}</div>
     </dialog>

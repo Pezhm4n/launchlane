@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 
 import { canReadDeploymentResult, isDeploymentSpec } from "../contracts/deployment.ts";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
@@ -1571,7 +1572,7 @@ export function Workbench() {
           </>
         )}
         <footer className="app-footer">
-          <p>Launchlane · نتیجه هر عملیات باید با شواهد بررسی شود.</p>
+          <p className="studio-footer-line"><span>Launchlane · نتیجه هر عملیات باید با شواهد بررسی شود.</span><span className="studio-provider">انتشار روی <Image src="/icon/liara-logo.svg" alt="لیارا" width={101} height={45} /></span></p>
         </footer>
       </main>
     </>

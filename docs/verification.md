@@ -1,5 +1,20 @@
 # شواهد اعتبارسنجی Launchlane
 
+## بازطراحی دستیار و گزارش؛ verified_local / ۲۰۲۶-۱۰-۲۳
+
+این برش AC32 و حفظ رفتارهای AC23/AC24 را به‌صورت محلی می‌سنجد. مبنا 40e2ea3 و tree کد/runnerها 5e724b1451c7764f9c99397257bc219e5b888c14 است. index مستقل فقط تغییرات همین UI را نگه داشت؛ hunkهای ثبت‌نشدهٔ globals، navigation، motion، iconها و activity همکار وارد commit نشدند. build در phase2-ship ایزوله با node_modules محلی و بدون env اصلی ساخته شد. سرور و .next اصلی، اتصال‌ها، VPN، مسیرهای شبکه و live budget تغییر نکردند.
+
+- build تولیدی، npm run typecheck و lint گذشتند؛ lint صفر error،۳۱warning و۹info داشت. Domain:۳۰۰/۳۰۰، HTTP:۲۸/۲۸، browser:هفت suite با۷۵/۲۷/۲۷/۲۲/۳۸/۵/۳۹ حالت، مجموع۲۳۳. خطای مرورگر و درخواست خارجی در runnerها صفر بود. مدل/provider مصنوعی‌اند؛ فقط suite جدید دو درخواست transport مصنوعی ثبت کرد. این نتیجه شاهد انتشار یا کیفیت مدل زنده نیست.
+- نام آشکار دستیار، پیشنهادهای فقط-draft، ارسال خالی غیرفعال، Escape/focus، حفظ draft در reload/navigation، scroll مستقل، composer پایین، ارتفاع۴۸۰، متن۲۰۰٪، بازه۲۸۰تا۱۲۸۰px و بارگذاری لوگوی SVG۴۰px بررسی شدند. انتخاب منبع در اولین viewport عادی موبایل می‌ماند. resetکردن scroll پیش از capture، تصویر sticky header و modal را به وضعیت واقعی viewport مربوط می‌کند.
+- شکست‌های نگه‌داری‌شده: composer حدود۳۳px در ارتفاع کوتاه بیرون می‌رفت و در متن۲۰۰٪ تا۳۴۸px از پایین می‌گذشت؛ context به جریان پیام رفت، composer می‌تواند داخلی scroll کند و فاصلهٔ ثابت/حداکثر عرض native dialog اصلاح شد. SVG در reduced motion ماتریس پرسپکتیو را از دست می‌داد؛ فقط transform حرکتی reset شد و ماتریس ثابت با computed style آزموده شد. صفحهٔ شروع۲۸۰px/متن۲۰۰٪ به۳۱۰px overflow می‌رسید؛ آزمایش حذف معرفی، علت را به عنوان محدود کرد. عنوان wrap و ناوبری با حداقل عرض وابسته به فونت در صورت نیاز دو ردیفی شد؛ overflow پنهان نشد.
+- یک HTTP اولیه۲۷/۲۸ در cancel با revision قدیمی۴۰۹ گرفت؛ بدون تغییر oracle/backend، دو اجرای بعدی۲۸/۲۸ گذشتند. log اولیه phase2-http-first-failure.log حفظ شده و حساسیت زمان‌بندی آزمون لغو هنوز ریسک تکرار است. build روی e431ab4 به private Store.transaction شکست خورد؛ اصلاح همکار c6c6268 حفظ و برش بعدی روی HEAD تازه ساخته شد.
+- کپی combined-ui با hunkهای UI ثبت‌نشده نیز build و۳۹ حالت studio و۱۲ حالت probe محلی حرکت را گذراند؛ این کپی فقط شاهد سازگاری است و آن hunkها را ثبت نمی‌کند. یک اجرای اولیه motion پیش از پایان build و یک اجرای زیر بار روی نمونه‌برداری fade شکست خوردند؛ setup و زمان‌بندی از پذیرش عملکرد جدا نگه داشته شدند.
+- self-test مستقل کیت طراحی۱۲/۵۲ است؛ وابستگی‌های render خود کیت و سازگاری Windows/encoding کامل نیستند. این عدد نمره محصول نیست و جای Playwright/axe واقعی پروژه را نمی‌گیرد. دستگاه فیزیکی، صفحه‌کلید مجازی موبایل و screen reader واقعی هنوز UNCONFIRMED هستند؛ سرعت/fps و بهبود conversion اندازه‌گیری نشده‌اند.
+
+تصاویر و نتایج: .local/frontend-studio-20261023/evidence/final-staged، logهای ship-* و combined-* در همان پوشهٔ محلی. برای توسعه npm run dev؛ برای production در ریشه ابتدا npm run build و سپس npm start لازم است. کامپوننت‌ها با SVG/CSS موجود ساخته شدند و dependency تازه‌ای اضافه نشد.
+
+Runner قدیمی test-motion-browser.mjs در کپی ترکیبی، هم نمونه‌برداری fade و هم focus پیش از pressSequentially را fail کرد؛ موفق اعلام نشده و فایل همکار تغییر نکرد. probe محلی همان انتظار حفظ متن/فریم میانی/end state/کیبورد/axe را با click واقعی قبل از تایپ و نمونه‌برداری requestAnimationFrame سنجید. در اجرای ثبت‌شده opacity بین حدود۴۵تا۱۷۸ms میانی و در۱۹۴ms صفر شد؛ در reduced motion از نخستین فریم صفر بود. ۱۲/۱۲ متعلق به این probe است و جایگزین pass اسکریپت قدیمی نیست. logها در combined-motion-probe.log و combined-motion-fade-under-load.log باقی‌اند.
+
 ## فضای انتشار با هویت بصری تازه؛ ۲۰۲۶-۱۰-۲۳
 
 بر پایه eee6602، فقط UI خود این برش در index مستقل قرار گرفت. کپی قبل از تغییر، UI موجود را با backend ثبت‌شده ca4dfcc گرفت؛ دو ارجاع ناتمام Python فقط در همان کپی از UI جدا شدند و هیچ فایل کاری همکار برگشت داده نشد. مرجع قبل از تغییر در .local/frontend-studio-20261023/evidence/before و تصویر بعد در evidence/phase1-final همان مسیر است؛ حساب/مدل/provider مصنوعی و کپی‌ها فاقد env اصلی‌اند.

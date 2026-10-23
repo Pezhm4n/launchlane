@@ -124,7 +124,7 @@ export function IncidentReport({
         )}
       </p>
       <dl className="incident-summary">
-        <div>
+        <div className="incident-observation">
           <dt>چه مشکلی مشاهده شد؟</dt>
           <dd>
             <span>{observed}</span>
@@ -145,7 +145,7 @@ export function IncidentReport({
             ) : null}
           </dd>
         </div>
-        <div>
+        <div className="incident-cause">
           <dt ref={cause} tabIndex={-1}>
             علت احتمالی چیست؟
           </dt>
@@ -165,7 +165,7 @@ export function IncidentReport({
             </p>
           </dd>
         </div>
-        <div>
+        <div className="incident-next-action">
           <dt>اقدام پیشنهادی</dt>
           <dd>
             {run.symptom === "slow"
@@ -176,7 +176,7 @@ export function IncidentReport({
                 "گزارش‌ها و پاسخ همین صفحه را بررسی کنید. اطلاعات ناموجود را نمی‌توان نشانه سالم‌بودن یا خرابی قطعی گرفت."}
           </dd>
         </div>
-        <div>
+        <div className="incident-latest">
           <dt ref={outcome} tabIndex={-1}>
             نتیجه آخرین بررسی
           </dt>

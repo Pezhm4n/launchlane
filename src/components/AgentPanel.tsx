@@ -9,6 +9,8 @@ import { AgentDestination } from "./AgentDestination.tsx";
 import { RichText } from "./RichText.tsx";
 import { FloatingAssistant } from "./FloatingAssistant.tsx";
 import { ProjectEnvironment } from "./ProjectEnvironment.tsx";
+import { ChatWelcome } from "./ChatWelcome.tsx";
+import { WorkspaceGlyph } from "./WorkspaceGlyph.tsx";
 
 function decodeRun(value: unknown): AgentView | null {
   const row = object(value);
@@ -519,6 +521,14 @@ export function AgentPanel({
     .at(-1)?.message;
   const startedAt = run?.events.find((event) => event.at > 0)?.at ?? now;
   const action = run?.nextAction;
+  const runEffect = run ? <p className="agent-effect">{run.effect === "remote_changes_verified" ? "نسخه منتشرشده و پاسخ مورد انتظار بررسی شدند."
+    : run.effect === "configuration_changed" ? "تنظیمات برنامه ذخیره و بررسی شد؛ نسخه تازه و سلامت آن هنوز جدا بررسی می‌شوند."
+    : run.effect === "destination_created" ? "مقصد ساخته و تنظیمات آن تأیید شد؛ انتشار هنوز جداگانه بررسی می‌شود."
+    : run.effect === "remote_changes_unverified" ? "ارسال به سرویس آغاز شده است؛ نتیجه نهایی هنوز تأیید نشده است."
+    : "تغییری در سایت منتشر نشده است."}</p> : null;
+  const runSteps = run ? <details><summary>مراحل بررسی</summary><ol className="agent-events">
+    {run.events.filter(event => event.kind !== "user" && event.kind !== "assistant").map(event => <li key={event.sequence}><p>{event.message}</p></li>)}
+  </ol></details> : null;
   const conversation = run && sameProject ? <>
           <section
             ref={transcript}
@@ -545,6 +555,7 @@ export function AgentPanel({
                   >
                     <div className="agent-message-meta">
                       <span className="agent-message-role">
+                        {event.kind === "assistant" ? <WorkspaceGlyph name="spark" /> : null}
                         {event.kind === "user" ? "شما" : "دستیار"}
                       </span>
                       {time ? <time dateTime={time.iso}>{time.label}</time> : null}
@@ -561,6 +572,7 @@ export function AgentPanel({
                 );
               })
             )}
+            {chatOnly ? <div className="chat-run-context">{runEffect}{runSteps}</div> : null}
           </section>
           {newCount > 0 ? (
             <button type="button" className="button-quiet" onClick={goToLatest}>
@@ -568,10 +580,10 @@ export function AgentPanel({
             </button>
           ) : null}
 
-</> : <p className="hint">درباره پروژه و انتشار سؤال کنید. رمز یا کلید را در پیام وارد نکنید.</p>;
+</> : null;
   const composer = enabled && run?.state !== "needs_approval" ? (
         <form className="agent-composer" onSubmit={(event) => void submit(event)}>
-          <label htmlFor="agent-goal">{run && sameProject ? "پیام بعدی" : "هدف شما"}</label>
+          <label htmlFor="agent-goal">{run && sameProject ? "پیام بعدی" : "سؤال شما"}</label>
           <textarea
             ref={input}
             id="agent-goal"
@@ -581,7 +593,7 @@ export function AgentPanel({
             rows={2}
             enterKeyHint="send"
             maxLength={2000}
-            placeholder="مثلاً این پروژه را برای انتشار بررسی کن…"
+            placeholder="دربارهٔ پروژه‌تان بپرسید…"
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
@@ -607,7 +619,7 @@ export function AgentPanel({
             aria-invalid={error?.code === "EMPTY_GOAL" || undefined}
           />
           <p id="agent-help" className="hint">
-            رمز یا کلید وارد نکنید · Enter ارسال · Shift+Enter خط تازه
+            رمز یا کلید وارد نکنید.<span className="chat-key-hint"> Enter ارسال · Shift+Enter خط تازه</span>
           </p>
           {active ? (
             <p id="agent-active-help" className="hint">
@@ -617,10 +629,11 @@ export function AgentPanel({
           <div className="button-row">
             <button
               type="submit"
-              disabled={disabled || busy || restoring || active}
+              aria-label="ارسال درخواست"
+              disabled={disabled || busy || restoring || active || !draft.trim()}
               aria-describedby={active ? "agent-active-help" : undefined}
             >
-              {busy ? "در حال ثبت…" : "ارسال درخواست"}
+              {busy ? "در حال ثبت…" : <><span>ارسال</span><WorkspaceGlyph name="send" /></>}
             </button>
             {active ? (
               <button
@@ -684,11 +697,7 @@ export function AgentPanel({
         </button>
       </div>
       {!guided && !run && !restoring && enabled ? (
-        <p className="hint agent-empty">
-          {projectName
-            ? "هدف را در کادر پایین بنویسید؛ مثلاً «این پروژه را بررسی کن و برای انتشار آماده کن»."
-            : "برای شروع، ابتدا پروژه را انتخاب کنید؛ سپس هدف را در کادر پایین بنویسید."}
-        </p>
+        <ChatWelcome projectName={projectName} disabled={disabled || busy || active} onPick={question => { setDraft(question); input.current?.focus(); }} />
       ) : null}
       {restoring ? <p role="status">در حال بازیابی وضعیت…</p> : null}
       {guided && enabled && projectId && !restoring && !active && !run?.mission ? (
@@ -730,11 +739,7 @@ export function AgentPanel({
         <>
           {!guided ? conversation : null}
           {guided && !active && run.events.filter(event => event.kind === "assistant").at(-1)?.message ? <div className="mission-summary"><RichText text={run.events.filter(event => event.kind === "assistant").at(-1)?.message ?? ""} /></div> : null}
-          <p className="agent-effect">{run.effect === "remote_changes_verified" ? "نسخه منتشرشده و پاسخ مورد انتظار بررسی شدند."
-            : run.effect === "configuration_changed" ? "تنظیمات برنامه ذخیره و بررسی شد؛ نسخه تازه و سلامت آن هنوز جدا بررسی می‌شوند."
-            : run.effect === "destination_created" ? "مقصد ساخته و تنظیمات آن تأیید شد؛ انتشار هنوز جداگانه بررسی می‌شود."
-            : run.effect === "remote_changes_unverified" ? "ارسال به سرویس آغاز شده است؛ نتیجه نهایی هنوز تأیید نشده است."
-            : "تغییری در سایت منتشر نشده است."}</p>
+          {!chatOnly ? runEffect : null}
           {run.state === "failed" ? (
             <p className="note">
               این مرحله کامل نشد. رسیدها و نتیجه‌های مراحل پیشین حفظ شده‌اند؛ برای ادامه،
@@ -886,18 +891,7 @@ export function AgentPanel({
             <p className="hint">مقدار محرمانه وارد نکنید.</p>
             <button type="submit" disabled={busy || disabled}>ثبت اطلاعات و ادامه</button>
           </form> : null}
-          <details>
-            <summary>مراحل بررسی</summary>
-            <ol className="agent-events">
-              {run.events
-                .filter((event) => event.kind !== "user" && event.kind !== "assistant")
-                .map((event) => (
-                  <li key={event.sequence}>
-                    <p>{event.message}</p>
-                  </li>
-                ))}
-            </ol>
-          </details>
+          {!chatOnly ? runSteps : null}
         </>
       ) : null}
       {error ? (

@@ -88,6 +88,12 @@
   --studio-chat-width: 27rem;
   --studio-chat-height: 40rem;
   --studio-chat-min-input: 5rem;
+  --studio-chat-gutter: 20px;
+  --studio-chat-top: 16px;
+  --studio-chat-inset: 12px;
+  --studio-chat-target: 44px;
+  --studio-chat-icon: 20px;
+  --studio-nav-min: 7rem;
   --studio-enter: 440ms;
   --studio-art-enter: 900ms;
   --studio-draw: 1600ms;

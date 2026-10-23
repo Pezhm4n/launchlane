@@ -63,6 +63,7 @@ html {
   font-weight: 800;
   letter-spacing: -0.025em;
   max-inline-size: 22ch;
+  overflow-wrap: anywhere;
   margin-block-end: var(--space-4);
 }
 .studio-intro h1 span { color: var(--color-primary); }
@@ -174,6 +175,15 @@ html {
 .task-main .note { border-radius: var(--radius-md); }
 .task-main :is(input:not([type="radio"], [type="checkbox"]), textarea) { border-color: var(--color-control-border); }
 .task-main .incident-summary > div { border-radius: var(--radius-md); }
+.incident-report > .incident-summary { gap: var(--space-4); }
+.incident-report > .incident-summary > div { min-inline-size: 0; padding: var(--space-4); }
+.incident-report > .incident-summary .incident-observation { background: var(--color-elevated); }
+.incident-report > .incident-summary .incident-observation dt { font-size: var(--text-sm); color: var(--color-muted); font-weight: 400; }
+.incident-report > .incident-summary .incident-observation dd > span { font-size: var(--text-lg); color: var(--color-ink); line-height: 1.8; }
+.incident-report > .incident-summary :is(.incident-cause, .incident-next-action) { background: var(--color-field); }
+.incident-report > .incident-summary .incident-next-action dt { color: var(--color-primary); }
+.incident-report > .incident-summary .incident-latest { padding-block: var(--space-2); }
+.incident-report > .incident-summary .incident-latest :is(dt, dd) { font-size: var(--text-sm); }
 .task-main .app-footer { margin-block: var(--space-10) var(--space-6); color: var(--color-muted); font-size: var(--text-xs); }
 @media (hover: hover) {
   button:hover:not(:disabled) { transform: translateY(calc(var(--border-width) * -1)); }
@@ -186,11 +196,16 @@ html {
 }
 button:active:not(:disabled) { transform: translateY(var(--border-width)); }
 .studio-glyph { transition: transform var(--motion-feedback) var(--ease-standard); }
+@media (max-width: 559px) {
+  .app-nav { display: flex; flex-wrap: wrap; }
+  .app-nav .app-nav-link { flex: 1 1 var(--studio-nav-min); min-inline-size: 0; }
+}
 @media (min-width: 560px) {
   .project-choice .project-picker-actions { grid-template-columns: 1fr 1fr; }
   .publication-start > button { inline-size: auto; }
 }
 @media (min-width: 768px) {
+  .incident-report > .incident-summary :is(.incident-observation, .incident-latest) { grid-column: 1 / -1; }
   .app-header { padding-block: var(--space-4); }
   .app-main.task-main { padding-block-start: var(--space-10); }
   .studio-intro-welcome { grid-template-columns: 1.2fr 1fr; gap: var(--space-8); }
@@ -212,6 +227,6 @@ button:active:not(:disabled) { transform: translateY(var(--border-width)); }
 @keyframes studio-art-arrive { from { opacity: 0; transform: translateY(var(--space-5)) rotate(-3deg); } to { opacity: 1; transform: none; } }
 @keyframes studio-connect { from { stroke-dasharray: 1; stroke-dashoffset: 1; } to { stroke-dasharray: 1; stroke-dashoffset: 0; } }
 @media (prefers-reduced-motion: reduce) {
-  .studio-intro *, button:hover:not(:disabled), button:active:not(:disabled) { animation: none; transform: none; }
+  .studio-intro :is(.studio-intro-copy, .studio-artboard), button:hover:not(:disabled), button:active:not(:disabled) { animation: none; transform: none; }
   .studio-glyph { transition: none; }
 }
