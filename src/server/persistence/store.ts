@@ -1235,6 +1235,7 @@ export class Store {
 
   recoverInterrupted(now = Date.now()): number {
     return this.transaction(() => {
+      this.db.prepare("UPDATE coding_agent_executions SET state='uncertain',data_json=json_set(data_json,'$.state','uncertain','$.completedAt',?,'$.code','PROCESS_INTERRUPTED') WHERE state='dispatched'").run(now);
       const rows = this.db
         .prepare("SELECT * FROM actions WHERE state='executing'")
         .all()

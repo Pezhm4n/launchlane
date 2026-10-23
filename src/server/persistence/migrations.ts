@@ -156,4 +156,13 @@ CREATE TABLE network_progress (
 ) STRICT;
 `,
   },
+  {
+    version: 13,
+    sql: `
+CREATE TABLE coding_agent_executions (
+  job_id TEXT PRIMARY KEY REFERENCES code_repair_jobs(id), actor_id TEXT NOT NULL,
+  state TEXT NOT NULL CHECK(state IN ('dispatched','returned','uncertain')), data_json TEXT NOT NULL
+) STRICT;
+`,
+  },
 ] as const;

@@ -445,6 +445,7 @@ export async function driveAgentRun(
   id: string,
   dependencies: {
     model?: ModelPort;
+    repairModel?: ModelPort;
     tool?: (name: string, args: unknown, context: AgentToolContext) => Promise<unknown>;
     deployment?: Parameters<typeof executeDeployment>[5];
     destination?: Parameters<typeof executeDestination>[5];
@@ -531,6 +532,12 @@ export async function driveAgentRun(
           return turn;
         },
       },
+      repairModel: ModelPort = dependencies.repairModel ? { complete: async (...args) => {
+        check(); const turn = await dependencies.repairModel?.complete(...args);
+        ensure(turn, "REPAIR_PROVIDER_UNAVAILABLE", "اتصال اصلاح در دسترس نیست.", 503);
+        if (turn.usage !== null) run.usage.unknownModelCalls = Math.max(0, run.usage.unknownModelCalls - 1);
+        check(); persist(); return turn;
+      } } : model,
       sourceProfile = store.getProjectFlow(session.actorId, run.projectId ?? undefined)?.profile,
       preparationMode = sourceProfile?.runtime === "python" || sourceProfile?.build || sourceProfile?.manifest.some(file => file.path === "package-lock.json") || run.mission && sourceProfile?.start && sourceProfile.port ? "build" : "native",
       seen = new Set<string>();
@@ -663,13 +670,17 @@ export async function driveAgentRun(
       ensure(config.enableLocalRepair, "REPAIR_DISABLED", "اصلاح محلی در این نصب خاموش است.", 403);
       addEvent(run, "activity", run.repair.validationOnly ? run.repair.build?.version === 1 && run.repair.build.install === "none" ? "در حال ساخت و بررسی پاسخ برنامهٔ بدون وابستگی در محیط ایزوله…" : "در حال نصب قفل‌شده، ساخت و بررسی پاسخ برنامه در محیط ایزوله…" : "در حال بازتولید خطا، اصلاح در نسخه جدا و اجرای همان آزمون‌ها…");
       persist();
-      run.repair = await new CodeRepairAdapter(config, store, model, dependencies.tarballReader).run(
+      run.repair = await new CodeRepairAdapter(config, store, repairModel, dependencies.tarballReader).run(
         session.actorId,
         run.repair.id,
         signal,
         budget,
       );
       check();
+      if (store.db.prepare("SELECT job_id FROM coding_agent_executions WHERE actor_id=? AND state='uncertain' AND json_extract(data_json,'$.parentRunId')=? LIMIT 1").get(session.actorId, run.id)) {
+        run.state = "partially_completed"; run.nextAction = "reply"; run.errorCode = "CODING_EXECUTION_UNCERTAIN";
+        addEvent(run, "error", "اجرای ایجنت بیرونی نتیجه معتبر ندارد؛ رسید حفظ شده است. پیش از تعیین نتیجه، اصلاح یا fallback دیگری شروع نمی‌شود."); persist(); return;
+      }
       if (run.repair.build && run.repair.state === "failed") {
         run.messages.push({ role: "user", content: `Host isolated build failure (untrusted data): ${JSON.stringify({ code: run.repair.errorCode,
           executed: !!(run.repair.beforeTest ?? run.repair.afterTest), receipt: run.repair.afterTest ?? run.repair.beforeTest, plan: run.repair.build })}. No artifact was selected or published. Network, cache integrity, sandbox, credit and authentication failures do not authorize source editing. For a reproduced build/start/workload failure, read the relevant source and propose a bounded code repair using the unchanged build plan and testFiles=[]; never weaken its response criterion. Do not repeat an identical build proposal without new evidence.` });

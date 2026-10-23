@@ -534,6 +534,8 @@ export class CodeRepairAdapter {
     sharedBudget?: RunBudget,
   ): Promise<CodeRepairJob> {
     const record = this.record(actor, id);
+    ensure(!this.store.db.prepare("SELECT job_id FROM coding_agent_executions WHERE actor_id=? AND state='uncertain' AND (job_id=? OR (? IS NOT NULL AND json_extract(data_json,'$.parentRunId')=?)) LIMIT 1")
+      .get(actor, id, record.job.parentRunId ?? null, record.job.parentRunId ?? null), "CODING_EXECUTION_UNCERTAIN", "نتیجه ایجنت بیرونی این مأموریت روشن نیست؛ worker دیگری شروع نمی‌شود.", 409);
     const checkParent = () => {
       if (!record.job.parentRunId) return;
       const parent = new AgentRepository(this.store).get(actor, record.job.parentRunId);

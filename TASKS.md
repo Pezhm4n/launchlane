@@ -1,5 +1,9 @@
 # برنامه اجرایی Launchlane
 
+## اتصال اجرایی Codex؛ A06/A18 / ۲۰۲۶-۱۰-۲۳
+
+یک رفت‌وبرگشت واقعی Launchlane→Codex0.163.0-alpha.11 در حالت packet-only، patch محدود و آزمون مستقل Node22 را گذراند و همان parent/authority را تا publication مصنوعی ادامه داد. دو failure اولیه decoder و مصرف نامعلوم اول حفظ شدند؛ ErrorItem رسمی non-fatal بود. accounting خارجی و توقف پیش از fallback موازی اصلاح شدند. [شاهد مستقل](docs/evidence/codex-executable-worker.md) و [ADR0020](docs/decisions/0020-codex-packet-worker.md) حدود را ثبت می‌کنند. A06/AC26 partial؛ اقدام بعد اتصال انتخاب نسخه‌دار و fallback مجاز به همان مأموریت، سپس سایر میزبان‌ها و ماتریس است. باقی‌مانده۰٫۲۴۰۹۷۰دلار فقط ceiling محافظه‌کارانه BoxAPI است؛ مصرف اشتراک Codex قیمت نامعلوم دارد و صفر فرض نمی‌شود.
+
 ## چرخه زنده برنامه و MCP؛ A05/A08/A10/A16 / ۲۰۲۶-۱۰-۲۳
 
 روی `fb67971` و candidate06 ثابت، [یک مأموریت واقعی Codex MCP](docs/evidence/codex-publication-mission.md) از upload source کتاب‌فروشی upstream با fault اعلام‌شده، شبکه و app تازه، کارت برنامه، failure500 واقعی، patch worker داخلی، آزمون مستقل، artifact مشتق و انتشار بومی Node22 تا تأیید release جاری/HTML/API رسید. تصمیم‌های ضروری شبکه، هزینه مقصد و برنامه ثبت شدند؛ پس از تأیید برنامه هیچ تصمیم/ادامه تازه یا جابه‌جایی لاگ لازم نشد. reconnect و duplicate/replay پس از descendant صفر مصرف/write تازه داشتند. برنامه با ID/404 پاک شد؛ GC شبکه هنوز UNCONFIRMED است. A05/AC23، A08/A10 و A16 همچنان partial؛ connectorهای اجرایی، DB، dependency/monorepo و همه خانواده‌های جدول بازند. ۱۱ درخواست/۹۷۰۳۹token واقعی مدل، ceiling افزوده۰٫۰۹۷۴۹۶دلار؛ از همان۰٫۸دلار قدیمی،۰٫۲۴۰۹۷۰باقی است. قدم بعد، connector اجرایی Codex با همان patch/test/artifact/policy و fallback معتبر است.

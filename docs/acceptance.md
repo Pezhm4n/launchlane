@@ -1,5 +1,7 @@
 # معیارهای پذیرش محصول
 
+شاهد A06/AC26: [اجرای واقعی Codex و patch با آزمون مستقل](evidence/codex-executable-worker.md) از اتصال MCP جداست. publication آن مصنوعی بود؛ انتخاب عامل در محصول، fallback مجاز و انتشار زنده با connector هنوز UNCONFIRMED هستند. هزینه اشتراک نامعلوم و failureهای decoder/accounting حفظ شده‌اند.
+
 شاهد `fb67971`: [یک برنامه مصوب با artifact مشتق، worker داخلی و انتشار بومی Node22 از میزبان واقعی MCP تا نتیجه](evidence/codex-publication-mission.md) گذشت. این پذیرش محدود، failure/repair در اجرای ایزوله پیش از انتشار را پوشش می‌دهد؛ repair پس از failure زنده و release دوم، همه runtimeها/DB و connectorهای اجرایی همچنان بازند. A05/AC23/A08/A10/A16 کامل اعلام نمی‌شوند.
 
 ساخت شبکه لازم در A05/AC21 با ActionSpec v13 و [ADR0019](decisions/0019-required-private-network.md) به همان موتور افزوده شده است؛ تعرفه نامعلوم پذیرش صریح می‌خواهد و جزو اختیار publication به مقصد موجود نیست. پذیرش آن، خواندن هویت واقعی شبکه همان درخواست بدون retry write است. کارت، قرارداد و fixture جای شاهد زنده ساخت یا سلامت برنامه را نمی‌گیرند.
