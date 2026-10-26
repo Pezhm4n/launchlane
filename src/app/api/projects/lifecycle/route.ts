@@ -1,6 +1,7 @@
 import { endpoint, jsonBody, reply } from "../../../../server/http.ts";
 import { exactKeys, hash, object, string } from "../../../../contracts/validation.ts";
 import { ensure } from "../../../../server/errors.ts";
+import { isLifecycleSpec } from "../../../../contracts/project-lifecycle.ts";
 import { currentLifecycle, executeLifecycle, observeLifecycle, proposeLifecycle } from "../../../../server/application/project-lifecycle.ts";
 
 export const runtime = "nodejs";
@@ -21,13 +22,13 @@ export async function POST(request: Request) {
     const input = object(await jsonBody(request));
     if (input.operation === "propose") {
       exactKeys(input, ["operation", "projectId", "effect", "requestKey"]);
-      ensure(input.effect === "stop_app" || input.effect === "delete_app", "INVALID_OPERATION", "عملیات معتبر نیست.");
+      ensure(input.effect === "stop_app" || input.effect === "delete_app" || input.effect === "start_app" || input.effect === "enable_default_subdomain", "INVALID_OPERATION", "عملیات معتبر نیست.");
       return reply({ action: await proposeLifecycle(config, store, session, string(input.projectId, 36), input.effect, string(input.requestKey, 36), request.signal) });
     }
     ensure(input.operation === "decision" || input.operation === "execute" || input.operation === "observe", "INVALID_OPERATION", "عملیات معتبر نیست.");
     exactKeys(input, ["operation", "actionId", ...(input.operation === "decision" ? ["hash", "decision"] : [])]);
     const id = string(input.actionId, 36), action = store.getAction(id, session.actorId);
-    ensure(action.spec.version === 14, "INVALID_OPERATION", "این اقدام مربوط به مدیریت مقصد نیست.");
+    ensure(isLifecycleSpec(action.spec), "INVALID_OPERATION", "این اقدام مربوط به مدیریت مقصد نیست.");
     if (input.operation === "decision") {
       ensure(input.decision === "approve" || input.decision === "reject", "INVALID_INPUT", "تصمیم معتبر نیست.");
       return reply({ action: store.decide(id, session.actorId, session.id, hash(input.hash), input.decision) });

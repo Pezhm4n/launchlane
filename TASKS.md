@@ -2,6 +2,11 @@
 
 
 
+
+## زرین‌پال: انتشار موقت و حذف تأییدشده؛ A11/A14/AC26–AC27، ۲۰۲۶-۱۰-۲۶
+
+[شاهد و حدود](docs/evidence/zarinpal-temporary-publication-20261026.md): مقصد موقت دقیق با تصمیم مالک ساخته شد؛ artifact آزموده‌شدهٔ `0d33c79586a6` به release جاری `6adf60605f9c45c62a2eff5b` رسید، oracle اصلی HTTP200/متن، چهار hash داده و چهار صفحهٔ Chromium/انتخاب M1/reload پاس شدند. لینک در چت تحویل شد و بلافاصله stop/delete همان ID و نبودن مستقل404 تأیید شد؛ لینک فعال باقی نمانده است. نسخهٔ عمومی Launchlane، اصل پروژه‌ها و allowance مدل تغییر نکردند. v24 روشن‌کردن/نشانی عمومی با قیمت/هویت/approval/journal و guard انقضا اضافه شد؛ stop/delete جبرانی فقط از uncertainty همان تنظیم نشانی عبور می‌کند. تست domain667/667، HTTP45/45، type/build و19حالت مرورگر پروژه پاس؛ synthetic/live جدا هستند. هفت پروژهٔ دیگر، مسیر عمومی Agent همین نسخه، restart و DB acceptance بازند.
+
 ## ساخت واقعی Next و دریافت دادهٔ bounded؛ A07/A08/A11، ۲۰۲۶-۱۰-۲۶
 
 کش metadata رسمی پلتفرم، آزادسازی staging موقت npm پیش از compiler، deadline هماهنگ و oracle HTML تا۱MiB فقط برای Next/text پیاده شدند. omission تنظیم mirror در inspection تازه با پیش‌فرض رسمی true تطبیق دارد؛ false صریح و hash قرارداد تاریخی تغییر نمی‌کنند. JSON داخل public/data و SVG تا۱۶MiB با aggregate۲۰MiB و config/code قبلی محدودند. job واقعی Linux/Node22 زرین‌پال `66a2f689` نصب/compile/TypeScript/start/GET را با oracle اصلی گذراند و artifact `0d33c79586a6` صادر کرد؛ شکست‌های قبلی حفظ‌اند. domain جاری667/667 و type/build پاس، بدون مدل تازه. انتشار عمومی و حذف مقصد در شاهد مستقل همین مأموریت ثبت می‌شوند؛ این برش پذیرش هفت پروژهٔ دیگر نیست.

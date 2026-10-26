@@ -2,6 +2,11 @@
 
 
 
+
+## Temporary real Zarinpal publication and cleanup — 2026-10-26
+
+[Evidence](evidence/zarinpal-temporary-publication-20261026.md) binds the Linux-tested source archive, exact created destination/release, original public text oracle, four data-file hashes and actual four-page Chromium flow. Keyboard merchant M1 survived reload. After link delivery, approved stop/delete and independent404 proved removal at14:30:57UTC. No temporary app remains and no model call/allowance was added. Startup503 was recorded before200; its cause stays unconfirmed. v24 activation is separate from workload verification, and expired/unknown domain validity fails closed. Explicit stop/delete can compensate only the exact uncertain domain setting, with attempts retained. Current working-tree checks passed667 domain,45HTTP, type/build and19 project-library states; lint0errors/46warnings/17infos. This does not roll out the unchanged public Launchlane image, verify all eight projects or prove a full public Agent/DB/restart path.
+
 ## Native Next build boundary — 2026-10-26
 
 The actual Node22 Zarinpal worker installed 604 locked packages, compiled Next/TypeScript, generated routes, started the app and matched the original root text oracle in 241,346 bytes. Job `66a2f689-0f40-468c-9917-e7b18b1036a9` exported source archive `0d33c79586a6369eafa9e009c8e1b060900e8e7ea7f87c34a21d699f85071360`; model calls0. Earlier OOM, deadline and small-response-limit failures remain recorded. Metadata-cache reuse, temporary npm-cache removal, MIME-bound document reads, bounded data assets and the documented Next mirror default use shared paths. Current working-tree validation: domain667/667, typecheck/build passed, HTTP45/45, lint0 errors/46 warnings/17 infos. These local suites use synthetic providers and do not establish arbitrary-project or public Launchlane acceptance.

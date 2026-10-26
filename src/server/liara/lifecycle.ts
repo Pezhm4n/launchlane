@@ -10,10 +10,10 @@ export class LiaraLifecycleClient {
   readonly config: Config;
   readonly send: Transport;
   constructor(config: Config, send: Transport = transport) { this.config = config; this.send = send; }
-  private url(spec: LifecycleSpec, suffix = "") {
+  private url(spec: LifecycleSpec, suffix = "", internalId = false) {
     authorizeScope(spec.scope, this.config);
     ensure(this.config.enableLiveLiara && this.config.liaraToken && this.config.liaraBaseUrl === "https://api.liara.ir", "LIARA_UNCONFIGURED", "اتصال مجاز لیارا آماده نیست.", 503);
-    const url = new URL(`/v1/projects/${spec.scope.app}${suffix}`, this.config.liaraBaseUrl); url.searchParams.set("teamID", spec.scope.teamId); return url.href;
+    const url = new URL(`/v1/projects/${internalId ? spec.targetAppId : spec.scope.app}${suffix}`, this.config.liaraBaseUrl); url.searchParams.set("teamID", spec.scope.teamId); return url.href;
   }
   async read(spec: LifecycleSpec, budget: RunBudget, signal: AbortSignal) {
     const bounded = budget.signal(signal), url = this.url(spec);
@@ -23,7 +23,10 @@ export class LiaraLifecycleClient {
       if (!response.ok) { void response.body?.cancel().catch(() => undefined); throw httpFailure(response.status); }
       const row = object(object(await boundedJson(response)).project);
       ensure(row._id === spec.targetAppId && row.project_id === spec.scope.app, "LIFECYCLE_TARGET_CHANGED", "هویت مقصد عوض شده است؛ عملیات ارسال نشد.", 409);
-      return { planId: string(row.planID, 128), scale: integer(row.scale, 0, 1000) };
+      return { planId: string(row.planID, 128), scale: integer(row.scale, 0, 1000),
+        ...(typeof row.bundlePlanID === "string" ? { bundleId: string(row.bundlePlanID, 128) } : {}),
+        ...(typeof row.defaultSubdomain === "boolean" ? { defaultSubdomain: row.defaultSubdomain } : {}),
+        ...(typeof row.defaultSubdomainExpired === "boolean" ? { defaultSubdomainExpired: row.defaultSubdomainExpired } : {}) };
     }, bounded);
   }
   async empty(spec: LifecycleSpec, budget: RunBudget, signal: AbortSignal): Promise<boolean> {
@@ -39,10 +42,11 @@ export class LiaraLifecycleClient {
   }
   async mutate(spec: LifecycleSpec, budget: RunBudget, signal: AbortSignal): Promise<void> {
     ensure(this.config.enableMutations, "MUTATIONS_DISABLED", "تغییر واقعی مقصد خاموش است.", 403);
-    const url = this.url(spec, spec.operation === "stop_app" ? "/actions/scale" : ""), bounded = budget.signal(signal);
+    const scaling = spec.operation === "stop_app" || spec.operation === "start_app";
+    const url = this.url(spec, scaling ? "/actions/scale" : spec.operation === "enable_default_subdomain" ? "/default-subdomain/enable" : "", spec.operation === "enable_default_subdomain"), bounded = budget.signal(signal);
     budget.take("tool", bounded);
-    const response = await abortable(() => this.send(url, { method: spec.operation === "stop_app" ? "POST" : "DELETE", redirect: "error", cache: "no-store", signal: bounded,
-      headers: { Authorization: `Bearer ${this.config.liaraToken}`, "Content-Type": "application/json" }, ...(spec.operation === "stop_app" ? { body: JSON.stringify({ scale: 0 }) } : {}) }), bounded);
+    const response = await abortable(() => this.send(url, { method: spec.operation === "delete_app" ? "DELETE" : "POST", redirect: "error", cache: "no-store", signal: bounded,
+      headers: { Authorization: `Bearer ${this.config.liaraToken}`, "Content-Type": "application/json" }, ...(scaling ? { body: JSON.stringify({ scale: spec.operation === "start_app" ? 1 : 0 }) } : {}) }), bounded);
     void response.body?.cancel().catch(() => undefined);
     ensure((response.status === 200 || spec.operation === "delete_app" && response.status === 204) && !bounded.aborted, "UPSTREAM_UNCERTAIN", "نتیجهٔ درخواست قطعی نیست؛ فقط وضعیت خوانده می‌شود.", 409);
   }

@@ -54,6 +54,10 @@ export function decodeAction(value: unknown): Action {
     spec = object(raw.spec),
     scope = object(spec.scope),
     args = object(spec.args);
+  if (spec.version === 24) {
+    const parsed = parseLifecycleSpec(spec), { bundleId: _bundle, expected: _expected, cost: _cost, publication: _publication, ...rest } = spec;
+    return { ...decodeAction({ ...raw, spec: { ...rest, version: 14, operation: "stop_app" } }), spec: parsed };
+  }
   if (spec.version === 19) {
     const { runtime, environment, ...rest } = spec, parsed = parseFrontendRuntime(runtime), base = decodeAction({ ...raw, spec: { ...rest, version: 7 } });
     ensure(base.spec.version === 7 && typeof base.spec.sourceHash === "string" && base.spec.nodeVersion === parsed.nodeVersion && base.spec.args.port === 80, "INVALID_RESPONSE", "محیط انتشار رابط با پروژه برابر نیست.");
@@ -125,7 +129,7 @@ export function decodeAction(value: unknown): Action {
   else if (spec.version === 8) parsedSpec = parseProvisionSpec(spec);
   else {
     ensure(spec.operation === "deploy" || spec.operation === "restart", "INVALID_RESPONSE", "نوع اقدام معتبر نیست.");
-    const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12 | 13 | 14 | 16 | 18 | 20}>, "scope" | "operation" | "sourceHash" | "args"> = {
+    const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12 | 13 | 14 | 16 | 18 | 20 | 24}>, "scope" | "operation" | "sourceHash" | "args"> = {
       operation: spec.operation,
       scope: { teamId: string(scope.teamId), app: string(scope.app) },
       sourceHash: nullableString(spec.sourceHash),

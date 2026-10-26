@@ -4,4 +4,5 @@
 .content h3, .content h4, .content p { margin: 0; }
 .actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); }
 .actions button { display: inline-flex; align-items: center; gap: var(--space-2); }
-.confirm { display: grid; gap: var(--space-3); padding: var(--space-4); border: var(--border-width) solid var(--color-danger); border-radius: var(--radius-md); }
+.confirm { display: grid; gap: var(--space-3); padding: var(--space-4); border: var(--border-width) solid var(--color-control-border); border-radius: var(--radius-md); }
+.destructive { border-color: var(--color-danger); }

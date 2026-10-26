@@ -61,7 +61,7 @@ export function parseActionSpec(value: unknown): ActionSpec {
     return { ...base, version: 15, operation: "deploy", sourceHash: base.sourceHash, nodeVersion: null, runtime: parseStaticRuntime(runtime) };
   }
   if (input.version === 16) return parseProvisionSpec(input);
-  if (input.version === 14) return parseLifecycleSpec(input);
+  if (input.version === 14 || input.version === 24) return parseLifecycleSpec(input);
   if (input.version === 13) return parseNetworkSpec(input);
   if (input.version === 11) {
     ensure(input.nodeVersion === null && input.operation === "deploy", "INVALID_INPUT", "قرارداد انتشار Python معتبر نیست.");
@@ -117,7 +117,7 @@ export function parseActionSpec(value: unknown): ActionSpec {
     "INVALID_INPUT",
     "restart آرگومان انتشار نمی‌پذیرد.",
   );
-  const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12 | 13 | 14 | 16 | 18 | 20}>, "scope" | "operation" | "sourceHash" | "args"> = {
+  const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12 | 13 | 14 | 16 | 18 | 20 | 24}>, "scope" | "operation" | "sourceHash" | "args"> = {
     scope: { teamId, app },
     operation: input.operation,
     sourceHash,

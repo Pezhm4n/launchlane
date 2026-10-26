@@ -31,6 +31,16 @@ export type ProvisionSpec = NodeProvisionSpec | (Omit<NodeProvisionSpec, "versio
 }>) | (Omit<NodeProvisionSpec, "version" | "nodeVersion"> & Readonly<{ version: 16; nodeVersion: null; runtime: StaticRuntime }>)
   | (Omit<NodeProvisionSpec, "version"> & Readonly<{ version: 18; runtime: NextRuntime }>)
   | (Omit<NodeProvisionSpec, "version" | "nodeVersion"> & Readonly<{ version: 20; nodeVersion: "20"; runtime: FrontendRuntime }>);
+export type PaaSCost = NodeProvisionSpec["cost"];
+export function parsePaaSCost(value: unknown): PaaSCost {
+  const cost = object(value);
+  exactKeys(cost, ["catalogFingerprint", "observedAt", "expiresAt", "hourlyHundredthsToman", "region", "currency", "period", "extras"]);
+  const observedAt = integer(cost.observedAt, 0, Number.MAX_SAFE_INTEGER), expiresAt = integer(cost.expiresAt, 0, Number.MAX_SAFE_INTEGER);
+  ensure(cost.currency === "toman" && cost.period === "hour" && cost.extras === "tax_traffic_storage_not_included" && expiresAt > observedAt && expiresAt - observedAt <= 600000,
+    "INVALID_INPUT", "شرایط هزینه معتبر نیست.");
+  return { catalogFingerprint: hash(cost.catalogFingerprint), observedAt, expiresAt, hourlyHundredthsToman: integer(cost.hourlyHundredthsToman, 0, 1e15),
+    region: string(cost.region, 40), currency: "toman", period: "hour", extras: "tax_traffic_storage_not_included" };
+}
 export type ProvisionObservation = Readonly<{
   outcome: "verified" | "changed" | "inconclusive" | "not_started";
   checkedAt: number;

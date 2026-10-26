@@ -13,7 +13,7 @@ import { currentAgentContext } from "../src/server/agent/tools.ts";
 import { sealCredential } from "../src/server/connections/credentials.ts";
 import { fingerprint } from "../src/server/policy/action.ts";
 
-const server = await startTestServer({ agentFixture: true, environmentFixture: true, workspaceConfigured: false }),
+const server = await startTestServer({ agentFixture: true, environmentFixture: true, activationFixture: true, workspaceConfigured: false }),
   browser = await chromium.launch({ headless: true }), context = await browser.newContext({ locale: "fa-IR", reducedMotion: "reduce" }),
   page = await context.newPage(), directory = await mkdtemp(join(tmpdir(), "launchlane-library-")), output = resolve(".artifacts/project-library", new Date().toISOString().replaceAll(":", "-")),
   actor = createHash("sha256").update(server.token).digest("hex").slice(0, 24),
@@ -118,18 +118,53 @@ try {
   assert.equal(store.db.prepare("SELECT count(*) n FROM project_archives WHERE project_id=?").get(second).n, 1);
   await dialog.getByRole("button", { name: "بستن پروژه‌های من", exact: true }).click();
   // Stopping and deleting use the real application endpoints with a network-denying synthetic provider.
-  const lifecycle = page.locator('details').filter({ has: page.locator('summary', { hasText: "مدیریت توقف و حذف مقصد" }) }).last();
-  await page.getByText("مدیریت توقف و حذف مقصد", { exact: true }).click();
+  const lifecycle = page.locator('details').filter({ has: page.locator('summary', { hasText: "مدیریت مقصد در لیارا" }) }).last();
+  await page.getByText("مدیریت مقصد در لیارا", { exact: true }).click();
   await lifecycle.getByRole("button", { name: "توقف برنامه…", exact: true }).click();
   await lifecycle.getByRole("button", { name: "انصراف", exact: true }).waitFor();
   assert.equal((await readFile(server.modelLog, "utf8")).includes('"lifecycleWrite"'), false);
   await lifecycle.getByRole("button", { name: "تأیید توقف برنامه", exact: true }).click();
   await lifecycle.getByText("توقف و نبود نمونهٔ اجرایی تأیید شد.", { exact: true }).waitFor();
   await layout(390, "stopped-app");
+  await lifecycle.getByRole("button", { name: "روشن‌کردن برنامه…", exact: true }).click();
+  await lifecycle.getByText("برنامه را با پلن فعلی روشن کنیم؟", { exact: true }).waitFor();
+  await lifecycle.getByText(/هزینهٔ پایه:/).waitFor();
+  await page.waitForFunction(() => document.activeElement?.textContent === "انصراف");
+  const beforeStart = (await readFile(server.modelLog, "utf8")).trim().split("\n").filter(Boolean).map(line => JSON.parse(line));
+  assert.equal(beforeStart.filter(row => row.lifecycleWrite === "start").length, 0);
+  await layout(320, "start-confirmation"); await layout(1280, "start-confirmation");
+  await lifecycle.getByRole("button", { name: "انصراف", exact: true }).press("Enter");
+  await lifecycle.getByRole("button", { name: "روشن‌کردن برنامه…", exact: true }).click();
+  await lifecycle.getByRole("button", { name: "تأیید هزینه و روشن‌کردن برنامه", exact: true }).click();
+  await lifecycle.getByText("روشن‌بودن برنامه در تنظیمات لیارا ثبت شد. پاسخ سایت هنوز تأیید نشده است.", { exact: true }).waitFor();
+  await page.reload(); await page.getByText("مدیریت مقصد در لیارا", { exact: true }).click();
+  await lifecycle.getByText("روشن‌بودن برنامه در تنظیمات لیارا ثبت شد. پاسخ سایت هنوز تأیید نشده است.", { exact: true }).waitFor();
+  await lifecycle.getByRole("button", { name: "فعال‌کردن نشانی عمومی…", exact: true }).click();
+  await lifecycle.getByText("نشانی عمومی برنامه را فعال کنیم؟", { exact: true }).waitFor();
+  await lifecycle.getByText("https://sample-node.liara.run", { exact: true }).waitFor();
+  await layout(390, "public-origin-confirmation");
+  await lifecycle.getByRole("button", { name: "تأیید فعال‌کردن نشانی عمومی", exact: true }).click();
+  await lifecycle.getByText("نشانی عمومی در تنظیمات لیارا فعال شد. پاسخ سایت هنوز تأیید نشده است.", { exact: true }).waitFor();
+  // Preserve the successful activation oracle above, then exercise a distinct lost-response request.
+  await writeFile(server.activationFailureMarker, "controlled synthetic provider failure");
+  await lifecycle.getByRole("button", { name: "فعال‌کردن نشانی عمومی…", exact: true }).click();
+  await lifecycle.getByRole("button", { name: "تأیید فعال‌کردن نشانی عمومی", exact: true }).click();
+  await lifecycle.getByRole("status").filter({ hasText: "نتیجه هنوز قطعی نیست" }).waitFor();
+  const uncertain = store.db.prepare("SELECT id,state FROM actions WHERE actor_id=? AND json_extract(spec,'$.version')=24 AND json_extract(spec,'$.operation')='enable_default_subdomain' ORDER BY rowid DESC LIMIT 1").get(actor);
+  assert.equal(uncertain.state, "uncertain");
+  await layout(390, "uncertain-public-origin");
+  const cleanup = lifecycle.getByRole("button", { name: "مرور توقف برای پاک‌سازی مقصد…", exact: true });
+  await cleanup.waitFor({ timeout: 5000 }); await cleanup.click();
+  await lifecycle.getByRole("button", { name: "انصراف", exact: true }).waitFor();
+  await layout(320, "compensating-stop-confirmation");
+  await lifecycle.getByRole("button", { name: "تأیید توقف برنامه", exact: true }).click();
+  await lifecycle.getByText("توقف و نبود نمونهٔ اجرایی تأیید شد.", { exact: true }).waitFor();
   await lifecycle.getByRole("button", { name: "حذف مقصد از لیارا…", exact: true }).click();
   await lifecycle.getByRole("button", { name: "تأیید حذف دائمی مقصد", exact: true }).click();
   await lifecycle.getByText("مقصد از لیارا حذف شد", { exact: true }).waitFor();
-  await page.reload(); await page.getByText("مدیریت توقف و حذف مقصد", { exact: true }).click();
+  assert.equal(store.getAction(uncertain.id, actor).state, "cancelled");
+  assert.equal(store.getAction(uncertain.id, actor).errorCode, "DESTINATION_REMOVED");
+  await page.reload(); await page.getByText("مدیریت مقصد در لیارا", { exact: true }).click();
   await page.getByText("مقصد از لیارا حذف شد", { exact: true }).waitFor();
   dialog = await library(); await dialog.getByRole("button", { name: "حذف book-service", exact: true }).click();
   confirmation = page.getByRole("dialog", { name: "پروژه از فهرست حذف شود؟", exact: true });
@@ -139,7 +174,7 @@ try {
   assert.equal(store.getProjectFlow(actor), null);
   const logs = (await readFile(server.modelLog, "utf8")).trim().split("\n").filter(Boolean).map(line => JSON.parse(line));
   assert.equal(logs.filter(row => row.environmentWrite).length, 1); assert.equal(logs.filter(row => row.model).length, 0);
-  assert.deepEqual(logs.filter(row => row.lifecycleWrite).map(row => row.lifecycleWrite), ["stop", "delete"]);
+  assert.deepEqual(logs.filter(row => row.lifecycleWrite).map(row => row.lifecycleWrite), ["stop", "start", "enable_default_subdomain", "enable_default_subdomain_uncertain", "stop", "delete"]);
   assert.deepEqual(errors, []); assert.deepEqual(external, []);
   await writeFile(join(output, "results.json"), JSON.stringify({ states, modelRequests: 0, syntheticEnvironmentWrites: 1, liveCloudWrites: 0, errors, external }, null, 2));
   console.log(JSON.stringify({ states: states.length, modelRequests: 0, syntheticEnvironmentWrites: 1, output }));

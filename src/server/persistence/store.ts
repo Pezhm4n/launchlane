@@ -16,7 +16,7 @@ import { parseProvisionProgress, providerObjectId, type ProvisionProgress, type 
 import { migrations } from "./migrations.ts";
 import { parseNetworkProgress, type NetworkProgress } from "../../contracts/network.ts";
 import { parseEnvironmentProgress, type EnvironmentProgress } from "../../contracts/environment.ts";
-import { parseLifecycleProgress, type LifecycleProgress } from "../../contracts/project-lifecycle.ts";
+import { isLifecycleSpec, parseLifecycleProgress, type LifecycleProgress } from "../../contracts/project-lifecycle.ts";
 import { environmentProjectIds } from "../environment/secrets.ts";
 import { actionPlatform } from "../../contracts/platform.ts";
 import { parseProjectFlow, type ProjectFlow } from "../../contracts/project-flow.ts";
@@ -379,13 +379,14 @@ export class Store {
   }
 
   private assertActionContext(actorId: string, spec: ActionSpec, existingId?: string): void {
-    if (spec.version === 14) {
+    if (isLifecycleSpec(spec)) {
       const flow = this.getProjectFlow(actorId), connection = this.getConnection(actorId, "liara")?.view;
       ensure(flow?.id === spec.projectFlowId && flow.profile.sourceHash === spec.sourceHash && flow.selectionHash === spec.selectionHash &&
         !this.db.prepare("SELECT project_id FROM project_archives WHERE actor_id=? AND project_id=?").get(actorId, flow.id), "PROJECT_CHANGED", "پروژه تغییر کرده است؛ تصمیم تازه لازم است.", 409);
       ensure(connection?.status === "connected" && connection.identityId === spec.accountId && connection.teamId === spec.scope.teamId &&
         connection.selectedApp === spec.scope.app && connection.apps.some(app => app.id === spec.targetAppId && app.name === spec.scope.app),
         "PROJECT_ACCESS_CHANGED", "حساب یا مقصد تغییر کرده است؛ همان پروژه و حساب را باز کنید.", 409);
+      if (spec.version === 24 && spec.publication) this.assertLifecyclePublication(actorId, spec);
     }
     else if (spec.version === 6) this.assertRestartAction(actorId, spec);
     else this.assertProjectAction(actorId, spec, existingId);
@@ -620,7 +621,7 @@ export class Store {
     const spec = parseActionSpec(input);
     ensure(ttlMs > 0 && ttlMs <= 10 * 60_000, "INVALID_INPUT", "مهلت تأیید معتبر نیست.");
     return this.transaction(() => {
-      this.ensureNoConflict(spec);
+      this.ensureNoConflict(spec, "", actorId);
       this.assertActionContext(actorId, spec);
       if (
         ((spec.version === 2 || spec.version === 3 || spec.version === 4 || spec.version === 5 || (spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 15 || spec.version === 17 || spec.version === 19)) &&
@@ -748,6 +749,8 @@ export class Store {
       if (decision === "approve") {
         this.assertActionContext(actorId, action.spec, id);
         ensure(action.expiresAt > now, "APPROVAL_EXPIRED", "مهلت تأیید گذشته است؛ پیشنهاد تازه بسازید.", 409);
+        if (action.spec.version === 24 && action.spec.cost) ensure(action.spec.cost.expiresAt > now,
+          "CATALOG_STALE", "اعتبار قیمت تمام شده است؛ پیشنهاد تازه لازم است.", 409);
         if (action.spec.version === 13) ensure(options.acknowledgeUnknownCost === true,
           "UNKNOWN_COST_ACK_REQUIRED", "تعرفه مستقل شبکه مشخص نیست؛ پذیرش صریح این هزینه نامعلوم لازم است.", 409);
       }
@@ -769,16 +772,37 @@ export class Store {
     });
   }
 
-  private ensureNoConflict(spec: ActionSpec, except = ""): void {
+  private assertLifecyclePublication(actorId: string, spec: Extract<ActionSpec, { version: 24 }>): void {
+    const proof = spec.publication;
+    ensure(proof && spec.operation === "enable_default_subdomain", "PUBLICATION_DEPENDENCY_CHANGED", "وابستگی انتشار موجود نیست.", 409);
+    const action = this.getAction(proof.actionId, actorId), flow = this.getProjectFlow(actorId);
+    ensure(isDeploymentSpec(action.spec) && ["observing", "failed", "succeeded"].includes(action.state) && action.deployment?.stage === "release_accepted" && action.remoteId === proof.releaseId &&
+      action.spec.artifactHash === proof.artifactHash && action.spec.projectFlowId === spec.projectFlowId && action.spec.selectionHash === spec.selectionHash && action.spec.sourceHash === spec.sourceHash &&
+      action.spec.targetAppId === spec.targetAppId && action.spec.scope.teamId === spec.scope.teamId && action.spec.scope.app === spec.scope.app && action.spec.args.planId === spec.args.planId && flow?.actionId === action.id,
+      "PUBLICATION_DEPENDENCY_CHANGED", "انتشار یا نسخهٔ وابسته تغییر کرده است؛ فعال‌کردن نشانی ارسال نشد.", 409);
+  }
+
+  private ensureNoConflict(spec: ActionSpec, except = "", actorId = ""): void {
     if (spec.version === 13) ensure(!this.db.prepare("SELECT id FROM actions WHERE team_id=? AND id<>? AND json_extract(spec,'$.version')=13 AND state IN ('executing','observing','uncertain') LIMIT 1")
       .get(spec.scope.teamId, except), "UNRESOLVED_EFFECT", "نتیجه ساخت شبکه قبلی همین تیم روشن نیست؛ ساخت دیگری مجاز نیست.", 409);
-    const conflict = this.db
+    const conflicts = this.db
       .prepare(
-        "SELECT id FROM actions WHERE team_id=? AND app=? AND id<>? AND state IN ('executing','observing','uncertain')",
+        "SELECT id FROM actions WHERE team_id=? AND app=? AND id<>? AND state IN ('executing','observing','uncertain') LIMIT 3",
       )
-      .get(spec.scope.teamId, spec.scope.app, except);
+      .all(spec.scope.teamId, spec.scope.app, except);
+    if (conflicts.length === 1 && spec.version === 24 && spec.operation === "enable_default_subdomain" && spec.publication?.actionId === conflicts[0]?.id) {
+      this.assertLifecyclePublication(actorId, spec); return;
+    }
+    // An explicitly approved stop/delete can compensate an unknown public-URL
+    // setting. It never replays that request or releases an unknown deploy/env write.
+    if (spec.version === 14 && conflicts.length > 0 && conflicts.length <= 2 && conflicts.every(row => {
+      const prior = this.getAction(string(row.id, 36), actorId);
+      return prior.state === "uncertain" && prior.spec.version === 24 && prior.spec.operation === "enable_default_subdomain" &&
+        prior.spec.targetAppId === spec.targetAppId && prior.spec.accountId === spec.accountId && prior.spec.projectFlowId === spec.projectFlowId &&
+        prior.spec.sourceHash === spec.sourceHash && prior.spec.selectionHash === spec.selectionHash && prior.spec.args.planId === spec.args.planId;
+    })) return;
     ensure(
-      !conflict,
+      conflicts.length === 0,
       "UNRESOLVED_EFFECT",
       "نتیجه اقدام قبلی این برنامه روشن نیست؛ ابتدا همان نتیجه را بررسی کنید.",
       409,
@@ -852,7 +876,7 @@ export class Store {
         "مقصد، آرگومان یا source تغییر کرده است؛ تأیید تازه لازم است.",
         409,
       );
-      this.ensureNoConflict(action.spec, id);
+      this.ensureNoConflict(action.spec, id, actorId);
       const attemptId = randomUUID();
       this.db
         .prepare("INSERT INTO attempts(id,action_id,started_at) VALUES (?,?,?)")
@@ -875,7 +899,7 @@ export class Store {
         this.writeProvisionProgress(id, { stage: "claimed", appId: null, observation: null });
       if (action.spec.version === 9) this.writeEnvironmentProgress(id, { stage: "claimed", checkedAt: null, outcome: null });
       if (action.spec.version === 13) this.writeNetworkProgress(id, { stage: "claimed", acceptedAt: null, networkId: null, observation: null });
-      if (action.spec.version === 14) {
+      if (isLifecycleSpec(action.spec)) {
         this.db.prepare("INSERT INTO lifecycle_progress VALUES (?,?)").run(id, JSON.stringify({ stage: "claimed", checkedAt: null, outcome: null }));
         this.db.prepare("UPDATE mission_authorities SET state='revoked' WHERE actor_id=? AND state IN ('proposed','approved') AND run_id IN (SELECT id FROM agent_runs WHERE actor_id=? AND json_extract(data_json,'$.context.target.appId')=?)").run(actorId, actorId, action.spec.targetAppId);
       }
@@ -887,7 +911,7 @@ export class Store {
   receipt(id: string, actorId: string, remoteId: string, now = Date.now()): Action {
     return this.transaction(() => {
       const action = this.getAction(id, actorId);
-      ensure(action.spec.version !== 14, "LIFECYCLE_RECEIPT_REQUIRED", "این اقدام رسید مدیریت مقصد لازم دارد.", 409);
+      ensure(!isLifecycleSpec(action.spec), "LIFECYCLE_RECEIPT_REQUIRED", "این اقدام رسید مدیریت مقصد لازم دارد.", 409);
       ensure(action.spec.version !== 6, "RESTART_RECEIPT_REQUIRED", "راه‌اندازی دوباره رسید انتشار ندارد.", 409);
       ensure(action.spec.version !== 9, "ENV_RECEIPT_REQUIRED", "تغییر اطلاعات برنامه رسید انتشار ندارد.", 409);
       ensure(
@@ -945,7 +969,7 @@ export class Store {
   lifecycleStep(id: string, actorId: string, stage: "request_started" | "accepted"): Action {
     return this.transaction(() => {
       const action = this.getAction(id, actorId);
-      ensure(action.spec.version === 14 && action.state === "executing" && action.attemptId && action.lifecycle?.stage === (stage === "request_started" ? "claimed" : "request_started"),
+      ensure(isLifecycleSpec(action.spec) && action.state === "executing" && action.attemptId && action.lifecycle?.stage === (stage === "request_started" ? "claimed" : "request_started"),
         "ACTION_CONFLICT", "این مرحله قبلاً اجرا شده است.", 409);
       this.db.prepare("UPDATE lifecycle_progress SET data_json=? WHERE action_id=?").run(JSON.stringify({ stage, checkedAt: null, outcome: null }), id);
       if (stage === "accepted") this.db.prepare("UPDATE actions SET state='observing' WHERE id=?").run(id);
@@ -955,11 +979,11 @@ export class Store {
   observeLifecycle(id: string, actorId: string, verification: LifecycleProgress["verification"], expected: number | null): Action {
     return this.transaction(() => {
       const action = this.getAction(id, actorId);
-      ensure(action.spec.version === 14 && action.lifecycle && ["observing", "uncertain"].includes(action.state) && action.lifecycle.checkedAt === expected,
+      ensure(isLifecycleSpec(action.spec) && action.lifecycle && ["observing", "uncertain"].includes(action.state) && action.lifecycle.checkedAt === expected,
         "ACTION_CONFLICT", "رسید تغییر کرده است؛ وضعیت تازه را دریافت کنید.", 409);
       this.assertActionContext(actorId, action.spec);
       const verified = verification !== undefined;
-      ensure(!verification || (action.spec.operation === "delete_app" ? verification === "destination_absent" : verification !== "destination_absent"), "EVIDENCE_MISMATCH", "نوع رسید با عملیات تطبیق ندارد.", 409);
+      ensure(!verification || (action.spec.operation === "delete_app" ? verification === "destination_absent" : action.spec.version === 24 ? verification === "configuration" : verification !== "destination_absent"), "EVIDENCE_MISMATCH", "نوع رسید با عملیات تطبیق ندارد.", 409);
       const progress: LifecycleProgress = { stage: action.lifecycle.stage, checkedAt: Math.max(Date.now(), (expected ?? 0) + 1), outcome: verified ? "verified" : "inconclusive", ...(verification ? { verification } : {}) };
       this.db.prepare("UPDATE lifecycle_progress SET data_json=? WHERE action_id=?").run(JSON.stringify(progress), id);
       this.db.prepare("UPDATE actions SET state=?,error_code=? WHERE id=?").run(verified ? "succeeded" : "uncertain", verified ? null : "LIFECYCLE_READBACK_UNCONFIRMED", id);
@@ -967,6 +991,11 @@ export class Store {
         const connection = this.getConnection(actorId, "liara");
         const removedId = action.spec.targetAppId;
         if (connection) this.saveConnection(actorId, { ...connection, view: { ...connection.view, selectedApp: null, apps: connection.view.apps.filter(app => app.id !== removedId) } });
+        for (const row of this.db.prepare("SELECT id FROM actions WHERE actor_id=? AND team_id=? AND app=? AND state='uncertain' AND json_extract(spec,'$.version')=24 AND json_extract(spec,'$.operation')='enable_default_subdomain' AND json_extract(spec,'$.targetAppId')=?").all(actorId, action.spec.scope.teamId, action.spec.scope.app, removedId)) {
+          const prior = this.getAction(string(row.id, 36), actorId);
+          this.db.prepare("UPDATE actions SET state='cancelled',error_code='DESTINATION_REMOVED' WHERE id=?").run(prior.id);
+          this.audit(prior, "lifecycle_superseded_by_verified_delete", Date.now());
+        }
         this.db.prepare("UPDATE actions SET state='cancelled',error_code='DESTINATION_REMOVED' WHERE actor_id=? AND team_id=? AND app=? AND id<>? AND state IN ('awaiting_approval','approved') AND attempt_id IS NULL")
           .run(actorId, action.spec.scope.teamId, action.spec.scope.app, id);
       }
@@ -1392,7 +1421,7 @@ export class Store {
       const action = this.getAction(id, actorId);
       ensure(action.spec.version !== 6, "RESTART_OBSERVATION_REQUIRED", "این اقدام باید با بازخوانی مخصوص راه‌اندازی دوباره بررسی شود.", 409);
       ensure(action.spec.version !== 13, "NETWORK_OBSERVATION_REQUIRED", "هویت شبکه باید از بازخوانی همان حساب و درخواست تأیید شود.", 409);
-      ensure(action.spec.version !== 14, "LIFECYCLE_OBSERVATION_REQUIRED", "توقف و حذف باید از وضعیت واقعی همان مقصد تأیید شوند.", 409);
+      ensure(!isLifecycleSpec(action.spec), "LIFECYCLE_OBSERVATION_REQUIRED", "مدیریت مقصد باید از وضعیت واقعی همان مقصد تأیید شود.", 409);
       ensure((action.spec.version !== 8 && action.spec.version !== 12 && action.spec.version !== 16 && action.spec.version !== 18 && action.spec.version !== 20), "PROVISION_OBSERVATION_REQUIRED", "ساخت مقصد باید با هویت و تنظیمات همان برنامه بررسی شود.", 409);
       ensure(
         !isDeploymentSpec(action.spec),

@@ -7,8 +7,9 @@ import { setTimeout as pause } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import { freeHttpTestPort } from "../tests/helpers/http-port.ts";
 
-export async function startTestServer({ browserHost = "127.0.0.1", agentFixture = false, environmentFixture = false, destinationFixture = false, workspaceConfigured = true, authFixture = false, staticFixture = false } = {}) {
+export async function startTestServer({ browserHost = "127.0.0.1", agentFixture = false, environmentFixture = false, activationFixture = false, destinationFixture = false, workspaceConfigured = true, authFixture = false, staticFixture = false } = {}) {
   if (environmentFixture && !agentFixture) throw new Error("Environment fixture requires the network-denying test hook");
+  if (activationFixture && !environmentFixture) throw new Error("Activation fixture requires the environment fixture");
   if (destinationFixture && !agentFixture) throw new Error("Destination fixture requires the network-denying test hook");
   if (!["127.0.0.1", "localhost"].includes(browserHost)) throw new Error("Unsupported loopback test host");
   const directory = await mkdtemp(join(tmpdir(), "launchlane-http-"));
@@ -52,6 +53,8 @@ export async function startTestServer({ browserHost = "127.0.0.1", agentFixture 
       NODE_OPTIONS:`--import=${pathToFileURL(resolve("tests/helpers/agent-model-hook.mjs")).href}`,
     }:{}),
     ...(environmentFixture ? { LAUNCHLANE_ENABLE_MUTATIONS: "true", LAUNCHLANE_ENABLE_LIVE_LIARA: "true", LAUNCHLANE_ENVIRONMENT_FIXTURE: "true" } : {}),
+    LAUNCHLANE_ACTIVATION_FIXTURE: activationFixture ? "true" : "false",
+    LAUNCHLANE_ACTIVATION_FAILURE_MARKER: activationFixture ? join(directory, "activation-uncertain.fixture") : "",
     ...(destinationFixture ? { LAUNCHLANE_ENABLE_MUTATIONS: "true", LAUNCHLANE_ENABLE_LIVE_LIARA: "true", LAUNCHLANE_DESTINATION_FIXTURE: "true" } : {}),
     ...(authFixture ? { LAUNCHLANE_AUTH_MODE: "liara", NODE_OPTIONS: `--import=${pathToFileURL(resolve("tests/helpers/liara-auth-hook.mjs")).href}` } : {}),
     ...(staticFixture ? { LAUNCHLANE_ENABLE_MUTATIONS: "true", LAUNCHLANE_ENABLE_LIVE_MODEL: "true", LAUNCHLANE_ENABLE_LIVE_LIARA: "true",
@@ -104,6 +107,7 @@ export async function startTestServer({ browserHost = "127.0.0.1", agentFixture 
           stateDir: env.LAUNCHLANE_STATE_DIR,
           sessionSecret: env.LAUNCHLANE_SESSION_SECRET,
           modelLog:agentFixture?env.LAUNCHLANE_AGENT_FIXTURE_LOG:null,
+          activationFailureMarker: activationFixture ? env.LAUNCHLANE_ACTIVATION_FAILURE_MARKER : null,
           close,
         };
     } catch (error) {
