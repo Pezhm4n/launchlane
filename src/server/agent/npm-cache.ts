@@ -4,7 +4,6 @@ import { link, lstat, mkdir, open, opendir, realpath, unlink, type FileHandle } 
 import { dirname, isAbsolute, join, parse, relative, resolve, sep } from "node:path";
 import { hasControl } from "../../contracts/validation.ts";
 import { AppError, ensure } from "../errors.ts";
-import { abortable } from "../providers/http.ts";
 import type { LockedTarball } from "./npm-source.ts";
 
 export const npmCacheByteLimit = 512 * 1024 * 1024;
@@ -55,7 +54,9 @@ async function serial<T>(root: string, signal: AbortSignal, work: () => Promise<
   const current = state.tail.then(() => { stop(signal); return work(); });
   state.tail = current.then(() => undefined, () => undefined); queues.set(key, state);
   void current.then(() => undefined, () => undefined).then(() => { if (--state.count === 0 && queues.get(key) === state) queues.delete(key); });
-  return abortable(() => current, signal);
+  // Filesystem work owns locks and temporary files. Cancellation is checked inside
+  // that work; its caller must not settle before the owner's finally has completed.
+  return current;
 }
 async function anchors(path: string, create: boolean, signal?: AbortSignal): Promise<Anchor[] | null> {
   const base = parse(path).root, parts = relative(base, path).split(sep).filter(Boolean), result: Anchor[] = [];

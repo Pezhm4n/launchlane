@@ -4,6 +4,7 @@ import { link, lstat, mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, 
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { test } from "node:test";
+import { watch } from "node:fs";
 import { AppError } from "../../src/server/errors.ts";
 import { npmCacheByteLimit, npmCacheEntryLimit, readNpmCacheTarball, readNpmContentCacheTarball, writeNpmCacheTarball } from "../../src/server/agent/npm-cache.ts";
 import type { LockedTarball } from "../../src/server/agent/npm-source.ts";
@@ -109,6 +110,20 @@ test("cancelled operations create no state and queued readers cannot mistake a p
     const writing = writeNpmCacheTarball(f.root, locked, bytes, signal()), reading = readNpmCacheTarball(f.root, locked, signal());
     await writing; assert.deepEqual(await reading, bytes);
   } finally { await f.close(); }
+});
+
+test("cancelling an active cache write settles only after its owned lock and temporary file are cleaned up", async () => {
+  const f = await fixture(), controller = new AbortController();await mkdir(f.root, { recursive: true });
+  const watcher = watch(f.root, (_event, name) => { if (name === ".write-lock") controller.abort(); });
+  try {
+    const bytes = Buffer.alloc(8 * 1024 * 1024, 42);
+    await assert.rejects(writeNpmCacheTarball(f.root, item(bytes), bytes, controller.signal), code("CANCELLED"));
+    assert.equal(controller.signal.aborted, true);
+    const files = await readdir(f.root);
+    assert.equal(files.some(name => name === ".write-lock" || name.startsWith(".pending-")), false, "the rejected operation must already have finished cleanup");
+    const next = Buffer.from("after cancellation");await writeNpmCacheTarball(f.root, item(next), next, signal());
+    assert.deepEqual(await readNpmCacheTarball(f.root, item(next), signal()), next);
+  } finally { watcher.close();await f.close(); }
 });
 test("concurrent writers serialize publication and quota reservation, including identical-content collisions", async () => {
   const f = await fixture();
