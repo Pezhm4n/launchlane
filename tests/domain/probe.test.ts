@@ -19,6 +19,25 @@ const response = { status: 500, body: '{"error":"CONFIG_REQUIRED"}', bytes: 27, 
 const publicAddress = { address: "93.184.216.34", family: 4 as const };
 const signal = () => new AbortController().signal;
 
+test("document verification reads bounded HTML beyond 64 KiB while ordinary probes retain their original cap", async () => {
+  const body = "<!doctype html><main>" + "x".repeat(70000) + "original criterion at end</main>";
+  const probe = new WorkloadProbe(active, async () => [publicAddress], async (_url, _address, _signal, maxBytes) => {
+    assert.equal(maxBytes, 1024 * 1024);
+    return { status: 200, body, bytes: Buffer.byteLength(body), durationMs: 1, contentType: "text/html; charset=utf-8" };
+  });
+  const result = await probe.checkDocument(scope, "/", new RunBudget(active), signal());
+  assert.ok(result.body.includes("original criterion at end")); assert.equal(result.bytes, Buffer.byteLength(body));
+  const ordinary = new WorkloadProbe(active, async () => [publicAddress], async () => ({ status: 200, body, bytes: Buffer.byteLength(body), durationMs: 1, contentType: "text/html" }));
+  await assert.rejects(ordinary.check(scope, "/", new RunBudget(active), signal(), 65536), code("PROBE_INVALID"));
+});
+
+test("a document read cannot admit oversized JSON, absent MIME evidence or HTML beyond one MiB", async () => {
+  for (const [contentType, length] of [["application/json", 65537], [null, 65537], ["text/html", 1024 * 1024 + 1]] as const) {
+    const body = "x".repeat(length), probe = new WorkloadProbe(active, async () => [publicAddress], async () => ({ status: 200, body, bytes: length, durationMs: 1, contentType }));
+    await assert.rejects(probe.checkDocument(scope, "/", new RunBudget(active), signal()), code("PROBE_INVALID"));
+  }
+});
+
 test("health target configuration rejects arbitrary protocols, IPs, ports and account mixup", () => {
   for (const origin of [
     "http://service.example.com",

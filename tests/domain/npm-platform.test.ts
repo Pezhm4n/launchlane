@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { downloadLockedTarballs, lockedTarballs, type LockedTarball } from "../../src/server/agent/npm-source.ts";
-import { writeNpmCacheTarball } from "../../src/server/agent/npm-cache.ts";
+import { readNpmPlatformMetadata, writeNpmCacheTarball, writeNpmPlatformMetadata } from "../../src/server/agent/npm-cache.ts";
 
 const bytes = Buffer.from("exact locked native package"), integrity = `sha512-${createHash("sha512").update(bytes).digest("base64")}`;
 function locked(libc?: string[]) {
@@ -80,5 +80,31 @@ test("invalid or interrupted metadata fails before an executable tarball or mani
       async () => { controller.abort(); return new Promise<Buffer>(() => {}); });
     await assert.rejects(result, { code: "CANCELLED" });
     assert.deepEqual(await readdir(join(root, "invalid")), []); assert.deepEqual(await readdir(join(root, "cancelled")), []);
+  });
+});
+
+test("a persisted incompatible version stays excluded in a later offline job without another registry reservation", async () => {
+  await inDirectory(async root => {
+    const items = locked(), item = items[0]; assert.ok(item); const cache = { root: join(root, "cache") }; let requests = 0;
+    await downloadLockedTarballs(items, join(root, "first"), AbortSignal.timeout(3000), () => { requests++; }, async () => { throw Error("incompatible tarball"); },
+      cache, async () => metadata(item, ["musl"]));
+    assert.equal(requests, 1);
+    assert.equal(await downloadLockedTarballs(items, join(root, "second"), AbortSignal.timeout(3000), () => { throw Error("offline job must not reserve a request"); },
+      async () => { throw Error("offline job must not download a tarball"); }, cache, async () => { throw Error("offline job must not refresh excluded metadata"); }), 0);
+    assert.deepEqual(JSON.parse(await readFile(join(root, "second/manifest.json"), "utf8")), []);
+    assert.deepEqual(await readNpmPlatformMetadata(cache.root, item, AbortSignal.timeout(3000)), metadata(item, ["musl"]));
+  });
+});
+
+test("platform metadata is immutable, byte-verified and never redownloaded to conceal corruption", async () => {
+  await inDirectory(async root => {
+    const items = locked(), item = items[0]; assert.ok(item); const cache = { root: join(root, "cache") }, signal = AbortSignal.timeout(3000);
+    await writeNpmPlatformMetadata(cache.root, item, metadata(item, ["musl"]), signal);
+    await assert.rejects(writeNpmPlatformMetadata(cache.root, item, metadata(item, ["glibc"]), signal), { code: "BUILD_METADATA_CHANGED" });
+    const directory = `${cache.root}-platform-v1`, name = (await readdir(directory)).find(name => name.endsWith(".tgz")); assert.ok(name);
+    await writeFile(join(directory, name), "corrupted record"); let reads = 0;
+    await assert.rejects(downloadLockedTarballs(items, join(root, "corrupt"), signal, () => { reads++; }, async () => bytes, cache,
+      async () => { reads++; return metadata(item, ["musl"]); }), { code: "BUILD_METADATA_INVALID" });
+    assert.equal(reads, 0); assert.deepEqual(await readdir(join(root, "corrupt")), []);
   });
 });

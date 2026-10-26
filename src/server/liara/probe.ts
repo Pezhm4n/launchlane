@@ -1,4 +1,5 @@
 import { lookup } from "node:dns/promises";
+import { createHash } from "node:crypto";
 import { request } from "node:https";
 import { BlockList, isIP } from "node:net";
 import type { Scope } from "../../contracts/domain.ts";
@@ -7,6 +8,7 @@ import { AppError, ensure } from "../errors.ts";
 import { authorizeScope } from "../policy/action.ts";
 import type { RunBudget } from "../policy/budget.ts";
 import { evidenceText } from "./read-contracts.ts";
+import { htmlWorkloadByteLimit } from "../../contracts/deployment.ts";
 
 export type Address = { address: string; family: 4 | 6 };
 export type ProbeResult = {
@@ -19,6 +21,8 @@ export type ProbeResult = {
   bytes: number;
   durationMs: number;
   outcome: "response" | "redirect_blocked";
+  sha256?: string;
+  contentType?: string | null;
 };
 export type Resolver = (hostname: string) => Promise<Address[]>;
 export type ProbeTransport = (
@@ -26,7 +30,7 @@ export type ProbeTransport = (
   address: Address,
   signal: AbortSignal,
   maxBytes?: number,
-) => Promise<{ status: number; body: string; bytes: number; durationMs: number }>;
+) => Promise<{ status: number; body: string; bytes: number; durationMs: number; sha256?: string; contentType?: string | null }>;
 export function validateProbePath(path: unknown): string {
   ensure(typeof path === "string" && /^\/(?:[A-Za-z0-9_./-]*)$/.test(path) &&
     path.length <= 200 && !path.startsWith("//") && !path.split("/").includes(".."),
@@ -79,6 +83,10 @@ const resolveAddresses: Resolver = async (hostname) =>
     return { address: entry.address, family: entry.family };
   });
 
+function documentResponseLimit(contentType: string | null | undefined): number {
+  return ["text/html", "application/xhtml+xml"].includes((contentType ?? "").split(";")[0]?.trim().toLowerCase() ?? "") ? htmlWorkloadByteLimit : 65536;
+}
+
 function abortable<T>(task: Promise<T>, signal: AbortSignal): Promise<T> {
   return new Promise((resolve, reject) => {
     const stop = () => reject(new AppError("CANCELLED", "بررسی مقصد متوقف شد.", 409));
@@ -108,24 +116,27 @@ export const pinnedHttps: ProbeTransport = (url, address, signal, maxBytes = 409
       },
       (res) => {
         let bytes = 0;
+        const responseLimit = maxBytes === htmlWorkloadByteLimit ? documentResponseLimit(res.headers["content-type"]) : maxBytes;
         const chunks: Buffer[] = [];
         res.on("data", (part: Buffer) => {
           bytes += part.length;
-          if (bytes > maxBytes) {
+          if (bytes > responseLimit) {
             res.destroy(new AppError("PROBE_LIMIT", "پاسخ مقصد از سقف بررسی بزرگ‌تر است.", 502));
             return;
           }
           chunks.push(part);
         });
         res.once("error", reject);
-        res.once("end", () =>
+        res.once("end", () => {
+          const body = Buffer.concat(chunks);
           resolve({
             status: res.statusCode || 0,
-            body: Buffer.concat(chunks).toString("utf8"),
+            body: body.toString("utf8"),
             bytes,
             durationMs: Math.round(performance.now() - started),
-          }),
-        );
+            sha256: createHash("sha256").update(body).digest("hex"), contentType: res.headers["content-type"]?.slice(0, 128) ?? null,
+          });
+        });
       },
     );
     req.once("error", reject);
@@ -153,6 +164,15 @@ export class WorkloadProbe {
     maxBytes = 4096,
   ): Promise<ProbeResult> {
     ensure(maxBytes === 4096 || maxBytes === 65536, "PROBE_LIMIT", "سقف پاسخ مجاز نیست.");
+    return this.read(scope, path, budget, signal, maxBytes, false);
+  }
+  async checkFile(scope: Scope, path: string, budget: RunBudget, signal: AbortSignal): Promise<ProbeResult> {
+    return this.read(scope, path, budget, signal, 8 * 1024 * 1024, true);
+  }
+  async checkDocument(scope: Scope, path: string, budget: RunBudget, signal: AbortSignal): Promise<ProbeResult> {
+    return this.read(scope, path, budget, signal, htmlWorkloadByteLimit, false, true);
+  }
+  private async read(scope: Scope, path: string, budget: RunBudget, signal: AbortSignal, maxBytes: number, fingerprintOnly: boolean, document = false): Promise<ProbeResult> {
     authorizeScope(scope, this.config);
     ensure(
       this.config.enableLiveLiara,
@@ -184,12 +204,13 @@ export class WorkloadProbe {
       const pinned = addresses[0];
       ensure(pinned && !boundedSignal.aborted, "CANCELLED", "بررسی متوقف شد.", 409);
       const result = await abortable(this.send(url, pinned, boundedSignal, maxBytes), boundedSignal);
+      const responseLimit = document ? documentResponseLimit(result.contentType) : maxBytes;
       ensure(!boundedSignal.aborted, "CANCELLED", "پاسخ پس از پایان بررسی دریافت شد.", 409);
       ensure(
         result.status >= 100 &&
           result.status <= 599 &&
-          result.bytes <= maxBytes &&
-          Buffer.byteLength(result.body) <= maxBytes &&
+          result.bytes <= responseLimit &&
+          Buffer.byteLength(result.body) <= responseLimit &&
           Number.isFinite(result.durationMs) &&
           result.durationMs >= 0,
         "PROBE_INVALID",
@@ -202,8 +223,9 @@ export class WorkloadProbe {
         origin,
         path,
         observedAt: Date.now(),
-        ...result,
-        body: redirect
+        status: result.status, bytes: result.bytes, durationMs: result.durationMs,
+        ...(fingerprintOnly ? { sha256: result.sha256 ?? createHash("sha256").update(result.body).digest("hex"), contentType: result.contentType ?? null } : {}),
+        body: redirect || fingerprintOnly
           ? ""
           : evidenceText(result.body, maxBytes, [
               this.config.liaraToken,

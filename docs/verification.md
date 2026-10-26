@@ -1,6 +1,11 @@
 # شواهد اعتبارسنجی Launchlane
 
 
+
+## Native Next build boundary — 2026-10-26
+
+The actual Node22 Zarinpal worker installed 604 locked packages, compiled Next/TypeScript, generated routes, started the app and matched the original root text oracle in 241,346 bytes. Job `66a2f689-0f40-468c-9917-e7b18b1036a9` exported source archive `0d33c79586a6369eafa9e009c8e1b060900e8e7ea7f87c34a21d699f85071360`; model calls0. Earlier OOM, deadline and small-response-limit failures remain recorded. Metadata-cache reuse, temporary npm-cache removal, MIME-bound document reads, bounded data assets and the documented Next mirror default use shared paths. Current working-tree validation: domain667/667, typecheck/build passed, HTTP45/45, lint0 errors/46 warnings/17 infos. These local suites use synthetic providers and do not establish arbitrary-project or public Launchlane acceptance.
+
 ## Scoped release build evidence — 2026-10-26
 
 `read_build_logs` uses the existing shared Agent/MCP registry, selected-app release membership and before/after internal-ID fences. Synthetic parser/client/Agent regressions passed 21/21, including denied input before I/O, foreign releases, provider errors, redaction, bounded windows and a shared four-read budget. Typecheck passed. The prior 256-KiB limit for other provider reads is preserved; an initial accidental 64-KiB reduction failed two unchanged evidence tests and was corrected. Real provider build-log readback confirmed mirror use for the selected release; returned pages do not establish complete history or workload health. No model allowance or cloud write is authorized by this read tool.

@@ -8,6 +8,7 @@ export function isDeploymentSpec(spec: ActionSpec): spec is DeploymentSpec {
 }
 
 // This is a bounded GET oracle, never a model-supplied URL or executable expression.
+export const htmlWorkloadByteLimit = 1024 * 1024;
 export type WorkloadTarget = Readonly<{
   origin: string;
   path: string;

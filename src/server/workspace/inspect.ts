@@ -237,7 +237,7 @@ async function scanProject(
   const nextConfig = object(liara.next ?? {});
   const frontend = frontendRuntime(pkg, liara, files);
   const nodeRuntime = resolveNodeRuntime(pkg.engines, frontend ? { version: "20" } : next ? { version: nextConfig.nodeVersion } : liara.node);
-  const nextRuntime = next && nodeRuntime.version ? parseNextRuntime({ kind: "next", version: nodeRuntime.version, mirror: object(liara.next ?? {}).mirror ?? false }) : undefined;
+  const nextRuntime = next && nodeRuntime.version ? parseNextRuntime({ kind: "next", version: nodeRuntime.version, mirror: object(liara.next ?? {}).mirror ?? true }) : undefined;
   if (
     typeof liara.port === "number" &&
     Number.isInteger(liara.port) &&

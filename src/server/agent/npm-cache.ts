@@ -144,18 +144,19 @@ async function removeOwned(path: string, owned: BigIntStats, parents: readonly A
   ensure(stat.isFile() && !stat.isSymbolicLink() && same(stat, owned) && samePath(await realpath(path), path), "NPM_CACHE_PATH_DENIED", "فایل موقت کش تغییر مالکیت داده است و حذف نشد.", 409);
   await unlink(path);
 }
-async function reserve(root: string, item: LockedTarball, size: number, parents: readonly Anchor[], signal: AbortSignal): Promise<void> {
+async function reserve(root: string, name: string, size: number, parents: readonly Anchor[], signal: AbortSignal,
+  byteLimit = npmCacheByteLimit, entryLimit = npmCacheEntryLimit): Promise<void> {
   const path = join(root, indexName); let data = await readRegular(path, indexLimit, parents, signal);
   if (!data) {
     const entries: [string, number][] = []; let bytes = 0;
     const directory = await opendir(root);
     for await (const entry of directory) {
       stop(signal); if (entry.name === lockName) continue;
-      ensure(filename.test(entry.name) && entries.length < npmCacheEntryLimit, "NPM_CACHE_LIMIT", "کش فایل ناشناخته یا بیش از سقف دارد؛ پاک‌سازی خودکار انجام نشد.", 413);
+      ensure(filename.test(entry.name) && entries.length < entryLimit, "NPM_CACHE_LIMIT", "کش فایل ناشناخته یا بیش از سقف دارد؛ پاک‌سازی خودکار انجام نشد.", 413);
       const target = join(root, entry.name), stat = await lstat(target, { bigint: true }); regular(stat, tarballLimit);
       ensure(samePath(await realpath(target), target), "NPM_CACHE_PATH_DENIED", "فایل کش در مسیر خودش نیست.", 409);
       bytes += Number(stat.size); entries.push([entry.name, Number(stat.size)]);
-      ensure(bytes + indexLimit <= npmCacheByteLimit, "NPM_CACHE_LIMIT", "ظرفیت کش dependency پر است.", 413);
+      ensure(bytes + indexLimit <= byteLimit, "NPM_CACHE_LIMIT", "ظرفیت کش dependency پر است.", 413);
     }
     const records = entries.sort(([a], [b]) => a.localeCompare(b)).map(([name, bytes]) => `${name} ${bytes}\n`).join("");
     const initial = Buffer.from(`${header}${records}${initialized}\n`);
@@ -170,15 +171,15 @@ async function reserve(root: string, item: LockedTarball, size: number, parents:
   ensure(records.filter(line => line === initialized).length === 1, "NPM_CACHE_UNAVAILABLE", "ثبت اولیهٔ سهمیهٔ کش کامل نشده است؛ بازنشانی نشد.", 503);
   for (const line of records.filter(line => line !== initialized)) {
     const match = /^([a-f0-9]{64}\.tgz) (0|[1-9][0-9]{0,7})$/.exec(line), name = match?.[1], value = Number(match?.[2]);
-    ensure(name && !entries.has(name) && Number.isSafeInteger(value) && value <= tarballLimit && entries.size < npmCacheEntryLimit,
+    ensure(name && !entries.has(name) && Number.isSafeInteger(value) && value <= tarballLimit && entries.size < entryLimit,
       "NPM_CACHE_UNAVAILABLE", "دفتر سهمیهٔ کش نامعتبر است؛ بازنشانی نشد.", 503);
     entries.set(name, value); occupied += value;
   }
-  ensure(occupied + indexLimit <= npmCacheByteLimit, "NPM_CACHE_LIMIT", "ظرفیت کش dependency پر است.", 413);
-  const reserved = entries.get(item.file);
+  ensure(occupied + indexLimit <= byteLimit, "NPM_CACHE_LIMIT", "ظرفیت کش dependency پر است.", 413);
+  const reserved = entries.get(name);
   if (reserved !== undefined) { ensure(reserved === size, "NPM_CACHE_UNAVAILABLE", "اندازهٔ رزرو‌شدهٔ content کش تغییر کرده است.", 503); return; }
-  ensure(entries.size < npmCacheEntryLimit && occupied + size + indexLimit <= npmCacheByteLimit, "NPM_CACHE_LIMIT", "ظرفیت کش dependency پر است؛ داده‌ای حذف نشد.", 413);
-  const record = Buffer.from(`${item.file} ${size}\n`);
+  ensure(entries.size < entryLimit && occupied + size + indexLimit <= byteLimit, "NPM_CACHE_LIMIT", "ظرفیت کش dependency پر است؛ داده‌ای حذف نشد.", 413);
+  const record = Buffer.from(`${name} ${size}\n`);
   ensure(data.bytes.length + record.length <= indexLimit, "NPM_CACHE_LIMIT", "دفتر سهمیهٔ کش به سقف رسیده است.", 413);
   const file = await open(path, constants.O_RDWR | (constants.O_NOFOLLOW || 0) | (constants.O_NONBLOCK || 0));
   try {
@@ -210,7 +211,7 @@ export async function writeNpmCacheTarball(root: string, item: LockedTarball, in
       const ownedLock = await lock.stat({ bigint: true }); let temporary: { path: string; stat: BigIntStats } | null = null;
       try {
         const existing = await readTarball(target, item, parents, signal);
-        await reserve(path, item, bytes.length, parents, signal);
+        await reserve(path, item.file, bytes.length, parents, signal);
         if (existing) return;
         await unchanged(parents, signal);
         const pending = join(path, `.pending-${randomUUID()}`), file = await open(pending, constants.O_CREAT | constants.O_EXCL | constants.O_RDWR | (constants.O_NOFOLLOW || 0), 0o600);
@@ -231,6 +232,62 @@ export async function writeNpmCacheTarball(root: string, item: LockedTarball, in
         try { if (temporary) await removeOwned(temporary.path, temporary.stat, parents); }
         finally { await lock.close(); await removeOwned(lockPath, ownedLock, parents); }
       }
+    });
+  });
+}
+
+const metadataHeader = "LAUNCHLANE_NPM_PLATFORM_V1\n", metadataByteLimit = 65536;
+function metadataKey(item: LockedTarball): string {
+  validateItem(item);
+  const identity = item.platformMetadata;
+  ensure(identity && typeof identity.name === "string" && identity.name.length <= 214 && typeof identity.version === "string" && identity.version.length <= 128,
+    "BUILD_METADATA_INVALID", "هویت نسخهٔ مشخصات dependency معتبر نیست.", 409);
+  return `${createHash("sha256").update(JSON.stringify([item.url, item.integrity, identity.name, identity.version])).digest("hex")}.tgz`;
+}
+function metadataBody(record: Buffer): Buffer {
+  const offset = Buffer.byteLength(metadataHeader), digest = record.subarray(offset, offset + 64).toString("ascii"), body = record.subarray(offset + 65);
+  ensure(record.subarray(0, offset).toString("ascii") === metadataHeader && /^[a-f0-9]{64}$/.test(digest) && record[offset + 64] === 10 &&
+    body.length <= metadataByteLimit && createHash("sha256").update(body).digest("hex") === digest,
+    "BUILD_METADATA_INVALID", "بایت‌های مشخصات ذخیره‌شدهٔ dependency معتبر نیست؛ خواندن شبکه جایگزین نشد.", 409);
+  return body;
+}
+export async function readNpmPlatformMetadata(root: string, item: LockedTarball, signal: AbortSignal): Promise<Buffer | null> {
+  return guarded(async () => {
+    const name = metadataKey(item), path = `${rootPath(root)}-platform-v1`;
+    return serial(path, signal, async () => {
+      const parents = await anchors(path, false, signal); if (!parents) return null;
+      const value = await readRegular(join(path, name), metadataByteLimit + 128, parents, signal);
+      if (!value && await readRegular(join(path, lockName), 0, parents, signal)) throw new AppError("NPM_CACHE_BUSY", "نوشتن قبلی مشخصات dependency تعیین تکلیف نشده است.", 409);
+      return value ? metadataBody(value.bytes) : null;
+    });
+  });
+}
+/** Exact public version metadata, including exclusions, survives jobs without another registry read.
+ * A separate monotonic 16 MiB/256-entry namespace retains the same path, lock and recovery guards.
+ */
+export async function writeNpmPlatformMetadata(root: string, item: LockedTarball, input: Buffer, signal: AbortSignal): Promise<void> {
+  return guarded(async () => {
+    ensure(Buffer.isBuffer(input) && input.length <= metadataByteLimit, "BUILD_DEPENDENCY_LIMIT", "حجم مشخصات dependency بیش از سقف است.", 413);
+    const name = metadataKey(item), path = `${rootPath(root)}-platform-v1`, bytes = Buffer.from(input),
+      record = Buffer.concat([Buffer.from(`${metadataHeader}${createHash("sha256").update(bytes).digest("hex")}\n`), bytes]);
+    return serial(path, signal, async () => {
+      const parents = await anchors(path, true, signal); ensure(parents, "NPM_CACHE_PATH_DENIED", "مسیر مشخصات dependency معتبر نیست.", 409);
+      const target = join(path, name), lockPath = join(path, lockName);
+      let lock: FileHandle;
+      try { lock = await open(lockPath, constants.O_CREAT | constants.O_EXCL | constants.O_RDWR | (constants.O_NOFOLLOW || 0), 0o600); }
+      catch (error) { if (!exists(error)) throw error; throw new AppError("NPM_CACHE_BUSY", "نوشتن قبلی مشخصات dependency تعیین تکلیف نشده است.", 409); }
+      const ownedLock = await lock.stat({ bigint: true });
+      try {
+        const existing = await readRegular(target, metadataByteLimit + 128, parents, signal);
+        if (existing) ensure(metadataBody(existing.bytes).equals(bytes), "BUILD_METADATA_CHANGED", "مشخصات نسخهٔ ذخیره‌شده تغییر کرده است؛ بازنویسی نشد.", 409);
+        await reserve(path, name, record.length, parents, signal, 16 * 1024 * 1024, 256);
+        if (existing) return;
+        await unchanged(parents, signal); stop(signal);
+        const file = await open(target, constants.O_CREAT | constants.O_EXCL | constants.O_RDWR | (constants.O_NOFOLLOW || 0), 0o600);
+        try { await file.writeFile(record); await file.sync(); } finally { await file.close(); }
+        const saved = await readRegular(target, metadataByteLimit + 128, parents, signal);
+        ensure(saved && metadataBody(saved.bytes).equals(bytes), "BUILD_METADATA_INVALID", "مشخصات dependency پس از ذخیره برابر نیست.", 503);
+      } finally { await lock.close(); await removeOwned(lockPath, ownedLock, parents); }
     });
   });
 }

@@ -38,6 +38,7 @@ async function fixture(runtime: "node" | "python" | "static" | "next" | "react" 
       { path: "index.html", content: Buffer.from('<!doctype html><html><head><title>Product catalog</title></head><body><div id="app"></div></body></html>') }]);
   if (runtime === "next") flow = await prepareProjectFlow(config, f.store, f.session.actorId, { kind: "upload", directory: ".", name: "next-catalog" }, signal(), undefined, undefined,
     [{ path: "package.json", content: Buffer.from(JSON.stringify({ name: "next-catalog", engines: { node: "24.x" }, scripts: { build: "next build", start: "next start" }, dependencies: { next: "16.4.2", react: "19.3.1", "react-dom": "19.3.1" } })) },
+      { path: "liara.json", content: Buffer.from(JSON.stringify({ platform: "next", next: { mirror: false } })) },
       { path: "app/page.tsx", content: Buffer.from('export default function Page(){return <h1>Product catalog</h1>}') }]);
   if (runtime === "static") flow = await prepareProjectFlow(config, f.store, f.session.actorId, { kind: "upload", directory: ".", name: "login-site" }, signal(), undefined, undefined,
     [{ path: "index.html", content: Buffer.from('<!DOCTYPE html><html><head><title>Login & Registration</title><link rel="stylesheet" href="style.css"></head><body><button>Login</button><script src="script.js"></script></body></html>') },

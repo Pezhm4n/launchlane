@@ -5,6 +5,8 @@ import { parseProjectBuildPlan, projectBuildImage, type ProjectBuildPlan } from 
 import { object } from "../../contracts/validation.ts";
 import { environmentVariables, isApplicationEnvironmentKey, type EnvironmentVariable } from "../../contracts/environment.ts";
 
+import { htmlWorkloadByteLimit } from "../../contracts/deployment.ts";
+
 export const node22Image = projectBuildImage;
 export type CommandResult = { output: string; exitCode: number | null; signal: string | null };
 export function docker(args: string[], signal: AbortSignal, maxBytes = 32768, input?: Buffer): Promise<CommandResult> {
@@ -118,7 +120,7 @@ return {base,references};
 
 const buildProgram = `const fs=require('node:fs'),{spawn}=require('node:child_process'),{createHash}=require('node:crypto');
 ${frontendAssetProgram}
-const plan=JSON.parse(process.argv[1]);let stage='cache';const watchdog=setTimeout(()=>process.exit(124),110000);
+const plan=JSON.parse(process.argv[1]);let stage='cache';const watchdog=setTimeout(()=>process.exit(124),plan.buildCommand!==null?270000:110000);
 const env={PATH:'/usr/local/bin:/usr/bin:/bin',HOME:'/work',TMPDIR:'/work',CI:'true',NEXT_TELEMETRY_DISABLED:'1',PORT:String(plan.port),NODE_OPTIONS:'--max-old-space-size=512',npm_config_cache:'/work/cache',npm_config_offline:'true',npm_config_audit:'false',npm_config_fund:'false'};
 for(const item of JSON.parse(fs.readFileSync(0,'utf8')||'[]')){if(!/^[A-Za-z_][A-Za-z0-9_]*$/.test(item.key)||/^(?:PATH|HOME|TMPDIR|NODE_OPTIONS|NODE_ENV|PORT|CI|NEXT_TELEMETRY_DISABLED|npm_config_.*)$/i.test(item.key)||typeof item.value!=='string')throw Error('invalid project environment');env[item.key]=item.value}
 fs.cpSync('/source','/work/project',{recursive:true,dereference:false});
@@ -128,6 +130,8 @@ const npm=async args=>new Promise((resolve,reject)=>{const p=spawn('/usr/local/b
 const cacache=require('/usr/local/lib/node_modules/npm/node_modules/cacache');
 for(const item of JSON.parse(fs.readFileSync('/tarballs/manifest.json','utf8'))){if(!/^[a-f0-9]{64}\\.tgz$/.test(item.file)||!['sha512','sha256'].includes(item.algorithm))throw Error('invalid cache manifest');const bytes=fs.readFileSync('/tarballs/'+item.file);if(item.algorithm+'-'+createHash(item.algorithm).update(bytes).digest('base64')!==item.integrity)throw Error('cache integrity changed');await cacache.put('/work/cache/_cacache','launchlane:'+item.file,bytes,{algorithms:[item.algorithm]})}
 stage='install';if(plan.install!=='none')await npm(['ci','--offline','--no-audit','--no-fund','--userconfig=/work/user.npmrc','--globalconfig=/work/global.npmrc']);
+const cacheBefore=fs.statfsSync('/work');fs.rmSync('/work/cache',{recursive:true,force:true});const cacheAfter=fs.statfsSync('/work');
+console.log('Launchlane: dependency staging released before build',JSON.stringify({workBytesBefore:(cacheBefore.blocks-cacheBefore.bfree)*cacheBefore.bsize,workBytesAfter:(cacheAfter.blocks-cacheAfter.bfree)*cacheAfter.bsize}));
 stage='build';if(plan.buildCommand!==null)await npm(['run','build']);
 stage='test';if(plan.testCommand!==null)await npm(['test']);
 stage='workload';
@@ -144,9 +148,9 @@ for(const reference of assets.references){const url=new URL(reference.path,base)
 const asset=await fetch(url,{redirect:'manual',signal:AbortSignal.timeout(1000)});let size=0;for await(const bytes of asset.body){size+=bytes.length;totalAssetBytes+=bytes.length;if(size>2097152||totalAssetBytes>8388608)throw Error('built asset limit')};
 if(asset.status!==200||size===0||!frontendAssetMime(reference.kind,asset.headers.get('content-type')))throw Error('built asset missing or invalid')}
 }else{child=spawn('/usr/local/bin/npm',['start'],{cwd:'/work/project',env:{...env,NODE_ENV:'production'},stdio:['ignore','pipe','pipe']});child.stdout.pipe(process.stdout);child.stderr.pipe(process.stderr);child.on('error',()=>{});}
-try{let result=null;const deadline=Date.now()+15000;while(Date.now()<deadline){try{const response=await fetch('http://127.0.0.1:'+plan.port+plan.workload.path,{redirect:'manual',signal:AbortSignal.timeout(1000)});const chunks=[];let size=0;for await(const bytes of response.body){size+=bytes.length;if(size>65536)throw Error('response limit');chunks.push(Buffer.from(bytes))};const body=Buffer.concat(chunks).toString('utf8');
+try{let result=null,lastIssue='no matching response';const deadline=Date.now()+15000;while(Date.now()<deadline){try{const response=await fetch('http://127.0.0.1:'+plan.port+plan.workload.path,{redirect:'manual',signal:AbortSignal.timeout(1000)});const chunks=[],type=(response.headers.get('content-type')||'').split(';')[0].trim().toLowerCase(),limit=plan.workload.assertion.kind==='text'&&/^next start(?:\\s|$)/.test(plan.startCommand)&&['text/html','application/xhtml+xml'].includes(type)?${htmlWorkloadByteLimit}:65536;let size=0;for await(const bytes of response.body){size+=bytes.length;if(size>limit)throw Error('response exceeded '+limit+' bytes; HTTP '+response.status);chunks.push(Buffer.from(bytes))};const body=Buffer.concat(chunks).toString('utf8');
 const a=plan.workload.assertion;let matches=false;if(a.kind==='text')matches=body.includes(a.contains);else{try{const json=JSON.parse(body);matches=json!==null&&typeof json==='object'&&!Array.isArray(json)&&Object.hasOwn(json,a.field)&&json[a.field]===a.equals}catch{}}
-if(response.status===plan.workload.status&&matches){result=true;break}}catch{}await new Promise(resolve=>setTimeout(resolve,250))};if(!result)throw Error('original workload expectation not met');console.log('Launchlane: '+(plan.install==='none'?'dependency-free':'locked install')+', build and original workload verified');
+if(response.status===plan.workload.status&&matches){console.log('Launchlane: original workload response',JSON.stringify({status:response.status,bytes:size,limit,contentType:type}));result=true;break}else{lastIssue='HTTP '+response.status+'; expected assertion '+(matches?'matched':'not matched')}}catch(error){lastIssue=String(error.message).slice(0,160)}await new Promise(resolve=>setTimeout(resolve,250))};if(!result)throw Error('original workload expectation not met; '+lastIssue);console.log('Launchlane: '+(plan.install==='none'?'dependency-free':'locked install')+', build and original workload verified');
 }finally{child.kill()}
 clearTimeout(watchdog);process.exit(0)
 })().catch(error=>{console.error('Launchlane build check failed:',stage,error.message);process.exit({cache:74,install:71,build:72,workload:73,test:76}[stage]??75)});`;

@@ -327,7 +327,10 @@ export async function observeDeployment(
       else if (releases.currentRelease !== action.remoteId)
         result = { ...result, code: "RELEASE_NOT_CURRENT" };
       else {
-        const probe = await (dependencies.probe ?? new WorkloadProbe(scoped)).check(
+        const checker = dependencies.probe ?? new WorkloadProbe(scoped);
+        const probe = spec.version === 17 && spec.workload.assertion.kind === "text"
+          ? await checker.checkDocument(spec.scope, spec.workload.path, budget, signal)
+          : await checker.check(
           spec.scope,
           spec.workload.path,
           budget,

@@ -9,7 +9,7 @@ import { downloadLockedTarballs, lockedTarballs } from "../../src/server/agent/n
 import { AppError } from "../../src/server/errors.ts";
 import { agentFixture } from "../helpers/agent-fixture.ts";
 import { toolsForAgent } from "../../src/server/agent/tools.ts";
-import { GoalModelClient, type ToolDefinition } from "../../src/server/agent/model.ts";
+import { GoalModelClient, maxModelToolDefinitions, type ToolDefinition } from "../../src/server/agent/model.ts";
 import { RunBudget } from "../../src/server/policy/budget.ts";
 import { prepareProjectFlow } from "../../src/server/application/project-flows.ts";
 import { currentAgentContext, executeAgentTool } from "../../src/server/agent/tools.ts";
@@ -101,7 +101,7 @@ test("both preparation alternatives fit the real model client's tool bound with 
     const completion: ToolDefinition = { type: "function", function: { name: "finish", description: "fixture", parameters: { type: "object", properties: {}, required: [], additionalProperties: false } } };
     for (const mode of ["native", "build"] as const) {
       const tools = [...toolsForAgent(config, mode), completion], names = tools.map(tool => tool.function.name);
-      assert.equal(new Set(names).size, names.length); assert.ok(names.length <= 16);
+      assert.equal(new Set(names).size, names.length); assert.ok(names.length <= maxModelToolDefinitions);
       assert.equal(names.includes("propose_project_build"), mode === "build");
       assert.equal(names.includes("propose_project_preparation"), mode === "native");
       let sends = 0;

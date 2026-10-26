@@ -8,7 +8,7 @@ import { AppError, ensure } from "../errors.ts";
 import { isPublicAddress } from "../liara/probe.ts";
 import type { SourceFile } from "../workspace/inspect.ts";
 import { abortable } from "../providers/http.ts";
-import { readNpmCacheTarball, readNpmContentCacheTarball, writeNpmCacheTarball } from "./npm-cache.ts";
+import { readNpmCacheTarball, readNpmContentCacheTarball, readNpmPlatformMetadata, writeNpmCacheTarball, writeNpmPlatformMetadata } from "./npm-cache.ts";
 
 export type LockedTarball = { url: string; integrity: string; algorithm: "sha512" | "sha256"; digest: string; file: string;
   platformMetadata?: Readonly<{ name: string; version: string }> };
@@ -128,8 +128,11 @@ export async function downloadLockedTarballs(items: readonly LockedTarball[], di
       if (bytes === null && cache?.operatorContentRoot) bytes = await readNpmContentCacheTarball(cache.operatorContentRoot, item, deadline);
       const identity = item.platformMetadata;
       if (bytes === null && identity) {
-        beforeRead();
-        const metadata = await abortable(() => readMetadata(identity, deadline), deadline), allowed = metadataCompatible(item, metadata);
+        let metadata = cache ? await readNpmPlatformMetadata(cache.root, item, deadline) : null;
+        const cachedMetadata = metadata !== null;
+        if (metadata === null) { beforeRead(); metadata = await abortable(() => readMetadata(identity, deadline), deadline); }
+        const allowed = metadataCompatible(item, metadata);
+        if (cache && !cachedMetadata) await writeNpmPlatformMetadata(cache.root, item, metadata, deadline);
         decisions.push({ file: item.file, ...identity, metadataHash: createHash("sha256").update(metadata).digest("hex"), compatible: allowed });
         if (!allowed) continue;
       }
