@@ -8,8 +8,10 @@ import { AppError, ensure } from "../errors.ts";
 import { isPublicAddress } from "../liara/probe.ts";
 import type { SourceFile } from "../workspace/inspect.ts";
 import { abortable } from "../providers/http.ts";
+import { readNpmCacheTarball, readNpmContentCacheTarball, writeNpmCacheTarball } from "./npm-cache.ts";
 
-export type LockedTarball = { url: string; integrity: string; algorithm: "sha512" | "sha256"; digest: string; file: string };
+export type LockedTarball = { url: string; integrity: string; algorithm: "sha512" | "sha256"; digest: string; file: string;
+  platformMetadata?: Readonly<{ name: string; version: string }> };
 export const dependencyByteLimit = 384 * 1024 * 1024;
 const tarballByteLimit = 64 * 1024 * 1024;
 
@@ -45,13 +47,23 @@ export function lockedTarballs(files: readonly SourceFile[]): LockedTarball[] {
     const previous = urlDigests.get(url.href);
     ensure(!previous || previous === integrity, "BUILD_LOCK_INVALID", "یک dependency با دو هش ناسازگار تعریف شده است.");
     urlDigests.set(url.href, integrity);
-    result.set(integrity, { url: url.href, integrity, digest, algorithm, file: `${createHash("sha256").update(integrity).digest("hex")}.tgz` });
+    // Some npm lockfiles omit libc even though the exact published optional package declares it.
+    // Resolve that omission from the official version metadata, never from a package-name suffix.
+    let platformMetadata: LockedTarball["platformMetadata"];
+    if (row.optional === true && row.libc === undefined && Array.isArray(row.os) && row.os.includes("linux") && Array.isArray(row.cpu) && row.cpu.includes("x64")) {
+      const name = decodeURIComponent(url.pathname.slice(1, url.pathname.lastIndexOf("/-/"))), version = string(row.version, 128);
+      ensure(/^(?:@[a-z0-9_.-]+\/)?[a-z0-9_.-]+$/.test(name) && /^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?(?:\+[A-Za-z0-9.-]+)?$/.test(version),
+        "BUILD_LOCK_INVALID", "نام و نسخهٔ دقیق dependency برای بررسی سازگاری لازم است.", 409);
+      platformMetadata = { name, version };
+    }
+    result.set(integrity, { url: url.href, integrity, digest, algorithm, file: `${createHash("sha256").update(integrity).digest("hex")}.tgz`,
+      ...(platformMetadata ? { platformMetadata } : {}) });
   }
   return [...result.values()];
 }
 
 export type TarballReader = (item: LockedTarball, signal: AbortSignal) => Promise<Buffer>;
-export const registryTarball: TarballReader = async (item, signal) => {
+async function registryBytes(url: string, signal: AbortSignal, byteLimit: number, accept: string): Promise<Buffer> {
   try {
   const addresses = await abortable(() => lookup("registry.npmjs.org", { all: true, family: 4 }), signal);
   ensure(addresses.length > 0 && addresses.every(entry => isPublicAddress({ address: entry.address, family: 4 })),
@@ -60,9 +72,9 @@ export const registryTarball: TarballReader = async (item, signal) => {
   ensure(address, "BUILD_DNS_DENIED", "آدرس registry در دسترس نیست.", 503);
   return await new Promise((resolve, reject) => {
     // Pin the validated address while TLS still authenticates the official registry hostname.
-    const req = request(item.url, { signal, family: 4, maxHeaderSize: 8192,
+    const req = request(url, { signal, family: 4, maxHeaderSize: 8192,
       lookup: (_hostname, _options, callback) => callback(null, address.address, 4),
-      headers: { Accept: "application/octet-stream", "Accept-Encoding": "identity", "User-Agent": "Launchlane-LockedBuild/1" } }, response => {
+      headers: { Accept: accept, "Accept-Encoding": "identity", "User-Agent": "Launchlane-LockedBuild/1" } }, response => {
       if (response.statusCode !== 200) {
         response.destroy(); reject(new AppError("BUILD_DEPENDENCY_UNAVAILABLE", "دریافت dependency قفل‌شده کامل نشد؛ build اجرا نشده است.", 502, true)); return;
       }
@@ -70,7 +82,7 @@ export const registryTarball: TarballReader = async (item, signal) => {
       const chunks: Buffer[] = [];
       response.on("data", (part: Buffer) => {
         bytes += part.length;
-        if (bytes > tarballByteLimit) { response.destroy(new AppError("BUILD_DEPENDENCY_LIMIT", "حجم یک dependency از سقف مجاز بیشتر است.", 413)); return; }
+        if (bytes > byteLimit) { response.destroy(new AppError("BUILD_DEPENDENCY_LIMIT", "حجم پاسخ registry از سقف مجاز بیشتر است.", 413)); return; }
         chunks.push(part);
       });
       response.once("error", reject);
@@ -82,26 +94,54 @@ export const registryTarball: TarballReader = async (item, signal) => {
     if (error instanceof AppError) throw error;
     throw new AppError("BUILD_DEPENDENCY_UNAVAILABLE", "خواندن dependency قفل‌شده به نتیجه نرسید؛ script اجرا نشده و source تغییر نکرده است.", 503, true);
   }
-};
+}
+export const registryTarball: TarballReader = (item, signal) => registryBytes(item.url, signal, tarballByteLimit, "application/octet-stream");
+export type PackageMetadataReader = (identity: NonNullable<LockedTarball["platformMetadata"]>, signal: AbortSignal) => Promise<Buffer>;
+export const registryPackageMetadata: PackageMetadataReader = (identity, signal) =>
+  registryBytes(`https://registry.npmjs.org/${encodeURIComponent(identity.name)}/${encodeURIComponent(identity.version)}`, signal, 65536, "application/json");
+
+function metadataCompatible(item: LockedTarball, bytes: Buffer): boolean {
+  ensure(bytes.length <= 65536, "BUILD_DEPENDENCY_LIMIT", "پاسخ مشخصات dependency بیش از سقف مجاز است.", 413);
+  let row: Record<string, unknown>;
+  try { row = object(JSON.parse(bytes.toString("utf8"))); }
+  catch { throw new AppError("BUILD_METADATA_INVALID", "مشخصات نسخهٔ قفل‌شده قابل بررسی نیست؛ dependency دریافت نشد.", 502); }
+  const dist = object(row.dist);
+  ensure(row.name === item.platformMetadata?.name && row.version === item.platformMetadata?.version && dist.tarball === item.url && dist.integrity === item.integrity,
+    "BUILD_METADATA_CHANGED", "مشخصات registry با نام، نسخه، نشانی و integrity همان lockfile برابر نیست.", 409);
+  return compatible(row.os, "linux") && compatible(row.cpu, "x64") && compatible(row.libc, "glibc");
+}
 
 export async function downloadLockedTarballs(items: readonly LockedTarball[], directory: string, signal: AbortSignal,
-  beforeRead: () => void = () => {}, read: TarballReader = registryTarball): Promise<number> {
+  beforeRead: () => void = () => {}, read: TarballReader = registryTarball,
+  cache?: Readonly<{ root: string; operatorContentRoot?: string }>, readMetadata: PackageMetadataReader = registryPackageMetadata): Promise<number> {
   await mkdir(directory, { recursive: true, mode: 0o700 });
   const controller = new AbortController(), bounded = AbortSignal.any([signal, controller.signal]);
   let next = 0, total = 0, failure: unknown;
+  const included = new Set<string>(), decisions: { file: string; name: string; version: string; metadataHash: string; compatible: boolean }[] = [];
   const worker = async () => {
     while (next < items.length && !bounded.aborted) {
       const item = items[next++];
       if (!item) return;
-      beforeRead();
       const deadline = AbortSignal.any([bounded, AbortSignal.timeout(90000)]);
-      const bytes = await abortable(() => read(item, deadline), deadline);
+      const cached = cache ? await readNpmCacheTarball(cache.root, item, deadline) : null;
+      let bytes = cached;
+      if (bytes === null && cache?.operatorContentRoot) bytes = await readNpmContentCacheTarball(cache.operatorContentRoot, item, deadline);
+      const identity = item.platformMetadata;
+      if (bytes === null && identity) {
+        beforeRead();
+        const metadata = await abortable(() => readMetadata(identity, deadline), deadline), allowed = metadataCompatible(item, metadata);
+        decisions.push({ file: item.file, ...identity, metadataHash: createHash("sha256").update(metadata).digest("hex"), compatible: allowed });
+        if (!allowed) continue;
+      }
+      if (bytes === null) { beforeRead(); bytes = await abortable(() => read(item, deadline), deadline); }
       ensure(!bounded.aborted, "CANCELLED", "دریافت dependency متوقف شد.", 409);
       total += bytes.length;
       ensure(bytes.length <= tarballByteLimit && total <= dependencyByteLimit, "BUILD_DEPENDENCY_LIMIT", "حجم dependencyها از سقف این آماده‌سازی بیشتر است.", 413);
       ensure(createHash(item.algorithm).update(bytes).digest("base64") === item.digest,
         "BUILD_INTEGRITY_MISMATCH", "بایت‌های dependency با lockfile برابر نیست؛ اجرا متوقف شد.", 409);
+      if (cache && cached === null) await writeNpmCacheTarball(cache.root, item, bytes, deadline);
       await writeFile(join(directory, item.file), bytes, { flag: "wx", mode: 0o600 });
+      included.add(item.file);
     }
   };
   // All in-flight downloads settle before the caller can dispose of this job's directory.
@@ -111,6 +151,8 @@ export async function downloadLockedTarballs(items: readonly LockedTarball[], di
   })));
   if (failure !== undefined) throw failure;
   ensure(!signal.aborted, "CANCELLED", "دریافت dependency متوقف شد.", 409);
-  await writeFile(join(directory, "manifest.json"), JSON.stringify(items.map(({ file, algorithm, integrity }) => ({ file, algorithm, integrity }))), { flag: "wx", mode: 0o600 });
+  await writeFile(join(directory, "manifest.json"), JSON.stringify(items.filter(item => included.has(item.file)).map(({ file, algorithm, integrity }) => ({ file, algorithm, integrity }))), { flag: "wx", mode: 0o600 });
+  if (decisions.length) await writeFile(join(directory, "platform-selection.json"), JSON.stringify({ version: 1, os: "linux", cpu: "x64", libc: "glibc",
+    decisions: decisions.sort((a, b) => a.file.localeCompare(b.file)) }), { flag: "wx", mode: 0o600 });
   return total;
 }

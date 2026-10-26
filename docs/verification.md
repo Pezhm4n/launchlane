@@ -1,5 +1,9 @@
 # شواهد اعتبارسنجی Launchlane
 
+## Locked native dependency selection — 2026-10-26
+
+[Evidence and limits](evidence/locked-native-dependencies-20261026.md): exact-version official metadata now fills an omitted libc constraint before a native optional tarball download. The measured Zarinpal acquisition downloaded 12 locked tarballs/52,539,382 bytes and 12 metadata responses/22,601 bytes; six musl tarballs were excluded. Current working-tree checks passed: focused15, domain643, HTTP45, typecheck/build and zero lint errors (46 warnings/15 infos). Actual application compiler/start, publication, browser and persistence remain independent unproven boundaries; no new model allowance, infrastructure write or public project release is claimed.
+
 ## نسخهٔ عمومی روی لیارا؛ ۲۰۲۶-۱۰-۲۴
 
 دامنهٔ https://launchlane-live-1023.liara.run با web27b14b5 و ingress4e5a55e/release6adbc700bffb36d7841c34b0 فعال شد. در20:45:20UTC، root/هر۹JS-CSS/health برابر200 و workspace بدون نشست401 بودند؛ فقط READY گزارش نشد. state۲۸جدول و ledger۵جدول روی bind پایدار و quick_check=ok هستند؛ restart persistence و نشست عمومی/انتشار جدید هنوز تأیید نشده‌اند. از همان باقیمانده مدل۰٫۲دلار به public و۰٫۲۲۱۷۳۴به محلی تخصیص یافت؛ allowance۲دلار و reserve تاریخی ثابت ماند. [هویت، خطاهای واقعی، هزینه، حدود و گزارش استقرار](evidence/launchlane-hosted-release.md). سرور محلی candidate53 از6a27c66 روی3000 حفظ است؛ عنوان‌های نسخهٔ فعال زیر snapshotهای تاریخی‌اند. طبق دستور مالک suite تازه شروع نشد.

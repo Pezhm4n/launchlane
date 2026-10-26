@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+import { hasControl } from "../contracts/validation.ts";
 import { AppError, ensure } from "./errors.ts";
 import { parseProbeOrigins } from "./policy/probe-target.ts";
 
@@ -117,6 +118,8 @@ export function readConfig(env: Environment = process.env) {
     "کلیدهای محلی باید مستقل و حداقل ۳۲ نویسه باشند.",
     503,
   );
+  const npmContentCache = env.LAUNCHLANE_NPM_CONTENT_CACHE || "";
+  ensure(npmContentCache.length <= 1024 && !hasControl(npmContentCache), "CONFIG_INVALID", "مسیر cache اپراتور معتبر نیست.", 503);
   return {
     authMode,
     origin,
@@ -129,6 +132,7 @@ export function readConfig(env: Environment = process.env) {
       ? resolve(/* turbopackIgnore: true */ env.LAUNCHLANE_WORKSPACE_ROOT)
       : null,
     stateDir: resolve(/* turbopackIgnore: true */ env.LAUNCHLANE_STATE_DIR || ".data"),
+    npmContentCache: npmContentCache ? resolve(/* turbopackIgnore: true */ npmContentCache) : null,
     teamId: authMode === "operator" ? teamId : "",
     apps: authMode === "operator" ? [...new Set(apps)] : [],
     probeOrigins: parseProbeOrigins(authMode === "operator" ? env.LAUNCHLANE_PROBE_ORIGINS : undefined, authMode === "operator" ? apps : []),

@@ -1,5 +1,9 @@
 # برنامه اجرایی Launchlane
 
+## ادامهٔ پروژه‌های واقعی؛ dependency بومی دقیق — ۲۰۲۶-۱۰-۲۶
+
+A07/A08/A11 و AC19/AC27: نبود libc در lock بعضی بسته‌های optional با metadata رسمی همان نسخه و تطبیق نام/نسخه/URL/integrity حل شد؛ تصمیم و hash ثبت می‌شوند و musl برای worker glibc دریافت نمی‌شود. روی source واقعی زرین‌پال، ۱۲ tarball برابر 52,539,382 بایت و ۱۲ metadata دریافت شد؛ شش variant ناسازگار کنار رفتند. تست‌های هدفمند۱۵/۱۵، domain643/643، HTTP45/45، typecheck/build پاس؛ lint صفر error/46warning/15info. [شاهد و حدود](docs/evidence/locked-native-dependencies-20261026.md). compiler/start واقعی و انتشار همان artifact هنوز مرحلهٔ مستقل در حال اجرا هستند؛ هیچ پروژهٔ کامل یا لینک فعال تازه تأیید نشده است. اختیار مدل و نسخهٔ عمومی حفظ‌اند. مانع هر پروژه جدا ثبت می‌شود؛ ادامهٔ کار، اتصال آزمون واقعی به artifact/approval/journal و workload همان نسخه است.
+
 ## تحویل دامنهٔ عمومی؛ ۲۰۲۶-۱۰-۲۴
 
 **https://launchlane-live-1023.liara.run/?view=publish** به backend واقعی متصل است: root/۹asset/health=200 و privileged workspace=401 بدون session، مشاهده20:45:20UTC. web27b14b5 و ingress4e5a55e/release6adbc700bffb36d7841c34b0، state/ledger bind و quick_check تأیید شدند؛ [گزارش کامل](docs/evidence/launchlane-hosted-release.md). خطای421 و source-upload نامعلوم ثبت و رفع مسیر فعال اثبات شد. suite تازه طبق دستور مالک اجرا نشد؛ ورود/انتشار کاربر از public، repair زنده، restart persistence، MCP عمومی، ترب کامل و ماتریس۱۴خانواده همچنان بازند. candidate53 محلی و Login3011 محفوظ‌اند. از بودجهٔ قبلی partition شد و allowance افزایش نیافت.
