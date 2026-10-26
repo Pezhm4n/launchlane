@@ -10,6 +10,7 @@ import {
   parseLogs,
   parseLogsV2,
   parseProject,
+  parseReleases,
 } from "../../src/server/liara/read-contracts.ts";
 import { RunBudget } from "../../src/server/policy/budget.ts";
 
@@ -23,6 +24,17 @@ const config = readConfig({
 const signal = () => new AbortController().signal;
 const code = (expected: string) => (error: unknown) =>
   error instanceof AppError && error.code === expected;
+
+test("live release decimal commit times preserve unknown units without blocking exact release identity", () => {
+  const release = { _id: "6a8cb27555e397b04ba8222b", state: "READY", port: 3000, gitInfo: { committedAt: "1787604895" } };
+  const parsed = parseReleases({ total: 1, currentRelease: release._id, releases: [release] }, scope, 1, 3, []);
+  assert.equal(parsed.currentRelease, release._id);
+  assert.deepEqual(parsed.releases, [{ id: release._id, state: "READY", port: 3000, committedAt: null, rawCommittedAt: "1787604895" }]);
+  for (const committedAt of ["tomorrow", "1787604895 seconds", "-1", "9".repeat(17), 1787604895])
+    assert.throws(() => parseReleases({ total: 1, releases: [{ ...release, gitInfo: { committedAt } }] }, scope, 1, 3, []));
+  assert.throws(() => parseReleases({ total: 1, releases: [release, release] }, scope, 1, 1, []));
+  assert.throws(() => parseReleases({ total: 1, currentRelease: "synthetic-secret", releases: [release] }, scope, 1, 3, ["synthetic-secret"]));
+});
 
 test("live-shaped v2 logs use seconds for start and nanoseconds for returned times; wrappers stay untrusted", async () => {
   const since = "2026-10-21T22:40:00.123Z";

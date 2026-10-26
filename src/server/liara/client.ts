@@ -20,6 +20,7 @@ import {
   explicitIsoTime,
   parseProject,
   parseReleases,
+  parseBuildLogs,
 } from "./read-contracts.ts";
 export type { ReleasePage } from "./read-contracts.ts";
 
@@ -39,6 +40,7 @@ export class LiaraReadClient {
     signal: AbortSignal,
     parse: (value: unknown, secrets: readonly string[]) => T,
     version: "v1" | "v2" = "v1",
+    buildReleaseId?: string,
   ): Promise<T> {
     authorizeScope(scope, this.config);
     // This gate precedes transport and budget, even when credentials are configured.
@@ -61,7 +63,7 @@ export class LiaraReadClient {
       403,
     );
     const url = new URL(
-      `/${version}/projects/${encodeURIComponent(scope.app)}${suffix}`,
+      buildReleaseId ? `/v2/releases/${buildReleaseId}/build-logs` : `/${version}/projects/${encodeURIComponent(scope.app)}${suffix}`,
       this.config.liaraBaseUrl,
     );
     url.searchParams.set("teamID", scope.teamId);
@@ -85,7 +87,7 @@ export class LiaraReadClient {
           throw httpFailure(response.status);
         }
         return parse(
-          await boundedJson(response),
+          await boundedJson(response, buildReleaseId ? 1024 * 1024 : 256 * 1024),
           [
             this.config.liaraToken,
             this.config.modelKey,
@@ -129,6 +131,14 @@ export class LiaraReadClient {
       signal,
       (value, secrets) => parseReleases(value, scope, page, count, secrets),
     );
+  }
+  async buildLogs(scope: Scope, releaseId: string, since: string | null, budget: RunBudget, signal: AbortSignal) {
+    ensure(/^[a-f0-9]{24}$/.test(releaseId) && (since === null || explicitIsoTime(since) !== null), "INVALID_INPUT", "نسخه یا زمان گزارش ساخت معتبر نیست.");
+    // This provider endpoint is global. Prove membership in the selected app before reading it.
+    const page = await this.releases(scope, 1, 50, budget, signal);
+    ensure(page.releases.some(release => release.id === releaseId), "RELEASE_SCOPE_DENIED", "نسخه باید از پنجاه نسخهٔ اخیر همین برنامه انتخاب شود.", 403);
+    return this.read(scope, "/build-logs", { since: since ?? "undefined" }, budget, signal,
+      (value, secrets) => parseBuildLogs(value, scope, releaseId, secrets, since), "v2", releaseId);
   }
   project(scope: Scope, budget: RunBudget, signal: AbortSignal) {
     return this.read(scope, "", {}, budget, signal, (value, secrets) =>

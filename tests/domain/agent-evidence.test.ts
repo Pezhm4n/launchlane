@@ -79,7 +79,7 @@ test("unsafe model input and a closed service gate cannot spend provider or prob
       {...context,config:{...f.config,enableLiveLiara:false}}),code("LIVE_LIARA_DISABLED"));
     assert.deepEqual(f.state.paths,[]);assert.equal(f.state.sockets,0);assert.equal(context.budget.toolCalls,0);
     const names=toolsForAgent({...f.config,enableMutations:true,enableLocalRepair:true}).map(tool=>tool.function.name);
-    assert.equal(new Set(names).size,names.length);assert.ok(names.length+1<=16);
+    assert.equal(new Set(names).size,names.length);assert.ok(names.length+1<=20);
   }finally{f.close();}
 });
 

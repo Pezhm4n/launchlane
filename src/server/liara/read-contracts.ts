@@ -56,7 +56,7 @@ export type ReleasePage = {
   total: number;
   currentRelease: string | null;
   hasMore: boolean;
-  releases: { id: string; state: string; port: number | null; committedAt: string | null }[];
+  releases: { id: string; state: string; port: number | null; committedAt: string | null; rawCommittedAt?: string }[];
 };
 
 export function parseReleases(
@@ -77,12 +77,15 @@ export function parseReleases(
   const releases = raw.releases.map((value: unknown) => {
     const row = object(value),
       git = row.gitInfo === undefined || row.gitInfo === null ? {} : object(row.gitInfo);
-    const committedAt =
+    const rawCommittedAt =
       git.committedAt === undefined || git.committedAt === null
         ? null
         : string(git.committedAt, 40);
+    // Existing Liara releases also return decimal strings, although the OpenAPI
+    // declares date-time. Retain that evidence without guessing its time unit.
+    const decimalTime = rawCommittedAt !== null && /^\d{1,16}$/.test(rawCommittedAt);
     ensure(
-      committedAt === null || explicitIsoTime(committedAt) !== null,
+      rawCommittedAt === null || decimalTime || explicitIsoTime(rawCommittedAt) !== null,
       "UPSTREAM_INVALID",
       "زمان commit معتبر نیست.",
       502,
@@ -91,7 +94,8 @@ export function parseReleases(
       id: id(row._id, secrets),
       state: evidenceText(row.state, 64, secrets),
       port: row.port === undefined || row.port === null ? null : integer(row.port, 1, 65535),
-      committedAt,
+      committedAt: decimalTime ? null : rawCommittedAt,
+      ...(decimalTime ? { rawCommittedAt } : {}),
     };
   });
   return {
@@ -104,6 +108,31 @@ export function parseReleases(
     hasMore: page * count < total,
     releases,
   };
+}
+
+export function parseBuildLogs(body: unknown, scope: Scope, releaseId: string, secrets: readonly string[], since: string | null = null) {
+  const raw = object(body), release = object(raw.release);
+  ensure(release._id === releaseId, "SCOPE_MISMATCH", "گزارش ساخت متعلق به نسخهٔ درخواستی نیست.", 502);
+  ensure(Array.isArray(raw.buildOutput) && raw.buildOutput.length <= 2000, "UPSTREAM_INVALID", "گزارش ساخت از سقف بررسی بزرگ‌تر یا نامعتبر است.", 502);
+  const all = raw.buildOutput.map((value: unknown) => {
+    const row = object(value), createdAt = string(row.createdAt, 64);
+    ensure((row.stream === "STDOUT" || row.stream === "STDERR") && explicitIsoTime(createdAt) !== null, "UPSTREAM_INVALID", "نوع یا زمان گزارش ساخت معتبر نیست.", 502);
+    return { stream: row.stream, line: evidenceText(row.line, 8192, secrets), createdAt };
+  });
+  const start = since === null ? null : explicitIsoTime(since);
+  ensure(since === null || start !== null, "INVALID_INPUT", "زمان شروع گزارش ساخت معتبر نیست.");
+  const relevant = all.filter(row => start === null || Date.parse(row.createdAt) >= start), entries: typeof relevant = [];
+  let bytes = 0;
+  for (const row of relevant.toReversed()) {
+    const size = Buffer.byteLength(JSON.stringify(row));
+    if (entries.length === 80 || bytes + size > 32768) break;
+    entries.unshift(row); bytes += size;
+  }
+  const latest = all.reduce<string | null>((cursor, row) => cursor === null || Date.parse(row.createdAt) > Date.parse(cursor) ? row.createdAt : cursor, null);
+  return { contract: "liara-cli-build-logs-v2" as const, scope, releaseId, state: evidenceText(release.state, 64, secrets),
+    entries, returnedEntries: all.length, excludedEntries: all.length - relevant.length, omittedEntries: relevant.length - entries.length,
+    nextSince: latest && (start === null || Date.parse(latest) > start) ? latest : null, requestedSince: since,
+    coverage: relevant.length ? "bounded_response" as const : all.length ? "out_of_window_only" as const : "empty_response" as const };
 }
 
 export type LogRead = {

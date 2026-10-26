@@ -17,6 +17,8 @@ export type FunctionCall = {
   type: "function";
   function: { name: string; arguments: string };
 };
+// Definition count only; requests and executed tools still consume the original durable run limits.
+export const maxModelToolDefinitions = 20;
 export type ModelMessage =
   | { role: "system" | "user"; content: string }
   | { role: "assistant"; content: string | null; tool_calls?: FunctionCall[] }
@@ -101,7 +103,7 @@ export class GoalModelClient implements ModelPort {
       503,
     );
     ensure(
-      messages.length > 0 && messages.length <= 80 && tools.length > 0 && tools.length <= 16,
+      messages.length > 0 && messages.length <= 80 && tools.length > 0 && tools.length <= maxModelToolDefinitions,
       "MODEL_INPUT_LIMIT",
       "مکالمه به سقف بررسی رسیده است.",
       413,

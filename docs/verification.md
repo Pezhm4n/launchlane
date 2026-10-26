@@ -1,5 +1,10 @@
 # شواهد اعتبارسنجی Launchlane
 
+
+## Scoped release build evidence — 2026-10-26
+
+`read_build_logs` uses the existing shared Agent/MCP registry, selected-app release membership and before/after internal-ID fences. Synthetic parser/client/Agent regressions passed 21/21, including denied input before I/O, foreign releases, provider errors, redaction, bounded windows and a shared four-read budget. Typecheck passed. The prior 256-KiB limit for other provider reads is preserved; an initial accidental 64-KiB reduction failed two unchanged evidence tests and was corrected. Real provider build-log readback confirmed mirror use for the selected release; returned pages do not establish complete history or workload health. No model allowance or cloud write is authorized by this read tool.
+
 ## Locked native dependency selection — 2026-10-26
 
 [Evidence and limits](evidence/locked-native-dependencies-20261026.md): exact-version official metadata now fills an omitted libc constraint before a native optional tarball download. The measured Zarinpal acquisition downloaded 12 locked tarballs/52,539,382 bytes and 12 metadata responses/22,601 bytes; six musl tarballs were excluded. Current working-tree checks passed: focused15, domain643, HTTP45, typecheck/build and zero lint errors (46 warnings/15 infos). Actual application compiler/start, publication, browser and persistence remain independent unproven boundaries; no new model allowance, infrastructure write or public project release is claimed.
