@@ -35,7 +35,7 @@ export async function createPublicationMission(config: Config, store: Store, ses
   // Two tabs and a lost registration response join the same durable run, even with different client keys.
   if (previous) return { run: previous, created: false };
   const pending = repo.forProject(session.actorId, input.projectId, "publication");
-  if (pending?.mission && pending.state === "needs_input" && pending.effect === "no_remote_changes" && !pending.publication && !pending.destination && !pending.network &&
+  if (pending?.mission && pending.state === "needs_input" && pending.effect === "no_remote_changes" && !pending.publication && !pending.destination && !pending.network && !pending.disk &&
     (pending.nextAction === "connect_account" || pending.nextAction === "select_app")) {
     const { kind: _kind, identity: _identity, ...intent } = pending.mission;
     if (fingerprint(intent) === fingerprint(input)) return { run: pending, created: false };
@@ -64,7 +64,7 @@ export async function resumePublicationMission(config: Config, store: Store, ses
     return { run: previous, created: false };
   }
   ensure(!isAgentRunExecuting(id), "AGENT_STOPPING", "توقف اجرای قبلی در حال تکمیل است؛ پس از ثبت نتیجه، همین مأموریت قابل ادامه است.", 409);
-  const unresolved = [previous.publication, previous.destination, previous.network].some(action =>
+  const unresolved = [previous.publication, previous.destination, previous.network, previous.disk].some(action =>
     action && ["executing", "observing", "uncertain"].includes(store.getAction(action.id, session.actorId).state));
   ensure(!unresolved && !store.db.prepare("SELECT job_id FROM coding_agent_executions WHERE actor_id=? AND state IN ('dispatched','uncertain') AND json_extract(data_json,'$.parentRunId')=? LIMIT 1").get(session.actorId, id),
     "MISSION_RECONCILIATION_REQUIRED", "نتیجه اقدام قبلی هنوز روشن نیست؛ ابتدا همان نتیجه را بررسی کنید. انتشار یا worker تازه شروع نشد.", 409);
@@ -78,12 +78,11 @@ export async function resumePublicationMission(config: Config, store: Store, ses
       store.db.exec("COMMIT");
       return { run, created: false };
     }
-    const earlyBuild = run?.state === "needs_approval" && !run.context.target && run.repair?.validationOnly && run.repair.state === "proposed" && !run.authority && !run.publication && !run.destination && !run.network;
+    const earlyBuild = run?.state === "needs_approval" && !run.context.target && run.repair?.validationOnly && run.repair.state === "proposed" && !run.authority && !run.publication && !run.destination && !run.network && !run.disk;
     ensure(run?.mission && run.revision === revision && (["needs_input", "partially_completed", "failed", "interrupted", "cancelled"].includes(run.state) || earlyBuild),
       "AGENT_CONFLICT", "وضعیت ادامه تغییر کرده است؛ نتیجه تازه را دریافت کنید.", 409);
     // The paused owner is not a competing mission; other pending decisions still block this transition.
-    store.assertAgentIdle(session.actorId, null, false, run.id);
-    for (const action of [run.publication, run.destination, run.network]) {
+    for (const action of [run.publication, run.destination, run.network, run.disk]) {
       if (!action) continue;
       const changed = store.db.prepare("UPDATE actions SET state='cancelled',error_code='APPROVAL_REVOKED_BEFORE_ATTEMPT' WHERE id=? AND actor_id=? AND state='approved' AND attempt_id IS NULL")
         .run(action.id, session.actorId);
@@ -92,9 +91,10 @@ export async function resumePublicationMission(config: Config, store: Store, ses
         addEvent(run, "state", "تأیید اجرا‌نشده قبلی کنار گذاشته شد؛ ارسال تازه به تصمیم معتبر نیاز دارد.");
       }
     }
+    store.assertAgentIdle(session.actorId, null, false, run.id);
     const context = currentAgentContext(config, store, session.actorId);
     if (fingerprint(context) !== fingerprint(run.context)) {
-      ensure(run.effect === "no_remote_changes" && !run.publication && !run.destination && !run.network &&
+      ensure(run.effect === "no_remote_changes" && !run.publication && !run.destination && !run.network && !run.disk &&
         (run.nextAction === "connect_account" || run.nextAction === "select_app" || earlyBuild || run.state === "cancelled" && !run.context.target) &&
         context.projectId === run.context.projectId && context.sourceHash === run.context.sourceHash && context.selectionHash === run.context.selectionHash,
         "AGENT_CONTEXT_CHANGED", "این تغییر مقصد خارج از تکمیل حساب اولیه است؛ تصمیم‌ها به انتخاب تازه منتقل نمی‌شوند.", 409);
@@ -123,7 +123,8 @@ export async function resumePublicationMission(config: Config, store: Store, ses
     if (run.publication) run.publication = store.getAction(run.publication.id, session.actorId);
     if (run.destination) run.destination = store.getAction(run.destination.id, session.actorId);
     if (run.network) run.network = store.getAction(run.network.id, session.actorId);
-    if (run.state === "cancelled" && [run.destination, run.network].some(action => action?.state === "awaiting_approval" && action.expiresAt > Date.now())) {
+    if (run.disk) run.disk = store.getAction(run.disk.id, session.actorId);
+    if (run.state === "cancelled" && [run.destination, run.network, run.disk].some(action => action?.state === "awaiting_approval" && action.expiresAt > Date.now())) {
       run.state = "needs_approval"; run.nextAction = null; run.question = null; run.lastInputKey = requestKey; run.lastInput = message; run.lastResumeRevision = revision;
       addEvent(run, "state", "پیشنهاد اجرا‌نشده قبلی دوباره آماده تصمیم است؛ مدل، هزینه و ارسال تازه‌ای شروع نشد.");
       repo.save(session.actorId, run, revision); store.db.exec("COMMIT"); return { run, created: false };

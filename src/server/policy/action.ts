@@ -19,6 +19,9 @@ import { parseLifecycleSpec } from "../../contracts/project-lifecycle.ts";
 import { parseStaticRuntime } from "../../contracts/static-runtime.ts";
 import { parseNextRuntime } from "../../contracts/next-runtime.ts";
 import { parseFrontendRuntime } from "../../contracts/frontend-runtime.ts";
+import { parseDockerRuntime } from "../../contracts/docker-runtime.ts";
+import { parseFullstackVerification } from "../../contracts/fullstack.ts";
+import { parseDiskBinding, parseDiskSpec } from "../../contracts/persistent-disk.ts";
 
 export function canonical(value: unknown): string {
   if (
@@ -42,6 +45,26 @@ export function fingerprint(value: unknown): string {
 
 export function parseActionSpec(value: unknown): ActionSpec {
   const input = object(value);
+  if (input.version === 25) return parseDiskSpec(input);
+  if (input.version === 26) {
+    const { storage, ...rest } = input, base = parseActionSpec({ ...rest, version: 23 });
+    ensure(base.version === 23 && base.nodeVersion === "24" && base.environment !== null, "DISK_SCOPE_INVALID", "انتشار Worker به Node24، تنظیمات تأییدشده و دیسک مشخص نیاز دارد.", 409);
+    return { ...base, version: 26, nodeVersion: "24", environment: base.environment, storage: parseDiskBinding(storage) };
+  }
+  if (input.version === 23) {
+    const { verification, environment, ...rest } = input, base = parseActionSpec({ ...rest, version: 7 });
+    ensure(base.version === 7 && base.operation === "deploy" && typeof base.sourceHash === "string", "INVALID_INPUT", "قرارداد انتشار کامل معتبر نیست.");
+    return { ...base, version: 23, operation: "deploy", sourceHash: base.sourceHash, verification: parseFullstackVerification(verification),
+      environment: environment === null ? null : parseEnvironmentReference(environment) };
+  }
+  if (input.version === 21) {
+    ensure(input.nodeVersion === null && input.operation === "deploy", "INVALID_INPUT", "قرارداد انتشار Docker معتبر نیست.");
+    const { runtime, environment, ...rest } = input, parsed = parseDockerRuntime(runtime), base = parseActionSpec({ ...rest, version: 7, nodeVersion: "22" });
+    ensure(base.version === 7 && typeof base.sourceHash === "string" && base.args.port === parsed.port, "INVALID_INPUT", "پورت یا source انتشار Docker با برنامه برابر نیست.");
+    return { ...base, version: 21, operation: "deploy", sourceHash: base.sourceHash, nodeVersion: null, runtime: parsed,
+      environment: environment === null ? null : parseEnvironmentReference(environment) };
+  }
+  if (input.version === 22) return parseProvisionSpec(input);
   if (input.version === 19) {
     const { runtime, environment, ...rest } = input, parsed = parseFrontendRuntime(runtime), base = parseActionSpec({ ...rest, version: 7 });
     ensure(base.version === 7 && typeof base.sourceHash === "string" && base.nodeVersion === parsed.nodeVersion && base.args.port === 80, "INVALID_INPUT", "محیط انتشار رابط با پروژه برابر نیست.");
@@ -117,7 +140,7 @@ export function parseActionSpec(value: unknown): ActionSpec {
     "INVALID_INPUT",
     "restart آرگومان انتشار نمی‌پذیرد.",
   );
-  const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12 | 13 | 14 | 16 | 18 | 20 | 24}>, "scope" | "operation" | "sourceHash" | "args"> = {
+  const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12 | 13 | 14 | 16 | 18 | 20 | 22 | 24 | 25}>, "scope" | "operation" | "sourceHash" | "args"> = {
     scope: { teamId, app },
     operation: input.operation,
     sourceHash,

@@ -10,6 +10,7 @@ import { MAX_ARCHIVE_BYTES } from "../../contracts/source.ts";
 import { hash } from "../../contracts/validation.ts";
 import { AppError, ensure } from "../errors.ts";
 import { captureProject, type SourceFile } from "./inspect.ts";
+import { validateBuildOutput, type ValidatedBuildOutput } from "../agent/build-output.ts";
 
 const compress = promisify(gzip);
 
@@ -216,6 +217,7 @@ export async function createSourceArchive(input: {
   sourceHash: string;
   secrets?: readonly string[];
   signal?: AbortSignal;
+  compiledOutput?: ValidatedBuildOutput;
 }): Promise<{ artifact: SourceArtifact; bytes: Buffer }> {
   cancelled(input.signal);
   const expected = hash(input.sourceHash);
@@ -227,18 +229,34 @@ export async function createSourceArchive(input: {
     409,
   );
   ensure(
-    files.length > 0 && (profile.runtime === "node" || profile.runtime === "python" || profile.runtime === "static") && profile.start,
+    files.length > 0 && (profile.runtime === "node" || profile.runtime === "python" || profile.runtime === "static" || profile.runtime === "docker") && profile.start,
     "PROJECT_INCOMPLETE",
     "پروژه به package.json و دستور start نیاز دارد.",
     409,
   );
-  const bytes = await encode(files, input.signal);
+  let packaged = files;
+  if (input.compiledOutput) {
+    const directory = profile.fullstack?.outputDirectory;
+    ensure(directory && !profile.fullstack?.requiresPreparation && profile.build === "node .launchlane-build.cjs" && files.some(file => file.path === ".launchlane-build.json"),
+      "BUILD_OUTPUT_BINDING_CHANGED", "خروجی کامل فقط به نسخهٔ آماده‌شده و بررسی‌کنندهٔ همان ساخت متصل می‌شود.", 409);
+    const output = validateBuildOutput({ version: 1, files: input.compiledOutput.manifest }, new Map(input.compiledOutput.files.map(file => [file.path, file.content])));
+    const metadata = files.find(file => file.path === ".launchlane-build.json");
+    ensure(metadata, "BUILD_OUTPUT_BINDING_CHANGED", "فهرست خروجی نهایی موجود نیست.", 409);
+    const declaration: unknown = JSON.parse(metadata.content.toString("utf8"));
+    ensure(declaration && typeof declaration === "object" && "outputDirectory" in declaration && "files" in declaration && declaration.outputDirectory === directory && JSON.stringify(declaration.files) === JSON.stringify(output.manifest),
+      "BUILD_OUTPUT_BINDING_CHANGED", "فهرست خروجی نهایی با بایت‌های بسته برابر نیست.", 409);
+    const prefix = `${directory}/`;
+    ensure(!files.some(file => file.path === directory || file.path.startsWith(prefix)), "BUILD_OUTPUT_BINDING_CHANGED", "خروجی نباید فایل source موجود را جایگزین کند.", 409);
+    packaged = [...files, ...output.files.map(file => ({ path: prefix + file.path, content: file.content }))];
+    ensure(packaged.length <= 1000, "SOURCE_LIMIT", "تعداد فایل‌های بستهٔ نهایی بیش از سقف این انتشار است.", 413);
+  }
+  const bytes = await encode(packaged, input.signal);
   const artifact: SourceArtifact = {
     format: "tar.gz",
     archiveHash: digest(bytes),
     sourceHash: expected,
     bytes: bytes.length,
-    fileCount: files.length,
+    fileCount: packaged.length,
     createdAt: Date.now(),
   };
   return { artifact, bytes };

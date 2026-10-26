@@ -23,15 +23,23 @@ import { privateValues } from "./tools.ts";
 import { parseNodePreparation, type NodePreparation } from "../../contracts/preparation.ts";
 import { preparationPaths, validatePreparationPatch } from "./preparation.ts";
 import { fingerprint } from "../policy/action.ts";
-import { runContainerTests, runContainerBuild } from "./container.ts";
+import { docker, runContainerTests, runContainerBuild, type ContainerBuildResult, type NodeBuildDependencies } from "./container.ts";
 import { parseProjectBuildPlan, projectBuildImage, type ProjectBuildPlan } from "../../contracts/project-build.ts";
 import { validateBuildPlan, validateBuildRepairPaths } from "./build-policy.ts";
 import { downloadLockedTarballs, lockedTarballs, type TarballReader } from "./npm-source.ts";
-import { projectEnvironmentValues } from "../environment/secrets.ts";
+import { projectSecretValues } from "../environment/secrets.ts";
+import { buildEnvironmentValues, buildSourceEnvironment } from "../environment/build.ts";
 import { connectedLiaraConfig } from "../connections/liara.ts";
 import { downloadPythonWheels, pythonRequirements, reusePythonWheels } from "./python-source.ts";
 import { runPythonBuild } from "./python-container.ts";
 import { AgentRepository } from "./store.ts";
+import { persistBuildOutput, readBuildOutput } from "./build-output-store.ts";
+import { withSandboxCapacity } from "./sandbox-capacity.ts";
+import { runDockerBuild } from "./docker-container.ts";
+import { fullstackTarballs, prepareFullstackFiles } from "./fullstack-preparation.ts";
+import { assembleFullstackArtifact } from "./fullstack-artifact.ts";
+import { withPostgresFixture } from "./postgres-fixture.ts";
+import { operatorDockerEndpoint } from "./docker-engine.ts";
 
 const patchTool: ToolDefinition = {
   type: "function",
@@ -115,7 +123,7 @@ export function repairConsent(input: Omit<RepairInput, "localWorkConsent">): str
         testFiles: input.testFiles,
         expectedSourceHash: input.expectedSourceHash,
         ...(input.preparation ? { preparation: parseNodePreparation(input.preparation) } : {}),
-        ...(input.execution ? { execution: input.execution, image: input.build?.image ?? projectBuildImage } : {}),
+        ...(input.execution ? { execution: input.execution, image: input.build ? input.build.image : projectBuildImage } : {}),
         ...(input.build ? { build: parseProjectBuildPlan(input.build) } : {}),
         ...(input.validationOnly ? { validationOnly: true } : {}),
       }),
@@ -123,6 +131,15 @@ export function repairConsent(input: Omit<RepairInput, "localWorkConsent">): str
     .digest("hex");
 }
 const jobs = new Map<string, AbortController>();
+const dockerUncertainCodes = new Set(["SANDBOX_BUILD_UNCERTAIN", "SANDBOX_RUNTIME_UNCERTAIN", "SANDBOX_CLEANUP_UNCONFIRMED"]);
+const postgresUncertainCodes = new Set(["POSTGRES_FIXTURE_UNCERTAIN","POSTGRES_FIXTURE_CLEANUP_UNCONFIRMED","SANDBOX_UNCERTAIN","SANDBOX_CLEANUP_UNCONFIRMED"]);
+// The daemon is shared. A lost build response must not become permission to start another build.
+export function assertDockerExecutionSettled(store: Store, nextExecutionId: string | null = null): void {
+  ensure(!store.db.prepare("SELECT id FROM code_repair_jobs WHERE json_extract(data_json,'$.job.build.version')=6 AND (json_extract(data_json,'$.job.errorCode') IN ('SANDBOX_BUILD_UNCERTAIN','SANDBOX_RUNTIME_UNCERTAIN','SANDBOX_CLEANUP_UNCONFIRMED') OR (json_extract(data_json,'$.job.dockerExecutionStarted')=1 AND (state!='working' OR (? IS NOT NULL AND id!=?)))) LIMIT 1").get(nextExecutionId, nextExecutionId),
+    "SANDBOX_RECONCILIATION_REQUIRED", "نتیجهٔ اجرای قبلی Docker یا پاک‌سازی آن روشن نیست؛ پیش از ساخت تازه باید همان اجرای ثبت‌شده بررسی شود.", 409);
+  ensure(!store.db.prepare("SELECT id FROM code_repair_jobs WHERE json_extract(data_json,'$.job.postgresExecutionStarted')=1 AND (state!='working' OR (? IS NOT NULL AND id!=?)) LIMIT 1").get(nextExecutionId,nextExecutionId),
+    "SANDBOX_RECONCILIATION_REQUIRED","پایان دیتابیس یا worker آزمون قبلی تأیید نشده است؛ اجرای تازه مجاز نیست.",409);
+}
 function pathName(path: string): string {
   ensure(
     path.length > 0 && path.length <= 512 && !path.includes("\\") && !path.includes(":"),
@@ -281,11 +298,16 @@ export class CodeRepairAdapter {
   readonly store: Store;
   readonly model: ModelPort;
   readonly tarballReader: TarballReader | undefined;
-  constructor(config: Config, store: Store, model: ModelPort = new GoalModelClient(config), tarballReader?: TarballReader) {
+  readonly sandbox: Pick<NodeBuildDependencies,"command"|"endpoint">;
+  constructor(config: Config, store: Store, model: ModelPort = new GoalModelClient(config), tarballReader?: TarballReader, sandbox: Pick<NodeBuildDependencies,"command"|"endpoint"> = {}) {
     this.config = config;
     this.store = store;
     this.model = model;
     this.tarballReader = tarballReader;
+    this.sandbox=sandbox;
+  }
+  private secrets(actor: string): string[] {
+    return [...new Set([...privateValues(this.config), ...projectSecretValues(this.store, this.config.sessionSecret, actor)])];
   }
   private record(actor: string, id: string): RepairRecord {
     const row = this.store.db
@@ -343,6 +365,7 @@ export class CodeRepairAdapter {
     input: Omit<RepairInput, "localWorkConsent">,
     signal: AbortSignal,
   ): Promise<CodeRepairJob> {
+    assertDockerExecutionSettled(this.store);
     return this.prepare(actor, { ...input, localWorkConsent: repairConsent(input) }, signal, true);
   }
   approve(actor: string, id: string): CodeRepairJob {
@@ -376,7 +399,7 @@ export class CodeRepairAdapter {
     };
     checkParent();
     ensure(
-      !containsSourceCredential(input.goal, privateValues(this.config)),
+      !containsSourceCredential(input.goal, this.secrets(actor)),
       "SENSITIVE_INPUT",
       "مقدار محرمانه را در هدف اصلاح ننویسید.",
     );
@@ -390,7 +413,7 @@ export class CodeRepairAdapter {
           testFiles: input.testFiles,
           expectedSourceHash: input.expectedSourceHash,
           ...(input.preparation ? { preparation: parseNodePreparation(input.preparation) } : {}),
-          ...(input.execution ? { execution: input.execution, image: input.build?.image ?? projectBuildImage } : {}),
+          ...(input.execution ? { execution: input.execution, image: input.build ? input.build.image : projectBuildImage } : {}),
           ...(input.build ? { build: parseProjectBuildPlan(input.build) } : {}),
           ...(input.validationOnly ? { validationOnly: true } : {}),
         }),
@@ -419,9 +442,9 @@ export class CodeRepairAdapter {
     const location = projectRoot(this.config, flow),
       captured = await captureProject(location.root, location.directory, {
         signal,
-        secrets: privateValues(this.config),
+        secrets: this.secrets(actor),
       });
-    if (input.execution === "container") ensure(flow.profile.nodeRuntime?.version === "22" || flow.profile.nodeRuntime?.version === "24" && input.build?.version === 3 || flow.profile.nodeRuntime?.version === "20" && (input.build?.version === 4 || input.build?.version === 5) || flow.profile.runtime === "python" && input.build?.version === 2, "SANDBOX_RUNTIME_UNAVAILABLE", "محیط ایزولهٔ سازگار با این پروژه آماده نیست؛ کد روی رایانه اجرا نمی‌شود.", 409);
+    if (input.execution === "container") ensure(input.build?.version === 7 && input.preparation?.version === 2 || flow.profile.nodeRuntime?.version === "22" || flow.profile.nodeRuntime?.version === "24" && (input.build?.version === 3 || input.build?.version === 7) || flow.profile.nodeRuntime?.version === "20" && (input.build?.version === 4 || input.build?.version === 5) || flow.profile.runtime === "python" && input.build?.version === 2 || flow.profile.runtime === "docker" && input.build?.version === 6, "SANDBOX_RUNTIME_UNAVAILABLE", "محیط ایزولهٔ سازگار با این پروژه آماده نیست؛ کد روی رایانه اجرا نمی‌شود.", 409);
     ensure(
       captured.profile.sourceHash === input.expectedSourceHash,
       "PROJECT_CHANGED",
@@ -431,20 +454,26 @@ export class CodeRepairAdapter {
     const paths = new Set(captured.files.map((file) => file.path));
     if (!input.validationOnly) repairSourceFiles(captured.files, input.allowedPaths, input.testFiles);
     const build = input.build ? validateBuildPlan(captured.files, captured.profile, input.build) : undefined;
-    if (build) projectEnvironmentValues(this.store, this.config.sessionSecret, actor, flow.id, build.environment);
-    if (build) validateBuildRepairPaths(input.allowedPaths);
+    ensure(!(build?.version===7 && build.testDatabase) || input.validationOnly || input.preparation?.version===2,
+      "TEST_DATABASE_REPAIR_DENIED","این برش فقط آزمون سازگاری یا آماده‌سازی قطعی است؛ اصلاح مدل و انتشار را مجاز نمی‌کند.",409);
+    if (build) ensure(!containsSourceCredential(JSON.stringify({ workload: build.workload, ...(build.version === 7 ? { apiChecks: build.apiChecks } : {}) }),
+      [...this.secrets(actor), ...projectSecretValues(this.store, this.config.sessionSecret, actor)]), "SENSITIVE_INPUT", "معیار بررسی نباید شامل مقدار محرمانه باشد.", 409);
+    ensure(build?.version !== 6 || input.validationOnly, "DOCKER_REPAIR_UNSUPPORTED", "تغییر Dockerfile یا dependency به برنامهٔ آماده‌سازی مستقل نیاز دارد؛ ساخت مجوز ویرایش نمی‌دهد.", 409);
+    if (build && !(build.version === 7 && build.testDatabase)) buildEnvironmentValues(this.config, this.store, actor, flow.id, build.environment, buildSourceEnvironment(build));
+    if (build && input.preparation?.version !== 2) validateBuildRepairPaths(input.allowedPaths);
     ensure(!build || input.execution === "container", "BUILD_ISOLATION_REQUIRED", "install و build فقط در container اجرا می‌شوند.", 403);
     ensure(!input.validationOnly || (build && input.allowedPaths.length === 0 && input.testFiles.length === 0), "BUILD_SCOPE_INVALID", "بررسی build مجوز ویرایش فایل نمی‌دهد.", 403);
     const preparation = input.preparation ? parseNodePreparation(input.preparation) : undefined;
+    ensure(preparation?.version !== 2 || build?.version === 7 && fingerprint(build.fullstack) === fingerprint(preparation), "FULLSTACK_PREPARATION_CHANGED", "آماده‌سازی کامل باید به همان برنامهٔ ساخت و سنجش متصل باشد.", 409);
     if (preparation) {
-      ensure(captured.profile.runtime === "node" && captured.profile.nodeRuntime?.version,
+      ensure(captured.profile.runtime === "node" && (preparation.version === 2 || captured.profile.nodeRuntime?.version),
         "PREPARATION_RUNTIME_UNVERIFIED", "نسخه Node پایه باید معلوم باشد؛ این برنامه فقط فرمان اجرا و پورت را آماده می‌کند.", 409);
       ensure(fingerprint([...input.allowedPaths].sort()) === fingerprint(preparationPaths(captured.files, preparation).sort()),
         "REPAIR_SCOPE_LIMIT", "محدوده آماده‌سازی با فایل ورودی و تنظیمات موجود برابر نیست.", 409);
     }
     for (const path of [...input.allowedPaths, ...input.testFiles])
       ensure(
-        paths.has(pathName(path)),
+        paths.has(pathName(path)) || preparation?.version === 2 && preparationPaths(captured.files, preparation).includes(path),
         "REPAIR_PATH_DENIED",
         "فایل اصلاح یا آزمون در پروژه موجود نیست.",
         403,
@@ -458,7 +487,7 @@ export class CodeRepairAdapter {
       403,
     );
     const pkg = captured.files.find((file) => file.path === "package.json");
-    ensure(pkg || build?.version === 2, "REPAIR_TEST_DENIED", "فرمان آزمون پروژه مشخص نیست.", 409);
+    ensure(pkg || build?.version === 2 || build?.version === 6, "REPAIR_TEST_DENIED", "فرمان آزمون پروژه مشخص نیست.", 409);
     const scripts = pkg ? object(object(JSON.parse(pkg.content.toString("utf8"))).scripts) : {};
     if (!build) ensure(
       scripts.test === "node --test" || scripts.test === `node --test ${input.testFiles.join(" ")}`,
@@ -490,7 +519,7 @@ export class CodeRepairAdapter {
         ...(preparation ? { preparation } : {}),
         ...(build ? { build } : {}),
         ...(input.validationOnly ? { validationOnly: true } : {}),
-        ...(input.execution ? { execution: input.execution, containerImage: build?.image ?? projectBuildImage, containerIds: [] } : {}),
+        ...(input.execution ? { execution: input.execution, ...(build?.version === 6 ? {} : { containerImage: build?.image ?? projectBuildImage }), containerIds: [] } : {}),
         allowedPaths: input.allowedPaths,
         testFiles: input.testFiles,
         changedPaths: [],
@@ -535,6 +564,7 @@ export class CodeRepairAdapter {
     sharedBudget?: RunBudget,
   ): Promise<CodeRepairJob> {
     const record = this.record(actor, id);
+    assertDockerExecutionSettled(this.store);
     ensure(!this.store.db.prepare("SELECT job_id FROM coding_agent_executions WHERE actor_id=? AND state='uncertain' AND (job_id=? OR (? IS NOT NULL AND json_extract(data_json,'$.parentRunId')=?)) LIMIT 1")
       .get(actor, id, record.job.parentRunId ?? null, record.job.parentRunId ?? null), "CODING_EXECUTION_UNCERTAIN", "نتیجه ایجنت بیرونی این مأموریت روشن نیست؛ worker دیگری شروع نمی‌شود.", 409);
     const checkParent = () => {
@@ -556,7 +586,7 @@ export class CodeRepairAdapter {
     };
     checkParent();
     ensure(this.config.authMode === "operator" || record.job.execution === "container", "SANDBOX_REQUIRED", "اجرای مستقیم پروژه روی سرور عمومی مجاز نیست.", 403);
-    ensure(record.job.execution !== "container" || record.job.containerImage === (record.job.build?.image ?? projectBuildImage),
+    ensure(record.job.execution !== "container" || (record.job.build?.version === 6 ? record.job.containerImage === undefined : record.job.containerImage === (record.job.build?.image ?? projectBuildImage)),
       "SANDBOX_IMAGE_CHANGED", "محیط اجرای این job تغییر کرده است؛ تصمیم تازه لازم است.", 409);
     const claim = this.store.db
       .prepare(
@@ -596,7 +626,7 @@ export class CodeRepairAdapter {
       );
       const base = await captureProject(record.workspace, ".", {
         signal: bounded,
-        secrets: privateValues(this.config),
+        secrets: this.secrets(actor),
       });
       ensure(
         base.profile.sourceHash === record.job.baseRevision,
@@ -606,9 +636,12 @@ export class CodeRepairAdapter {
       );
       const tarballs = join(this.config.stateDir, "repair-tarballs", id);
       if (record.job.build) {
-        projectEnvironmentValues(this.store, this.config.sessionSecret, actor, record.job.projectId, record.job.build.environment);
-        validateBuildPlan(base.files, base.profile, record.job.build);
-        if (record.job.build.version === 2) {
+        const build = record.job.build;
+        await withSandboxCapacity(bounded, async () => {
+        checkParent();
+        if (!(build.version === 7 && build.testDatabase)) buildEnvironmentValues(this.config, this.store, actor, record.job.projectId, build.environment, buildSourceEnvironment(build));
+        validateBuildPlan(base.files, base.profile, build);
+        if (build.version === 2) {
           const selection = this.store.getProjectFlow(actor, record.job.projectId)?.selection,
             parent = selection?.kind === "repair" ? this.record(actor, selection.jobId).job : null;
           if (selection?.kind === "repair" && parent?.state === "succeeded" && parent.build?.version === 2 &&
@@ -618,43 +651,138 @@ export class CodeRepairAdapter {
             await reusePythonWheels(pythonRequirements(base.files), join(this.config.stateDir, "repair-tarballs", parent.id), tarballs, bounded);
           } else await downloadPythonWheels(pythonRequirements(base.files), tarballs, bounded, () => budget.take("tool", bounded));
         }
-        else await downloadLockedTarballs(record.job.build.install === "none" ? [] : lockedTarballs(base.files), tarballs, bounded, () => budget.take("tool", bounded), this.tarballReader);
+        else if (build.version !== 6) await downloadLockedTarballs(build.version === 7 ? fullstackTarballs(base.files, build.fullstack) : build.install === "none" ? [] : lockedTarballs(base.files), tarballs, bounded, () => budget.take("tool", bounded), this.tarballReader,
+          { root: join(this.config.stateDir, "npm-cache"), ...(this.config.npmContentCache ? { operatorContentRoot: this.config.npmContentCache } : {}) });
+        });
       }
-      const tests = async (): Promise<RepairTestReceipt> => {
+      const tests = async (keepOutput = false): Promise<RepairTestReceipt> => {
         if (record.job.build) {
-          const environment = projectEnvironmentValues(this.store, this.config.sessionSecret, actor, record.job.projectId, record.job.build.environment),
+          const compatibility = record.job.build.version===7 && record.job.build.testDatabase!==undefined;
+          const frontendSource = (record.job.build.version === 5 || record.job.build.version === 7) && keepOutput && !compatibility ? await captureProject(record.workspace, ".", { signal: bounded, secrets: this.secrets(actor) }) : null;
+          const environment = compatibility ? [] : buildEnvironmentValues(this.config, this.store, actor, record.job.projectId, record.job.build.environment, buildSourceEnvironment(record.job.build)),
             infrastructure = [record.job.build.environment ? connectedLiaraConfig(this.config, this.store, actor).liaraToken : this.config.liaraToken, this.config.modelKey, this.config.operatorToken, this.config.sessionSecret].filter(Boolean);
           ensure(environment.every(row => infrastructure.every(secret => !row.value.includes(secret))), "ENV_INFRASTRUCTURE_CREDENTIAL", "کلید زیرساخت وارد worker نمی‌شود.", 409);
           const started = Date.now(), onCreated = (containerId: string) => { record.job.containerIds = [...(record.job.containerIds ?? []), containerId]; this.save(record); },
-            testSignal = AbortSignal.any([bounded, AbortSignal.timeout(record.job.build.buildCommand !== null ? 300000 : 120000)]), result = record.job.build.version === 2
-              ? await runPythonBuild(record.workspace, tarballs, record.job.build, record.job.testFiles, testSignal, onCreated, environment)
-              : await runContainerBuild(record.workspace, tarballs, record.job.build, testSignal, onCreated, environment);
-          return { command: record.job.build.version === 2 ? `pip install --no-index --require-hashes; compileall; unittest ${record.job.testFiles.join(" ")}; ${record.job.build.startCommand}; GET ${record.job.build.workload.path}` : `${record.job.build.install === "none" ? "no dependencies to install" : "npm ci --offline"}${record.job.build.buildCommand ? " && npm run build" : ""}${record.job.build.testCommand ? " && npm test" : ""} && ${record.job.build.version === 5 ? `host serve ${record.job.build.frontend.outputDirectory}; verify local JS/CSS` : "npm start"}; GET ${record.job.build.workload.path}`,
-            exitCode: result.exitCode, signal: result.signal, durationMs: Date.now() - started, output: redact(result.output, [...privateValues(this.config), ...environment.map(row => row.value).filter(value => value.length >= 4)]),
-            passed: result.exitCode === 0 && !bounded.aborted && !result.signal };
+            testSignal = AbortSignal.any([bounded, AbortSignal.timeout(record.job.build.buildCommand !== null ? 300000 : record.job.build.version === 6 ? 180000 : 120000)]), build = record.job.build,
+            result: ContainerBuildResult = await withSandboxCapacity(testSignal, async () => {
+              checkParent();
+              assertDockerExecutionSettled(this.store, record.job.id);
+              if (build.version === 6) {
+                record.job.dockerExecutionStarted = true; this.save(record);
+                try {
+                  const result = await runDockerBuild(record.workspace, build, testSignal, onCreated, environment, undefined, {}, record.job.id);
+                  delete record.job.dockerExecutionStarted; this.save(record);
+                  return result;
+                } catch (error) {
+                  if (error instanceof AppError && !dockerUncertainCodes.has(error.code)) { delete record.job.dockerExecutionStarted; this.save(record); }
+                  throw error;
+                }
+              }
+              if (build.version===7 && build.testDatabase) {
+                ensure(environment.length===0,"TEST_DATABASE_ENVIRONMENT_DENIED","تنظیمات واقعی پروژه وارد آزمون ساختگی نمی‌شود.",409);
+                const source=await captureProject(record.workspace,".",{signal:testSignal,secrets:this.secrets(actor)});
+                const command=this.sandbox.command ?? docker,endpoint=this.sandbox.endpoint ?? await operatorDockerEndpoint(testSignal,command);
+                record.job.postgresExecutionStarted=true;record.job.postgresFixtureSourceHash=source.profile.sourceHash;this.save(record);
+                try {
+                  const result=await withPostgresFixture({jobId:record.job.id,sourceHash:source.profile.sourceHash,signal:testSignal,command,endpoint,
+                    onCreated:containerId=>{record.job.postgresFixtureId=containerId;onCreated(containerId);}},
+                    async(fixture,fixtureSignal)=>runContainerBuild(record.workspace,tarballs,build,fixtureSignal,onCreated,[],
+                      {command,endpoint,fixture,expectedJobId:record.job.id,expectedSourceHash:source.profile.sourceHash}));
+                  delete record.job.postgresExecutionStarted;this.save(record);return result;
+                } catch(error) {
+                  if(error instanceof AppError && !postgresUncertainCodes.has(error.code)){delete record.job.postgresExecutionStarted;this.save(record);}
+                  throw error;
+                }
+              }
+              return build.version === 2
+                ? await runPythonBuild(record.workspace, tarballs, build, record.job.testFiles, testSignal, onCreated, environment)
+                : await runContainerBuild(record.workspace, tarballs, build, testSignal, onCreated, environment);
+            });
+          if (build.version === 6) record.job.builtImage = result.image;
+          let outputReceipt: RepairTestReceipt["buildOutput"];
+          if (frontendSource && result.exitCode === 0 && !result.signal && !bounded.aborted) {
+            ensure(result.buildOutput, "BUILD_OUTPUT_UNAVAILABLE", "ساخت موفق بدون بایت خروجی قابل انتشار نیست.", 409);
+            const after = await captureProject(record.workspace, ".", { signal: bounded, secrets: this.secrets(actor) });
+            ensure(after.profile.sourceHash === frontendSource.profile.sourceHash, "REPAIR_TEST_CHANGED_SOURCE", "نسخهٔ پروژه هنگام دریافت خروجی ساخت تغییر کرد.", 409);
+            checkParent();
+            outputReceipt = await persistBuildOutput(this.config.stateDir, result.buildOutput, { sourceHash: after.profile.sourceHash, planHash: fingerprint(record.job.build) });
+          }
+          return { command: build.version === 6 ? `isolated Docker build; independent GET ${build.workload.path}` : build.version === 2 ? `pip install --no-index --require-hashes; compileall; unittest ${record.job.testFiles.join(" ")}; ${build.startCommand}; GET ${build.workload.path}` : `${build.install === "none" ? "no dependencies to install" : "npm ci --offline"}${build.buildCommand ? " && npm run build" : ""}${build.testCommand ? " && npm test" : ""} && ${build.version === 5 ? `host serve ${build.frontend.outputDirectory}; verify local JS/CSS` : "npm start"}; GET ${build.workload.path}`,
+            exitCode: result.exitCode, signal: result.signal, durationMs: Date.now() - started, output: redact(result.output, [...this.secrets(actor), ...environment.map(row => row.value).filter(value => value.length >= 4)]),
+            passed: result.exitCode === 0 && !bounded.aborted && !result.signal, ...(outputReceipt ? { buildOutput: outputReceipt } : {}) };
         }
-        return runRepairTests(
+        const run = () => { checkParent(); return runRepairTests(
           record.workspace,
           record.job.testFiles,
           AbortSignal.any([bounded, AbortSignal.timeout(record.job.execution === "container" ? 60000 : 20000)]),
-          privateValues(this.config),
+          this.secrets(actor),
           record.job.execution,
           (containerId) => { record.job.containerIds = [...(record.job.containerIds ?? []), containerId]; this.save(record); },
-        );
+        ); };
+        return record.job.execution === "container" ? withSandboxCapacity(bounded, run) : run();
+      };
+      const verifyOutput = async (sourceHash: string) => {
+        if(record.job.build?.version===7 && record.job.build.testDatabase)return;
+        if (record.job.build?.version !== 5 && record.job.build?.version !== 7) return;
+        const receipt = record.job.afterTest?.buildOutput;
+        ensure(receipt, "BUILD_OUTPUT_UNAVAILABLE", "خروجی پایدار همان ساخت تأییدشده موجود نیست.", 409);
+        await readBuildOutput(this.config.stateDir, receipt, { sourceHash, planHash: fingerprint(record.job.build) });
+      };
+      const publicationArtifact = async (sourceHash: string) => {
+        if(record.job.build?.version===7 && record.job.build.testDatabase)return null;
+        if (record.job.build?.version === 7) {
+          const receipt = record.job.afterTest?.buildOutput;
+          ensure(receipt, "BUILD_OUTPUT_UNAVAILABLE", "خروجی ساخت کامل موجود نیست.", 409);
+          const assembled = await assembleFullstackArtifact({ store: this.store, stateDir: this.config.stateDir, actorId: actor,
+            workspace: record.workspace, sourceHash, plan: record.job.build, receipt, signal: bounded, secrets: this.secrets(actor) });
+          record.job.publication = assembled.publication;
+          record.job.changedPaths = [...new Set([...record.job.changedPaths, ...assembled.changedPaths])];
+          ensure(!bounded.aborted, "CANCELLED", "ساخت بستهٔ نهایی متوقف شد.", 409);
+          return assembled.artifact;
+        }
+        return prepareArchive({ store: this.store, stateDir: this.config.stateDir, workspaceRoot: record.workspace, actorId: actor, directory: ".", sourceHash, signal: bounded, secrets: this.secrets(actor) });
       };
       if (record.job.validationOnly) {
-        budget.take("tool", bounded); record.job.afterTest = await tests(); this.save(record);
+        budget.take("tool", bounded); record.job.afterTest = await tests(true); this.save(record);
         checkParent();
         ensure(record.job.afterTest.passed, "BUILD_CHECK_FAILED", "ساخت یا پاسخ برنامه معیار مصوب را نگذراند؛ نسخه قابل انتشار تأیید نشد.", 409);
         const latest = await restoreProjectFlow(this.config, this.store, actor, bounded, record.job.projectId),
-          verified = await captureProject(record.workspace, ".", { signal: bounded, secrets: privateValues(this.config) });
+          verified = await captureProject(record.workspace, ".", { signal: bounded, secrets: this.secrets(actor) });
         ensure(latest && latest.status !== "stale" && latest.status !== "unavailable" && latest.profile.sourceHash === record.job.baseRevision && verified.profile.sourceHash === record.job.baseRevision,
           "PROJECT_CHANGED", "source هنگام بررسی build تغییر کرد؛ رسید به نسخه تازه تعمیم داده نمی‌شود.", 409);
-        record.job.artifact = await prepareArchive({ store: this.store, stateDir: this.config.stateDir, workspaceRoot: record.workspace, actorId: actor, directory: ".",
-          sourceHash: verified.profile.sourceHash, signal: bounded, secrets: privateValues(this.config) });
-        record.job.state = "succeeded"; record.job.message = record.job.build && record.job.build.version !== 2 && record.job.build.install === "none" ? "ساخت و پاسخ مصوب برنامهٔ بدون وابستگی در نسخه جدا گذشتند؛ نصب لازم نبود و انتشار هنوز اجرا نشده است." : "نصب قفل‌شده، ساخت و پاسخ مصوب در نسخه جدا گذشتند؛ انتشار هنوز اجرا نشده است.";
+        await verifyOutput(verified.profile.sourceHash);
+        record.job.artifact = await publicationArtifact(verified.profile.sourceHash);
+        record.job.state = "succeeded"; record.job.message = record.job.build?.version===7 && record.job.build.testDatabase
+          ? "آزمون سازگاری با دیتابیس موقت و دادهٔ ساختگی گذشت؛ خروجی مجوز انتشار یا تغییر نسخهٔ اصلی نیست."
+          : record.job.build && record.job.build.version !== 2 && record.job.build.version !== 6 && record.job.build.install === "none" ? "ساخت و پاسخ مصوب برنامهٔ بدون وابستگی در نسخه جدا گذشتند؛ نصب لازم نبود و انتشار هنوز اجرا نشده است." : "ساخت و پاسخ مصوب در نسخه جدا گذشتند؛ انتشار هنوز اجرا نشده است.";
       }
-      if (!record.job.validationOnly) {
+      if (record.job.preparation?.version === 2) {
+        const prepared = prepareFullstackFiles(base.files, base.profile, record.job.preparation);
+        checkParent();
+        for (const file of prepared) {
+          const original = base.files.find(before => before.path === file.path);
+          if (original?.content.equals(file.content)) continue;
+          ensure(preparationPaths(base.files, record.job.preparation).includes(file.path), "FULLSTACK_PREPARATION_CHANGED", "فقط فایل‌های همان آماده‌سازی قطعی مصوب قابل تغییر هستند.", 409);
+          await writeFile(join(record.workspace, file.path), file.content, { mode: 0o600 });
+          record.job.changedPaths.push(file.path);
+        }
+        record.job.diff = record.job.changedPaths.map(path => patchDiff(path, base.files.find(file => file.path === path)?.content.toString("utf8") ?? "", prepared.find(file => file.path === path)?.content.toString("utf8") ?? "")).join("\n");
+        const changed = await captureProject(record.workspace, ".", { signal: bounded, secrets: this.secrets(actor) });
+        ensure(!changed.profile.fullstack?.requiresPreparation && changed.profile.start === record.job.preparation.startCommand, "FULLSTACK_PREPARATION_CHANGED", "نسخهٔ آماده‌شده هنوز مسیر اجرای کامل ندارد.", 409);
+        budget.take("tool", bounded); record.job.afterTest = await tests(true); this.save(record);
+        ensure(record.job.afterTest.passed, "BUILD_CHECK_FAILED", "ساخت یا بررسی فرانت و API معیار مصوب را نگذراند؛ نسخه قابل انتشار تأیید نشد.", 409);
+        checkParent();
+        const verified = await captureProject(record.workspace, ".", { signal: bounded, secrets: this.secrets(actor) });
+        ensure(verified.profile.sourceHash === changed.profile.sourceHash, "REPAIR_TEST_CHANGED_SOURCE", "نسخهٔ آماده‌شده هنگام ساخت تغییر کرده است.", 409);
+        const latest = await restoreProjectFlow(this.config, this.store, actor, bounded, record.job.projectId);
+        ensure(latest?.profile.sourceHash === record.job.baseRevision && latest.status !== "stale" && latest.status !== "unavailable", "PROJECT_CHANGED", "نسخهٔ اصلی هنگام ساخت تغییر کرده است.", 409);
+        await verifyOutput(verified.profile.sourceHash);
+        record.job.artifact = await publicationArtifact(verified.profile.sourceHash);
+        record.job.state = "succeeded"; record.job.message = record.job.build?.version===7 && record.job.build.testDatabase
+          ? "آزمون سازگاری با دیتابیس موقت و دادهٔ ساختگی گذشت؛ خروجی مجوز انتشار یا تغییر نسخهٔ اصلی نیست."
+          : "ساخت و بررسی مستقل فرانت و API در نسخهٔ جدا گذشت؛ انتشار عمومی و پایداری داده هنوز تأیید نشده‌اند.";
+      }
+      if (!record.job.validationOnly && record.job.preparation?.version !== 2) {
       budget.take("tool", bounded);
       record.job.beforeTest = await tests();
       this.save(record);
@@ -744,7 +872,7 @@ export class CodeRepairAdapter {
         const content = file.replacements === undefined ? text(file.content, 24000) : applyTextEdits(before.content.toString("utf8"), file.replacements);
         ensure(Buffer.byteLength(content) <= 32 * 1024, "REPAIR_PATCH_LIMIT", "خروجی اصلاح از سقف فایل محدود بیشتر است.", 413);
         ensure(
-          !containsSourceCredential(content, privateValues(this.config), path),
+          !containsSourceCredential(content, this.secrets(actor), path),
           "SENSITIVE_SOURCE",
           "وصله شامل مقدار محرمانه است.",
           403,
@@ -771,7 +899,7 @@ export class CodeRepairAdapter {
         await writeFile(join(record.workspace, path), content, { mode: 0o600 });
       const patched = await captureProject(record.workspace, ".", {
         signal: bounded,
-        secrets: privateValues(this.config),
+        secrets: this.secrets(actor),
       });
       ensure(
         patched.files.length === base.files.length,
@@ -805,7 +933,7 @@ export class CodeRepairAdapter {
         )
         .join("\n");
       budget.take("tool", bounded);
-      record.job.afterTest = await tests();
+      record.job.afterTest = await tests(true);
       this.save(record);
       ensure(
         record.job.afterTest.passed,
@@ -815,7 +943,7 @@ export class CodeRepairAdapter {
       );
       const verified = await captureProject(record.workspace, ".", {
         signal: bounded,
-        secrets: privateValues(this.config),
+        secrets: this.secrets(actor),
       });
       if (record.job.preparation) ensure(verified.profile.start === record.job.preparation.startCommand &&
         verified.profile.port === record.job.preparation.port && verified.profile.nodeRuntime?.version,
@@ -843,22 +971,15 @@ export class CodeRepairAdapter {
       );
       ensure(!bounded.aborted, "CANCELLED", "اصلاح متوقف شد.", 409);
       checkParent();
-      record.job.artifact = await prepareArchive({
-        store: this.store,
-        stateDir: this.config.stateDir,
-        workspaceRoot: record.workspace,
-        actorId: actor,
-        directory: ".",
-        sourceHash: verified.profile.sourceHash,
-        signal: bounded,
-        secrets: privateValues(this.config),
-      });
+      await verifyOutput(verified.profile.sourceHash);
+      record.job.artifact = await publicationArtifact(verified.profile.sourceHash);
       record.job.state = "succeeded";
       record.job.message = "وصله و آزمون محلی تأیید شدند؛ انتشار و بررسی سایت هنوز انجام نشده است.";
       }
     } catch (error) {
-      record.job.state = controller.signal.aborted || signal.aborted ? "cancelled" : "failed";
+      record.job.state = error instanceof AppError && (record.job.build?.version === 6 && dockerUncertainCodes.has(error.code) || record.job.postgresExecutionStarted || postgresUncertainCodes.has(error.code)) ? "interrupted" : controller.signal.aborted || signal.aborted ? "cancelled" : "failed";
       record.job.artifact = null;
+      delete record.job.publication;
       record.job.errorCode = error instanceof AppError ? error.code : "REPAIR_FAILED";
       record.job.message =
         error instanceof AppError
@@ -867,7 +988,7 @@ export class CodeRepairAdapter {
     } finally {
       budget.take = take;
       jobs.delete(id);
-      if (this.status(actor, id).state !== "cancelled") this.save(record);
+      if (record.job.state === "interrupted" || this.status(actor, id).state !== "cancelled") this.save(record);
     }
     return this.status(actor, id);
   }

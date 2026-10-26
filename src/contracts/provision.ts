@@ -1,11 +1,12 @@
 import { ensure } from "../server/errors.ts";
 import { exactKeys, hash, identifier, integer, object, string } from "./validation.ts";
 import { parseNodeVersion, type NodeVersion } from "./node-runtime.ts";
-import type { Scope } from "./domain.ts";
+import type { Scope, ActionSpec } from "./domain.ts";
 import { parsePythonRuntime, type PythonRuntime } from "./python-runtime.ts";
 import { parseStaticRuntime, type StaticRuntime } from "./static-runtime.ts";
 import { parseNextRuntime, type NextRuntime } from "./next-runtime.ts";
 import { parseFrontendRuntime, type FrontendRuntime } from "./frontend-runtime.ts";
+import { parseDockerRuntime, type DockerRuntime } from "./docker-runtime.ts";
 
 type NodeProvisionSpec = Readonly<{
   version: 8;
@@ -30,7 +31,8 @@ export type ProvisionSpec = NodeProvisionSpec | (Omit<NodeProvisionSpec, "versio
   version: 12; nodeVersion: null; runtime: PythonRuntime;
 }>) | (Omit<NodeProvisionSpec, "version" | "nodeVersion"> & Readonly<{ version: 16; nodeVersion: null; runtime: StaticRuntime }>)
   | (Omit<NodeProvisionSpec, "version"> & Readonly<{ version: 18; runtime: NextRuntime }>)
-  | (Omit<NodeProvisionSpec, "version" | "nodeVersion"> & Readonly<{ version: 20; nodeVersion: "20"; runtime: FrontendRuntime }>);
+  | (Omit<NodeProvisionSpec, "version" | "nodeVersion"> & Readonly<{ version: 20; nodeVersion: "20"; runtime: FrontendRuntime }>)
+  | (Omit<NodeProvisionSpec, "version" | "nodeVersion"> & Readonly<{ version: 22; nodeVersion: null; runtime: DockerRuntime }>);
 export type PaaSCost = NodeProvisionSpec["cost"];
 export function parsePaaSCost(value: unknown): PaaSCost {
   const cost = object(value);
@@ -57,8 +59,11 @@ export type ProvisionReadback = Readonly<{
   defaultSubdomain?: boolean;
 }>;
 export function canReadDestinationResult(action: import("./domain.ts").Action): boolean {
-  return (action.spec.version === 8 || action.spec.version === 12 || action.spec.version === 16 || action.spec.version === 18 || action.spec.version === 20) && !!action.provision &&
+  return (action.spec.version === 8 || action.spec.version === 12 || action.spec.version === 16 || action.spec.version === 18 || action.spec.version === 20 || action.spec.version === 22) && !!action.provision &&
     (action.state === "observing" || action.state === "uncertain");
+}
+export function isProvisionSpec(spec: ActionSpec): spec is ProvisionSpec {
+  return spec.version === 8 || spec.version === 12 || spec.version === 16 || spec.version === 18 || spec.version === 20 || spec.version === 22;
 }
 export function providerObjectId(value: unknown): string {
   const id = string(value, 24);
@@ -67,6 +72,11 @@ export function providerObjectId(value: unknown): string {
 }
 export function parseProvisionSpec(value: unknown): ProvisionSpec {
   const row = object(value);
+  if (row.version === 22) {
+    ensure(row.nodeVersion === null, "INVALID_INPUT", "مقصد Docker نسخه Node نمی‌پذیرد.");
+    const { runtime, ...rest } = row, parsed = parseDockerRuntime(runtime), base = parseProvisionSpec({ ...rest, version: 8, nodeVersion: "22" });
+    return { ...base, version: 22, nodeVersion: null, runtime: parsed };
+  }
   if (row.version === 20) {
     const { runtime, ...rest } = row, parsed = parseFrontendRuntime(runtime), base = parseProvisionSpec({ ...rest, version: 8 });
     ensure(base.version === 8 && base.nodeVersion === parsed.nodeVersion, "INVALID_INPUT", "محیط مقصد رابط با پروژه برابر نیست.");

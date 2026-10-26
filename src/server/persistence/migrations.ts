@@ -231,4 +231,10 @@ CREATE TABLE project_archives (
 ) STRICT;
 `,
   },
+  {
+    version: 18,
+    sql: `
+CREATE TABLE disk_progress (action_id TEXT PRIMARY KEY REFERENCES actions(id), data_json TEXT NOT NULL) STRICT;
+`,
+  },
 ] as const;

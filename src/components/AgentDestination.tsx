@@ -1,6 +1,6 @@
 import type { Action } from "../contracts/domain.ts";
 import { useEffect, useState } from "react";
-import { canReadDestinationResult } from "../contracts/provision.ts";
+import { canReadDestinationResult, isProvisionSpec } from "../contracts/provision.ts";
 import type { DestinationRecommendation } from "../contracts/destination-recommendation.ts";
 import { DestinationPlans } from "./DestinationPlans.tsx";
 
@@ -16,7 +16,7 @@ export function AgentDestination({ action, waiting, disabled, resumable, onDecis
     const timer = window.setTimeout(() => setNow(Date.now()), Math.max(1, Math.min(action.expiresAt - Date.now() + 1, 2147483647)));
     return () => window.clearTimeout(timer);
   }, [action.expiresAt]);
-  if (action.spec.version !== 8 && action.spec.version !== 12 && action.spec.version !== 16 && action.spec.version !== 18 && action.spec.version !== 20) return null;
+  if (!isProvisionSpec(action.spec)) return null;
   const spec = action.spec, verified = action.state === "succeeded",
     expired = action.state === "expired" || action.expiresAt <= now,
     pending = waiting && (action.state === "awaiting_approval" || action.state === "expired");

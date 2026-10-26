@@ -7,12 +7,14 @@ import type { RunBudget } from "../policy/budget.ts";
 import { abortable, boundedJson, httpFailure, transport, type Transport } from "../providers/http.ts";
 import { containsCredential } from "../policy/redaction.ts";
 import { actionPlatform } from "../../contracts/platform.ts";
+import { parseDockerRuntime } from "../../contracts/docker-runtime.ts";
 
 export class LiaraProvisionClient {
   readonly config: Config;
   readonly send: Transport;
   constructor(config: Config, send: Transport = transport) { this.config = config; this.send = send; }
   async create(spec: ProvisionSpec, budget: RunBudget, signal: AbortSignal): Promise<string> {
+    if (spec.version === 22) parseDockerRuntime(spec.runtime);
     authorizeScope(spec.scope, this.config);
     ensure(this.config.enableMutations && this.config.enableLiveLiara, "MUTATIONS_DISABLED", "ساخت واقعی مقصد در این نصب خاموش است.", 403);
     ensure(this.config.liaraToken && this.config.liaraBaseUrl === "https://api.liara.ir", "LIARA_UNCONFIGURED", "اتصال مجاز لیارا آماده نیست.", 503);

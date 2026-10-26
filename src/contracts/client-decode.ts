@@ -24,6 +24,12 @@ import { parseLifecycleSpec, parseLifecycleProgress } from "./project-lifecycle.
 import { parseStaticRuntime } from "./static-runtime.ts";
 import { parseNextRuntime } from "./next-runtime.ts";
 import { parseFrontendRuntime } from "./frontend-runtime.ts";
+import { parseDockerRuntime } from "./docker-runtime.ts";
+import { parseNativePlatformInspection } from "./liara-platform.ts";
+import { parseFullstackInspection, parseFullstackVerification } from "./fullstack.ts";
+import { parseApplicationRequirements } from "./application-requirements.ts";
+import { parseSourceFixtureReviews } from "./source-fixture-review.ts";
+import { parseDiskBinding, parseDiskProgress, parseDiskSpec } from "./persistent-disk.ts";
 
 function nullableString(value: unknown, max = 256): string | null {
   return value === null ? null : string(value, max);
@@ -54,9 +60,35 @@ export function decodeAction(value: unknown): Action {
     spec = object(raw.spec),
     scope = object(spec.scope),
     args = object(spec.args);
+  if (spec.version === 25) {
+    const parsed = parseDiskSpec(spec), base = decodeAction({ ...raw, spec: { version: 1, operation: "restart", scope: spec.scope, sourceHash: null, args: { port: null, planId: null } } });
+    return { ...base, spec: parsed, ...(raw.disk === undefined ? {} : { disk: parseDiskProgress(raw.disk) }) };
+  }
+  if (spec.version === 26) {
+    const { storage, ...rest } = spec, base = decodeAction({ ...raw, spec: { ...rest, version: 23 } });
+    ensure(base.spec.version === 23 && base.spec.nodeVersion === "24" && base.spec.environment !== null, "INVALID_RESPONSE", "انتشار Worker معتبر نیست.");
+    return { ...base, spec: { ...base.spec, version: 26, nodeVersion: "24", environment: base.spec.environment, storage: parseDiskBinding(storage) } };
+  }
   if (spec.version === 24) {
     const parsed = parseLifecycleSpec(spec), { bundleId: _bundle, expected: _expected, cost: _cost, publication: _publication, ...rest } = spec;
     return { ...decodeAction({ ...raw, spec: { ...rest, version: 14, operation: "stop_app" } }), spec: parsed };
+  }
+  if (spec.version === 23) {
+    const { verification, environment, ...rest } = spec, base = decodeAction({ ...raw, spec: { ...rest, version: 7 } });
+    ensure(base.spec.version === 7 && typeof base.spec.sourceHash === "string", "INVALID_RESPONSE", "نسخهٔ انتشار کامل معتبر نیست.");
+    return { ...base, spec: { ...base.spec, version: 23, operation: "deploy", sourceHash: base.spec.sourceHash,
+      environment: environment === null ? null : parseEnvironmentReference(environment), verification: parseFullstackVerification(verification) } };
+  }
+  if (spec.version === 21) {
+    ensure(spec.nodeVersion === null && spec.operation === "deploy", "INVALID_RESPONSE", "نسخه انتشار Docker معتبر نیست.");
+    const { runtime, environment, ...rest } = spec, parsed = parseDockerRuntime(runtime), base = decodeAction({ ...raw, spec: { ...rest, version: 7, nodeVersion: "22" } });
+    ensure(base.spec.version === 7 && typeof base.spec.sourceHash === "string" && base.spec.args.port === parsed.port, "INVALID_RESPONSE", "پورت انتشار Docker با پروژه برابر نیست.");
+    return { ...base, spec: { ...base.spec, version: 21, operation: "deploy", sourceHash: base.spec.sourceHash, nodeVersion: null, runtime: parsed,
+      environment: environment === null ? null : parseEnvironmentReference(environment) } };
+  }
+  if (spec.version === 22) {
+    const parsed = parseProvisionSpec(spec), { runtime: _runtime, ...rest } = spec;
+    return { ...decodeAction({ ...raw, spec: { ...rest, version: 8, nodeVersion: "22" } }), spec: parsed };
   }
   if (spec.version === 19) {
     const { runtime, environment, ...rest } = spec, parsed = parseFrontendRuntime(runtime), base = decodeAction({ ...raw, spec: { ...rest, version: 7 } });
@@ -129,7 +161,7 @@ export function decodeAction(value: unknown): Action {
   else if (spec.version === 8) parsedSpec = parseProvisionSpec(spec);
   else {
     ensure(spec.operation === "deploy" || spec.operation === "restart", "INVALID_RESPONSE", "نوع اقدام معتبر نیست.");
-    const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12 | 13 | 14 | 16 | 18 | 20 | 24}>, "scope" | "operation" | "sourceHash" | "args"> = {
+    const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12 | 13 | 14 | 16 | 18 | 20 | 22 | 24 | 25}>, "scope" | "operation" | "sourceHash" | "args"> = {
       operation: spec.operation,
       scope: { teamId: string(scope.teamId), app: string(scope.app) },
       sourceHash: nullableString(spec.sourceHash),
@@ -245,7 +277,7 @@ export function decodeWorkspace(value: unknown): WorkspaceView {
 export function decodeProfile(value: unknown): ProjectProfile {
   const raw = object(object(value).profile);
   ensure(
-    raw.runtime === "node" || raw.runtime === "python" || raw.runtime === "static" || raw.runtime === "unknown",
+    raw.runtime === "node" || raw.runtime === "python" || raw.runtime === "static" || raw.runtime === "docker" || raw.runtime === "unknown",
     "INVALID_RESPONSE",
     "runtime پاسخ معتبر نیست.",
   );
@@ -259,6 +291,12 @@ export function decodeProfile(value: unknown): ProjectProfile {
     ensure(raw.nodeVersion === null && raw.nodeRuntime === undefined && raw.pythonRuntime === undefined && raw.port === 80 && raw.start === "liara-static" && raw.build === null,
       "INVALID_RESPONSE", "اطلاعات اجرای سایت ایستا با قرارداد آن تطبیق ندارد.");
   }
+  if (raw.runtime === "docker") {
+    const runtime = parseDockerRuntime(raw.dockerRuntime);
+    ensure(raw.nodeVersion === null && raw.nodeRuntime === undefined && raw.pythonRuntime === undefined && raw.staticRuntime === undefined &&
+      raw.nextRuntime === undefined && raw.frontendRuntime === undefined && raw.port === runtime.port && raw.start === "liara-docker" && raw.build === null,
+      "INVALID_RESPONSE", "مشخصات Docker باید به همان Dockerfile، پورت و فرمان داخل image متصل باشند.");
+  } else ensure(raw.dockerRuntime === undefined, "INVALID_RESPONSE", "runtime Docker با نوع پروژه برابر نیست.");
   if (raw.nextRuntime !== undefined) {
     const next = parseNextRuntime(raw.nextRuntime);
     ensure(raw.runtime === "node" && parseNodeRuntime(raw.nodeRuntime).version === next.version && raw.pythonRuntime === undefined && raw.staticRuntime === undefined,
@@ -278,9 +316,14 @@ export function decodeProfile(value: unknown): ProjectProfile {
     ...(raw.staticRuntime === undefined ? {} : { staticRuntime: parseStaticRuntime(raw.staticRuntime) }),
     ...(raw.nextRuntime === undefined ? {} : { nextRuntime: parseNextRuntime(raw.nextRuntime) }),
     ...(raw.frontendRuntime === undefined ? {} : { frontendRuntime: parseFrontendRuntime(raw.frontendRuntime) }),
+    ...(raw.dockerRuntime === undefined ? {} : { dockerRuntime: parseDockerRuntime(raw.dockerRuntime) }),
+    ...(raw.nativeInspection === undefined ? {} : { nativeInspection: parseNativePlatformInspection(raw.nativeInspection) }),
+    ...(raw.fullstack === undefined ? {} : { fullstack: parseFullstackInspection(raw.fullstack) }),
+    ...(raw.applicationRequirements === undefined ? {} : { applicationRequirements: parseApplicationRequirements(raw.applicationRequirements) }),
+    ...(raw.sourceFixtureReviews === undefined ? {} : { sourceFixtureReviews: parseSourceFixtureReviews(raw.sourceFixtureReviews) }),
     port: raw.port === null ? null : integer(raw.port, 1, 65535),
     start: nullableString(raw.start),
-    build: nullableString(raw.build),
+    build: nullableString(raw.build, 1000),
     envNames: strings(raw.envNames),
     missing: strings(raw.missing),
     manifest: raw.manifest.map((value: unknown) => {

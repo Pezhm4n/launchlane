@@ -24,6 +24,14 @@ import { currentEnvironment, environmentFingerprint, projectEnvironmentValues } 
 import { LiaraEnvironmentClient } from "../liara/environment.ts";
 import { parseNodeVersion } from "../../contracts/node-runtime.ts";
 import { actionPlatform, profilePlatform } from "../../contracts/platform.ts";
+import { assertDockerRuntimeSource } from "../../contracts/docker-runtime.ts";
+import { fullstackVerification } from "./fullstack-verification.ts";
+import { matchesFullstackApi } from "../../contracts/fullstack.ts";
+import { compiledProof, compiledProofPath } from "../agent/fullstack-artifact.ts";
+import { assertApplicationPublicationScope } from "../policy/application-scope.ts";
+import { publicBuildAssets, publicAssetMime } from "./public-build-output.ts";
+import { checkPublicationDisk, currentDiskBinding } from "./disks.ts";
+import type { LiaraDiskClient } from "../liara/disks.ts";
 
 type Dependencies = {
   read?: LiaraReadClient;
@@ -31,6 +39,7 @@ type Dependencies = {
   probe?: WorkloadProbe;
   budget?: RunBudget;
   environment?: LiaraEnvironmentClient;
+  disk?: LiaraDiskClient;
 };
 function scopedConfig(config: Config, store: Store, actorId: string, app: string): Config {
   const scoped = connectedLiaraConfig(config, store, actorId, app);
@@ -54,7 +63,12 @@ function authorize(
   );
   if (requireActiveProject) {
     store.assertProjectAction(actorId, spec, actionId);
-    if (spec.version === 10 || (spec.version === 11 || spec.version === 17 || spec.version === 19) && spec.environment !== null) projectEnvironmentValues(store, current.sessionSecret, actorId, spec.projectFlowId, spec.environment);
+    if (spec.version === 21) {
+      const flow = store.getProjectFlow(actorId);
+      ensure(flow, "PROJECT_CHANGED", "پروژهٔ مصوب Docker موجود نیست.", 409);
+      assertDockerRuntimeSource(flow.profile, spec.runtime);
+    }
+    if (spec.version === 10 || (spec.version === 11 || spec.version === 17 || spec.version === 19 || spec.version === 21 || (spec.version === 23 || spec.version === 26)) && spec.environment !== null) projectEnvironmentValues(store, current.sessionSecret, actorId, spec.projectFlowId, spec.environment);
   }
   else
     ensure(
@@ -65,7 +79,7 @@ function authorize(
       "هویت برنامه بررسی‌شده تغییر کرده است.",
       403,
     );
-  ensure((spec.version !== 7 && spec.version !== 10 && spec.version !== 11 && spec.version !== 15 && spec.version !== 17 && spec.version !== 19) || store.getConnection(actorId, "liara")?.view.identityId === spec.accountId,
+  ensure((spec.version !== 7 && spec.version !== 10 && spec.version !== 11 && spec.version !== 15 && spec.version !== 17 && spec.version !== 19 && spec.version !== 21 && (spec.version !== 23 && spec.version !== 26)) || store.getConnection(actorId, "liara")?.view.identityId === spec.accountId,
     "SCOPE_DENIED", "حساب انتشار تغییر کرده است.", 403);
 }
 async function checkProject(
@@ -85,7 +99,7 @@ async function checkProject(
   );
 }
 async function checkEnvironment(config: Config, spec: DeploymentSpec, budget: RunBudget, signal: AbortSignal, client?: LiaraEnvironmentClient) {
-  if (spec.version !== 10 && spec.version !== 11 && spec.version !== 17 && spec.version !== 19) return;
+  if (spec.version !== 10 && spec.version !== 11 && spec.version !== 17 && spec.version !== 19 && spec.version !== 21 && (spec.version !== 23 && spec.version !== 26)) return;
   const reference = spec.environment;
   if (reference === null) return;
   const current = await (client ?? new LiaraEnvironmentClient(config)).read(spec, budget, signal);
@@ -136,7 +150,7 @@ async function prepareDeployment(
   ensure(
     flow?.status === "ready" &&
       flow.artifact &&
-      flow.profile.start && (flow.profile.runtime === "node" && flow.profile.nodeRuntime?.version || flow.profile.runtime === "python" && flow.profile.pythonRuntime || flow.profile.runtime === "static" && flow.profile.staticRuntime),
+      flow.profile.start && (flow.profile.runtime === "node" && flow.profile.nodeRuntime?.version || flow.profile.runtime === "python" && flow.profile.pythonRuntime || flow.profile.runtime === "static" && flow.profile.staticRuntime || flow.profile.runtime === "docker" && flow.profile.dockerRuntime),
     "PROJECT_INCOMPLETE",
     "پروژه هنوز آمادهٔ انتشار نیست؛ نتیجهٔ بررسی فایل‌ها و روش اجرای آن را ببینید.",
     409,
@@ -163,8 +177,22 @@ async function prepareDeployment(
   const connection = store.getConnection(actorId, "liara")?.view;
   ensure(connection?.status === "connected", "LIARA_AUTH_REQUIRED", "ابتدا حساب را متصل کنید.", 409);
   const environment = currentEnvironment(store, scoped.sessionSecret, actorId, flow.id);
+  assertApplicationPublicationScope(flow.profile);
+  if (flow.profile.dockerRuntime) assertDockerRuntimeSource(flow.profile, flow.profile.dockerRuntime);
   ensure(generic || !environment, "ENV_PUBLICATION_REQUIRED", "انتشار با اطلاعات امن از مسیر مرحله‌ای و تصمیم متصل به همان اطلاعات ادامه می‌یابد.", 409);
-  const spec: DeploySpec = flow.profile.runtime === "static" && flow.profile.staticRuntime
+  const verification = flow.profile.fullstack ? await fullstackVerification(store, scoped.stateDir, actorId, flow, scoped.sessionSecret) : null;
+  if (verification) await publicBuildAssets(store, scoped.stateDir, actorId, verification, workload.origin);
+  const storage = flow.profile.fullstack?.workerSqlite ? currentDiskBinding(store, actorId, flow) : null;
+  ensure(!flow.profile.fullstack?.workerSqlite || storage && environment && flow.profile.nodeRuntime?.version === "24", "WORKER_STORAGE_BINDING_REQUIRED", "ابتدا تنظیمات خصوصی و دیسک پایدار همین نسخه و مقصد باید تأیید شوند.", 409);
+  const spec: DeploySpec = verification
+    ? storage && environment
+      ? { ...common, version: 26, operation: "deploy", sourceHash: flow.profile.sourceHash, nodeVersion: "24", environment, storage, accountId: connection.identityId, workload: parseWorkloadContract(workload), verification }
+      : { ...common, version: 23, operation: "deploy", sourceHash: flow.profile.sourceHash, nodeVersion: parseNodeVersion(flow.profile.nodeRuntime?.version), environment,
+        accountId: connection.identityId, workload: parseWorkloadContract(workload), verification }
+    : flow.profile.runtime === "docker" && flow.profile.dockerRuntime
+    ? { ...common, version: 21, operation: "deploy", sourceHash: flow.profile.sourceHash, nodeVersion: null, runtime: flow.profile.dockerRuntime,
+      environment, accountId: connection.identityId, workload: parseWorkloadContract(workload) }
+    : flow.profile.runtime === "static" && flow.profile.staticRuntime
     ? { ...common, version: 15, operation: "deploy", sourceHash: flow.profile.sourceHash, nodeVersion: null, runtime: flow.profile.staticRuntime, accountId: connection.identityId, workload: parseWorkloadContract(workload) }
     : flow.profile.frontendRuntime ? { ...common, version: 19, operation: "deploy", sourceHash: flow.profile.sourceHash, nodeVersion: "20", runtime: flow.profile.frontendRuntime,
       environment, accountId: connection.identityId, workload: parseWorkloadContract(workload) }
@@ -178,6 +206,7 @@ async function prepareDeployment(
     : { ...common, nodeVersion: parseNodeVersion(flow.profile.nodeRuntime?.version), version: 5, workload: parseWorkloadExpectation(workload) };
   authorize(scoped, store, actorId, spec);
   await checkEnvironment(scoped, spec, budget, signal, dependencies.environment);
+  if (spec.version === 26) await checkPublicationDisk(scoped, spec, budget, signal, false, dependencies.disk);
   ensure(!signal.aborted, "CANCELLED", "پیشنهاد متوقف شد.", 409);
   return store.createAction(actorId, spec);
 }
@@ -208,7 +237,7 @@ export async function executeDeployment(
   );
   const action = store.getAction(id, session.actorId);
   ensure(
-    action.spec.version === 5 || (action.spec.version === 7 || action.spec.version === 10 || action.spec.version === 11 || action.spec.version === 15 || action.spec.version === 17 || action.spec.version === 19),
+    action.spec.version === 5 || (action.spec.version === 7 || action.spec.version === 10 || action.spec.version === 11 || action.spec.version === 15 || action.spec.version === 17 || action.spec.version === 19 || action.spec.version === 21 || (action.spec.version === 23 || action.spec.version === 26)),
     "DEPLOYMENT_PROPOSAL_REQUIRED",
     "این پیشنهاد قدیمی قابل انتشار نیست؛ پیشنهاد تازه با نسخه اجرا و معیار بررسی سایت بسازید.",
     409,
@@ -243,8 +272,9 @@ export async function executeDeployment(
       async preflight(bounded) {
         await checkProject(client, spec, budget, bounded);
         await checkEnvironment(scoped, spec, budget, bounded, dependencies.environment);
+        if (spec.version === 26) await checkPublicationDisk(scoped, spec, budget, bounded, false, dependencies.disk);
         // Leave room for both writes and the second identity read, including its one connect retry.
-        ensure(budget.maxToolCalls - budget.toolCalls >= ((spec.version === 10 || (spec.version === 11 || spec.version === 17 || spec.version === 19) && spec.environment !== null) ? 6 : 4), "BUDGET_EXHAUSTED", "بودجه ادامه انتشار و بررسی مقصد کافی نیست.", 409);
+        ensure(budget.maxToolCalls - budget.toolCalls >= (spec.version === 26 ? 7 : (spec.version === 10 || (spec.version === 11 || spec.version === 17 || spec.version === 19 || spec.version === 21 || spec.version === 23) && spec.environment !== null) ? 6 : 4), "BUDGET_EXHAUSTED", "بودجه ادامه انتشار و بررسی مقصد کافی نیست.", 409);
         authorize(scoped, store, session.actorId, spec, id);
       },
       async execute(claimed, bounded, source) {
@@ -255,6 +285,7 @@ export async function executeDeployment(
         store.deploymentStep(claimed.id, session.actorId, "uploaded", sourceId);
         await checkProject(client, spec, budget, bounded);
         await checkEnvironment(scoped, spec, budget, bounded, dependencies.environment);
+        if (spec.version === 26) await checkPublicationDisk(scoped, spec, budget, bounded, false, dependencies.disk);
         authorize(scoped, store, session.actorId, spec, id);
         store.deploymentStep(claimed.id, session.actorId, "release_started", sourceId);
         return {
@@ -263,7 +294,7 @@ export async function executeDeployment(
       },
     },
   }); } catch (error) {
-    if ((spec.version === 10 || (spec.version === 11 || spec.version === 17 || spec.version === 19) && spec.environment !== null) && error instanceof AppError && error.code === "ENV_REFERENCE_CHANGED")
+    if ((spec.version === 10 || (spec.version === 11 || spec.version === 17 || spec.version === 19 || spec.version === 21 || (spec.version === 23 || spec.version === 26)) && spec.environment !== null) && error instanceof AppError && error.code === "ENV_REFERENCE_CHANGED")
       return store.invalidateEnvironmentPublication(id, session.actorId);
     throw error;
   }
@@ -335,7 +366,7 @@ export async function observeDeployment(
           spec.workload.path,
           budget,
           signal,
-          (spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 15 || spec.version === 17 || spec.version === 19) ? 65536 : 4096,
+          (spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 15 || spec.version === 17 || spec.version === 19 || spec.version === 21 || (spec.version === 23 || spec.version === 26)) ? 65536 : 4096,
         );
         ensure(
           probe.scope.teamId === spec.scope.teamId &&
@@ -366,7 +397,7 @@ export async function observeDeployment(
           outcome:
             probe.outcome === "response" &&
             probe.status === spec.workload.status &&
-            ((spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 15 || spec.version === 17 || spec.version === 19)
+            ((spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 15 || spec.version === 17 || spec.version === 19 || spec.version === 21 || (spec.version === 23 || spec.version === 26))
               ? matchesWorkload(spec.workload, probe.status, probe.body)
               : revision === spec.workload.revision)
               ? "verified"
@@ -375,15 +406,38 @@ export async function observeDeployment(
         };
         // Provider current/READY can precede the public route switching from the old response.
         // Waiting never changes the approved assertion; a persistent mismatch still fails at the deadline.
-        if (result.outcome === "failed" && (spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 15 || spec.version === 17 || spec.version === 19) && probe.outcome === "response" &&
+        if (result.outcome === "failed" && (spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 15 || spec.version === 17 || spec.version === 19 || spec.version === 21 || (spec.version === 23 || spec.version === 26)) && probe.outcome === "response" &&
           action.deployment.releaseAcceptedAt !== undefined &&
           probe.observedAt >= action.deployment.releaseAcceptedAt &&
           probe.observedAt - action.deployment.releaseAcceptedAt < 300_000)
           result = { ...result, outcome: "pending", code: "WORKLOAD_STARTING" };
+        if (result.outcome === "verified" && (spec.version === 23 || spec.version === 26)) {
+          const proof = await (dependencies.probe ?? new WorkloadProbe(scoped)).check(spec.scope, compiledProofPath, budget, signal, 65536);
+          ensure(proof.scope.teamId === spec.scope.teamId && proof.scope.app === spec.scope.app && proof.origin === spec.workload.origin && proof.path === compiledProofPath && proof.observedAt >= started,
+            "EVIDENCE_MISMATCH", "گواه نسخه متعلق به همین انتشار نیست.", 409);
+          if (proof.outcome !== "response" || proof.status !== 200 || proof.body !== compiledProof(spec.verification)) result = { ...result, outcome: "failed", code: "FULLSTACK_VERSION_MISMATCH" };
+          for (const check of result.outcome === "verified" ? spec.verification.apiChecks : []) {
+            const api = await (dependencies.probe ?? new WorkloadProbe(scoped)).check(spec.scope, check.path, budget, signal, 65536);
+            ensure(api.scope.teamId === spec.scope.teamId && api.scope.app === spec.scope.app && api.origin === spec.workload.origin && api.path === check.path && api.observedAt >= started,
+              "EVIDENCE_MISMATCH", "پاسخ API متعلق به همین برنامه و دور بررسی نیست.", 409);
+            if (api.outcome !== "response" || !matchesFullstackApi(check, api.status, api.body)) { result = { ...result, outcome: "failed", code: "FULLSTACK_API_MISMATCH" }; break; }
+          }
+        }
+        if (result.outcome === "verified") {
+          if ((spec.version === 23 || spec.version === 26)) for (const asset of await publicBuildAssets(store, scoped.stateDir, session.actorId, spec.verification, spec.workload.origin)) {
+            const observed = await (dependencies.probe ?? new WorkloadProbe(scoped)).checkFile(spec.scope, asset.path, budget, signal);
+            ensure(observed.scope.teamId === spec.scope.teamId && observed.scope.app === spec.scope.app && observed.origin === spec.workload.origin && observed.path === asset.path && observed.observedAt >= started,
+              "EVIDENCE_MISMATCH", "فایل مرورگر متعلق به همین برنامه و دور بررسی نیست.", 409);
+            if (observed.outcome !== "response" || observed.status !== 200 || observed.sha256 !== asset.sha256 || !publicAssetMime(asset.kind, observed.contentType)) {
+              result = { ...result, outcome: "failed", code: "FULLSTACK_ASSET_MISMATCH" }; break;
+            }
+          }
+        }
         if (result.outcome === "verified") {
           // Fence the probe with fresh project/release reads. READY from an older release is insufficient.
           await checkProject(client, spec, budget, signal);
           await checkEnvironment(scoped, spec, budget, signal, dependencies.environment);
+          if (spec.version === 26) await checkPublicationDisk(scoped, spec, budget, signal, true, dependencies.disk);
           const current = await client.releases(spec.scope, 1, 50, budget, signal);
           result =
             current.currentRelease === action.remoteId &&

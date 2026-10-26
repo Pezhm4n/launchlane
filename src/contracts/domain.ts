@@ -7,7 +7,7 @@ export type ManifestEntry = Readonly<{
 }>;
 export type ProjectProfile = Readonly<{
   directory: string;
-  runtime: "node" | "python" | "static" | "unknown";
+  runtime: "node" | "python" | "static" | "docker" | "unknown";
   nodeVersion: string | null;
   // Historical profiles predate runtime selection; fresh inspection always supplies it.
   nodeRuntime?: import("./node-runtime.ts").NodeRuntime;
@@ -15,6 +15,11 @@ export type ProjectProfile = Readonly<{
   staticRuntime?: import("./static-runtime.ts").StaticRuntime;
   nextRuntime?: import("./next-runtime.ts").NextRuntime;
   frontendRuntime?: import("./frontend-runtime.ts").FrontendRuntime;
+  dockerRuntime?: import("./docker-runtime.ts").DockerRuntime;
+  nativeInspection?: import("./liara-platform.ts").NativePlatformInspection;
+  fullstack?: import("./fullstack.ts").FullstackInspection;
+  applicationRequirements?: import("./application-requirements.ts").ApplicationRequirementsInspection;
+  sourceFixtureReviews?: readonly import("./source-fixture-review.ts").SourceFixtureReviewEvidence[];
   port: number | null;
   start: string | null;
   build: string | null;
@@ -108,6 +113,19 @@ export type ActionSpec = (ActionInputs &
         environment: import("./environment.ts").EnvironmentReference;
       }>
     | Readonly<{
+        version: 23; operation: "deploy"; sourceHash: string; artifactHash: string; projectFlowId: string;
+        selectionHash: string; accountId: string; targetAppId: string; workload: import("./deployment.ts").WorkloadContract;
+        nodeVersion: import("./node-runtime.ts").NodeVersion;
+        environment: import("./environment.ts").EnvironmentReference | null;
+        verification: import("./fullstack.ts").FullstackVerification;
+      }>
+    | Readonly<{
+        version: 26; operation: "deploy"; sourceHash: string; artifactHash: string; projectFlowId: string;
+        selectionHash: string; accountId: string; targetAppId: string; workload: import("./deployment.ts").WorkloadContract;
+        nodeVersion: "24"; environment: import("./environment.ts").EnvironmentReference;
+        verification: import("./fullstack.ts").FullstackVerification; storage: import("./persistent-disk.ts").DiskBinding;
+      }>
+    | Readonly<{
         version: 11;
         operation: "deploy";
         sourceHash: string;
@@ -138,7 +156,13 @@ export type ActionSpec = (ActionInputs &
         nodeVersion: "20"; runtime: import("./frontend-runtime.ts").FrontendRuntime;
         environment: import("./environment.ts").EnvironmentReference | null;
       }>
-  )) | import("./provision.ts").ProvisionSpec | import("./environment.ts").EnvironmentSpec | import("./network.ts").NetworkSpec | import("./project-lifecycle.ts").LifecycleSpec;
+    | Readonly<{
+        version: 21; operation: "deploy"; sourceHash: string; artifactHash: string; projectFlowId: string;
+        selectionHash: string; accountId: string; targetAppId: string; workload: import("./deployment.ts").WorkloadContract;
+        nodeVersion: null; runtime: import("./docker-runtime.ts").DockerRuntime;
+        environment: import("./environment.ts").EnvironmentReference | null;
+      }>
+  )) | import("./provision.ts").ProvisionSpec | import("./environment.ts").EnvironmentSpec | import("./network.ts").NetworkSpec | import("./project-lifecycle.ts").LifecycleSpec | import("./persistent-disk.ts").DiskSpec;
 
 export type ActionState =
   | "awaiting_approval"
@@ -168,6 +192,7 @@ export type Action = Readonly<{
   environment?: import("./environment.ts").EnvironmentProgress;
   network?: import("./network.ts").NetworkProgress;
   lifecycle?: import("./project-lifecycle.ts").LifecycleProgress;
+  disk?: import("./persistent-disk.ts").DiskProgress;
 }>;
 
 export type Session = Readonly<{

@@ -5,6 +5,17 @@ import { providerObjectId } from "./provision.ts";
 
 export type EnvironmentVariable = { key: string; value: string };
 export type EnvironmentReference = Readonly<{ actionId: string; fingerprint: string; keys: readonly string[] }>;
+export type SourceEnvironmentReference = Readonly<{ version: 1; kind: "source_environment"; projectId: string; sourceHash: string; fingerprint: string; keys: readonly string[] }>;
+export function parseSourceEnvironmentReference(value: unknown): SourceEnvironmentReference {
+  const row = object(value);exactKeys(row, ["version", "kind", "projectId", "sourceHash", "fingerprint", "keys"]);
+  const projectId = string(row.projectId, 36);
+  ensure(row.version === 1 && row.kind === "source_environment" && /^[a-f0-9-]{36}$/.test(projectId) && Array.isArray(row.keys) && row.keys.length > 0 && row.keys.length <= 32,
+    "INVALID_ENV_REFERENCE", "مرجع تنظیمات خصوصی منبع معتبر نیست.");
+  const keys = row.keys.map(environmentKey);
+  ensure(new Set(keys).size === keys.length && keys.every(key => isApplicationEnvironmentKey(key) && !isPublicClientEnvironmentKey(key)),
+    "INVALID_ENV_REFERENCE", "این ورودی ساخت فقط تنظیمات خصوصی همان برنامه را می‌پذیرد.");
+  return { version: 1, kind: "source_environment", projectId, sourceHash: hash(row.sourceHash), fingerprint: hash(row.fingerprint), keys };
+}
 export function parseEnvironmentReference(value: unknown): EnvironmentReference {
   const row = object(value); exactKeys(row, ["actionId", "fingerprint", "keys"]);
   const actionId = string(row.actionId, 36);

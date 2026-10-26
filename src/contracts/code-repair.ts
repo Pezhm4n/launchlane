@@ -4,6 +4,7 @@ import { hash, integer, object, string, text } from "./validation.ts";
 import { ensure } from "../server/errors.ts";
 import { parseNodePreparation, type NodePreparation } from "./preparation.ts";
 import { parseProjectBuildPlan, type ProjectBuildPlan } from "./project-build.ts";
+import { parseBuildOutputReceipt, type BuildOutputReceipt } from "./build-output.ts";
 export type RepairTestReceipt = {
   command: string;
   exitCode: number | null;
@@ -11,6 +12,7 @@ export type RepairTestReceipt = {
   output: string;
   durationMs: number;
   passed: boolean;
+  buildOutput?: BuildOutputReceipt;
 };
 export type CodeRepairJob = {
   id: string;
@@ -34,8 +36,14 @@ export type CodeRepairJob = {
   execution?: "container";
   containerIds?: string[];
   containerImage?: string;
+  builtImage?: string;
+  dockerExecutionStarted?: true;
+  postgresExecutionStarted?: true;
+  postgresFixtureSourceHash?: string;
+  postgresFixtureId?: string;
   build?: ProjectBuildPlan;
   validationOnly?: true;
+  publication?: Readonly<{ version: 1; testedSourceHash: string; planHash: string; outputArtifactHash: string }>;
 };
 
 function paths(value: unknown): string[] {
@@ -63,6 +71,7 @@ function receipt(value: unknown): RepairTestReceipt | null {
     output: row.output,
     durationMs: integer(row.durationMs, 0, 360000),
     passed: row.passed,
+    ...(row.buildOutput === undefined ? {} : { buildOutput: parseBuildOutputReceipt(row.buildOutput) }),
   };
 }
 export function parseCodeRepairJob(value: unknown): CodeRepairJob {
@@ -105,6 +114,30 @@ export function parseCodeRepairJob(value: unknown): CodeRepairJob {
     ...(row.preparation === undefined ? {} : { preparation: parseNodePreparation(row.preparation) }),
     ...(row.build === undefined ? {} : { build: parseProjectBuildPlan(row.build) }),
     ...(row.validationOnly === true ? { validationOnly: true as const } : {}),
+    ...(row.builtImage === undefined ? {} : (() => {
+      const image = string(row.builtImage, 71);
+      ensure(/^sha256:[a-f0-9]{64}$/.test(image) && object(row.build).version === 6, "STORAGE_INVALID", "رسید image ساخته‌شده معتبر نیست.", 503);
+      return { builtImage: image };
+    })()),
+    ...(row.dockerExecutionStarted === undefined ? {} : (() => {
+      ensure(row.dockerExecutionStarted === true && object(row.build).version === 6, "STORAGE_INVALID", "مرز اجرای Docker معتبر نیست.", 503);
+      return { dockerExecutionStarted: true as const };
+    })()),
+    ...(row.postgresExecutionStarted === undefined ? {} : (() => {
+      ensure(row.postgresExecutionStarted === true && object(row.build).version === 7 && object(row.build).testDatabase !== undefined,"STORAGE_INVALID","مرز دیتابیس آزمون معتبر نیست.",503);
+      return {postgresExecutionStarted:true as const};
+    })()),
+    ...(row.postgresFixtureSourceHash === undefined ? {} : {postgresFixtureSourceHash:hash(row.postgresFixtureSourceHash)}),
+    ...(row.postgresFixtureId === undefined ? {} : (() => {
+      ensure(typeof row.postgresFixtureId === "string" && /^[a-f0-9]{64}$/.test(row.postgresFixtureId),"STORAGE_INVALID","شناسه دیتابیس آزمون معتبر نیست.",503);
+      return {postgresFixtureId:row.postgresFixtureId};
+    })()),
+    ...(row.publication === undefined ? {} : (() => {
+      const publication = object(row.publication);
+      ensure(publication.version === 1 && object(row.build).version === 7 && row.state === "succeeded" && row.artifact !== null,
+        "STORAGE_INVALID", "تبار بستهٔ کامل معتبر نیست.", 503);
+      return { publication: { version: 1 as const, testedSourceHash: hash(publication.testedSourceHash), planHash: hash(publication.planHash), outputArtifactHash: hash(publication.outputArtifactHash) } };
+    })()),
     ...(row.execution === undefined ? {} : (() => {
       ensure(row.execution === "container", "STORAGE_INVALID", "روش اجرای اصلاح معتبر نیست.");
       return { execution: "container" as const, containerIds: paths(row.containerIds ?? []),

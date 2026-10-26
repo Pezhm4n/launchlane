@@ -12,6 +12,18 @@ import {
 import { GoalModelClient } from "../../src/server/agent/model.ts";
 import { readArtifact } from "../../src/server/workspace/archive.ts";
 import { agentFixture, repairCorrectSource, repairBrokenSource } from "../helpers/agent-fixture.ts";
+import { saveImportedEnvironment } from "../../src/server/environment/import.ts";
+
+test("standalone repair reads fresh actor vault secrets before accepting goals even with a stale configuration", async () => {
+  const f = await agentFixture();
+  try {
+    const adapter = new CodeRepairAdapter(f.config, f.store);
+    const secret = "synthetic-imported-value-after-adapter-construction";
+    saveImportedEnvironment(f.config, f.store, f.session.actorId, f.flow, [{key:"PRIVATE_INPUT",value:secret}]);
+    assert.deepEqual(f.config.projectSecretValues, []);
+    await assert.rejects(adapter.start(f.session.actorId, { ...input(f), goal: `Investigate ${secret}` }, AbortSignal.timeout(3000)), {code:"SENSITIVE_INPUT"});
+  } finally { f.close(); }
+});
 
 type Fixture = Awaited<ReturnType<typeof agentFixture>>;
 function input(f: Fixture) {

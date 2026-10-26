@@ -14,6 +14,8 @@ import type { ToolDefinition } from "./model.ts";
 import { CodeRepairAdapter } from "./code-repair.ts";
 import { proposeWorkloadDeployment } from "../application/deployment.ts";
 import { LiaraAccountClient, quotePaaSOffer } from "../liara/catalog.ts";
+import { LiaraDatabaseReadClient } from "../liara/database-read.ts";
+import { providerObjectId } from "../../contracts/provision.ts";
 import { proposeDestination } from "../application/provision.ts";
 import { proposeNetwork } from "../application/network.ts";
 import { nodePreparation } from "../../contracts/preparation.ts";
@@ -23,12 +25,22 @@ import type { PublicationMission } from "../../contracts/publication-mission.ts"
 import type { WorkloadContract } from "../../contracts/deployment.ts";
 import { parseProjectBuildPlan, nodeBuildRuntime, pythonBuildImage } from "../../contracts/project-build.ts";
 import { parseCodeRepairJob, type CodeRepairJob } from "../../contracts/code-repair.ts";
-import { requiresProjectBuild, sameBuildWorkload, projectTestCommand, dependencyFreeNode } from "./build-policy.ts";
+import { requiresProjectBuild, sameBuildWorkload, projectTestCommand, dependencyFreeNode, dockerProjectBuild } from "./build-policy.ts";
 import { currentEnvironment } from "../environment/secrets.ts";
+import { buildSourceEnvironment, matchesPublishedBuildEnvironment, sourceBuildEnvironment } from "../environment/build.ts";
 import type { DestinationRecommendation } from "../../contracts/destination-recommendation.ts";
 import { isApplicationEnvironmentKey } from "../../contracts/environment.ts";
-import { providerObjectId } from "../../contracts/provision.ts";
+import { fullstackPreparation } from "./fullstack-preparation.ts";
+import { fullstackTestCommand, parseFullstackApiChecks } from "../../contracts/fullstack.ts";
+import { preparationPaths } from "./preparation.ts";
+import { fullstackVerification } from "../application/fullstack-verification.ts";
+import { parseDisposableTestDatabase, postgresTestImage } from "../../contracts/test-database.ts";
+import { validateTestDatabaseSource } from "./test-database.ts";
 import { explicitIsoTime } from "../liara/read-contracts.ts";
+import { currentDiskBinding, proposeDisk } from "../application/disks.ts";
+import type { LiaraDiskClient } from "../liara/disks.ts";
+import type { LiaraEnvironmentClient } from "../liara/environment.ts";
+import { randomUUID } from "node:crypto";
 
 export function privateValues(c: Config): string[] {
   return [c.liaraToken, c.modelKey, c.operatorToken, c.sessionSecret, ...c.projectSecretValues].filter(Boolean);
@@ -188,15 +200,16 @@ const repairTool: ToolDefinition = {
 function registeredTools(config: Config): readonly ToolDefinition[] {
   return [...agentTools, ...(config.enableLocalRepair ? [repairTool, preparationTool, buildTool] : []),
     ...(config.enableLiveLiara ? catalogTools : []),
-    ...(config.enableMutations && config.enableLiveLiara ? [publicationTool, destinationTool, networkTool] : [])];
+    ...(config.enableMutations && config.enableLiveLiara ? [publicationTool, destinationTool, networkTool, diskTool] : [])];
 }
 export function toolsForConversation(config: Config): readonly ToolDefinition[] {
   return [...agentTools, ...(config.enableLiveLiara ? catalogTools : [])];
 }
-export function toolsForAgent(config: Config, preparation: "native" | "build" = "native", hasTarget = true, publicationProgram = false): readonly ToolDefinition[] {
-  // Native start/port preparation cannot handle dependencies; its applicable alternative keeps the model's 16-tool bound.
+export function toolsForAgent(config: Config, preparation: "native" | "build" = "native", hasTarget = true, publicationProgram = false, persistentStorage = false): readonly ToolDefinition[] {
+  // Offer the applicable preparation path without two competing tools for the same task.
   const omitted = preparation === "build" ? "propose_project_preparation" : "propose_project_build";
   return registeredTools(config).filter(tool => tool.function.name !== omitted && tool.function.name !== (hasTarget ? "propose_network" : "read_metrics") &&
+    (tool.function.name !== "propose_disk" || hasTarget && persistentStorage) &&
     !(publicationProgram && !hasTarget && ["propose_project_build", "propose_publication"].includes(tool.function.name)));
 }
 const preparationTool: ToolDefinition = { type: "function", function: {
@@ -209,6 +222,12 @@ const preparationTool: ToolDefinition = { type: "function", function: {
   } },
 } };
 const catalogTools: readonly ToolDefinition[] = [
+  { type: "function", function: {
+    name: "read_database_resources", description: "Read fresh database metadata for the connected account/team. view=inventory lists observed IDs; view=capabilities reads provider engines/versions and plan availability, without prices; view=identity looks up one internal databaseId from inventory. Completeness is unknown. Network/version details may be unknown, RUNNING is not connectivity or data health. No credentials, SQL, provision, migration, resize or reset. Never substitute plain PostgreSQL for Supabase, D1 or WordPress services.",
+    parameters: { type: "object", additionalProperties: false, required: ["view"], properties: {
+      view: { type: "string", enum: ["inventory", "capabilities", "identity"] }, databaseId: { type: "string", minLength: 24, maxLength: 24 },
+    } },
+  } },
   { type: "function", function: {
     name: "read_networks", description: "Read existing private networks in the connected account/team before proposing a new destination. A single existing network can be reused; ask only when several materially different choices need the user's input. Does not create a network. No app selection is required.",
     parameters: { type: "object", additionalProperties: false, required: [], properties: {} },
@@ -225,7 +244,7 @@ const catalogTools: readonly ToolDefinition[] = [
 ];
 const destinationTool: ToolDefinition = { type: "function", function: {
   name: "propose_destination",
-  description: "Propose a native Node, Python, Next, React, Vue, Angular or plain Static destination matching the selected inspected project; the host selects the platform from source, never from a model guess. Supply a unique app name, an available plan/bundle from the actual catalog and an existing team network from read_networks. User approval is mandatory before any create. Creation does not publish, resize, set env or prove workload health. For publication with no app, propose this step instead of sending the user to select a nonexistent app. Capacity is unmeasured. Only Iran-region plans and existing networks are implemented.",
+  description: "Propose a native Node, Python, Next, React, Vue, Angular, Docker or plain Static destination matching the selected inspected project; the host selects the platform from source, never from a model guess. Supply a unique app name, an available plan/bundle from the actual catalog and an existing team network from read_networks. User approval is mandatory before any create. Creation does not publish, resize, set env or prove workload health. For publication with no app, propose this step instead of sending the user to select a nonexistent app. Capacity is unmeasured. Only Iran-region plans and existing networks are implemented.",
   parameters: { type: "object", additionalProperties: false, required: ["app", "planId", "bundleId", "networkId"], properties: {
     app: { type: "string", maxLength: 63 }, planId: { type: "string", maxLength: 63 },
     bundleId: { type: "string", maxLength: 63 }, networkId: { type: "string", maxLength: 24 },
@@ -235,6 +254,10 @@ const networkTool: ToolDefinition = { type: "function", function: {
   name: "propose_network",
   description: "Propose one private network for the selected project and future allowed app only when the connected team has no existing network. The host generates a unique name and requires a separate human decision explicitly acknowledging UNKNOWN network pricing. This does not create an app, publish, or grant budget. Never call it if a network is already available or a previous network write is uncertain; read the durable receipt instead.",
   parameters: { type: "object", additionalProperties: false, required: ["app"], properties: { app: { type: "string", maxLength: 63 } } },
+} };
+const diskTool: ToolDefinition = { type: "function", function: {
+  name: "propose_disk", description: "Propose the detected single Worker/SQLite project's required persistent storage after its exact compiled build and private environment readback succeed. The host verifies a fresh product-created empty destination and current included capacity, fixes one 1 GB disk and /data, and obtains a separate human decision before the only create request. No resize, existing data adoption, release, mount change or publication permission is granted. Never manufacture a disk ID or replay an uncertain create; read its durable receipt instead.",
+  parameters: { type: "object", additionalProperties: false, required: [], properties: {} },
 } };
 const publicationTool: ToolDefinition = {
   type: "function",
@@ -256,8 +279,19 @@ const publicationTool: ToolDefinition = {
 };
 const buildTool: ToolDefinition = { type: "function", function: {
   name: "propose_project_build",
-  description: "Propose a host-reviewed install/build/start and independent workload check in an isolated Node20, Node22, Node24 or Python3.12 container selected by the host from the source version constraints. Node uses npm v3 lockfiles; only a package with zero declared dependencies and no lockfile skips install, as verified by the host. For Python, root requirements.txt must pin all packages; the host verifies binary-wheel hashes, installs offline, compiles source and probes the actual start command. Read package/lock/source first; supply the original path/status/text or JSON assertion. Commands and port come from actual source, never invented. The user approves before any install/script runs. No code changes or cloud writes. A monorepo requires its actual leaf. Builds needing undeclared network or secrets fail explicitly.",
-  parameters: publicationTool.function.parameters,
+  description: "Propose a host-reviewed install/build/start and independent workload check in an isolated Node20, Node22, Node24 or Python3.12 container selected by the host from the source version constraints. Node uses npm v3 lockfiles; only a package with zero declared dependencies and no lockfile skips install, as verified by the host. For Python, root requirements.txt must pin all packages; the host verifies binary-wheel hashes, installs offline, compiles source and probes the actual start command. Read package/lock/source first; supply the original path/status/text or JSON assertion. Commands and port come from actual source, never invented. The user approves before any install/script runs. No code changes or cloud writes. A monorepo requires its actual leaf. Builds needing undeclared network or secrets fail explicitly. For a Node fullstack source that uses PostgreSQL, compatibilityDatabase can request disposable synthetic-data testing: supply only source-proven connection environment key names and public relation names. The host fixes the image and purpose, excludes stored real environment values and creates no publication artifact. This mode neither provisions a real database nor authorizes publication. The pinned database image must already be cached; it is never pulled automatically.",
+  parameters: { ...publicationTool.function.parameters, properties: { ...publicationTool.function.parameters.properties,
+    apiChecks: { type: "array", minItems: 1, maxItems: 8, items: { type: "object", additionalProperties: false, required: ["path", "status", "assertions"], properties: {
+      path: { type: "string", maxLength: 200 }, status: { type: "integer", minimum: 200, maximum: 299 }, assertions: { type: "array", minItems: 1, maxItems: 16,
+        items: { type: "object", additionalProperties: false, required: ["pointer", "equals"], properties: {
+          pointer: { type: "array", minItems: 1, maxItems: 8, items: { type: "string", maxLength: 80 } }, equals: { type: ["string", "number", "boolean", "null"] },
+        } } },
+    } } },
+    compatibilityDatabase: { type: "object", additionalProperties: false, required: ["environmentKeys", "requiredRelations"], properties: {
+      environmentKeys: { type: "array", minItems: 1, maxItems: 8, items: { type: "string", maxLength: 128 } },
+      requiredRelations: { type: "array", minItems: 1, maxItems: 16, items: { type: "string", maxLength: 70 } },
+    } },
+  } },
 } };
 export const toolLabels: Readonly<Record<string, string>> = {
   inspect_project: "بررسی فایل‌ها و روش اجرای پروژه",
@@ -272,8 +306,10 @@ export const toolLabels: Readonly<Record<string, string>> = {
   read_catalog: "خواندن پلن‌ها و قیمت‌های تازه حساب",
   quote_resource_plan: "بررسی هزینه پایه و گزینه‌های پلن",
   read_networks: "بررسی شبکه‌های موجود همین حساب",
+  read_database_resources: "بررسی مشخصات دیتابیس‌های همین حساب",
   propose_destination: "آماده‌کردن مقصد تازه و هزینه پایه آن",
   propose_network: "آماده‌کردن تصمیم ساخت شبکه موردنیاز",
+  propose_disk: "آماده‌کردن فضای پایدار موردنیاز همین نسخه",
   propose_project_preparation: "آماده‌کردن فرمان اجرا و پورت برای تصمیم شما",
   propose_project_build: "آماده‌کردن نصب قفل‌شده و بررسی ساخت و اجرای برنامه",
   read_workload: "خواندن پاسخ تازه همان صفحه سایت",
@@ -290,11 +326,14 @@ export type AgentToolContext = {
   signal: AbortSignal;
   read?: LiaraReadClient;
   account?: LiaraAccountClient;
+  database?: LiaraDatabaseReadClient;
   probe?: WorkloadProbe;
   mission?: PublicationMission | null;
   publicationExpectation?: WorkloadContract;
   buildJob?: CodeRepairJob | null;
   explicitBuildRetry?: boolean;
+  disk?: LiaraDiskClient;
+  environment?: LiaraEnvironmentClient;
 };
 function evidenceRows<T>(rows: readonly T[], maxRows: number, maxBytes: number) {
   const selected: T[] = [];
@@ -327,6 +366,17 @@ export async function executeAgentTool(
   const buildReleaseId = name === "read_build_logs" ? providerObjectId(args.releaseId) : null,
     buildSince = name === "read_build_logs" && args.since !== undefined ? string(args.since, 64) : null;
   ensure(buildSince === null || explicitIsoTime(buildSince) !== null, "INVALID_INPUT", "زمان آغاز گزارش ساخت باید تاریخ معتبر باشد.");
+  if (name === "read_database_resources") {
+    ensure(c.context.account, "LIARA_AUTH_REQUIRED", "ابتدا حساب مقصد را متصل کنید.", 409);
+    ensure(["inventory", "capabilities", "identity"].includes(string(args.view, 24)) && (args.view === "identity" ? args.databaseId !== undefined : args.databaseId === undefined),
+      "INVALID_INPUT", "نوع خواندن دیتابیس و شناسهٔ آن معتبر نیست.", 400);
+    const databaseId = args.view === "identity" ? providerObjectId(args.databaseId) : null;
+    const scoped = connectedLiaraAccountConfig(c.config, c.store, c.actorId), client = c.database ?? new LiaraDatabaseReadClient(scoped, c.context.account.accountId);
+    const result = args.view === "capabilities" ? await client.capabilities(c.budget, c.signal) : databaseId
+      ? await client.database({ ...c.context.account, databaseId }, c.budget, c.signal) : await client.inventory(c.budget, c.signal);
+    assertAgentContext(c.config, c.store, c.actorId, c.context);
+    return { ...result, remoteChanges: false, workloadVerified: false };
+  }
   if (name === "read_networks") {
     ensure(c.context.account, "LIARA_AUTH_REQUIRED", "ابتدا حساب مقصد را متصل کنید.", 409);
     const scoped = connectedLiaraAccountConfig(c.config, c.store, c.actorId),
@@ -365,28 +415,51 @@ export async function executeAgentTool(
     const workload = { path: args.path, status: args.status, assertion: args.assertion };
     if (c.buildJob?.build) ensure(fingerprint(workload) === fingerprint(c.buildJob.build.workload), "MISSION_EXPECTATION_CHANGED", "معیار build قبلی تغییر نمی‌کند.", 409);
     if (name === "propose_project_build") {
-      ensure(!(c.buildJob?.validationOnly && c.buildJob.state === "failed" && c.buildJob.baseRevision === c.context.sourceHash) || c.explicitBuildRetry === true ||
-        fingerprint(c.buildJob.build?.environment ?? null) !== fingerprint(currentEnvironment(c.store, c.config.sessionSecret, c.actorId, flow.id)),
+      const testDatabase = args.compatibilityDatabase === undefined ? undefined : (() => {
+        const input = object(args.compatibilityDatabase); exactKeys(input, ["environmentKeys", "requiredRelations"]);
+        return validateTestDatabaseSource(captured.files, flow.profile, parseDisposableTestDatabase({ version: 1, kind: "postgresql", purpose: "compatibility_test",
+          image: postgresTestImage, environmentKeys: input.environmentKeys, requiredRelations: input.requiredRelations }));
+      })();
+      const previousDatabase = c.buildJob?.build?.version === 7 ? c.buildJob.build.testDatabase : undefined;
+      if (previousDatabase) ensure(fingerprint(testDatabase ?? null) === fingerprint(previousDatabase), "MISSION_EXPECTATION_CHANGED", "محدودهٔ دادهٔ آزمون قبلی بدون تغییر شواهد عوض نمی‌شود.", 409);
+      const environment = testDatabase ? null : currentEnvironment(c.store, c.config.sessionSecret, c.actorId, flow.id);
+      const sourceEnvironment = !testDatabase && !environment && flow.profile.runtime !== "docker" ? sourceBuildEnvironment(c.config, c.store, c.actorId, flow.id) : null;
+      ensure(!((c.buildJob?.validationOnly || previousDatabase !== undefined) && c.buildJob?.state === "failed" && c.buildJob.baseRevision === c.context.sourceHash) || c.explicitBuildRetry === true ||
+        fingerprint(c.buildJob?.build?.environment ?? null) !== fingerprint(environment) ||
+        fingerprint(c.buildJob?.build ? buildSourceEnvironment(c.buildJob.build) ?? null : null) !== fingerprint(sourceEnvironment) || testDatabase !== undefined && previousDatabase === undefined,
         "BUILD_NO_PROGRESS", "همان build ناموفق بدون تغییر شواهد تکرار نمی‌شود؛ علت توقف را بررسی کنید.", 409);
       c.budget.take("tool", c.signal);
-      const build = parseProjectBuildPlan({ ...(flow.profile.frontendRuntime ? { ...nodeBuildRuntime("20"), version: 5, frontend: flow.profile.frontendRuntime } : flow.profile.runtime === "python" ? { version: 2, nodeVersion: null, runtime: flow.profile.pythonRuntime, image: pythonBuildImage }
+      const preparation = flow.profile.fullstack ? fullstackPreparation(captured.files, flow.profile) : undefined;
+      const apiChecks = preparation ? parseFullstackApiChecks(args.apiChecks) : undefined;
+      if (c.buildJob?.build?.version === 7) ensure(fingerprint(apiChecks) === fingerprint(c.buildJob.build.apiChecks), "MISSION_EXPECTATION_CHANGED", "معیار مستقل API در بازآزمایی تغییر نمی‌کند.", 409);
+      const build = preparation ? parseProjectBuildPlan({ ...nodeBuildRuntime(preparation.nodeVersion), version: 7, fullstack: preparation, apiChecks,
+        buildCommand: preparation.buildCommand, testCommand: fullstackTestCommand(preparation), startCommand: preparation.startCommand, port: preparation.port, workload,
+        environment, ...(sourceEnvironment ? { sourceEnvironment } : {}), ...(testDatabase ? { testDatabase } : {}) }) : flow.profile.runtime === "docker" ? dockerProjectBuild(captured.files, flow.profile, parseProjectBuildPlan({ ...nodeBuildRuntime("22"), buildCommand: null, testCommand: null, startCommand: "liara-docker", port: flow.profile.port, workload }).workload, environment) : parseProjectBuildPlan({ ...(flow.profile.frontendRuntime ? { ...nodeBuildRuntime("20"), version: 5, frontend: flow.profile.frontendRuntime } : flow.profile.runtime === "python" ? { version: 2, nodeVersion: null, runtime: flow.profile.pythonRuntime, image: pythonBuildImage }
         : { ...nodeBuildRuntime(flow.profile.nodeRuntime?.version), ...(dependencyFreeNode(captured.files) ? { install: "none" } : {}) }),
         buildCommand: flow.profile.build, testCommand: projectTestCommand(captured.files), startCommand: flow.profile.start, port: flow.profile.port, workload,
-        environment: currentEnvironment(c.store, c.config.sessionSecret, c.actorId, flow.id) });
+        environment, ...(sourceEnvironment ? { sourceEnvironment } : {}) });
       const job = await new CodeRepairAdapter(c.config, c.store).propose(c.actorId, {
-        projectId: flow.id, expectedSourceHash: c.context.sourceHash, goal: build.version !== 2 && build.install === "none" ? "بررسی ساخت و پاسخ برنامهٔ بدون وابستگی در محیط ایزوله؛ نصب لازم نیست" : "نصب قفل‌شده، ساخت و بررسی پاسخ همان برنامه در محیط ایزوله",
+        projectId: flow.id, expectedSourceHash: c.context.sourceHash, goal: testDatabase ? "آزمون سازگاری با دیتابیس موقت و دادهٔ ساختگی؛ بدون تنظیمات واقعی و بدون فایل قابل انتشار" : build.version !== 2 && build.version !== 6 && build.install === "none" ? "بررسی ساخت و پاسخ برنامهٔ بدون وابستگی در محیط ایزوله؛ نصب لازم نیست" : "ساخت و بررسی پاسخ همان برنامه در محیط ایزوله",
         ...(c.parentRunId ? { parentRunId: c.parentRunId } : {}),
-        allowedPaths: [], testFiles: [], execution: "container", build, validationOnly: true,
+        allowedPaths: preparation ? preparationPaths(captured.files, preparation) : [], testFiles: [], execution: "container", build,
+        ...(preparation ? { preparation } : { validationOnly: true }),
       }, c.signal);
       return { repairProposal: job };
     }
-    if (flow.profile.runtime !== "static" && (c.mission || requiresProjectBuild(captured.files))) {
+    if (flow.profile.fullstack) {
+      const verification = await fullstackVerification(c.store, c.config.stateDir, c.actorId, flow, c.config.sessionSecret);
+      const row = c.store.db.prepare("SELECT data_json FROM code_repair_jobs WHERE id=? AND actor_id=?").get(verification.buildJobId, c.actorId);
+      const job = parseCodeRepairJob(object(object(JSON.parse(string(row?.data_json, 1024 * 1024))).job));
+      ensure(job.build && sameBuildWorkload(job.build, parseProjectBuildPlan({ ...job.build, workload }).workload) && matchesPublishedBuildEnvironment(c.config, c.store, c.actorId, flow.id, job.build),
+        "PROJECT_BUILD_REQUIRED", "معیار صفحه یا تنظیمات امن با همان ساخت کامل برابر نیستند.", 409);
+    } else if (flow.profile.runtime !== "static" && (c.mission || requiresProjectBuild(captured.files))) {
       const rows = c.store.db.prepare("SELECT state,data_json FROM code_repair_jobs WHERE actor_id=? AND state='succeeded' AND json_extract(data_json,'$.job.artifact.sourceHash')=? ORDER BY updated_at DESC LIMIT 10").all(c.actorId, c.context.sourceHash);
       const verified = rows.some(row => {
         const job = parseCodeRepairJob({ ...object(object(JSON.parse(string(row.data_json, 1024 * 1024))).job), state: row.state });
-        return job.build && fingerprint(job.build.environment ?? null) === fingerprint(currentEnvironment(c.store, c.config.sessionSecret, c.actorId, flow.id)) &&
+        return job.build && matchesPublishedBuildEnvironment(c.config, c.store, c.actorId, flow.id, job.build) &&
           (flow.profile.frontendRuntime ? job.build.version === 5 && fingerprint(job.build.frontend) === fingerprint(flow.profile.frontendRuntime) : job.build.version !== 5) &&
-          (job.build.version === 2 ? flow.profile.runtime === "python" && fingerprint(job.build.runtime) === fingerprint(flow.profile.pythonRuntime) : job.build.nodeVersion === flow.profile.nodeRuntime?.version) && job.build.buildCommand === flow.profile.build && job.build.testCommand === projectTestCommand(captured.files) && job.build.startCommand === flow.profile.start && job.build.port === flow.profile.port &&
+          (job.build.version === 6 ? flow.profile.runtime === "docker" && job.build.sourceHash === flow.profile.sourceHash && fingerprint(job.build.runtime) === fingerprint(flow.profile.dockerRuntime) : job.build.version === 2 ? flow.profile.runtime === "python" && fingerprint(job.build.runtime) === fingerprint(flow.profile.pythonRuntime) : job.build.nodeVersion === flow.profile.nodeRuntime?.version) && job.build.buildCommand === flow.profile.build && (job.build.version === 6 || job.build.testCommand === projectTestCommand(captured.files)) && job.build.startCommand === flow.profile.start && job.build.port === flow.profile.port &&
+          (job.build.version !== 6 || /^sha256:[a-f0-9]{64}$/.test(job.builtImage ?? "")) &&
           job.execution === "container" && !!job.containerIds?.length && job.afterTest?.passed && sameBuildWorkload(job.build, parseProjectBuildPlan({ ...job.build, workload }).workload);
       });
       ensure(verified, "PROJECT_BUILD_REQUIRED", "این پروژه پیش از پیشنهاد انتشار به نصب، ساخت و بررسی پاسخ در محیط ایزوله نیاز دارد؛ ابتدا propose_project_build را اجرا کنید.", 409);
@@ -398,9 +471,16 @@ export async function executeAgentTool(
     const action = await proposeWorkloadDeployment(c.config, c.store, c.actorId,
       { flowId: c.context.projectId, app, port: null,
         workload: { origin, path: args.path, status: args.status, assertion: args.assertion } },
-      c.signal, { budget: c.budget, ...(c.read ? { read: c.read } : {}) });
+      c.signal, { budget: c.budget, ...(c.read ? { read: c.read } : {}), ...(c.disk ? { disk: c.disk } : {}), ...(c.environment ? { environment: c.environment } : {}) });
     assertAgentContext(c.config, c.store, c.actorId, c.context);
     return { publicationProposal: action };
+  }
+  if (name === "propose_disk") {
+    ensure(c.context.projectId && c.context.target && c.parentRunId, "AGENT_PROJECT_REQUIRED", "پروژه، مقصد و مأموریت انتشار لازم است.", 409);
+    const action = await proposeDisk(c.config, c.store, { actorId: c.actorId }, c.context.projectId, randomUUID(), c.signal,
+      { budget: c.budget, agentRunId: c.parentRunId, ...(c.disk ? { client: c.disk } : {}) });
+    assertAgentContext(c.config, c.store, c.actorId, c.context);
+    return { diskProposal: action };
   }
   if (name === "propose_network") {
     ensure(c.context.projectId && c.context.account && c.parentRunId, "AGENT_PROJECT_REQUIRED", "پروژه، حساب و مأموریت لازم است.", 409);
@@ -522,6 +602,12 @@ export async function executeAgentTool(
         ...(flow.profile.pythonRuntime ? { pythonRuntime: flow.profile.pythonRuntime } : {}),
         ...(flow.profile.nextRuntime ? { nextRuntime: flow.profile.nextRuntime } : {}),
         ...(flow.profile.frontendRuntime ? { frontendRuntime: flow.profile.frontendRuntime } : {}),
+        ...(flow.profile.dockerRuntime ? { dockerRuntime: flow.profile.dockerRuntime } : {}),
+        ...(flow.profile.nativeInspection ? { nativeInspection: flow.profile.nativeInspection } : {}),
+        ...(flow.profile.fullstack ? { fullstack: flow.profile.fullstack } : {}),
+        ...(flow.profile.fullstack?.workerSqlite ? { persistentStorage: { state: currentDiskBinding(c.store, c.actorId, flow) ? "configuration_verified" : "required", workloadPersistenceVerified: false } } : {}),
+        ...(flow.profile.applicationRequirements ? { applicationRequirements: flow.profile.applicationRequirements } : {}),
+        ...(flow.profile.sourceFixtureReviews ? { sourceFixtureReviews: flow.profile.sourceFixtureReviews } : {}),
         start: flow.profile.start,
         build: flow.profile.build,
         port: flow.profile.port,

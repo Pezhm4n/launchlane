@@ -12,6 +12,8 @@ import {
   resumeAgentDestination,
   decideAgentNetwork,
   resumeAgentNetwork,
+  decideAgentDisk,
+  resumeAgentDisk,
 } from "../../../../../server/agent/runs.ts";
 import { AgentRepository, agentView } from "../../../../../server/agent/store.ts";
 import { AppError, ensure } from "../../../../../server/errors.ts";
@@ -110,6 +112,17 @@ export async function POST(request: Request, { params }: Context) {
       const run = resumeAgentPublication(store, session, id, revision);
       after(() => driveAgentRun(config, store, session, id));
       return reply({ run: agentView(run) });
+    }
+    if (input.operation === "disk-decision") {
+      exactKeys(input, ["operation", "revision", "actionId", "decision"]);
+      ensure(input.decision === "approve" || input.decision === "reject", "INVALID_INPUT", "تصمیم معتبر نیست.");
+      const run = await decideAgentDisk(config, store, session, id, revision, string(input.actionId, 36), input.decision);
+      if (input.decision === "approve") after(() => driveAgentRun(config, store, session, id));
+      return reply({ run: agentView(run) });
+    }
+    if (input.operation === "disk-observe") {
+      exactKeys(input, ["operation", "revision"]);const run = resumeAgentDisk(store, session, id, revision);
+      after(() => driveAgentRun(config, store, session, id));return reply({ run: agentView(run) });
     }
     if (input.operation === "network-decision") {
       exactKeys(input, ["operation", "revision", "actionId", "decision", "acknowledgeUnknownCost"]);

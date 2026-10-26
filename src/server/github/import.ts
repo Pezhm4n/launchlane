@@ -10,6 +10,7 @@ import { AppError, ensure } from "../errors.ts";
 import { checkName, excludedPath, sourceFileAllowed, under } from "../workspace/paths.ts";
 import type { SourceFile } from "../workspace/inspect.ts";
 import { SOURCE_MAX_BYTES, SOURCE_MAX_FILES, SOURCE_MAX_ENTRIES, sourceFileByteLimit, sourceFileLimitMessage } from "../../contracts/source-limits.ts";
+import { filterSourceFiles } from "../workspace/source-ignore.ts";
 
 export function projectSubdirectory(value: unknown): string {
   const path = string(value, 240);
@@ -196,7 +197,7 @@ export async function unpackGitHubArchive(
     "در این پوشه فایل پروژه قابل بررسی پیدا نشد. پوشه دیگری انتخاب کنید.",
     409,
   );
-  return files;
+  return filterSourceFiles(files);
 }
 
 export async function persistGitHubSource(

@@ -132,6 +132,7 @@ test("publication cannot bypass a required build or spend cloud reads before its
     const job = parseCodeRepairJob(proposal.repairProposal);
     assert.ok(job.build);
     const build = job.build;
+    assert.ok(build.version === 1, "the fixture proposes its actual Node22 build");
     assert.equal(job.state, "proposed"); assert.equal(job.validationOnly, true); assert.equal(job.afterTest, null);
     assert.equal(job.containerImage, projectBuildImage); assert.deepEqual(job.containerIds, []);
     assert.equal(job.baseRevision, flow.profile.sourceHash);

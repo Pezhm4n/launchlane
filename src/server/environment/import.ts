@@ -29,7 +29,7 @@ export async function localEnvironmentFiles(root: string, directory: string, sig
   return parseEnvironmentFiles(files);
 }
 export function parseEnvironmentFiles(files: readonly EnvironmentFile[]): EnvironmentVariable[] {
-  ensure(files.length <= 4 && new Set(files.map(file => file.name)).size === files.length, "INVALID_ENV_FILE", "فایل تنظیمات تکراری یا بیش از حد مجاز است.");
+  ensure(files.length <= environmentFileNames.length && new Set(files.map(file => file.name)).size === files.length, "INVALID_ENV_FILE", "فایل تنظیمات تکراری یا بیش از حد مجاز است.");
   const merged = new Map<string, string>();
   for (const name of environmentFileNames) {
     const file = files.find(candidate => candidate.name === name);

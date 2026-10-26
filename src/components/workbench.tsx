@@ -1,7 +1,7 @@
 "use client";
 import Image from "next/image";
 
-import { canReadDeploymentResult, isDeploymentSpec } from "../contracts/deployment.ts";
+import { canReadDeploymentResult, isDeploymentSpec, isWorkloadDeploymentSpec } from "../contracts/deployment.ts";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import type { Action, ActionState, WorkspaceView } from "../contracts/domain.ts";
 import { decodeAction, decodeWorkspace } from "../contracts/client-decode.ts";
@@ -173,7 +173,7 @@ function Proposal({
         <p className="hint">
           معیار نتیجه: پاسخ <bdi>{action.spec.workload.status}</bdi> از{" "}
           <bdi>{action.spec.workload.path}</bdi>
-          {(action.spec.version === 7 || action.spec.version === 10 || action.spec.version === 11 || action.spec.version === 15 || action.spec.version === 17 || action.spec.version === 19)
+          {isWorkloadDeploymentSpec(action.spec)
             ? <> با {action.spec.workload.assertion.kind === "text" ? "متن" : "مقدار API"} مورد انتظار در پیشنهاد دستیار.</>
             : <> با نسخه <bdi>{"revision" in action.spec.workload ? action.spec.workload.revision : ""}</bdi>.</>}
           آماده‌شدن release به‌تنهایی نتیجه موفق نیست.
@@ -435,7 +435,7 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
     setPort(data.flow?.profile.port === null || !data.flow ? "" : String(data.flow.profile.port));
     if (data.action && isDeploymentSpec(data.action.spec)) {
       setWorkloadPath(data.action.spec.workload.path);
-      setExpectedRevision(data.action.spec.version === 7 || data.action.spec.version === 10 || data.action.spec.version === 11 || data.action.spec.version === 15 || data.action.spec.version === 17 || data.action.spec.version === 19 ? "" : ("revision" in data.action.spec.workload ? data.action.spec.workload.revision : ""));
+      setExpectedRevision(isWorkloadDeploymentSpec(data.action.spec) ? "" : ("revision" in data.action.spec.workload ? data.action.spec.workload.revision : ""));
     } else if (changed) {
       setWorkloadPath("/");
       setExpectedRevision("");

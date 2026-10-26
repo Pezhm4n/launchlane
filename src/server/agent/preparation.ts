@@ -3,6 +3,7 @@ import { object } from "../../contracts/validation.ts";
 import { ensure } from "../errors.ts";
 import { fingerprint } from "../policy/action.ts";
 import type { SourceFile } from "../workspace/inspect.ts";
+import { workerSqlitePaths } from "./worker-sqlite-programs.ts";
 
 function json(files: readonly SourceFile[], path: string): Record<string, unknown> {
   const file = files.find((file) => file.path === path);
@@ -10,6 +11,7 @@ function json(files: readonly SourceFile[], path: string): Record<string, unknow
   return object(JSON.parse(file.content.toString("utf8")));
 }
 export function preparationPaths(files: readonly SourceFile[], plan: NodePreparation): string[] {
+  if (plan.version === 2) return ["package.json", "liara.json", ".launchlane-build.cjs", ".launchlane-build.json", ...(plan.workerSqlite ? Object.values(workerSqlitePaths) : [])];
   const pkg = json(files, "package.json");
   ensure(pkg.workspaces === undefined, "PREPARATION_LEAF_REQUIRED", "زیرپوشه همان برنامه را انتخاب کنید؛ فرمان ریشه monorepo تغییر نمی‌کند.", 409);
   ensure([pkg.dependencies, pkg.devDependencies, pkg.optionalDependencies].every((value) => value === undefined || Object.keys(object(value)).length === 0),
@@ -22,6 +24,7 @@ function withoutStart(pkg: Record<string, unknown>) {
   return { ...pkg, scripts: unchanged };
 }
 export function validatePreparationPatch(before: readonly SourceFile[], after: readonly SourceFile[], plan: NodePreparation): void {
+  ensure(plan.version === 1, "FULLSTACK_PREPARATION_CHANGED", "آماده‌سازی کامل فقط از تبدیل قطعی میزبان استفاده می‌کند.", 409);
   const original = json(before, "package.json"), changed = json(after, "package.json");
   // The approval permits one explicit start command, not authority to rewrite the package's executable surface.
   ensure(object(changed.scripts).start === plan.startCommand && fingerprint(withoutStart(original)) === fingerprint(withoutStart(changed)),

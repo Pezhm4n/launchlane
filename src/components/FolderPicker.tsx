@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { parseFolders, type FolderListing } from "../contracts/folders.ts";
 import { api, ClientError } from "./api.ts";
-import { planFolderUpload } from "../contracts/folder-upload.ts";
+import { planDeviceFolder, type planFolderUpload } from "../contracts/folder-upload.ts";
 import { WorkspaceGlyph } from "./WorkspaceGlyph.tsx";
 import { useDialogExit } from "./useDialogExit.ts";
 
@@ -27,6 +27,7 @@ export function FolderPicker({
   const exit = useDialogExit(dialog);
   const listingRequest = useRef<AbortController | null>(null);
   const deviceInput = useRef<HTMLInputElement>(null), preview = useRef<HTMLHeadingElement>(null);
+  const selectionRequest = useRef(0);
   const [chosen, setChosen] = useState<{ plan: ReturnType<typeof planFolderUpload>; files: File[] } | null>(null);
   const [uploading, setUploading] = useState(false), [browsing, setBrowsing] = useState(false);
   const [listing, setListing] = useState<FolderListing | null>(null);
@@ -36,7 +37,7 @@ export function FolderPicker({
   useEffect(() => {
     const current = dialog.current;
     current?.showModal();
-    return () => { pending.current?.abort(); listingRequest.current?.abort(); current?.close(); };
+    return () => { selectionRequest.current++; pending.current?.abort(); listingRequest.current?.abort(); current?.close(); };
   }, []);
   useEffect(() => {
     if (!browsing || uploading) { setBusy(false); return; }
@@ -115,15 +116,17 @@ export function FolderPicker({
         <h3 id="device-folder-title">پروژه‌تان کجاست؟</h3>
         <p>پوشهٔ برنامه را از هر جای رایانه انتخاب کنید.</p>
         <input ref={deviceInput} type="file" multiple hidden {...{ webkitdirectory: "" }} aria-label="فایل‌های پوشه پروژه"
-          onChange={event => {
+          onChange={async event => {
             const files = Array.from(event.currentTarget.files || []);
             if (!files.length) return;
+            event.currentTarget.value = "";
+            const request = ++selectionRequest.current;
             try {
-              const plan = planFolderUpload(files.map(file => ({ path: file.webkitRelativePath, size: file.size })));
+              const plan = await planDeviceFolder(files);
+              if (selectionRequest.current !== request) return;
               setChosen({ plan, files }); setError(null);
               requestAnimationFrame(() => preview.current?.focus());
-            } catch (cause) { setChosen(null); setError(cause instanceof Error ? cause.message : "این پوشه قابل بررسی نیست."); }
-            event.currentTarget.value = "";
+            } catch (cause) { if (selectionRequest.current === request) { setChosen(null); setError(cause instanceof Error ? cause.message : "این پوشه قابل بررسی نیست."); } }
           }} />
         <button type="button" className={chosen ? "button-secondary" : undefined} disabled={uploading} onClick={() => deviceInput.current?.click()}><FolderIcon />{chosen ? "انتخاب پوشه‌ای دیگر از رایانه" : "انتخاب پوشه از رایانه"}</button>
         <p className="hint">تنظیمات <bdi>.env</bdi> جدا و رمزگذاری‌شده دریافت می‌شوند؛ وارد بستهٔ کد یا گفت‌وگو نمی‌شوند. فعلاً چیزی به لیارا ارسال نمی‌شود.</p>

@@ -7,6 +7,7 @@ import { parsePublicationMission, type PublicationMission } from "./publication-
 import { parseMissionAuthority, type MissionAuthority } from "./mission-authority.ts";
 import { parseDestinationRecommendation, type DestinationRecommendation } from "./destination-recommendation.ts";
 import { parseAgentFailure, type AgentFailure } from "./agent-failure.ts";
+import { isProvisionSpec } from "./provision.ts";
 
 export const agentStates = [
   "queued",
@@ -49,7 +50,7 @@ export type AgentView = {
   question: string | null;
   updatedAt: number;
   // A host-owned statement. Model prose is never an execution receipt.
-  effect: "no_remote_changes" | "network_created" | "destination_created" | "configuration_changed" | "remote_changes_unverified" | "remote_changes_verified";
+  effect: "no_remote_changes" | "network_created" | "destination_created" | "configuration_changed" | "disk_created" | "remote_changes_unverified" | "remote_changes_verified";
   repair: CodeRepairJob | null;
   publication: Action | null;
   destination: Action | null;
@@ -59,6 +60,8 @@ export type AgentView = {
   authority?: MissionAuthority | null;
   network?: Action | null;
   networkContinued?: boolean;
+  disk?: Action | null;
+  diskContinued?: boolean;
   destinationRecommendation?: DestinationRecommendation | null;
 };
 export function parseAgentView(value: unknown): AgentView {
@@ -66,11 +69,12 @@ export function parseAgentView(value: unknown): AgentView {
   ensure(row.destinationContinued === undefined || typeof row.destinationContinued === "boolean",
     "INVALID_RESPONSE", "رسید ادامه ساخت معتبر نیست.");
   ensure(row.networkContinued === undefined || typeof row.networkContinued === "boolean", "INVALID_RESPONSE", "رسید ادامه شبکه معتبر نیست.");
+  ensure(row.diskContinued === undefined || typeof row.diskContinued === "boolean", "INVALID_RESPONSE", "رسید ادامه فضای پایدار معتبر نیست.");
   const state = agentStates.find((state) => state === row.state);
   const nextAction =
     row.nextAction === null ? null : nextActions.find((action) => action === row.nextAction);
   ensure(
-    state && nextAction !== undefined && (row.effect === "no_remote_changes" || row.effect === "network_created" || row.effect === "destination_created" || row.effect === "configuration_changed" || row.effect === "remote_changes_unverified" || row.effect === "remote_changes_verified"),
+    state && nextAction !== undefined && (row.effect === "no_remote_changes" || row.effect === "network_created" || row.effect === "destination_created" || row.effect === "configuration_changed" || row.effect === "disk_created" || row.effect === "remote_changes_unverified" || row.effect === "remote_changes_verified"),
     "INVALID_RESPONSE",
     "وضعیت دستیار معتبر نیست.",
   );
@@ -109,11 +113,13 @@ export function parseAgentView(value: unknown): AgentView {
     };
   });
   const destination = row.destination === null || row.destination === undefined ? null : decodeAction(row.destination);
-  ensure(!destination || (destination.spec.version === 8 || destination.spec.version === 12 || destination.spec.version === 16 || destination.spec.version === 18 || destination.spec.version === 20), "INVALID_RESPONSE", "رسید مقصد با قرارداد ساخت تطبیق ندارد.");
+  ensure(!destination || isProvisionSpec(destination.spec), "INVALID_RESPONSE", "رسید مقصد با قرارداد ساخت تطبیق ندارد.");
   const network = row.network === null || row.network === undefined ? null : decodeAction(row.network);
+  const disk = row.disk === null || row.disk === undefined ? null : decodeAction(row.disk);
+  ensure(!disk || disk.spec.version === 25 && disk.spec.agentRunId === row.id, "INVALID_RESPONSE", "رسید فضای پایدار متعلق به همین مأموریت نیست.");
   const destinationRecommendation = row.destinationRecommendation === null || row.destinationRecommendation === undefined ? null : parseDestinationRecommendation(row.destinationRecommendation);
   const destinationSpec = destination?.spec;
-  ensure(!destinationRecommendation || destinationSpec && (destinationSpec.version === 8 || destinationSpec.version === 12 || destinationSpec.version === 16 || destinationSpec.version === 18 || destinationSpec.version === 20) &&
+  ensure(!destinationRecommendation || destinationSpec && isProvisionSpec(destinationSpec) &&
     destinationRecommendation.projectId === destinationSpec.projectFlowId && destinationRecommendation.sourceHash === destinationSpec.sourceHash &&
     destinationRecommendation.catalogFingerprint === destinationSpec.cost.catalogFingerprint && destinationRecommendation.offers.some(offer =>
       offer.planId === destinationSpec.args.planId && offer.bundleId === destinationSpec.bundleId && offer.hourlyHundredthsToman === destinationSpec.cost.hourlyHundredthsToman),
@@ -137,6 +143,7 @@ export function parseAgentView(value: unknown): AgentView {
     channel: row.channel === "conversation" ? "conversation" : "legacy",
     authority: row.authority === undefined || row.authority === null ? null : parseMissionAuthority(row.authority),
     network, networkContinued: row.networkContinued === true,
+    disk, diskContinued: row.diskContinued === true,
     destinationRecommendation,
   };
 }

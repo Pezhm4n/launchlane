@@ -26,7 +26,7 @@ export class LiaraEnvironmentClient {
           headers: { Authorization: `Bearer ${this.config.liaraToken}`, Accept: "application/json" } }, budget, bounded);
         if (!response.ok) { void response.body?.cancel().catch(() => undefined); throw httpFailure(response.status); }
         const row = object(object(await boundedJson(response)).project);
-        ensure(row._id === spec.targetAppId && row.project_id === spec.scope.app && (row.type === "node" || row.type === "python" || row.type === "next" || row.type === "react" || row.type === "vue" || row.type === "angular"), "ENV_TARGET_CHANGED", "هویت یا نوع برنامه تغییر کرده است.", 409);
+        ensure(row._id === spec.targetAppId && row.project_id === spec.scope.app && (row.type === "node" || row.type === "python" || row.type === "next" || row.type === "react" || row.type === "vue" || row.type === "angular" || row.type === "docker"), "ENV_TARGET_CHANGED", "هویت یا نوع برنامه تغییر کرده است.", 409);
         // Provider metadata is not an application variable or a browser input field.
         ensure(Array.isArray(row.envs) && row.envs.length <= 128, "ENV_RESPONSE_INVALID", "تنظیمات موجود از لیارا قابل خواندن نیست؛ چیزی تغییر نکرده است.", 502);
         return { planId: string(row.planID, 128), values: environmentVariables(row.envs.map(value => {

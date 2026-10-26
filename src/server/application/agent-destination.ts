@@ -8,12 +8,13 @@ import { assertAgentContext } from "../agent/tools.ts";
 import { ensure } from "../errors.ts";
 import { RunBudget } from "../policy/budget.ts";
 import { proposeDestination } from "./provision.ts";
+import { isProvisionSpec } from "../../contracts/provision.ts";
 
 export async function reviseAgentDestination(config: Config, store: Store, session: Session, id: string, revision: number,
   planId: string, bundleId: string, signal: AbortSignal, read?: LiaraAccountClient) {
   const repo = new AgentRepository(store), run = repo.get(session.actorId, id), previous = run?.destination;
   ensure(run?.mission && run.revision === revision && run.state === "needs_approval" && previous &&
-    (previous.spec.version === 8 || previous.spec.version === 12 || previous.spec.version === 16 || previous.spec.version === 18 || previous.spec.version === 20) && previous.state === "awaiting_approval" && !previous.attemptId,
+    isProvisionSpec(previous.spec) && previous.state === "awaiting_approval" && !previous.attemptId,
     "DESTINATION_CONFLICT", "فقط پیشنهاد اجرا‌نشده را می‌توان تغییر داد؛ وضعیت تازه را ببینید.", 409);
   ensure(store.sessionExists(session.id, session.actorId, Date.now()), "AUTH_REQUIRED", "دوباره وارد شوید.", 401);
   assertAgentContext(config, store, session.actorId, run.context);

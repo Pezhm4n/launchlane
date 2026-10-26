@@ -1,5 +1,13 @@
 # معماری Launchlane
 
+هدف ادامهٔ توسعه، قابلیت عمومی محصول در [مجموعهٔ آزمون](docs/deployment-corpus.md) است. نمونه‌های موفقِ helper جای اجرای سرتاسری خود محصول را نمی‌گیرند. برش [ADR0031](docs/decisions/0031-single-worker-sqlite-and-bound-storage.md) آماده‌سازی Worker/SQLite، ورودی خصوصی build و دیسک25/انتشار26 را به سرویس، Agent و کارت انتشار مشترک متصل می‌کند؛ شاهد isolated و synthetic دارد و ماندگاری واقعی لیارا/پذیرش همه topologyها هنوز باز است.
+
+## build و انتشار Docker/fullstack؛ working tree در ۲۰۲۶-۱۰-۲۵
+
+[ADR0029](docs/decisions/0029-docker-and-compiled-fullstack-publication.md) قراردادهای Docker6/21/22 و fullstack7/23 را در همان services قبلی اضافه می‌کند. source requirements فقط شاهد ایستا است؛ runtime مستقل حل‌نشده یا analysis gap، انتشار ناقص را متوقف می‌کند. خروجی frontend قبل از حذف worker صادر و در artifact نهایی به source/plan/test receipt بسته می‌شود؛ cloud build ثابت فقط همان byteها را تأیید می‌کند. observation، release جاری، public proof، hash فایل‌های JS/CSS و معیار مستقل API را می‌سنجد. اجرای نامعلوم Docker marker پایدار و شناسهٔ job دارد و اجازهٔ retry تازه نمی‌سازد. برنامهٔ چندمرحله‌ای v7 و resource data plane همچنان بازند.
+
+بازبینی محدود fixtureهای عمومی [ADR0030](docs/decisions/0030-exact-public-test-fixture-review.md)، تنظیم اپراتور با hash/expiry/امضای نصب است و credential policy یا cloud approval موازی نیست. reader دیتابیس فقط metadata حساب/تیم را از adapter موجود و بودجهٔ همان run می‌خواند؛ به registry مشترک Agent/MCP وصل است و SQL، credential، provision یا migration اجرا نمی‌کند.
+
 ## هویت بازدیدکنندهٔ سایت
 
 [ADR0024](docs/decisions/0024-liara-identity-login.md) حالت صریح `liara` را کنار اپراتور خصوصی تعریف می‌کند. login پس از تعویض رسمی رمز و خواندن هویت provider، actor پایدار و اتصال رمز‌شده می‌سازد؛ رمز ذخیره نمی‌شود. هر درخواست وب/MCP با `actorConfig` تیم همان actor را به application موجود می‌دهد. config جهانی نمی‌تواند توکن، تیم، probe، root یا CLI اپراتور را به بازدیدکننده بدهد. انتخاب تیم نیز read/membership از provider دارد. policy، journal، artifact، بودجه و canonicalization موازی ساخته نشده‌اند؛ schema قبلی actor/bucket را پشتیبانی می‌کند. پذیرش میزبانی عمومی و scope حساب شخصی هنوز باز است.

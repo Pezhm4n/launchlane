@@ -26,6 +26,7 @@ export async function proposeMissionAuthority(config: Config, store: Store, sess
   ensure(run?.mission && run.revision === revision && run.state === "needs_approval" && run.repair?.state === "proposed" &&
     run.repair.validationOnly && run.repair.build && run.repair.parentRunId === run.id && run.context.target && run.projectId,
     "PLAN_NOT_READY", "ابتدا پیشنهاد build، پروژه و مقصد موجود لازم است.", 409);
+  ensure(run.repair.build.version !== 7, "PLAN_PREPARATION_REVIEW_REQUIRED", "آماده‌سازی و بسته‌بندی کامل به تصمیم محلی خودش و سپس تصمیم انتشار همان artifact نیاز دارد؛ این نسخه آن را به اختیار عمومی اصلاح تبدیل نمی‌کند.", 409);
   ensure(store.sessionExists(session.id, session.actorId, Date.now()), "AUTH_REQUIRED", "دوباره وارد شوید.", 401);
   assertAgentContext(config, store, session.actorId, run.context);
   const existing = missionAuthority(store, session.actorId, id);
@@ -54,7 +55,7 @@ export async function proposeMissionAuthority(config: Config, store: Store, sess
     const origin = configuredOrigin || (metadata.defaultSubdomain === true ? `https://${target.app}.liara.run` : null);
     ensure(origin, "PROBE_UNCONFIGURED", "نشانی سایت این برنامه تأیید نشده است؛ نشانی همان مقصد را در حساب‌ها مشخص کنید.", 409);
     const quote = quotePaaSOffer(catalog, metadata.planId, metadata.bundleId);
-    const allowedPaths = flow.profile.manifest.map(file => file.path).filter(path => {
+    const allowedPaths = run.repair.build.version === 6 ? [run.repair.build.runtime.dockerfile] : flow.profile.manifest.map(file => file.path).filter(path => {
       if (!/\.(?:[cm]?[jt]sx?|py|html|css|json)$/.test(path)) return false;
       try { validateBuildRepairPaths([path]); return true; } catch { return false; }
     }).sort();
@@ -62,7 +63,7 @@ export async function proposeMissionAuthority(config: Config, store: Store, sess
       rootArtifactHash: flow.artifact.archiveHash, rootSelectionHash: flow.selectionHash, initialJobId: run.repair.id,
       target: { ...target, planId: project.planId, bundleId: metadata.bundleId, networkId: metadata.networkId, origin }, costEffect: "existing_plan_unchanged",
       cost: { hourlyHundredthsToman: quote.selected.hourlyHundredthsToman, currency: "toman", period: "hour", catalogFingerprint: catalog.fingerprint, observedAt: catalog.observedAt, extras: "tax_traffic_storage_not_included" }, build: run.repair.build,
-      allowedPaths, maxBuildJobs: 3, maxRepairs: 2, maxPublications: 2, limits: run.limits,
+      allowedPaths, maxBuildJobs: 3, maxRepairs: run.repair.build.version === 6 ? 0 : 2, maxPublications: 2, limits: run.limits,
       expiresAt: Math.min(session.expiresAt, Date.now() + 600000) });
     assertAgentContext(config, store, session.actorId, run.context);
     const authority: MissionAuthority = { id: randomUUID(), hash: fingerprint({ actorId: session.actorId, plan }), state: "proposed", plan };

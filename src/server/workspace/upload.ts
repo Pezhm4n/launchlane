@@ -3,9 +3,10 @@ import { exactKeys, object, string } from "../../contracts/validation.ts";
 import { AppError, ensure } from "../errors.ts";
 import { checkName, excludedPath, sourceFileAllowed } from "./paths.ts";
 import type { SourceFile } from "./inspect.ts";
-import { environmentFileMaxBytes, isEnvironmentFile } from "../../contracts/environment-files.ts";
+import { environmentFileMaxBytes, environmentFileNames, isEnvironmentFile } from "../../contracts/environment-files.ts";
 import { parseEnvironmentFiles } from "../environment/import.ts";
 import type { EnvironmentVariable } from "../../contracts/environment.ts";
+import { filterSourceFiles } from "./source-ignore.ts";
 
 const requestLimit = SOURCE_MAX_BYTES + 1024 * 1024;
 
@@ -39,7 +40,7 @@ export async function readFolderUpload(request: Request): Promise<{ name: string
   let parsed: unknown;
   try { parsed = JSON.parse(manifest); } catch { throw new AppError("INVALID_UPLOAD", "فهرست فایل‌ها معتبر نیست."); }
   const row = object(parsed); exactKeys(row, ["name", "paths", "environmentFiles"]);
-  ensure(row.environmentFiles === undefined || Array.isArray(row.environmentFiles) && row.environmentFiles.length <= 4, "INVALID_ENV_FILE", "فهرست فایل تنظیمات معتبر نیست.");
+  ensure(row.environmentFiles === undefined || Array.isArray(row.environmentFiles) && row.environmentFiles.length <= environmentFileNames.length, "INVALID_ENV_FILE", "فهرست فایل تنظیمات معتبر نیست.");
   const environmentNames: unknown[] = Array.isArray(row.environmentFiles) ? row.environmentFiles : [];
   ensure(environmentNames.every(name => typeof name === "string" && isEnvironmentFile(name)) && new Set(environmentNames).size === environmentNames.length, "INVALID_ENV_FILE", "فهرست فایل تنظیمات معتبر نیست.");
   const name = string(row.name, 160); checkName(name);
@@ -71,5 +72,5 @@ export async function readFolderUpload(request: Request): Promise<{ name: string
     catch { throw new AppError("INVALID_ENV_FILE", "فایل تنظیمات باید متن UTF-8 معتبر باشد؛ مقدارها تغییر داده نمی‌شوند."); }
     environmentFiles.push({ name, content });
   }
-  return { name, files, environment: parseEnvironmentFiles(environmentFiles) };
+  return { name, files: filterSourceFiles(files), environment: parseEnvironmentFiles(environmentFiles) };
 }

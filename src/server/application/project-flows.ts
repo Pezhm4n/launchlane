@@ -18,6 +18,8 @@ import { parseCodeRepairJob } from "../../contracts/code-repair.ts";
 import { object, string } from "../../contracts/validation.ts";
 import { projectEnvironmentValues, projectSecretValues } from "../environment/secrets.ts";
 import { localEnvironmentFiles, saveImportedEnvironment } from "../environment/import.ts";
+import { fullstackVerification } from "./fullstack-verification.ts";
+import { assertApplicationPublicationScope } from "../policy/application-scope.ts";
 
 let preparing = false;
 export function projectRoot(
@@ -66,6 +68,7 @@ export async function prepareProjectFlow(
   preparing = true;
   const id = randomUUID();
   let imported = false;
+  let compiledArtifact: ProjectFlow["artifact"] = null;
   try {
     if (selection.kind === "upload") {
       ensure(uploadedFiles?.length, "UPLOAD_REQUIRED", "پوشه را از رایانه انتخاب و فایل‌ها را برای بررسی وارد کنید.");
@@ -76,7 +79,14 @@ export async function prepareProjectFlow(
       const row=store.db.prepare("SELECT data_json,state FROM code_repair_jobs WHERE actor_id=? AND id=?").get(actorId,selection.jobId);
       ensure(row,"REPAIR_NOT_FOUND","نسخه اصلاح‌شده در دسترس نیست.",404);
       const record=object(JSON.parse(string(row.data_json,512*1024))),job=parseCodeRepairJob({...object(record.job),state:row.state});
+      ensure(!(job.build?.version===7 && job.build.testDatabase),"COMPATIBILITY_ARTIFACT_NOT_PUBLISHABLE","نسخهٔ آزمون ساختگی قابل انتخاب برای انتشار نیست.",409);
       ensure(job.state==="succeeded"&&job.artifact?.archiveHash===selection.artifactHash,"REPAIR_UNVERIFIED","فقط اصلاحی که آزمون و بسته معتبر دارد قابل انتخاب است.",409);
+      if (job.publication) {
+        ensure(job.build?.version === 7 && job.afterTest?.passed && job.afterTest.buildOutput?.artifactHash === job.publication.outputArtifactHash,
+          "REPAIR_UNVERIFIED", "تبار خروجی ساخت کامل معتبر نیست.", 409);
+        compiledArtifact = store.getArtifact(actorId, selection.artifactHash);
+        await readArtifact(config.stateDir, compiledArtifact);
+      }
     }
     if (selection.kind === "sample")
       ensure(
@@ -117,8 +127,8 @@ export async function prepareProjectFlow(
       secrets: privateValues,
     });
     if(selection.kind==="repair") ensure(store.getArtifact(actorId,selection.artifactHash).sourceHash===profile.sourceHash,"REPAIR_ARTIFACT_CHANGED","فایل‌های اصلاح‌شده با نسخه آزموده‌شده برابر نیستند.",409);
-    const artifact =
-      profile.start && (profile.runtime === "node" && profile.nodeRuntime?.version || profile.runtime === "python" && profile.pythonRuntime || profile.runtime === "static" && profile.staticRuntime)
+    const artifact = compiledArtifact ?? (
+      profile.start && (profile.runtime === "node" && profile.nodeRuntime?.version || profile.runtime === "python" && profile.pythonRuntime || profile.runtime === "static" && profile.staticRuntime || profile.runtime === "docker" && profile.dockerRuntime)
         ? await prepareArchive({
             store,
             stateDir: config.stateDir,
@@ -129,7 +139,7 @@ export async function prepareProjectFlow(
             signal,
             secrets: privateValues,
           })
-        : null;
+        : null);
     ensure(!signal.aborted, "CANCELLED", "بررسی پروژه متوقف شد؛ انتخاب قبلی حفظ شده است.", 409);
     if (ownerRunId) ensure(selection.kind === "repair" && store.db.prepare(
       "SELECT id FROM agent_runs WHERE id=? AND actor_id=? AND state='working' AND json_extract(data_json,'$.repair.id')=?",
@@ -201,7 +211,7 @@ export async function restoreProjectFlow(
       return store.staleProjectFlow(actorId, flow.id, current.missing[0] || "پروژه با محدوده پشتیبانی‌شده این نسخه تطبیق ندارد؛ پوشه همان برنامه را دوباره انتخاب کنید.");
     if (flow.status === "ready" && (current.runtime !== flow.profile.runtime || (current.runtime === "python"
       ? fingerprint(current.pythonRuntime) !== fingerprint(flow.profile.pythonRuntime)
-      : current.runtime === "static" ? fingerprint(current.staticRuntime) !== fingerprint(flow.profile.staticRuntime) : !current.nodeRuntime?.version || flow.profile.nodeRuntime?.version !== current.nodeRuntime.version || fingerprint(current.nextRuntime ?? null) !== fingerprint(flow.profile.nextRuntime ?? null) || fingerprint(current.frontendRuntime ?? null) !== fingerprint(flow.profile.frontendRuntime ?? null))))
+      : current.runtime === "static" ? fingerprint(current.staticRuntime) !== fingerprint(flow.profile.staticRuntime) : current.runtime === "docker" ? fingerprint(current.dockerRuntime) !== fingerprint(flow.profile.dockerRuntime) : !current.nodeRuntime?.version || flow.profile.nodeRuntime?.version !== current.nodeRuntime.version || fingerprint(current.nextRuntime ?? null) !== fingerprint(flow.profile.nextRuntime ?? null) || fingerprint(current.frontendRuntime ?? null) !== fingerprint(flow.profile.frontendRuntime ?? null))))
       return store.staleProjectFlow(actorId, flow.id, "نسخه Node این نتیجه نیاز به بررسی تازه دارد؛ پروژه را دوباره بررسی و پیشنهاد تازه دریافت کنید.");
     if (flow.artifact)
       await readArtifact(config.stateDir, store.getArtifact(actorId, flow.artifact.archiveHash));
@@ -224,7 +234,7 @@ export async function validateProjectAction(
   spec: ActionSpec,
   signal: AbortSignal,
 ): Promise<void> {
-  if (spec.version !== 3 && spec.version !== 4 && spec.version !== 5 && (spec.version !== 7 && spec.version !== 10 && spec.version !== 11 && spec.version !== 15 && spec.version !== 17 && spec.version !== 19) && (spec.version !== 8 && spec.version !== 12 && spec.version !== 16 && spec.version !== 18 && spec.version !== 20) && spec.version !== 9 && spec.version !== 13) return;
+  if (spec.version !== 3 && spec.version !== 4 && spec.version !== 5 && (spec.version !== 7 && spec.version !== 10 && spec.version !== 11 && spec.version !== 15 && spec.version !== 17 && spec.version !== 19 && spec.version !== 21 && (spec.version !== 23 && spec.version !== 26)) && (spec.version !== 8 && spec.version !== 12 && spec.version !== 16 && spec.version !== 18 && spec.version !== 20 && spec.version !== 22) && spec.version !== 9 && spec.version !== 13 && spec.version !== 25) return;
   const flow = await restoreProjectFlow(config, store, actorId, signal, spec.projectFlowId);
   ensure(
     flow?.status === "ready",
@@ -233,8 +243,12 @@ export async function validateProjectAction(
     409,
   );
   store.assertProjectAction(actorId, spec);
-  if (spec.version === 10 || (spec.version === 11 || spec.version === 17 || spec.version === 19) && spec.environment !== null) projectEnvironmentValues(store, config.sessionSecret, actorId, spec.projectFlowId, spec.environment);
-  if (spec.version === 19 || spec.version === 20) ensure(fingerprint(flow.profile.frontendRuntime) === fingerprint(spec.runtime), "FRONTEND_RUNTIME_CHANGED", "روش ساخت و انتشار رابط تغییر کرده است.", 409);
+  if (spec.operation === "deploy") assertApplicationPublicationScope(flow.profile);
+  if ((spec.version === 23 || spec.version === 26)) ensure(fingerprint(await fullstackVerification(store, config.stateDir, actorId, flow, config.sessionSecret)) === fingerprint(spec.verification),
+    "FULLSTACK_BUILD_REQUIRED", "تبار ساخت یا معیارهای API نسخهٔ مصوب تغییر کرده است.", 409);
+  if (spec.version === 10 || (spec.version === 11 || spec.version === 17 || spec.version === 19 || spec.version === 21 || (spec.version === 23 || spec.version === 26)) && spec.environment !== null) projectEnvironmentValues(store, config.sessionSecret, actorId, spec.projectFlowId, spec.environment);
+  if (spec.version === 21 || spec.version === 22) ensure(fingerprint(flow.profile.dockerRuntime) === fingerprint(spec.runtime), "DOCKER_RUNTIME_CHANGED", "Dockerfile یا پورت نسخهٔ مصوب تغییر کرده است.", 409);
+  else if (spec.version === 19 || spec.version === 20) ensure(fingerprint(flow.profile.frontendRuntime) === fingerprint(spec.runtime), "FRONTEND_RUNTIME_CHANGED", "روش ساخت و انتشار رابط تغییر کرده است.", 409);
   else if (spec.version === 17 || spec.version === 18) ensure(fingerprint(flow.profile.nextRuntime) === fingerprint(spec.runtime), "NEXT_RUNTIME_CHANGED", "نسخه یا مسیر انتشار Next تغییر کرده است؛ پیشنهاد تازه لازم است.", 409);
     else if (spec.version === 15 || spec.version === 16) ensure(fingerprint(flow.profile.staticRuntime) === fingerprint(spec.runtime), "STATIC_RUNTIME_CHANGED", "روش انتشار سایت ایستا تغییر کرده است؛ پیشنهاد تازه لازم است.", 409);
   else if (spec.version === 11 || spec.version === 12) ensure(fingerprint(flow.profile.pythonRuntime) === fingerprint(spec.runtime), "PYTHON_RUNTIME_CHANGED", "تنظیمات اجرای Python تغییر کرده است؛ پیشنهاد تازه لازم است.", 409);

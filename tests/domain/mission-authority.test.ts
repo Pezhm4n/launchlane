@@ -42,6 +42,7 @@ test("job authority rejects changed commands, files, unproven ancestry, expiry, 
   try {
     assert.ok(a); const run = await decideMissionAuthority(f.config, f.store, f.session, f.proposed.id, f.proposed.revision, a.id, a.hash, "approve");
     const authority = run.authority, job = run.repair; assert.ok(authority && job?.build); const build = job.build;
+    assert.ok(build.version === 1, "the fixture authorizes its explicit Node22 plan");
     assertMissionJobExecution(f.store, f.session.actorId, f.session.id, job);
     assert.throws(() => assertMissionJob(f.store, f.session.actorId, f.session.id, authority, { ...job, build: { ...build, startCommand: "node another.mjs" } }), code("PLAN_REPAIR_SCOPE"));
     assert.throws(() => assertMissionJob(f.store, f.session.actorId, f.session.id, authority, { ...job, allowedPaths: ["package.json"] }), code("PLAN_REPAIR_SCOPE"));

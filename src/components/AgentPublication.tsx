@@ -1,5 +1,5 @@
 import type { Action } from "../contracts/domain.ts";
-import { canReadDeploymentResult } from "../contracts/deployment.ts";
+import { canReadDeploymentResult, isWorkloadDeploymentSpec } from "../contracts/deployment.ts";
 import { useState } from "react";
 
 function expectedValue(value: string | number | boolean | null) {
@@ -20,7 +20,7 @@ export function AgentPublication({
   onObserve: () => void;
 }) {
   const [copy, setCopy] = useState<{ url: string; state: "copying" | "copied" | "failed" } | null>(null);
-  if (action.spec.version !== 7 && action.spec.version !== 10 && action.spec.version !== 11 && action.spec.version !== 15 && action.spec.version !== 17 && action.spec.version !== 19) return null;
+  if (!isWorkloadDeploymentSpec(action.spec)) return null;
   const spec = action.spec,
     assertion = spec.workload.assertion,
     publishedUrl = `${spec.workload.origin}${spec.workload.path}`,
@@ -140,17 +140,18 @@ export function AgentPublication({
         </p>
       </div>
       <p className="hint">
+        {spec.version === 26 ? <>همین فایل‌های بررسی‌شده با اتصال فضای پایدار تأییدشده به برنامه ارسال می‌شوند. پلن و مقادیر خصوصی برنامه تغییر نمی‌کنند؛ هزینه فعلی برنامه ادامه دارد. ماندگاری داده پس از جایگزینی نسخه جدا بررسی می‌شود.</> : <>
         همین فایل‌های بررسی‌شده به برنامه موجود ارسال می‌شوند. پلن و تنظیمات برنامه عوض نمی‌شوند؛
         هزینه برنامه موجود ادامه دارد و مبلغ آن در این پیشنهاد تأیید نشده است. هنگام انتشار ممکن است
-        دسترسی موقتاً قطع شود.
+        دسترسی موقتاً قطع شود.</>}
       </p>
       <details>
         <summary>اطلاعات فنی نسخه</summary>
         <dl className="profile-facts">
           <div>
-            <dt>{spec.version === 15 ? "نوع انتشار" : spec.version === 19 ? `${{ react: "React", vue: "Vue", angular: "Angular" }[spec.runtime.kind]} / Node` : spec.version === 17 ? "Next.js / Node" : spec.version === 11 ? "Python" : "Node"}</dt>
+            <dt>{spec.version === 15 ? "نوع انتشار" : spec.version === 21 ? "Docker" : spec.version === 19 ? `${{ react: "React", vue: "Vue", angular: "Angular" }[spec.runtime.kind]} / Node` : spec.version === 17 ? "Next.js / Node" : spec.version === 11 ? "Python" : "Node"}</dt>
             <dd>
-              <code dir="ltr" className="ltr-code"><bdo dir="ltr">{spec.version === 15 ? "Static · Nginx لیارا" : spec.version === 11 ? spec.runtime.version : spec.nodeVersion}</bdo></code>
+              <code dir="ltr" className="ltr-code"><bdo dir="ltr">{spec.version === 15 ? "Static · Nginx لیارا" : spec.version === 21 ? spec.runtime.dockerfile : spec.version === 11 ? spec.runtime.version : spec.nodeVersion}</bdo></code>
             </dd>
           </div>
           <div>

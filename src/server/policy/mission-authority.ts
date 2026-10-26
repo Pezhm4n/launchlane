@@ -38,7 +38,8 @@ export function assertMissionAuthority(store: Store, actor: string, sessionId: s
 function jobEvidence(job: CodeRepairJob): string {
   return fingerprint({ id: job.id, parentRunId: job.parentRunId, projectId: job.projectId, baseRevision: job.baseRevision,
     build: job.build ?? null, allowedPaths: job.allowedPaths, testFiles: job.testFiles, changedPaths: job.changedPaths,
-    diff: job.diff, afterTest: job.afterTest, artifact: job.artifact, execution: job.execution ?? null, state: job.state });
+    diff: job.diff, afterTest: job.afterTest, artifact: job.artifact, execution: job.execution ?? null, state: job.state,
+    ...(job.build?.version === 6 ? { builtImage: job.builtImage ?? null } : {}) });
 }
 export function missionJobScopeHash(job: CodeRepairJob): string {
   return fingerprint({ id: job.id, parentRunId: job.parentRunId, projectId: job.projectId, baseRevision: job.baseRevision,
@@ -52,7 +53,8 @@ function loadJob(store: Store, actor: string, id: string): CodeRepairJob {
 }
 function assertJobScope(plan: MissionPlan, job: CodeRepairJob): void {
   ensure(job.parentRunId === plan.runId && job.execution === "container" && job.build &&
-    fingerprint(job.build) === fingerprint(plan.build) && job.containerImage === plan.build.image && !job.preparation &&
+    fingerprint(job.build) === fingerprint(plan.build) && (plan.build.version === 6 ? job.containerImage === undefined : job.containerImage === plan.build.image) && !job.preparation &&
+    (job.build.version !== 6 || job.state !== "succeeded" || /^sha256:[a-f0-9]{64}$/.test(job.builtImage ?? "")) &&
     job.allowedPaths.every(path => plan.allowedPaths.includes(path)) && job.changedPaths.every(path => job.allowedPaths.includes(path)) && job.testFiles.length === 0,
     "PLAN_REPAIR_SCOPE", "فرمان، محیط، آزمون یا فایل‌های اصلاح از محدوده برنامه بیرون‌اند.", 409);
 }
@@ -112,12 +114,12 @@ export function assertMissionJobExecution(store: Store, actor: string, sessionId
 }
 export function assertMissionPublication(store: Store, actor: string, sessionId: string, authority: MissionAuthority, action: Action): void {
   const plan = assertMissionAuthority(store, actor, sessionId, authority), spec = action.spec;
-  ensure((spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 17 || spec.version === 19) && spec.sourceHash && spec.operation === "deploy" &&
+  ensure((spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 17 || spec.version === 19 || spec.version === 21) && spec.sourceHash && spec.operation === "deploy" &&
     spec.scope.teamId === plan.target.teamId && spec.scope.app === plan.target.app && spec.accountId === plan.target.accountId && spec.targetAppId === plan.target.appId &&
     spec.args.planId === plan.target.planId && spec.args.port === plan.build.port &&
     (spec.version !== 19 || plan.build.version === 5 && fingerprint(spec.runtime) === fingerprint(plan.build.frontend)) &&
-    (spec.version === 11 ? plan.build.version === 2 && fingerprint(spec.runtime) === fingerprint(plan.build.runtime) : plan.build.version !== 2 && spec.nodeVersion === plan.build.nodeVersion) &&
-    fingerprint(spec.version === 10 || spec.version === 11 || spec.version === 17 || spec.version === 19 ? spec.environment : null) === fingerprint(plan.build.environment ?? null) &&
+    (spec.version === 21 ? plan.build.version === 6 && fingerprint(spec.runtime) === fingerprint(plan.build.runtime) : spec.version === 11 ? plan.build.version === 2 && fingerprint(spec.runtime) === fingerprint(plan.build.runtime) : plan.build.version !== 2 && plan.build.version !== 6 && spec.nodeVersion === plan.build.nodeVersion) &&
+    fingerprint(spec.version === 10 || spec.version === 11 || spec.version === 17 || spec.version === 19 || spec.version === 21 ? spec.environment : null) === fingerprint(plan.build.environment ?? null) &&
     fingerprint(spec.workload) === fingerprint({ ...plan.build.workload, origin: plan.target.origin }),
     "PLAN_PUBLICATION_SCOPE", "مقصد، هزینه، نسخه اجرا، تنظیمات یا معیار سلامت از برنامه مصوب خارج است.", 409);
   assertArtifactLineage(store, actor, authority, spec.sourceHash, spec.artifactHash);

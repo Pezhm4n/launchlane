@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { parseProjectBuildPlan, pythonBuildImage, type PythonBuildPlan } from "../../contracts/project-build.ts";
 import { environmentVariables, isApplicationEnvironmentKey, type EnvironmentVariable } from "../../contracts/environment.ts";
 import { ensure } from "../errors.ts";
-import { docker, containerState, type CommandResult } from "./container.ts";
+import { docker, containerState, resolveCreatedContainer, type CommandResult } from "./container.ts";
 
 const program = `import os,sys,json,shutil,subprocess,threading,time,urllib.request,urllib.parse,html.parser,hashlib,unittest,re
 plan=json.loads(sys.argv[1]); tests=json.loads(sys.argv[2]); stage='cache'
@@ -102,20 +102,22 @@ export async function runPythonBuild(workspace: string, wheels: string, value: P
   signal: AbortSignal, onCreated?: (id: string) => void, environment: readonly EnvironmentVariable[] = []): Promise<CommandResult & { containerId: string; image: string }> {
   const plan = parseProjectBuildPlan(value), values = environmentVariables(environment);
   ensure(plan.version === 2, "BUILD_RUNTIME_UNSUPPORTED", "برنامه اجرای Python معتبر نیست.", 409);
-  ensure(values.every(row => isApplicationEnvironmentKey(row.key)) && values.map(row => row.key).sort().join("\0") === [...(plan.environment?.keys ?? [])].sort().join("\0"),
+  ensure(values.every(row => isApplicationEnvironmentKey(row.key)) && values.map(row => row.key).sort().join("\0") === [...(plan.sourceEnvironment?.keys ?? plan.environment?.keys ?? [])].sort().join("\0"),
     "ENV_REFERENCE_CHANGED", "اطلاعات اجرای Python با تصمیم برابر نیست.", 409);
   ensure(!workspace.includes(",") && !wheels.includes(","), "SANDBOX_PATH_DENIED", "مسیر ورودی محیط ایزوله معتبر نیست.", 403);
   let id: string | null = null;
+  const name = `launchlane-python-${randomUUID()}`;
   try {
-    const created = await docker(["create", "--interactive", "--log-driver", "none", "--pull=never", "--name", `launchlane-python-${randomUUID()}`, "--label", "ir.launchlane.worker=python-build-v1",
+    const created = await docker(["create", "--interactive", "--log-driver", "none", "--pull=never", "--name", name, "--label", "ir.launchlane.worker=python-build-v1",
       "--network", "none", "--read-only", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--user", "1000:1000",
       "--cpus", "1", "--memory", "768m", "--memory-swap", "768m", "--pids-limit", "64",
       // Native wheels mmap executable shared objects. Containment is supplied by user/caps/network/mount isolation.
       "--tmpfs", "/work:rw,exec,nosuid,nodev,size=536870912,uid=1000,gid=1000,mode=0700",
       "--mount", `type=bind,source=${workspace},target=/source,readonly`, "--mount", `type=bind,source=${wheels},target=/wheels,readonly`,
       pythonBuildImage, "python3", "-c", program, JSON.stringify(plan), JSON.stringify(testFiles)], signal, 4096);
-    ensure(created.exitCode === 0 && /^[a-f0-9]{64}$/.test(created.output.trim()), "SANDBOX_UNAVAILABLE", "محیط Python با image تثبیت‌شده ایجاد نشد؛ کد روی میزبان اجرا نشد.", 503);
-    id = created.output.trim(); onCreated?.(id);
+    id = await resolveCreatedContainer(created, { name, label: "python-build-v1", image: pythonBuildImage });
+    if (id) onCreated?.(id);
+    ensure(created.exitCode === 0 && !created.signal && id && id === created.output.trim(), "SANDBOX_UNAVAILABLE", "محیط Python با image تثبیت‌شده ایجاد نشد؛ کد روی میزبان اجرا نشد.", 503);
     const input = Buffer.from(JSON.stringify(values)); let result: CommandResult;
     try { result = await docker(["start", "--attach", "--interactive", id], signal, 32768, input); } finally { input.fill(0); }
     const state = await containerState(id), stopped = result.signal ?? (state.oom ? "OOM" : null);

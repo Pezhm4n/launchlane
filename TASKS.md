@@ -1,5 +1,9 @@
 # برنامه اجرایی Launchlane
 
+## مسیر محصول برای برنامهٔ کامل و فضای پایدار؛ ۲۰۲۶-۱۰-۲۶
+
+- پروژه‌ها مجموعهٔ آزمون قابلیت Launchlane هستند. مسیر مشترک Docker/fullstack، خروجی compiled با provenance، ورودی خصوصی build و Worker/SQLite به مجوز25/انتشار26 و ابزار/کارت خود Agent متصل شد. اصل پروژه‌ها و production محفوظ‌اند؛ هیچ منبع تازه یا allowance مدل ساخته نشد. snapshot منتخب مستقل `a8ed1044`: ۶۹۲/۶۹۲ domain، ۴۰/۴۰ HTTP، build با Webpack، TypeScript و UI دیسک در شش عرض موفق؛ lint صفر error/۴۸ warning/۱۹ info و provider/model مصنوعی‌اند. بازبینی سه جاافتادگی guard مقصد Docker/ادامهٔ دیسک را با failure اصلی و رگرسیون اصلاح کرد. نتایج ۶۹۱/۴۶ working tree قبلی و مرورگر guided/library snapshot قبلی جدا باقی می‌مانند. مرز بعدی، برنامه و اجرای همهٔ اجزای برنامه و سنجش رفتار/ماندگاری است؛ چندسرویسی، دیتابیس/migration واقعی، ظرفیت production و میزبانی عمومی بازند. [قرارداد مجموعه آزمون](docs/deployment-corpus.md)، [تصمیم](docs/decisions/0031-single-worker-sqlite-and-bound-storage.md) و [شاهد](docs/evidence/qadam-worker-storage-20261026.md).
+
 ## قابلیت SQLite و مالکیت migration؛ ۲۰۲۶-۱۰-۲۶
 
 - نمونه‌ها معیار توان Launchlane هستند؛ دیپلوی دستی آن‌ها پذیرش محصول نیست. runtime ثابت prepare/bind/batch با SQLite واقعی، پارامترهای شماره‌دار تکراری، rollback و ledger دارای checksum پیاده شد؛ پنج تست رفتاری گذشتند. فقط همین زیرلایه در این commit است؛ اتصال کامل Worker، مجوز دیسک، مسیر Agent و ماندگاری لیارا شواهد جدا می‌خواهند. [شاهد و حدود](docs/evidence/sqlite-binding-20261026.md).

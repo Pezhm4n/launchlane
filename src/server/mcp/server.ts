@@ -99,7 +99,8 @@ export async function callMcpTool(c: Context, name: string, value: unknown, sign
       } finally { if (reserved) persist(); }
     }
     assertMcpSession(store, access);
-    return { content: [{ type: "text", text: JSON.stringify({ requestId, data: result }) }] };
+    const response = { requestId, data: result };
+    return { content: [{ type: "text", text: JSON.stringify(response) }], structuredContent: response };
   } catch (error) {
     const typed = error instanceof AppError ? error : new AppError("INTERNAL_UNAVAILABLE", "این مرحله کامل نشد؛ شناسه پیگیری را نگه دارید.", 503);
     return { isError: true, content: [{ type: "text", text: JSON.stringify({ error: { code: typed.code, message: typed.message, retryable: typed.retryable, requestId } }) }] };

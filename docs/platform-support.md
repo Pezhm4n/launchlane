@@ -1,5 +1,7 @@
 # وضعیت پلتفرم‌ها و مسیر انتشار
 
+افزودهٔ working tree در ۲۰۲۶-۱۰-۲۵: [ADR0029](decisions/0029-docker-and-compiled-fullstack-publication.md) مسیر Docker با build6/deploy21/create22 و مسیر mixed Vite/Node با build7/deploy23 را به همان approval/journal متصل می‌کند. Docker کنترل‌شده واقعاً ساخته و با verifier مستقل اجرا شد؛ compiler واقعی گلستان، cloud Docker و انتشار کامل گلستان هنوز تأیید نشده‌اند. خروجی build7 پیش از cleanup صادر می‌شود و archive نهایی همان byteها را با provenance و بررسی asset/API/public proof نگه می‌دارد. source-only detection برای Laravel/PHP/Django/Flask/.NET/Go اجازهٔ انتشار یا شاهد runtime نیست. هیچ ردیف missing با این delta خودکار کامل نمی‌شود و هر۱۴خانواده همچنان در دامنه‌اند. source requirements و خواندن metadata دیتابیس پیش‌نیاز A14 هستند، نه اثبات migration یا data plane. [شواهد و محدودیت‌ها](evidence/managed-fullstack-20261025.md).
+
 افزوده candidate47 بعد1890c3f: [ADR0028](decisions/0028-native-frontend-build.md) و [شاهد frontend](evidence/native-frontend.md)، مسیرهای بومی React/Vue/Angular با19/20 و worker ثابت Node20 را به موتور موجود وصل می‌کنند. React خام Notes-App با build واقعی، failure خروجی، patch Vite و آزمون مستقل گذشت؛ Vue/Angular هنوز compiler پروژه واقعی و هر سه خانواده هنوز native cloud ندارند. Next اکنون platformConfig.nodeVersion صحیح دارد؛ fixture قبلی فیلد اشتباه را تکرار کرده بود. ردیف‌های تاریخی زیر باید با این delta خوانده شوند؛ هیچ خانوادهٔ اضافه‌ای live verified اعلام نمی‌شود.
 
 

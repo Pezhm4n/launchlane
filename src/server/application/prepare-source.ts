@@ -2,6 +2,7 @@ import type { SourceArtifact } from "../../contracts/domain.ts";
 import { ensure } from "../errors.ts";
 import type { Store } from "../persistence/store.ts";
 import { createSourceArchive, persistArtifact } from "../workspace/archive.ts";
+import type { ValidatedBuildOutput } from "../agent/build-output.ts";
 
 // One bounded capture at a time in the operator process; concurrent requests cannot multiply the 20 MiB snapshot.
 let preparing = false;
@@ -15,6 +16,7 @@ export async function prepareArchive(input: {
   sourceHash: string;
   secrets?: readonly string[];
   signal?: AbortSignal;
+  compiledOutput?: ValidatedBuildOutput;
 }): Promise<SourceArtifact> {
   ensure(!preparing, "SOURCE_BUSY", "یک بسته در حال آماده‌سازی است؛ کمی بعد دوباره تلاش کنید.", 429);
   preparing = true;
