@@ -3,6 +3,11 @@
 
 
 
+
+## checkpoint مستقل کامیت‌ها؛ ۲۰۲۶-۱۰-۲۶
+
+سورس منتخب `38f2d99` مستقل از fullstack/MCP کامیت‌نشده، suite کامل tracked-domain501/501 و HTTP39/39، typecheck، build با Webpack و19حالت Chromium را گذراند. این اعداد جای working-tree667/45 نیستند. build پیش‌فرض و typecheck جاری پس از UI recovery پاس؛ lint صفرerror/46warning/18info. read-only15:11:39UTC نبودن هر دو مقصد زرین‌پال را دوباره با404 تأیید کرد. هشت revision اصلی دوباره بررسی شدند؛ هفت clean و همان تغییر قبلی Arvan محفوظ است. ادامهٔ DataAgent برای19فایل آزمونِ path/hash-bound منتظر تأیید fixture از مالک است؛ registry یا استثنا نوشته نشد.
+
 ## زرین‌پال: انتشار موقت و حذف تأییدشده؛ A11/A14/AC26–AC27، ۲۰۲۶-۱۰-۲۶
 
 [شاهد و حدود](docs/evidence/zarinpal-temporary-publication-20261026.md): مقصد موقت دقیق با تصمیم مالک ساخته شد؛ artifact آزموده‌شدهٔ `0d33c79586a6` به release جاری `6adf60605f9c45c62a2eff5b` رسید، oracle اصلی HTTP200/متن، چهار hash داده و چهار صفحهٔ Chromium/انتخاب M1/reload پاس شدند. لینک در چت تحویل شد و بلافاصله stop/delete همان ID و نبودن مستقل404 تأیید شد؛ لینک فعال باقی نمانده است. نسخهٔ عمومی Launchlane، اصل پروژه‌ها و allowance مدل تغییر نکردند. v24 روشن‌کردن/نشانی عمومی با قیمت/هویت/approval/journal و guard انقضا اضافه شد؛ stop/delete جبرانی فقط از uncertainty همان تنظیم نشانی عبور می‌کند. تست domain667/667، HTTP45/45، type/build و19حالت مرورگر پروژه پاس؛ synthetic/live جدا هستند. هفت پروژهٔ دیگر، مسیر عمومی Agent همین نسخه، restart و DB acceptance بازند.
