@@ -20,6 +20,67 @@ function property(value: unknown): string | null {
   return value.type === "Identifier" && typeof value.name === "string" ? value.name
     : value.type === "StringLiteral" && typeof value.value === "string" ? value.value : null;
 }
+type DomQueries = Readonly<{ native: boolean; aliases: ReadonlySet<string> }>;
+function domQueries(root: Ast): DomQueries | null {
+  const bindings = new Map<string, number>(), writes = new Set<string>(), candidates = new Set<string>(), pending = [root];
+  let visited = 0, nativeWrite = false;
+  const patternNames = (value: unknown, visit: (name: string) => void, depth = 0): void => {
+    if (!node(value)) return;if (depth > 32) throw Error("Scope pattern limit");
+    if (value.type === "Identifier" && typeof value.name === "string") { visit(value.name);return; }
+    if (value.type === "ObjectPattern" && Array.isArray(value.properties)) { for (const item of value.properties) if (node(item)) patternNames(item.type === "RestElement" ? item.argument : item.value, visit, depth + 1);return; }
+    if (value.type === "ArrayPattern" && Array.isArray(value.elements)) { for (const item of value.elements) patternNames(item, visit, depth + 1);return; }
+    if (value.type === "AssignmentPattern") { patternNames(value.left, visit, depth + 1);return; }
+    if (value.type === "RestElement") { patternNames(value.argument, visit, depth + 1);return; }
+    if (value.type === "TSParameterProperty") { patternNames(value.parameter, visit, depth + 1);return; }
+    throw Error("Unknown binding pattern");
+  };
+  const bind = (value: unknown) => patternNames(value, name => bindings.set(name, (bindings.get(name) ?? 0) + 1));
+  const documentValue = (value: unknown) => node(value) && (property(value) === "document" || value.type === "MemberExpression" && ["window", "globalThis"].includes(property(value.object) ?? "") && property(value.property) === "document");
+  while (pending.length) {
+    const current = pending.pop();if (!current || ++visited > 100000) return null;
+    if (current.type === "VariableDeclarator") bind(current.id);
+    if (["FunctionDeclaration", "FunctionExpression", "ArrowFunctionExpression", "ObjectMethod", "ClassMethod"].includes(current.type)) {
+      bind(current.id);if (Array.isArray(current.params)) for (const parameter of current.params) {
+        bind(parameter);
+      }
+    }
+    if (["ImportSpecifier", "ImportDefaultSpecifier", "ImportNamespaceSpecifier"].includes(current.type)) bind(current.local);
+    if (current.type === "ClassDeclaration") bind(current.id);
+    if (current.type === "CatchClause") bind(current.param);
+    if (current.type === "AssignmentExpression" || current.type === "UpdateExpression") {
+      const left = current.left ?? current.argument;
+      if (node(left) && ["Identifier", "ObjectPattern", "ArrayPattern"].includes(left.type)) patternNames(left, name => writes.add(name));
+      if (node(left) && left.type === "MemberExpression" && (documentValue(left) || documentValue(left.object) && ["querySelector", "getElementById"].includes(property(left.property) ?? ""))) nativeWrite = true;
+    }
+    if (current.type === "CallExpression" && node(current.callee) && current.callee.type === "MemberExpression" && ["Object", "Reflect"].includes(property(current.callee.object) ?? "") && ["assign", "defineProperty", "defineProperties", "set", "setPrototypeOf"].includes(property(current.callee.property) ?? "") && Array.isArray(current.arguments) && documentValue(current.arguments[0])) nativeWrite = true;
+    if (current.type === "VariableDeclaration" && current.kind === "const" && Array.isArray(current.declarations)) for (const declaration of current.declarations) {
+      if (!node(declaration) || !node(declaration.init)) continue;
+      const fn = declaration.init, body = fn.body, name = property(declaration.id);
+      if (!name || fn.type !== "ArrowFunctionExpression" || fn.async === true || !Array.isArray(fn.params) || fn.params.length !== 1 || !node(body) || body.type !== "CallExpression" || !Array.isArray(body.arguments) || body.arguments.length !== 1 || !node(body.callee)) continue;
+      const parameter = property(fn.params[0]), callee = body.callee;
+      if (parameter && callee.type === "MemberExpression" && callee.computed === false && property(callee.object) === "document" && property(callee.property) === "querySelector" && property(body.arguments[0]) === parameter) candidates.add(name);
+    }
+    for (const [field, child] of Object.entries(current)) {
+      if (["loc", "extra", "comments", "leadingComments", "trailingComments", "innerComments"].includes(field)) continue;
+      if (node(child)) pending.push(child);else if (Array.isArray(child)) for (const item of child) if (node(item)) pending.push(item);
+    }
+  }
+  const native = !nativeWrite && !bindings.has("document") && !writes.has("document");
+  return { native, aliases: new Set([...candidates].filter(name => native && bindings.get(name) === 1 && !writes.has(name))) };
+}
+function domInputValue(value: unknown, queries: DomQueries, depth = 0): boolean {
+  if (!node(value) || depth > 4) return false;
+  if (["CallExpression", "OptionalCallExpression"].includes(value.type) && Array.isArray(value.arguments) && value.arguments.length === 0 && node(value.callee) && ["MemberExpression", "OptionalMemberExpression"].includes(value.callee.type) && property(value.callee.property) === "trim") return domInputValue(value.callee.object, queries, depth + 1);
+  if (!["MemberExpression", "OptionalMemberExpression"].includes(value.type) || value.computed !== false || property(value.property) !== "value" || !node(value.object)) return false;
+  const query = value.object;
+  if (!["CallExpression", "OptionalCallExpression"].includes(query.type) || !Array.isArray(query.arguments) || query.arguments.length !== 1 || !node(query.arguments[0]) || query.arguments[0].type !== "StringLiteral") return false;
+  const selector = query.arguments[0].value, callee = query.callee;
+  if (typeof selector !== "string" || !node(callee)) return false;
+  if (callee.type === "Identifier") return queries.aliases.has(String(callee.name)) && /^#[\p{L}_][\p{L}\p{N}_:-]{0,127}$/u.test(selector);
+  if (!queries.native || callee.type !== "MemberExpression" || callee.computed !== false || property(callee.object) !== "document") return false;
+  const method = property(callee.property);
+  return method === "querySelector" && /^#[\p{L}_][\p{L}\p{N}_:-]{0,127}$/u.test(selector) || method === "getElementById" && /^[\p{L}_][\p{L}\p{N}_:-]{0,127}$/u.test(selector);
+}
 function componentFunction(name: string, value: unknown): boolean {
   if (!/^[A-Z][A-Za-z0-9_]*$/.test(name) || !node(value) || !["ArrowFunctionExpression", "FunctionExpression"].includes(value.type) || !node(value.body)) return false;
   const jsx = (input: unknown, depth = 0): boolean => node(input) && depth < 16 &&
@@ -134,6 +195,7 @@ export function maskNonCredentialSyntax(source: string, fixtures = false): strin
   try {
     const root: unknown = parser.parse(source, { sourceType: "unambiguous", plugins: ["typescript", "jsx"], allowReturnOutsideFunction: true });
     if (!node(root)) return source;
+    const queries = domQueries(root);if (!queries) return source;
     const stack = [root], ranges: { start: number; end: number }[] = [];
     let visited = 0;
     const mask = (value: unknown) => {
@@ -148,6 +210,8 @@ export function maskNonCredentialSyntax(source: string, fixtures = false): strin
         if (node(consequent) && ["MemberExpression", "OptionalMemberExpression"].includes(consequent.type)) consequent = consequent.property;
         if (sensitiveName.test(property(consequent) ?? "")) mask(consequent);
       }
+      if (current.type === "ConditionalExpression" && node(current.consequent) && node(current.alternate) && current.consequent.type === "StringLiteral" && current.alternate.type === "StringLiteral" &&
+        [current.consequent.value, current.alternate.value].every(value => value === "password" || value === "text") && current.consequent.value !== current.alternate.value) mask(current.consequent);
       // SQL parameters are placeholders; mask only the column name, leaving literal values scannable.
       if ((current.type === "StringLiteral" || current.type === "TemplateLiteral" && Array.isArray(current.expressions) && current.expressions.length === 0) &&
         typeof current.start === "number" && typeof current.end === "number") {
@@ -178,7 +242,7 @@ export function maskNonCredentialSyntax(source: string, fixtures = false): strin
       let key = current.type === "VariableDeclarator" ? current.id : current.type === "ObjectProperty" ? current.key : current.type === "AssignmentExpression" || current.type === "AssignmentPattern" ? current.left : null;
       if (node(key) && ["MemberExpression", "OptionalMemberExpression"].includes(key.type) && (key.computed === false || node(key.property) && key.property.type === "StringLiteral")) key = key.property;
       const value = current.type === "VariableDeclarator" ? current.init : current.type === "ObjectProperty" ? current.value : current.right;
-      if (key && sensitiveName.test(property(key) ?? "") && (reference(value, 0, fixtures) || current.type === "VariableDeclarator" && componentFunction(property(key) ?? "", value))) mask(key);
+      if (key && sensitiveName.test(property(key) ?? "") && (reference(value, 0, fixtures) || domInputValue(value, queries) || current.type === "VariableDeclarator" && componentFunction(property(key) ?? "", value))) mask(key);
       for (const [field, child] of Object.entries(current)) {
         if (["comments", "leadingComments", "trailingComments", "innerComments", "loc", "extra", "tokens"].includes(field)) continue;
         if (node(child)) stack.push(child);

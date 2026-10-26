@@ -13,6 +13,15 @@ export function redact(value: string, secrets: readonly string[] = []): string {
   return scrub(value, secrets, sensitiveAssignment);
 }
 
+function pythonRuntimeReferences(value: string): string {
+  return value.replace(/\bf(?:r)?(["'])([^\r\n]*?)\1/g, (match: string, _quote: string, body: string) => {
+    const reference = /\{[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*\}/g;
+    if (!reference.test(body)) return match;
+    const literal = body.replace(reference, "");
+    return /^(?:(?:Bearer |Basic )?[\s:._/-]*)$/.test(literal) ? "credential_reference" : match;
+  });
+}
+
 function scrub(value: string, secrets: readonly string[], assignment: RegExp, source = false, python = false, javascript = false, testPlaceholders = false, documentation = false, unitFixtures = false): string {
   let result = value
     .replace(credentialUrl, match => {
@@ -25,7 +34,7 @@ function scrub(value: string, secrets: readonly string[], assignment: RegExp, so
       }
       return "[REDACTED_URL]";
     })
-    .replace(/\bBearer\s+[^\s"'<>]+/gi, match => source && /^Bearer (?:token|tokens|JWT)[.,;:]?$/i.test(match) || javascript && (testPlaceholders && fixtureCredentialLabel(match.replace(/^Bearer\s+/i, "")) || unitFixtures && unitCredentialVector(match.replace(/^Bearer\s+/i, ""))) ? match : "Bearer [REDACTED]")
+    .replace(/\bBearer\s+[^\s"'<>]+/gi, match => source && (/^Bearer (?:token|tokens|JWT)[.,;:]?$/i.test(match) || python && /^Bearer header[.,;:]?$/i.test(match)) || javascript && (testPlaceholders && fixtureCredentialLabel(match.replace(/^Bearer\s+/i, "")) || unitFixtures && unitCredentialVector(match.replace(/^Bearer\s+/i, ""))) ? match : "Bearer [REDACTED]")
     .replace(assignment, (match, prefix: string, assigned: string, offset: number, original: string) => {
       const quote = assigned.startsWith('"') ? '"' : assigned.startsWith("'") ? "'" : "";
       // Public setup templates contain no credential; exact installed secrets are still checked below.
@@ -36,7 +45,7 @@ function scrub(value: string, secrets: readonly string[], assignment: RegExp, so
       if (javascript && unitFixtures && /^password(?:[_-]?hash)?["']?\s*:\s*$/i.test(prefix) && unitCredentialVector(literal)) return match;
       if (javascript && unitFixtures && quote && /^authorization["']?\s*[:=]/i.test(prefix) && /^Bearer\s+/i.test(literal) && unitCredentialVector(literal.replace(/^Bearer\s+/i, ""))) return match;
       // A literal omission marker in documentation is not a deployed credential.
-      if (source && documentation && !quote && literal === "..." && !secrets.includes(literal)) return match;
+      if (source && documentation && /^(?:sk-(?:(?:or|ant)-)?)?\.\.\.$/.test(literal) && !secrets.includes(literal)) return match;
       // Minified input-type maps use e.g. password:!0; a boolean/null expression contains no credential value.
       if (source && !quote && /^(?:true|false|null|undefined|!0|!1)$/.test(literal)) return match;
       // Public autocomplete alternatives in a complete ternary are UI labels, not credential-map keys.
@@ -136,7 +145,7 @@ export function containsSourceCredential(value: string, secrets: readonly string
       if (secret.length >= 4 && [secret, JSON.stringify(secret).slice(1, -1), encodeURIComponent(secret.toWellFormed())].some(part => value.includes(part))) return true;
     }
     // Preserve assignment detection after a Python type annotation or dataclass default.
-    const normalized = value.replace(/(\b\w*(?:api_key|token|password|secret)\s*(?::\s*str\s*)?=\s*)[rubf]{0,2}("""|''')([\s\S]*?)\2/gi,
+    const normalized = pythonRuntimeReferences(value).replace(/(\b\w*(?:api_key|token|password|secret)\s*(?::\s*str\s*)?=\s*)[rubf]{0,2}("""|''')([\s\S]*?)\2/gi,
       (_match, prefix: string, _quote: string, body: string) => `${prefix}${JSON.stringify(body)}`)
       .replace(/\b([A-Za-z_]\w*)\s*:\s*str\s*(?==)/g, "$1 ")
       .replace(/(\b\w*(?:api_key|token|password|secret)\s*=\s*)field\(\s*default\s*=/gi, "$1")

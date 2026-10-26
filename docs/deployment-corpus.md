@@ -26,7 +26,7 @@ The corpus is an adversarial sample for this ladder. Passing one application doe
 | Qadam | Vite SPA + Hono Worker + D1 SQL + private auth/sync/calendar | Exact build and isolated persistence passed; Agent storage path has synthetic evidence, while live storage/restart and the complete hosted mission remain unverified |
 | Eyewear | Next frontend + FastAPI + PostgreSQL/Redis + Celery worker/beat | Complete multi-process/resource plan and execution; private source findings require proper handling |
 | Foodino | Frontend + Supabase Auth/RLS/RPC | Preserve the actual external service contract and safe configuration; generic PostgreSQL is not an automatic replacement |
-| Data Agent | Python pyproject/Docker + SQLite/DuckDB + reports and model service | Exact 19 test fixtures are owner-reviewed; ten other source findings, locked preparation and the actual Python/Docker packaging path remain open |
+| Data Agent | Python pyproject/Docker + SQLite/DuckDB + reports and model service | Exact 19 test fixtures are owner-reviewed; after shared syntax corrections eight other source findings, locked preparation and the actual Python/Docker packaging path remain open |
 | Factory feed | Vite/Nest + pnpm + PostgreSQL inventory ledger | Supported package-manager build, approved database/migration binding and original business invariants |
 | Zarinpal challenge | Next application and runtime corpus | Exact native artifact publication has operator-controlled live evidence; this is not fresh acceptance of the complete hosted Agent path |
 | Liara challenge | Next + model/Redis and runtime corpus | Complete dependent services, source intake and real application/Agent acceptance |

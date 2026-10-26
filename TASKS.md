@@ -1,5 +1,9 @@
 # برنامه اجرایی Launchlane
 
+## نحو ورودی source و تأیید fixture؛ ۲۰۲۶-۱۰-۲۷
+
+- پس از تأیید مالک، همان ۱۹ فایل آزمون DataAgent با hash و انقضای هفت‌روزه ثبت شدند؛ تأیید به source/docs یا known secret گسترش نیافت. classifier مشترک f-string پایتون، metadata هدر و omission مستندات و خواندن واقعی DOM اصلاح شد؛ اصل بایت‌ها در capture/archive حفظ می‌شوند و literal مجاور همچنان رد می‌شود. snapshot منتخب مستقل `ef0a665c`: domain۶۹۷/۶۹۷ و HTTP۴۰/۴۰، typecheck و build با Webpack موفق؛ lint صفر error/۴۸ warning/۲۰ info. capture واقعی هنوز در هشت مسیر SENSITIVE_SOURCE است؛ artifact/منبع ابری یا allowance تازه ساخته نشد. نتیجه و failureهای اولیه در [شاهد](docs/evidence/source-syntax-20261027.md) ثبت می‌شود. مرز بعدی، intake خصوصی و آماده‌سازی runtime/dependency از مسیر خود محصول است.
+
 ## مسیر محصول برای برنامهٔ کامل و فضای پایدار؛ ۲۰۲۶-۱۰-۲۶
 
 - پروژه‌ها مجموعهٔ آزمون قابلیت Launchlane هستند. مسیر مشترک Docker/fullstack، خروجی compiled با provenance، ورودی خصوصی build و Worker/SQLite به مجوز25/انتشار26 و ابزار/کارت خود Agent متصل شد. اصل پروژه‌ها و production محفوظ‌اند؛ هیچ منبع تازه یا allowance مدل ساخته نشد. snapshot منتخب مستقل `a8ed1044`: ۶۹۲/۶۹۲ domain، ۴۰/۴۰ HTTP، build با Webpack، TypeScript و UI دیسک در شش عرض موفق؛ lint صفر error/۴۸ warning/۱۹ info و provider/model مصنوعی‌اند. بازبینی سه جاافتادگی guard مقصد Docker/ادامهٔ دیسک را با failure اصلی و رگرسیون اصلاح کرد. نتایج ۶۹۱/۴۶ working tree قبلی و مرورگر guided/library snapshot قبلی جدا باقی می‌مانند. مرز بعدی، برنامه و اجرای همهٔ اجزای برنامه و سنجش رفتار/ماندگاری است؛ چندسرویسی، دیتابیس/migration واقعی، ظرفیت production و میزبانی عمومی بازند. [قرارداد مجموعه آزمون](docs/deployment-corpus.md)، [تصمیم](docs/decisions/0031-single-worker-sqlite-and-bound-storage.md) و [شاهد](docs/evidence/qadam-worker-storage-20261026.md).
