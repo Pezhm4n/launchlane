@@ -24,6 +24,28 @@ The actual Node22 Zarinpal worker installed 604 locked packages, compiled Next/T
 
 [Evidence and limits](evidence/locked-native-dependencies-20261026.md): exact-version official metadata now fills an omitted libc constraint before a native optional tarball download. The measured Zarinpal acquisition downloaded 12 locked tarballs/52,539,382 bytes and 12 metadata responses/22,601 bytes; six musl tarballs were excluded. Current working-tree checks passed: focused15, domain643, HTTP45, typecheck/build and zero lint errors (46 warnings/15 infos). Actual application compiler/start, publication, browser and persistence remain independent unproven boundaries; no new model allowance, infrastructure write or public project release is claimed.
 
+## Docker/fullstack/resource continuation — 2026-10-25, not publicly rolled out
+
+See [the evidence and failed runs](evidence/managed-fullstack-20261025.md), [ADR0029](decisions/0029-docker-and-compiled-fullstack-publication.md) and [ADR0030](decisions/0030-exact-public-test-fixture-review.md). Real Golestan source capture is verified; a complete Golestan release, database migrations and persistence are not. The controlled Docker runs and synthetic v21/v22/v23 provider contracts are separate evidence. Original repository/data, production image/configuration, ledger and prior allowances remain preserved. No commit or visual redesign was made.
+
+## Public technical stabilization — 2026-10-25
+
+The uncommitted 250-file production subset `0196d63310f462f60e5b212a2e268975bfaed299fbe0359bc0717ac054592d42` is active as image `sha256:a547236ef28225af76ba331086a371922bcd77b157f87267e6e44494c38c3061`, Build ID `6zRBRP24QoZ463cVmnGDS`. Durable frontend output, quota races, bounded worker admission and lost-create identity reconciliation were corrected. Final build/typecheck, domain468/468, HTTP45/45, actual Docker18/18 plus Python1/1 and 54 guided-browser states passed. Lint has zero errors, 43 existing warnings and 13 infos. The deployment browser suite still fails its target-size assertion at 959px; the preceding baseline fails identically. That appearance-related issue was preserved under the owner's no-appearance-change constraint. An earlier concurrent build/domain fixture cancellation remains recorded and is not erased by the final sequential pass.
+
+At 06:03:27 UTC the public image was healthy with zero restarts/OOM, all rows in 28 state and five ledger tables matched their consistent pre-rollout backups, runtime/proxy/persistent mount were unchanged and the budget remained USD0.20. Public root/health returned200, anonymous workspace/MCP401, all11 assets loaded and the four served CSS/font entries were byte-identical. No model requests, paid resources, allowance renewal, staging, commit or push occurred. Generated output is attached to the verified job; final composite artifact/publication, persistent resource/data provisioning, current Torob and all14 official families remain separate unproven boundaries. [Detailed evidence](evidence/build-output-stabilization-20261025.md).
+
+## MCP روی دامنهٔ عمومی؛ شاهد واقعی ۲۰۲۶-۱۰-۲۵
+
+در04:57UTC، web image `8ed153b5b1c0` با source digest `88a8beef95e0` و Build ID `7JRJo53Hmy4LFYYWf68L2` فعال و healthy/restart0/OOM=false بود. [گزارش واقعی](evidence/mcp-public-release-20261025.md): SDK و stdio روی HTTPS عمومی، grant از UI/نشست واقعی، discovery۱۳ابزار،۳call از Codex0.163.0-alpha.11.2، scope/Origin deny، reconnect و revoke401 گذشتند. هر۲۸جدول داده و۵جدول ledger پس از rollout و تست برابر backup، integrity=ok و remaining≈۰٫۲۰دلار ماندند؛ runtime/proxy و CSS/فونت‌ها ثابت‌اند. منابع تازه، درخواست مدل، commit/staging/push صفر؛ grant آزمون لغو شد. شروع مأموریت/publication پولی، connector اجرایی و runtime Claude/OpenCode از این شاهد تأیید نمی‌شوند.
+
+## MCP با HTTPS و میزبان واقعی؛ آزمون مستقل ۲۰۲۶-۱۰-۲۵
+
+روی plain export مستقل از HEAD6937dfc به‌همراه تغییرهای ثبت‌شده، build/typecheck و lint۱۲فایل،۱۱domain و۱۴HTTP/HTTPS/مرورگر بدونfail/skip گذشتند. صدور/دانلود/لغو واقعی UI روی HTTPS آزمایشی،۳importCLI با خروج طبیعی، رد CA نامعتبر و redirect، دامنه/scope ثابت، EOF و revocation، و stale-grant بدون خروج از نشست بررسی شدند. Codex0.163.0-alpha.11.2 با config تولیدشده، ده ابزار و۳call واقعی بدون turn/model/cloud داشت. [هویت دقیق، فرمان‌ها، failureها و حدود](evidence/mcp-hosted-independent-20261025.md). provider ورود/model مصنوعی‌اند؛ طبق انتخاب مالک نسخهٔ عمومی تغییر نکرد و نشست شخصی، Claude/OpenCode runtime و connector اجرایی از این شاهد پذیرفته نمی‌شوند. تغییرها unstaged هستند؛ بودجه/ledger production نوشته نشد.
+
+## بستهٔ عمومی اصلاح‌شده؛ ۲۰۲۶-۱۰-۲۵
+
+بدون commit یا تغییر UI، نمونهٔ مفقود و image غایب Node20 اصلاح و web image `a109b27fde37` فعال شد؛ پایه Next27b14b5 و ingress4e5a55e ثابت‌اند.۹asset عمومی byte-equal، state۲۸جدول و ledger۵جدول/تنظیمات برابر قبل و quick_check=ok، root200 و APIبدونsession401. نمونه، Login و restore پس از restart در image واقعی با identity مصنوعی و workerهای22/20/24 با Docker واقعی گذشتند؛۹regression guard/proxy نیز پاس. [شواهد، failureهای harness، هویت working tree و محدودیت‌ها](evidence/hosted-parity-20261025.md). انتشار تازه از نشست واقعی، OAuth/MCP عمومی و تمام runtimeها هنوز پذیرفته نشده‌اند. تغییرهای این برش طبق دستور مالک unstaged هستند.
+
 ## نسخهٔ عمومی روی لیارا؛ ۲۰۲۶-۱۰-۲۴
 
 دامنهٔ https://launchlane-live-1023.liara.run با web27b14b5 و ingress4e5a55e/release6adbc700bffb36d7841c34b0 فعال شد. در20:45:20UTC، root/هر۹JS-CSS/health برابر200 و workspace بدون نشست401 بودند؛ فقط READY گزارش نشد. state۲۸جدول و ledger۵جدول روی bind پایدار و quick_check=ok هستند؛ restart persistence و نشست عمومی/انتشار جدید هنوز تأیید نشده‌اند. از همان باقیمانده مدل۰٫۲دلار به public و۰٫۲۲۱۷۳۴به محلی تخصیص یافت؛ allowance۲دلار و reserve تاریخی ثابت ماند. [هویت، خطاهای واقعی، هزینه، حدود و گزارش استقرار](evidence/launchlane-hosted-release.md). سرور محلی candidate53 از6a27c66 روی3000 حفظ است؛ عنوان‌های نسخهٔ فعال زیر snapshotهای تاریخی‌اند. طبق دستور مالک suite تازه شروع نشد.
@@ -846,3 +868,23 @@ The next real preparation attempt stopped with `REPAIR_NO_CHANGE`: at least one 
 Index tree before evidence-only additions: `50402b7e6f7240f07f9318c31141537d84578ee8`; frozen export `.local/authority-mission/candidate-07`, excluding concurrent unstaged UI changes. Build, typecheck and lint passed (0 errors,35 warnings,9 infos). On this same export:337/337 domain,38/38 HTTP,6/6 actual Node22 container tests (agent-repair and mission-authority; synthetic model/provider) and43 guided browser states at320/360/390/768/1280 passed. No skipped tests or new live model/cloud calls are counted here. This is the relevant regression, not a fresh full aggregate browser/all-runtime sandbox pass. Full domain concurrency1 is not proof of the cause of historical fixture timeouts.
 
 Eight new protocol/accounting/recovery regressions are included. Earlier actual Codex executions, two rejected results, one independently tested patch and subsequent exact-once accounting corrections are documented in [the separate evidence](evidence/codex-executable-worker.md). Those live probes preceded this final accounting candidate, and their publication transport was synthetic. Product selection, fallback acceptance and live external-agent publication remain open. Foreign UI edits in this working tree are not included in this evidence or commit.
+
+## Source investigation and secure-setup slice — 2026-10-27
+
+Four bounded improvements are connected through the existing source tool, Agent/MCP, failed-receipt card and encrypted v9 form. [Evidence and limitations](evidence/source-investigation-and-setup-20261027.md) distinguish local/synthetic verification from live acceptance. The subsequent owner-authorized commit audit below records the completed frozen-snapshot checks; earlier subset results retain their original scope. The reference-review slice made no model/cloud request, new allowance, production activation, real-state change or shared-index mutation; subsequent commits were separately authorized by the owner.
+
+## Owner-authorized commit verification — 2026-10-27
+
+The owner requested topical Conventional Commits for the remaining changes, with existing and concurrent work preserved. The audit froze 38 changed files on base `1aca4ff7fa091b2bf7d86b46fc1f65b0d63338da` and validated a separate 595-file export using the existing pinned dependencies. Candidate fingerprint: `1a548f3bf3457bf964216d6500bade56dc1a45dd0e714ba80d0d7d775b91ecd9` (SHA-256 of the base revision and sorted changed-path/blob bindings). No credential, real SQLite state or budget ledger was exported. The source files were committed from those frozen Git blobs, so later working-tree edits would remain unstaged. Only these verification/task documents were updated after validation; runtime bytes did not change.
+
+Fresh checks on that export:
+
+- `npm run lint`: zero errors, 48 warnings and 20 informational diagnostics.
+- `npm run typecheck`: passed.
+- `npm run test:domain`: 721/721 passed, zero failures/skips (220,192 ms).
+- `npm run build -- --webpack`: passed.
+- `npm run test:http`: 46/46 passed, zero failures/skips (18,248 ms), including the actual local HTTPS/SDK/stdio/browser MCP fixture.
+- `node scripts/test-environment-guidance-browser.mjs`: seven recorded responsive/enlarged-text/review/import states passed, zero page errors, external browser requests or provider writes. Keyboard generation/rejection, unavailable WebCrypto, manual/imported-value preservation, encrypted proposal and reload clearing were exercised.
+- Staged diffs and file lists were checked before each commit; no ignored working packet, secret file, archive, generated output or dependency tree was staged.
+
+These are local/synthetic-provider acceptance checks. No Docker image build, live model/provider operation, new allowance, deployment or production-state change was performed by this commit audit. Historical public-release and worker evidence retain their original dates and scopes. The full aggregate browser suite and fresh live deployment are not inferred from these checks.
