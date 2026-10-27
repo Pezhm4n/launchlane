@@ -9,7 +9,8 @@ import { readBuildOutput } from "../agent/build-output-store.ts";
 import { readArtifact } from "../workspace/archive.ts";
 import { matchesPublishedBuildEnvironment } from "../environment/build.ts";
 
-export async function fullstackVerification(store: Store, stateDir: string, actor: string, flow: ProjectFlow, secret: string): Promise<FullstackVerification> {
+/** Local immutable build evidence is separate from a cloud environment decision. */
+export async function localFullstackVerification(store: Store, stateDir: string, actor: string, flow: ProjectFlow) {
   ensure(flow.profile.fullstack && !flow.profile.fullstack.requiresPreparation && flow.artifact && flow.selection.kind === "repair",
     "FULLSTACK_BUILD_REQUIRED", "ساخت کامل، API مستقل و خروجی پایدار همان نسخه باید پیش از انتشار تأیید شوند.", 409);
   const row = store.db.prepare("SELECT state,data_json FROM code_repair_jobs WHERE id=? AND actor_id=? AND state='succeeded'").get(flow.selection.jobId, actor);
@@ -17,14 +18,21 @@ export async function fullstackVerification(store: Store, stateDir: string, acto
   const job = parseCodeRepairJob({ ...object(object(JSON.parse(string(row.data_json, 1024 * 1024))).job), state: row.state });
   ensure(!(job.build?.version===7 && job.build.testDatabase),"COMPATIBILITY_ARTIFACT_NOT_PUBLISHABLE","آزمون ساختگی جای بررسی نسخهٔ قابل انتشار با منابع واقعی را نمی‌گیرد.",409);
   const binding = job.publication, receipt = job.afterTest?.buildOutput;
-  ensure(job.build?.version === 7 && binding && receipt && job.afterTest?.passed && job.execution === "container" && job.containerIds?.length &&
+  ensure(job.build?.version === 7 && binding && receipt && job.afterTest?.passed && job.afterTest.exitCode === 0 && !job.afterTest.signal && job.execution === "container" && job.containerIds?.length &&
     job.artifact?.archiveHash === flow.artifact.archiveHash && job.artifact.sourceHash === flow.profile.sourceHash && binding.planHash === fingerprint(job.build) &&
     receipt.sourceHash === binding.testedSourceHash && receipt.planHash === binding.planHash && receipt.artifactHash === binding.outputArtifactHash &&
     job.build.startCommand === flow.profile.start && job.build.port === flow.profile.port && job.build.nodeVersion === flow.profile.nodeRuntime?.version &&
-    job.build.fullstack.outputDirectory === flow.profile.fullstack.outputDirectory && flow.profile.build === "node .launchlane-build.cjs" &&
-    matchesPublishedBuildEnvironment({ sessionSecret: secret }, store, actor, flow.id, job.build),
+    job.build.fullstack.outputDirectory === flow.profile.fullstack.outputDirectory && flow.profile.build === "node .launchlane-build.cjs",
     "FULLSTACK_BUILD_REQUIRED", "بستهٔ نهایی باید به همان فرانت ساخته‌شده، API، نسخه Node و معیارهای مصوب متصل باشد.", 409);
   await readBuildOutput(stateDir, receipt, { sourceHash: binding.testedSourceHash, planHash: binding.planHash });
   await readArtifact(stateDir, store.getArtifact(actor, flow.artifact.archiveHash));
-  return parseFullstackVerification({ ...binding, buildJobId: job.id, outputDirectory: job.build.fullstack.outputDirectory, apiChecks: job.build.apiChecks });
+  return { verification: parseFullstackVerification({ ...binding, buildJobId: job.id, outputDirectory: job.build.fullstack.outputDirectory, apiChecks: job.build.apiChecks }),
+    build: job.build, testedAt: job.updatedAt };
+}
+
+export async function fullstackVerification(store: Store, stateDir: string, actor: string, flow: ProjectFlow, secret: string): Promise<FullstackVerification> {
+  const evidence = await localFullstackVerification(store, stateDir, actor, flow);
+  ensure(matchesPublishedBuildEnvironment({ sessionSecret: secret }, store, actor, flow.id, evidence.build),
+    "FULLSTACK_BUILD_REQUIRED", "بستهٔ نهایی باید به همان فرانت ساخته‌شده، API، نسخه Node و معیارهای مصوب متصل باشد.", 409);
+  return evidence.verification;
 }

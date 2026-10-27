@@ -31,6 +31,7 @@ import type { TarballReader } from "./npm-source.ts";
 import { projectBuildImage } from "../../contracts/project-build.ts";
 import { GoalModelClient, type ModelMessage, type ModelPort, type ToolDefinition } from "./model.ts";
 import { addEvent, AgentRepository, type AgentRecord } from "./store.ts";
+import { requiredDestinationProposal } from "./proposal-progress.ts";
 import {
   toolsForAgent,
   assertAgentContext,
@@ -809,6 +810,7 @@ export async function driveAgentRun(
         { role: "system", content: destinationGuidance },
         { role: "system", content: preparationGuidance },
         { role: "system", content: fullApplicationGuidance },
+        ...(sourceProfile?.fullstack ? [{ role: "system" as const, content: "A selected repaired artifact may already have a successful host-owned container build. inspect_project now returns selectedArtifactVerification after rechecking the exact archive, compiled output and stored execution receipt. If an older inspection lacks that field, refresh inspect_project once before saying that build/tests have not run or proposing a duplicate build. A verified local receipt covers only its original workload, API paths and requested tests; it does not verify cloud env, deployment or persistence. Reuse its exact artifact and unchanged criterion when valid. read_destination may supply suggestedNewAppName; the destination proposal service still revalidates current identity, price and network. Prepare the real review card instead of asking whether you may prepare it. No suggestion, local receipt or model message grants creation/publication consent." }] : []),
         ...(sourceProfile?.fullstack?.workerSqlite ? [{ role: "system" as const, content: "The inspected source has a single Worker/SQLite persistence requirement. After the exact compiled artifact passes and its private environment is verified for the selected destination, use propose_disk if inspect_project reports required storage. The host fixes the bounded capacity and obtains a separate decision. It neither mounts nor publishes yet. After the verified storage receipt continue propose_publication with the original page and API criteria. Configuration readback is not persistence after restart. Do not create another disk or ask the user to do this in Liara's console. Unsupported resource shapes remain implementation gaps; never omit them." }] : []),
         { role: "system", content: investigationGuidance },
         ...(run.mission ? [{ role: "system" as const, content: `The host owns this structured publication mission: ${JSON.stringify(run.mission)}. Its path and status 200 are mandatory. expectedText, when present, requires a text assertion with exactly that contains value. When absent, derive the assertion from actual source before proposing. Complete preparation, destination and publication from tool receipts. A failure may trigger scoped repair and republishing, never weakening the original page expectation.` }] : []),
@@ -873,6 +875,24 @@ export async function driveAgentRun(
           "قدم بعدی با پروژه انتخاب‌شده تطبیق ندارد.",
           502,
         );
+        const requiredProposal = requiredDestinationProposal(run, sourceProfile, availableTools);
+        if (requiredProposal) {
+          const corrections = run.events.filter(event => event.kind === "tool" && event.tool === "finish_investigation" && event.outcome === "failed").length;
+          ensure(corrections < 2, "AGENT_NO_PROGRESS", "دستیار به‌جای پیشنهاد قابل تصمیم، پرسش تأیید را تکرار کرد؛ اجرا متوقف شد و هیچ مجوز یا بودجه تازه‌ای ساخته نشد.", 409);
+          const response = JSON.stringify({ ok: false, error: { code: "PROPOSAL_REQUIRED", message: requiredProposal.reason, retryable: false }, data: requiredProposal });
+          if (completion) {
+            ensure(!run.messages.some(message => message.role === "assistant" && message.tool_calls?.some(call => call.id === completion.id)),
+              "MODEL_PROTOCOL", "شناسه ابزار تکراری است؛ نتیجه به درخواست دیگری منتقل نشد.", 502);
+            run.messages.push({ role: "assistant", content: null, tool_calls: [{ ...completion, function: { ...completion.function, arguments: redact(completion.function.arguments, privateValues(config)) } }] });
+            run.messages.push({ role: "tool", tool_call_id: completion.id, content: response });
+          } else {
+            run.messages.push({ role: "assistant", content: redact(JSON.stringify(final), privateValues(config)) });
+            run.messages.push({ role: "user", content: `Host completion correction (not approval): ${response}` });
+          }
+          addEvent(run, "tool", "اطلاعات لازم برای پیشنهاد مقصد موجود است؛ دستیار باید کارت تصمیم را آماده کند. هنوز چیزی ساخته یا تأیید نشده است.",
+            { tool: "finish_investigation", ...(completion ? { callId: completion.id } : {}), outcome: "failed" });
+          persist();continue;
+        }
         run.state =
           final.question !== null || next !== "reply" ? "needs_input" : "partially_completed";
         run.nextAction = next;

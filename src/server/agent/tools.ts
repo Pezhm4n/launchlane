@@ -1,7 +1,7 @@
 import { object, exactKeys, integer, string, text } from "../../contracts/validation.ts";
 import type { Config } from "../config.ts";
 import { connectedLiaraConfig, connectedLiaraAccountConfig } from "../connections/liara.ts";
-import { ensure } from "../errors.ts";
+import { AppError, ensure } from "../errors.ts";
 import { LiaraReadClient } from "../liara/client.ts";
 import type { Store } from "../persistence/store.ts";
 import { fingerprint } from "../policy/action.ts";
@@ -33,7 +33,7 @@ import { isApplicationEnvironmentKey } from "../../contracts/environment.ts";
 import { fullstackPreparation } from "./fullstack-preparation.ts";
 import { fullstackTestCommand, parseFullstackApiChecks } from "../../contracts/fullstack.ts";
 import { preparationPaths } from "./preparation.ts";
-import { fullstackVerification } from "../application/fullstack-verification.ts";
+import { fullstackVerification, localFullstackVerification } from "../application/fullstack-verification.ts";
 import { parseDisposableTestDatabase, postgresTestImage } from "../../contracts/test-database.ts";
 import { validateTestDatabaseSource } from "./test-database.ts";
 import { explicitIsoTime } from "../liara/read-contracts.ts";
@@ -41,6 +41,7 @@ import { currentDiskBinding, proposeDisk } from "../application/disks.ts";
 import type { LiaraDiskClient } from "../liara/disks.ts";
 import type { LiaraEnvironmentClient } from "../liara/environment.ts";
 import { randomUUID } from "node:crypto";
+import { suggestedDestinationName } from "./proposal-progress.ts";
 
 export function privateValues(c: Config): string[] {
   return [c.liaraToken, c.modelKey, c.operatorToken, c.sessionSecret, ...c.projectSecretValues].filter(Boolean);
@@ -382,7 +383,7 @@ export async function executeAgentTool(
     const scoped = connectedLiaraAccountConfig(c.config, c.store, c.actorId),
       networks = await (c.account ?? new LiaraAccountClient(scoped, c.context.account.accountId)).networks(c.budget, c.signal);
     assertAgentContext(c.config, c.store, c.actorId, c.context);
-    return { networks, networkCreationAvailable: c.config.enableMutations && !c.context.target && networks.length === 0, remoteChanges: false };
+    return { account: c.context.account, networks, networkCreationAvailable: c.config.enableMutations && !c.context.target && networks.length === 0, remoteChanges: false };
   }
   if (name === "read_catalog" || name === "quote_resource_plan") {
     ensure(c.context.account, "LIARA_AUTH_REQUIRED", "ابتدا حساب مقصد را متصل کنید؛ انتخاب برنامه برای دیدن پلن‌ها لازم نیست.", 409);
@@ -390,7 +391,7 @@ export async function executeAgentTool(
       catalog = await (c.account ?? new LiaraAccountClient(scoped, c.context.account.accountId)).catalog(c.budget, c.signal);
     assertAgentContext(c.config, c.store, c.actorId, c.context);
     if (name === "quote_resource_plan") return quotePaaSOffer(catalog, string(args.planId, 63), string(args.bundleId, 63));
-    return { observedAt: catalog.observedAt, pricing: catalog.pricing,
+    return { account: c.context.account, observedAt: catalog.observedAt, pricing: catalog.pricing,
       offers: catalog.offers.slice(0, 20), omittedOffers: Math.max(0, catalog.offers.length - 20),
       unavailablePlanIds: catalog.unavailablePlanIds,
       balanceToman: catalog.balanceToman, measuredRequirement: false, remoteChanges: false };
@@ -551,6 +552,7 @@ export async function executeAgentTool(
     c.budget.take("tool", c.signal);
     const view = c.store.getConnection(c.actorId, "liara")?.view;
     return {
+      account: c.context.account,
       state: view?.status ?? "disconnected",
       selectedApp: c.context.target?.app ?? null,
       availableApps:
@@ -563,6 +565,7 @@ export async function executeAgentTool(
       mutationsEnabled: c.config.enableMutations,
       creationAvailable: c.config.enableMutations && c.config.enableLiveLiara,
       allowedNewAppNames: c.config.apps.length ? c.config.apps : null,
+      suggestedNewAppName: suggestedDestinationName(c.config.apps.length ? c.config.apps : null, c.context.projectId),
       pricing: "unknown",
       siteOriginConfigured: !!(c.context.target && (c.config.probeOrigins[c.context.target.app] ||
         c.store.getProbeOrigin(c.actorId, c.context.target.teamId, c.context.target.app))),
@@ -594,8 +597,22 @@ export async function executeAgentTool(
       flow?.message || "پروژه را دوباره بررسی کنید.",
       409,
     );
-    if (name === "inspect_project")
+    if (name === "inspect_project") {
+      let selectedArtifactVerification: Record<string, unknown> | undefined;
+      if (flow.selection.kind === "repair" && flow.profile.fullstack) {
+        try {
+          const evidence = await localFullstackVerification(c.store, c.config.stateDir, c.actorId, flow);
+          selectedArtifactVerification = { state: "verified", kind: "compiled_fullstack", testedAt: evidence.testedAt, artifactRecheckedAt: Date.now(),
+            build: "passed", existingTests: evidence.build.testCommand ? "passed" : "not_requested", originalWorkload: evidence.build.workload,
+            apiPaths: evidence.verification.apiChecks.map(check => check.path), cloudPublication: "unverified", storagePersistence: "unverified" };
+        } catch (error) {
+          if (!(error instanceof AppError)) throw error;
+          selectedArtifactVerification = { state: "unconfirmed", code: error.code, cloudPublication: "unverified", storagePersistence: "unverified" };
+        }
+      }
       return {
+        projectId: flow.id,
+        sourceHash: flow.profile.sourceHash,
         state: flow.status,
         runtime: flow.profile.runtime,
         nodeVersion: flow.profile.nodeRuntime?.version ?? null,
@@ -615,13 +632,17 @@ export async function executeAgentTool(
         environmentFormNames: flow.profile.envNames.filter(isApplicationEnvironmentKey),
         gaps: flow.profile.missing,
         archiveReady: !!flow.artifact,
+        ...(selectedArtifactVerification ? { selectedArtifactVerification } : {}),
         files: flow.profile.manifest
           .slice(0, 100)
           .map((file) => ({ path: file.path, bytes: file.bytes })),
         manifestTruncated: flow.profile.manifest.length > 100,
         limitation:
-          "Static inspection only. Build, tests and environment values have not been verified.",
+          selectedArtifactVerification?.state === "verified"
+            ? "This inspection ran no project code. The selected immutable artifact's prior container build, tests and original workload receipt were rechecked. Cloud configuration, publication and persistence need their own approved execution and evidence."
+            : "Static inspection only. No successful selected-artifact build receipt was verified by this read; cloud environment and workload remain unverified.",
       };
+    }
     const path = string(args.path, 512);
     ensure(
       flow.profile.manifest.some((entry) => entry.path === path),

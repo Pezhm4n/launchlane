@@ -4,7 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { test } from "node:test";
 import { createAgentRun, driveAgentRun, decideAgentDisk, resumeAgentDisk, cancelAgentRun } from "../../src/server/agent/runs.ts";
-import { executeAgentTool } from "../../src/server/agent/tools.ts";
+import { currentAgentContext, executeAgentTool } from "../../src/server/agent/tools.ts";
 import { GoalModelClient } from "../../src/server/agent/model.ts";
 import { toolsForAgent, toolsForConversation } from "../../src/server/agent/tools.ts";
 import { agentFixture } from "../helpers/agent-fixture.ts";
@@ -45,6 +45,9 @@ import {
 	observeDestination,
 } from "../../src/server/application/provision.ts";
 import { createPublicationMission, resumePublicationMission } from "../../src/server/application/publication-mission.ts";
+import { fullstackVerification } from "../../src/server/application/fullstack-verification.ts";
+import { RunBudget } from "../../src/server/policy/budget.ts";
+import { object } from "../../src/contracts/validation.ts";
 import { AgentRepository } from "../../src/server/agent/store.ts";
 import {
 	proposeEnvironment,
@@ -1006,5 +1009,20 @@ test("a publication mission cannot resume past an uncertain disk send or spend a
     assert.equal(unchanged.revision, queued.revision);assert.deepEqual(unchanged.usage, queued.usage);assert.deepEqual(unchanged.limits, queued.limits);
     assert.equal(unchanged.disk?.state, "uncertain");assert.equal(f.store.db.prepare("SELECT COUNT(*) AS count FROM attempts WHERE action_id=?").get(run.disk.id)?.count, 1);
     assert.equal(f.diskWrites, 0);
+  } finally { f.close(); }
+});
+
+test("inspection rechecks the selected compiled build receipt without treating it as cloud environment, publication or persistence evidence", async () => {
+  const f = await fixture();try {
+    f.store.db.prepare("UPDATE actions SET state='failed' WHERE json_extract(spec,'$.version')=9").run();
+    const inspect = () => executeAgentTool("inspect_project", {}, { config: f.config, store: f.store, actorId: f.session.actorId,
+      context: currentAgentContext(f.config, f.store, f.session.actorId), createdAt: Date.now(), budget: new RunBudget(f.config), signal: signal() });
+    const result = await inspect(), proof = object(object(result).selectedArtifactVerification);
+    assert.equal(proof.state, "verified");assert.deepEqual(proof.originalWorkload, f.build.workload);
+    assert.equal(proof.cloudPublication, "unverified");assert.equal(proof.storagePersistence, "unverified");
+    await assert.rejects(fullstackVerification(f.store, f.config.stateDir, f.session.actorId, f.flow, f.config.sessionSecret), { code: "FULLSTACK_BUILD_REQUIRED" });
+    assert.equal(f.flow.selection.kind, "repair");if (f.flow.selection.kind !== "repair") throw Error("fixture selection");
+    f.store.db.prepare("UPDATE code_repair_jobs SET data_json=json_set(data_json,'$.job.publication.outputArtifactHash',?) WHERE id=?").run("f".repeat(64), f.flow.selection.jobId);
+    const tampered = await inspect();assert.equal(object(object(tampered).selectedArtifactVerification).state, "unconfirmed");assert.equal(f.diskWrites, 0);
   } finally { f.close(); }
 });

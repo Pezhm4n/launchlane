@@ -1,5 +1,9 @@
 # برنامه اجرایی Launchlane
 
+## پیشرفت واقعی مأموریت و receipt همان artifact؛ ۲۰۲۶-۱۰-۲۷
+
+- وب‌اپ `017298e` روی preview خصوصی Linux ساخته و با مرورگر واقعی آزموده شد؛ مدل پس از چهار read موفق، در درخواست پنجم به‌جای کارت پیشنهاد اجازهٔ کلی پرسید. پنج درخواست واقعی/۳۵۳۲۷ توکن گزارش‌شده و صفر تلاش زیرساخت ثبت‌اند؛ این failure حفظ شد. inspector اکنون receipt، خروجی compiled و archive همان نسخه را بازخوانی می‌کند؛ شرط محیط واقعی انتشار همچنان جدا و اجباری است. guard پایان مأموریت، پرسش تأیید اضافی را در حالت معلوم به proposal واقعی هدایت و با دو اصلاح محدود می‌کند؛ ابهام شبکه، scope نامعتبر و منبع پشتیبانی‌نشده مستثنی‌اند. رگرسیون هدفمند۲۹/۲۹؛ snapshot مستقل `93b940a1` با domain۷۰۳/۷۰۳، HTTP۴۰/۴۰، typecheck و build موفق و lint بدون error سنجیده شد. در ادامهٔ همان مأموریت با همان سقف، سه درخواست واقعی دیگر کارت مقصد را در مرورگر ساختند؛ مصرف تجمعی۸ درخواست و صفر تلاش زیرساخت است. مسیر correction و inspector تازه در این trajectory فراخوانی نشدند و شاهدشان رگرسیون است؛ انتشار ابری و پروژهٔ خام همچنان بازند. production و منابع لیارا محفوظ‌اند و phase allowance تمدید نشد. [شاهد و مرزها](docs/evidence/native-proposal-progress-20261027.md).
+
 ## نحو ورودی source و تأیید fixture؛ ۲۰۲۶-۱۰-۲۷
 
 - پس از تأیید مالک، همان ۱۹ فایل آزمون DataAgent با hash و انقضای هفت‌روزه ثبت شدند؛ تأیید به source/docs یا known secret گسترش نیافت. classifier مشترک f-string پایتون، metadata هدر و omission مستندات و خواندن واقعی DOM اصلاح شد؛ اصل بایت‌ها در capture/archive حفظ می‌شوند و literal مجاور همچنان رد می‌شود. snapshot منتخب مستقل `ef0a665c`: domain۶۹۷/۶۹۷ و HTTP۴۰/۴۰، typecheck و build با Webpack موفق؛ lint صفر error/۴۸ warning/۲۰ info. capture واقعی هنوز در هشت مسیر SENSITIVE_SOURCE است؛ artifact/منبع ابری یا allowance تازه ساخته نشد. نتیجه و failureهای اولیه در [شاهد](docs/evidence/source-syntax-20261027.md) ثبت می‌شود. مرز بعدی، intake خصوصی و آماده‌سازی runtime/dependency از مسیر خود محصول است.
