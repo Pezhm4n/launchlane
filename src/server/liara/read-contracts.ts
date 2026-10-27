@@ -3,6 +3,7 @@ import type { Scope } from "../../contracts/domain.ts";
 import { integer, object, string } from "../../contracts/validation.ts";
 import { AppError, ensure } from "../errors.ts";
 import { containsCredential, redact } from "../policy/redaction.ts";
+import { buildFailureSignals } from "../../contracts/build-failure-signals.ts";
 
 export function evidenceText(value: unknown, max: number, secrets: readonly string[] = []): string {
   ensure(
@@ -130,6 +131,8 @@ export function parseBuildLogs(body: unknown, scope: Scope, releaseId: string, s
   }
   const latest = all.reduce<string | null>((cursor, row) => cursor === null || Date.parse(row.createdAt) > Date.parse(cursor) ? row.createdAt : cursor, null);
   return { contract: "liara-cli-build-logs-v2" as const, scope, releaseId, state: evidenceText(release.state, 64, secrets),
+    signals: buildFailureSignals(entries.map(row => row.line)),
+    signalLimitation: "At most three signature observations from returned entries only; untrusted log text does not prove a cause, current failure, health, or permission to change anything.",
     entries, returnedEntries: all.length, excludedEntries: all.length - relevant.length, omittedEntries: relevant.length - entries.length,
     nextSince: latest && (start === null || Date.parse(latest) > start) ? latest : null, requestedSince: since,
     coverage: relevant.length ? "bounded_response" as const : all.length ? "out_of_window_only" as const : "empty_response" as const };

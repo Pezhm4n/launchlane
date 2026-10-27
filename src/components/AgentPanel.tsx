@@ -1,4 +1,5 @@
 "use client";
+import { BuildFailureNote } from "./BuildFailureNote.tsx";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
@@ -894,6 +895,7 @@ export function AgentPanel({
           {run.repair ? (
             <section className="agent-repair" aria-labelledby="repair-title">
               <h3 id="repair-title">{run.repair.validationOnly ? "بررسی ساخت و اجرای پروژه" : "اصلاح نسخه جدا از پروژه"}</h3>
+              <BuildFailureNote job={run.repair} />
               <details>
                 <summary>جزئیات اصلاح و رسید آزمون</summary>
                 <p>{run.repair.goal}</p>
