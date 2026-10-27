@@ -23,7 +23,7 @@ The corpus is an adversarial sample for this ladder. Passing one application doe
 
 | Project/reference | Distinguishing capability | First unresolved product boundary |
 | --- | --- | --- |
-| Qadam | Vite SPA + Hono Worker + D1 SQL + private auth/sync/calendar | Exact build and isolated persistence passed; Agent storage path has synthetic evidence, while live storage/restart and the complete hosted mission remain unverified |
+| Qadam | Vite SPA + Hono Worker + D1 SQL + private auth/sync/calendar | Raw Agent mission passed its actual Linux build/193 tests and artifact-bound proposal with synthetic model/provider ports; real-model/browser proposal and earlier isolated persistence are separate evidence. Combined hosted mission, live storage and cloud restart remain unverified |
 | Eyewear | Next frontend + FastAPI + PostgreSQL/Redis + Celery worker/beat | Complete multi-process/resource plan and execution; private source findings require proper handling |
 | Foodino | Frontend + Supabase Auth/RLS/RPC | Preserve the actual external service contract and safe configuration; generic PostgreSQL is not an automatic replacement |
 | Data Agent | Python pyproject/Docker + SQLite/DuckDB + reports and model service | Exact 19 test fixtures are owner-reviewed; after shared syntax corrections eight other source findings, locked preparation and the actual Python/Docker packaging path remain open |

@@ -42,6 +42,7 @@ import { createAgentRun, decideAgentPublication, driveAgentRun } from "../../src
 import { AgentRepository } from "../../src/server/agent/store.ts";
 import { GoalModelClient } from "../../src/server/agent/model.ts";
 import { executeAgentTool } from "../../src/server/agent/tools.ts";
+import { createPublicationMission } from "../../src/server/application/publication-mission.ts";
 
 const digest = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
 const apiChecks = [{ path: "/health/db", status: 200, assertions: [{ pointer: ["auth", "ok"], equals: true }, { pointer: ["profile", "ok"], equals: true }] }];
@@ -61,6 +62,28 @@ function sourceFiles() {
   ].map(file => ({ path: file.path, content: Buffer.from(file.content) }));
 }
 async function writeFiles(root: string, files: readonly SourceFile[] = sourceFiles()) { for (const file of files) { const path = join(root, file.path); await mkdir(join(path, ".."), { recursive: true }); await writeFile(path, file.content); } }
+
+test("a nested frontend/API source can obtain its local preparation card before a cloud destination or generic publication program", async () => {
+  const f = await agentFixture();try {
+    const root = join(f.workspace, "fullstack");await writeFiles(root);
+    const config = { ...f.config, enableLocalRepair: true }, flow = await prepareProjectFlow(config, f.store, f.session.actorId,
+      { kind: "local", directory: "fullstack" }, AbortSignal.timeout(5000));
+    const original = await readFile(join(root, "package.json")), run = (await createPublicationMission(config, f.store, f.session, randomUUID(),
+      { projectId: flow.id, sourceHash: flow.profile.sourceHash, path: "/", expectedText: "Full application" }, AbortSignal.timeout(5000))).run;
+    await driveAgentRun(config, f.store, f.session, run.id, { model: { complete: async (_messages, tools, budget, signal) => {
+      assert.ok(tools.some(tool => tool.function.name === "propose_project_build"));budget.take("model", signal);
+      return { content: null, usage: 11, calls: [{ id: randomUUID(), type: "function", function: { name: "propose_project_build", arguments: JSON.stringify({
+        path: "/", status: 200, assertion: { kind: "text", contains: "Full application" }, apiChecks }) } }] };
+    } } });
+    const pending = new AgentRepository(f.store).get(f.session.actorId, run.id);assert.ok(pending?.repair?.build?.version === 7);
+    assert.equal(pending.state, "needs_approval");assert.equal(pending.context.target, null);assert.equal(pending.authority ?? null, null);
+    assert.deepEqual(pending.repair.build.fullstack.packageRoots, [".", "guides"]);assert.deepEqual(pending.repair.build.apiChecks, apiChecks);
+    assert.equal(pending.repair.afterTest, null);assert.deepEqual(pending.repair.containerIds, []);assert.equal(pending.destination, null);
+    assert.equal(f.store.db.prepare("SELECT COUNT(*) n FROM attempts").get()?.n, 0);
+    assert.equal(f.store.db.prepare("SELECT COUNT(*) n FROM actions").get()?.n, 0);
+    assert.ok(original.equals(await readFile(join(root, "package.json"))));
+  } finally { f.close(); }
+});
 
 test("mixed frontend/API projects cannot silently become a frontend-only or backend-only release", async () => {
   const root = await mkdtemp(join(tmpdir(), "launchlane-fullstack-"));

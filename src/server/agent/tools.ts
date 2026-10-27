@@ -206,12 +206,12 @@ function registeredTools(config: Config): readonly ToolDefinition[] {
 export function toolsForConversation(config: Config): readonly ToolDefinition[] {
   return [...agentTools, ...(config.enableLiveLiara ? catalogTools : [])];
 }
-export function toolsForAgent(config: Config, preparation: "native" | "build" = "native", hasTarget = true, publicationProgram = false, persistentStorage = false): readonly ToolDefinition[] {
+export function toolsForAgent(config: Config, preparation: "native" | "build" | "fullstack" = "native", hasTarget = true, publicationProgram = false, persistentStorage = false): readonly ToolDefinition[] {
   // Offer the applicable preparation path without two competing tools for the same task.
-  const omitted = preparation === "build" ? "propose_project_preparation" : "propose_project_build";
+  const omitted = preparation === "native" ? "propose_project_build" : "propose_project_preparation";
   return registeredTools(config).filter(tool => tool.function.name !== omitted && tool.function.name !== (hasTarget ? "propose_network" : "read_metrics") &&
     (tool.function.name !== "propose_disk" || hasTarget && persistentStorage) &&
-    !(publicationProgram && !hasTarget && ["propose_project_build", "propose_publication"].includes(tool.function.name)));
+    !(publicationProgram && !hasTarget && (tool.function.name === "propose_publication" || preparation !== "fullstack" && tool.function.name === "propose_project_build")));
 }
 const preparationTool: ToolDefinition = { type: "function", function: {
   name: "propose_project_preparation",

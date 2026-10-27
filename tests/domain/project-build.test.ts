@@ -94,15 +94,15 @@ test("Node24 source chooses the exact compatible build image without a user runt
     assert.throws(() => validateBuildPlan(captured.files, { ...captured.profile, nodeRuntime: { version: "24", requirement: ">=24.99 <25", source: "package.json", detail: "fixture" } }, build), { code: "BUILD_RUNTIME_UNSUPPORTED" });
   } finally { f.close(); }
 });
-test("both preparation alternatives fit the real model client's tool bound with every service gate enabled", async () => {
+test("all applicable preparation modes fit the real model client's tool bound with every service gate enabled", async () => {
   const f = await agentFixture();
   try {
     const config = { ...f.config, enableLocalRepair: true, enableMutations: true, enableLiveLiara: true };
     const completion: ToolDefinition = { type: "function", function: { name: "finish", description: "fixture", parameters: { type: "object", properties: {}, required: [], additionalProperties: false } } };
-    for (const mode of ["native", "build"] as const) {
+    for (const mode of ["native", "build", "fullstack"] as const) {
       const tools = [...toolsForAgent(config, mode), completion], names = tools.map(tool => tool.function.name);
       assert.equal(new Set(names).size, names.length); assert.ok(names.length <= maxModelToolDefinitions);
-      assert.equal(names.includes("propose_project_build"), mode === "build");
+      assert.equal(names.includes("propose_project_build"), mode !== "native");
       assert.equal(names.includes("propose_project_preparation"), mode === "native");
       let sends = 0;
       const model = new GoalModelClient(config, async (_url, init) => {

@@ -15,6 +15,11 @@ import { assertApplicationPublicationScope } from "../../src/server/policy/appli
 import { fullstackVerification } from "../../src/server/application/fullstack-verification.ts";
 import { agentFixture } from "../helpers/agent-fixture.ts";
 import { prepareProjectFlow } from "../../src/server/application/project-flows.ts";
+import { randomUUID } from "node:crypto";
+import { createPublicationMission } from "../../src/server/application/publication-mission.ts";
+import { driveAgentRun, decideAgentRepair } from "../../src/server/agent/runs.ts";
+import { AgentRepository } from "../../src/server/agent/store.ts";
+import { saveImportedEnvironment } from "../../src/server/environment/import.ts";
 
 const pkg = { name: "worker-fixture", type: "module", scripts: { build: "vite build", test: "vitest run" },
   dependencies: { hono: "4.6.0", react: "18.3.1" }, devDependencies: { vite: "5.4.8", esbuild: "0.21.5" } };
@@ -74,5 +79,47 @@ test("a source-only Worker with exact host programs still cannot publish without
     await put(directory, prepareFullstackFiles(captured.files, captured.profile, plan));
     const flow = await prepareProjectFlow(f.config, f.store, f.session.actorId, { kind: "local", directory: "worker" }, AbortSignal.timeout(5000));
     await assert.rejects(fullstackVerification(f.store, f.config.stateDir, f.session.actorId, flow, f.config.sessionSecret), { code: "FULLSTACK_BUILD_REQUIRED" });
+  } finally { f.close(); }
+});
+
+test("a raw Worker mission can propose its exact private preparation before any account or destination, without executing or granting cloud authority", async () => {
+  const f = await agentFixture();try {
+    const directory = join(f.workspace, "worker");await put(directory, source());
+    const active = { ...f.config, enableLocalRepair: true, enableLiveLiara: true, enableMutations: true };
+    const flow = await prepareProjectFlow(active, f.store, f.session.actorId, { kind: "local", directory: "worker" }, AbortSignal.timeout(5000));
+    assert.equal(flow.profile.fullstack?.requiresPreparation, true);
+    assert.throws(() => assertApplicationPublicationScope(flow.profile), { code: "APPLICATION_TOPOLOGY_REQUIRED" });
+    const values = [{ key: "SESSION_SECRET", value: "private-worker-preparation-fixture-value" }];
+    saveImportedEnvironment(active, f.store, f.session.actorId, flow, values);
+    const original = await readFile(join(directory, "package.json")), repo = new AgentRepository(f.store);
+    const mission = (await createPublicationMission(active, f.store, f.session, randomUUID(), {
+      projectId: flow.id, sourceHash: flow.profile.sourceHash, path: "/", expectedText: "worker fixture" }, AbortSignal.timeout(5000))).run;
+    assert.equal(mission.context.account, null);assert.equal(mission.context.target, null);
+    let offered: string[] = [];
+    const apiChecks = [{ path: "/api/health", status: 200, assertions: [{ pointer: ["ready"], equals: true }] }];
+    await driveAgentRun(active, f.store, f.session, mission.id, { model: { complete: async (_messages, tools, budget, signal) => {
+      offered = tools.map(tool => tool.function.name);budget.take("model", signal);
+      return { content: null, usage: 12, calls: [{ id: randomUUID(), type: "function", function: { name: "propose_project_build",
+        arguments: JSON.stringify({ path: "/", status: 200, assertion: { kind: "text", contains: "worker fixture" }, apiChecks }) } }] };
+    } } });
+    assert.ok(offered.includes("propose_project_build"), "raw Worker preparation must not depend on a destination that rejects this unprepared source");
+    for (const name of ["propose_project_preparation", "propose_publication", "propose_disk"]) assert.ok(!offered.includes(name), name);
+    const reviewed = repo.get(f.session.actorId, mission.id);assert.ok(reviewed);
+    assert.equal(reviewed.state, "needs_approval");assert.equal(reviewed.effect, "no_remote_changes");
+    assert.equal(reviewed.context.account, null);assert.equal(reviewed.context.target, null);assert.deepEqual(reviewed.mission, mission.mission);
+    assert.deepEqual(reviewed.limits, mission.limits);assert.equal(reviewed.usage.modelCalls, 1);
+    const job = reviewed.repair;assert.ok(job?.build?.version === 7 && job.preparation?.version === 2);
+    assert.equal(job.state, "proposed");assert.equal(job.parentRunId, mission.id);assert.equal(job.baseRevision, flow.profile.sourceHash);
+    assert.equal(job.containerImage, node24BuildImage);assert.deepEqual(job.containerIds, []);assert.equal(job.afterTest, null);assert.equal(job.artifact, null);
+    assert.deepEqual(job.build.apiChecks, apiChecks);assert.equal(job.build.environment, null);assert.deepEqual(job.build.sourceEnvironment?.keys, ["SESSION_SECRET"]);
+    assert.equal(reviewed.authority ?? null, null);assert.equal(reviewed.destination, null);assert.equal(reviewed.publication, null);assert.equal(reviewed.disk ?? null, null);
+    assert.ok(!JSON.stringify(reviewed).includes(values[0]?.value ?? "missing"));
+    for (const table of ["attempts", "actions", "mission_authorities"]) assert.equal(f.store.db.prepare(`SELECT COUNT(*) n FROM ${table}`).get()?.n, 0);
+    assert.ok(original.equals(await readFile(join(directory, "package.json"))));
+    const rejected = await decideAgentRepair(active, f.store, f.session, reviewed.id, reviewed.revision, job.id, "reject");
+    assert.equal(rejected.repair?.state, "cancelled");assert.equal(rejected.state, "needs_input");
+    assert.equal(rejected.usage.modelCalls, 1);assert.deepEqual(rejected.limits, mission.limits);
+    assert.equal(f.store.db.prepare("SELECT COUNT(*) n FROM attempts").get()?.n, 0);
+    assert.ok(original.equals(await readFile(join(directory, "package.json"))));
   } finally { f.close(); }
 });
