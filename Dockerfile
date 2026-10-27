@@ -15,6 +15,7 @@ RUN docker --version && node -e "const {DatabaseSync}=require('node:sqlite');con
 COPY --from=build --chown=node:node /app/.next/standalone ./
 COPY --from=build --chown=node:node /app/.next/static ./.next/static
 COPY --from=build --chown=node:node /app/public ./public
+COPY --from=build --chown=node:node /app/examples/node-service ./examples/node-service
 COPY --chown=node:node src/contracts ./src/contracts
 COPY --chown=node:node src/server/config.ts src/server/errors.ts ./src/server/
 COPY --chown=node:node src/server/policy/probe-target.ts ./src/server/policy/

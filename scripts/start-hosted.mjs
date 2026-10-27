@@ -1,19 +1,22 @@
 import { execFileSync, spawn } from "node:child_process";
 import { isAbsolute, resolve } from "node:path";
+import { accessSync, constants } from "node:fs";
 import { readConfig } from "../src/server/config.ts";
 import { openModelBudget } from "./model-budget.mjs";
-import { projectBuildImage, node24BuildImage, pythonBuildImage } from "../src/contracts/project-build.ts";
+import { projectBuildImage, node20BuildImage, node24BuildImage, pythonBuildImage } from "../src/contracts/project-build.ts";
 
 const config = readConfig();
 const [major, minor] = process.versions.node.split(".").map(Number);
 if (major !== 24 || minor < 15) throw Error("Hosted startup requires Node 24.15+ within 24.x.");
 if (config.authMode !== "liara" || !config.authConfigured || !config.origin.startsWith("https:") || !process.env.LAUNCHLANE_STATE_DIR || !isAbsolute(process.env.LAUNCHLANE_STATE_DIR))
   throw Error("Hosted startup needs LAUNCHLANE_AUTH_MODE=liara, a fixed HTTPS LAUNCHLANE_ORIGIN, LAUNCHLANE_SESSION_SECRET and an absolute persistent LAUNCHLANE_STATE_DIR. See docs/hosted-access.md.");
+for (const path of ["examples/node-service/package.json", "examples/node-service/server.mjs"])
+  accessSync(resolve(path), constants.R_OK);
 if (config.enableLocalRepair) {
   const options = { encoding: "utf8", timeout: 15000, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] };
   if (execFileSync("docker", ["info", "--format", "{{.OSType}}"], options).trim() !== "linux")
     throw Error("Hosted build/repair requires the private Linux Docker engine.");
-  for (const image of [projectBuildImage, node24BuildImage, pythonBuildImage])
+  for (const image of [node20BuildImage, projectBuildImage, node24BuildImage, pythonBuildImage])
     execFileSync("docker", ["image", "inspect", image, "--format", "{{.Id}}"], options);
 }
 const imports = [];

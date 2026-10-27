@@ -7,6 +7,10 @@
 !postcss.config.mjs
 !public/
 !public/**
+!examples/
+examples/**
+!examples/node-service/
+!examples/node-service/**
 !src/
 !src/**
 !scripts/

@@ -18,7 +18,7 @@ export async function DELETE(request: Request) {
     const input = object(await jsonBody(request));
     exactKeys(input, ["id"]);
     const id = string(input.id, 64);
-    ensure(id !== session.id && store.sessionExists(id, session.actorId, Date.now()), "AUTH_REQUIRED", "دسترسی اتصال معتبر نیست.", 401);
+    ensure(id !== session.id && store.sessionExists(id, session.actorId, Date.now()), "MCP_ACCESS_NOT_FOUND", "این دسترسی وجود ندارد یا قبلاً لغو یا منقضی شده است.", 404);
     store.revokeSession(id);
     return reply({ revoked: true });
   });

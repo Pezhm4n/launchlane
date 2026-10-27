@@ -4,6 +4,7 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { startTestServer } from "./test-server.mjs";
+import { mcpClientConfigurations } from "./mcp-client-config.ts";
 
 // Opt-in compatibility probe: installed Codex host, no turn/start, no model or provider credentials.
 const executable = process.env.LAUNCHLANE_CODEX_PATH || "codex";
@@ -30,8 +31,8 @@ try {
   const access = await response.json(), home = join(web.workspace, "..", "codex-home"), accessPath = join(web.workspace, "..", "access.json");
   await mkdir(home);
   await writeFile(accessPath, JSON.stringify({ ...access, url: `${web.origin}/api/mcp` }), { mode: 0o600 });
-  const quote = value => JSON.stringify(value.replaceAll("\\", "/"));
-  await writeFile(join(home, "config.toml"), `model_provider = "openai"\napproval_policy = "never"\nsandbox_mode = "read-only"\n[mcp_servers.launchlane]\ncommand = ${quote(process.execPath)}\nargs = [${quote(resolve("scripts/mcp-stdio.mjs"))}]\n[mcp_servers.launchlane.env]\nLAUNCHLANE_MCP_ACCESS_FILE = ${quote(accessPath)}\n`);
+  const snippet = mcpClientConfigurations(accessPath, web.origin, process.execPath, resolve("scripts/mcp-stdio.mjs")).codex;
+  await writeFile(join(home, "config.toml"), `model_provider = "openai"\napproval_policy = "never"\nsandbox_mode = "read-only"\n${snippet}`);
   const env = Object.fromEntries(["PATH", "Path", "SystemRoot", "WINDIR", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "TEMP", "TMP"].filter(key => process.env[key]).map(key => [key, process.env[key]]));
   env.CODEX_HOME = home;
   child = spawn(executable, ["app-server", "--stdio"], { cwd: web.workspace, env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true });

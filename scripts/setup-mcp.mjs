@@ -3,16 +3,28 @@ import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
 import { Client, StreamableHTTPClientTransport } from "@modelcontextprotocol/client";
-import { parseMcpAccessFile } from "../src/contracts/mcp-access-file.ts";
+import { mcpOrigin, parseMcpAccessFile } from "../src/contracts/mcp-access-file.ts";
+import { mcpClientConfigurations } from "./mcp-client-config.ts";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+function snippets(path, origin) {
+  const configurations = mcpClientConfigurations(path, origin, process.execPath, resolve(root, "scripts/mcp-stdio.mjs"));
+  const paths = [];
+  for (const [host, content] of Object.entries(configurations)) {
+    const target = `${path}.${host}.${host === "codex" ? "toml" : "json"}`;
+    if (!existsSync(target)) { writeFileSync(target, content, { flag: "wx", mode: 0o600 }); paths.push(target); }
+  }
+  if (paths.length) console.info(`Host configuration snippets (merge one entry; existing user settings were not modified): ${paths.join(", ")}`);
+}
+async function main() {
 const args = process.argv.slice(2);
-let missions = false, output = ".local/mcp-access.json", fromFile = "";
+let missions = false, output = ".local/mcp-access.json", fromFile = "", trustedOrigin = "";
 for (let i = 0; i < args.length; i++) {
   if (args[i] === "--missions" && !missions) missions = true;
   else if (args[i] === "--output" && args[i + 1] && output === ".local/mcp-access.json") output = args[++i];
   else if (args[i] === "--from-file" && args[i + 1] && !fromFile) fromFile = args[++i];
-  else throw Error("Usage: node scripts/setup-mcp.mjs [--missions] [--from-file <browser download>] [--output <new file under .local>]");
+  else if (args[i] === "--origin" && args[i + 1] && !trustedOrigin) trustedOrigin = mcpOrigin(args[++i]);
+  else throw Error("Usage: node scripts/setup-mcp.mjs [--missions] [--from-file <browser download>] [--origin <trusted HTTPS or loopback origin>] [--output <new file under .local>]");
 }
 const path = resolve(root, output), within = relative(resolve(root, ".local"), path);
 if (!within || within.startsWith("..") || isAbsolute(within)) throw Error("MCP credentials must stay under this checkout's ignored .local directory.");
@@ -21,21 +33,24 @@ for (let parent = dirname(path); ; parent = dirname(parent)) {
   if (existsSync(parent) && lstatSync(parent).isSymbolicLink()) throw Error("Linked access directories are not allowed.");
   if (parent === dirname(parent)) break;
 }
-const env = parseEnv(readFileSync(resolve(root, ".env.local"), "utf8"));
-const origin = new URL(env.LAUNCHLANE_ORIGIN || "http://127.0.0.1:3000");
-if (origin.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes(origin.hostname) || origin.pathname !== "/" || origin.username || origin.password || origin.search || origin.hash) throw Error("Launchlane requires its configured loopback origin.");
+const envPath = resolve(root, ".env.local"), env = fromFile && trustedOrigin ? {} : existsSync(envPath) ? parseEnv(readFileSync(envPath, "utf8")) : {};
+const origin = new URL(trustedOrigin || mcpOrigin(env.LAUNCHLANE_ORIGIN || "http://127.0.0.1:3000"));
 if (fromFile) {
   const input = resolve(fromFile), stat = lstatSync(input);
   if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 8192) throw Error("Use the small access file downloaded from Launchlane; linked files are not allowed.");
   let imported;
   try { imported = parseMcpAccessFile(JSON.parse(readFileSync(input, "utf8").replace(/^\uFEFF/, "")), origin.origin); }
-  catch { throw Error("The access file is invalid, expired or belongs to another installation. Download a new file from Accounts > MCP."); }
+  catch { throw Error("The access file is invalid, expired or belongs to another installation. Download a new file from Accounts > MCP; for a hosted installation supply its exact --origin https://... ."); }
   if (missions && !imported.missions) throw Error("The downloaded access is read-only; this command cannot grant mission permission.");
   const client = new Client({ name: "launchlane-mcp-setup", version: "1" });
   try {
     await client.connect(new StreamableHTTPClientTransport(new URL(imported.url), { requestInit: { headers: { authorization: `Bearer ${imported.accessToken}` } }, fetch: (request, init) => fetch(request, { ...init, redirect: "error" }) }));
+    if (client.getServerVersion()?.name !== "launchlane") throw Error("unexpected server");
     const result = await client.callTool({ name: "launchlane_context", arguments: {} });
     if (result.isError) throw Error("denied");
+    const text = result.content?.find(item => item.type === "text");
+    const context = result.structuredContent ?? (text ? JSON.parse(text.text) : null);
+    if (!context?.data?.context || context.data.missionsAllowed !== imported.missions) throw Error("scope mismatch");
   } catch { throw Error("Launchlane did not verify this access. Keep the originating browser session signed in and download a fresh file if needed."); }
   finally { await client.close().catch(() => undefined); }
   if (input !== path) {
@@ -43,8 +58,10 @@ if (fromFile) {
     writeFileSync(path, JSON.stringify(imported, null, 2), { flag: "wx", mode: 0o600 });
   }
   console.info(`Verified browser-session MCP access at ${path}. Expires ${new Date(imported.expiresAt).toISOString()}. Missions ${imported.missions ? "enabled" : "disabled"}. No model/provider was called.`);
-  process.exit(0);
+  snippets(path, origin.origin);
+  return;
 }
+if (origin.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes(origin.hostname)) throw Error("For HTTPS sign in through Launchlane and import the downloaded access using --from-file and --origin. Operator credentials are never sent to a remote server.");
 async function request(route, body, cookie = "", csrf = "") {
   return fetch(new URL(route, origin), { method: "POST", redirect: "error", signal: AbortSignal.timeout(15000), headers: { origin: origin.origin, "content-type": "application/json", cookie, "x-csrf-token": csrf }, body: JSON.stringify(body) });
 }
@@ -65,3 +82,9 @@ try {
   throw Error("Access file could not be saved; revocation was attempted. No existing file was overwritten.");
 }
 console.info(`Scoped MCP access saved to ${path}. Expires ${new Date(access.expiresAt).toISOString()}. Missions ${missions ? "enabled" : "disabled"}. No host configuration was modified and no model/provider was called.`);
+snippets(path, origin.origin);
+}
+await main().catch(() => {
+  process.stderr.write("Launchlane MCP setup failed. Verify the running server, grant expiry/scope, exact --origin and a new --output under .local. HTTPS uses --from-file from Accounts > MCP. Existing files and host settings were preserved.\n");
+  process.exitCode = 1;
+});
