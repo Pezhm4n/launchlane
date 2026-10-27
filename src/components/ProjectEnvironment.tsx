@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import type { Action } from "../contracts/domain.ts";
 import { decodeAction } from "../contracts/client-decode.ts";
 import { environmentKey, isPublicClientEnvironmentKey } from "../contracts/environment.ts";
+import { canGenerateSigningSecret, generateSigningSecret } from "../contracts/generated-secret.ts";
 import { object, string } from "../contracts/validation.ts";
 import { api, ClientError } from "./api.ts";
 import { WorkspaceGlyph } from "./WorkspaceGlyph.tsx";
@@ -18,6 +19,7 @@ export function ProjectEnvironment({ runId, csrf, disabled, onContinue, onLockCh
   const key = useRef<string | null>(null);
   const [publicNames, setPublicNames] = useState<Record<string, boolean>>({});
   const [visible, setVisible] = useState<Record<string, boolean>>({});
+  const [generatedKeys, setGeneratedKeys] = useState<Record<string, boolean>>({});
   const [imported, setImported] = useState<{ available: string[]; needsReview: string[]; publicKeys: string[] }>({ available: [], needsReview: [], publicKeys: [] });
   const failed = useCallback((cause: unknown) => {
     if (cause instanceof ClientError && cause.code === "AUTH_REQUIRED") onExpired();
@@ -37,7 +39,7 @@ export function ProjectEnvironment({ runId, csrf, disabled, onContinue, onLockCh
     if (data.action && ["cancelled", "expired", "failed"].includes(data.action.state)) key.current = null;
   }, [runId]);
   useEffect(() => {
-    const controller = new AbortController(); setValues({}); setVisible({}); setPublicNames({}); setAction(null); setLoading(true); key.current = null;
+    const controller = new AbortController(); setValues({}); setVisible({}); setPublicNames({}); setGeneratedKeys({}); setAction(null); setLoading(true); key.current = null;
     void load(controller.signal).catch(cause => { if (!controller.signal.aborted) failed(cause); }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [load, failed]);
@@ -62,9 +64,9 @@ export function ProjectEnvironment({ runId, csrf, disabled, onContinue, onLockCh
   async function submit(event: FormEvent) {
     event.preventDefault(); if (busy || disabled) return;
     key.current ??= crypto.randomUUID(); setBusy(true); setError(null);
-    const variables = names.filter(name => values[name]).map(name => ({ key: name, value: values[name], public: publicNames[name] === true }));
+    const variables = names.filter(name => values[name]).map(name => ({ key: name, value: values[name], public: generatedKeys[name] ? false : publicNames[name] === true }));
     // Values belong only to this submission; neither restoration nor a draft cache may reveal them.
-    setValues({}); setVisible({});
+    setValues({}); setVisible({}); setGeneratedKeys({});
     try { setAction(await api("/api/project-environment", result, { csrf, body: { operation: "propose", runId, requestKey: key.current, variables } })); }
     catch (cause) { failed(cause); await load().catch(failed); key.current = null; }
     finally { setBusy(false); }
@@ -76,6 +78,16 @@ export function ProjectEnvironment({ runId, csrf, disabled, onContinue, onLockCh
       publicKeys: imported.publicKeys.filter(name => publicNames[name]) } })); }
     catch (cause) { failed(cause); await load().catch(failed); key.current = null; }
     finally { setBusy(false); }
+  }
+  function generate(name: string) {
+    if (disabled || busy || values[name] || publicNames[name] || !canGenerateSigningSecret(name) || imported.available.includes(name) || imported.needsReview.includes(name)) return;
+    try {
+      const value = generateSigningSecret();
+      setValues(current => current[name] ? current : { ...current, [name]: value });
+      setVisible(current => ({ ...current, [name]: false }));
+      setPublicNames(current => ({ ...current, [name]: false }));
+      setGeneratedKeys(current => ({ ...current, [name]: true })); setError(null);
+    } catch { setError("ساخت مقدار امن در این مرورگر در دسترس نیست؛ مقدار مناسب برنامه را دستی وارد کنید."); }
   }
   return <section className={`agent-repair ${styles.panel}`} aria-labelledby="environment-title" aria-busy={busy}>
     <h3 id="environment-title">اطلاعات امن برنامه</h3>
@@ -91,12 +103,19 @@ export function ProjectEnvironment({ runId, csrf, disabled, onContinue, onLockCh
       <details open={!imported.available.length}><summary>واردکردن یا تغییر دستی مقدارها</summary>
       <div className={styles.fields}>{names.map(name => <div className={styles.field} key={name}><label htmlFor={`environment-${name}`}><bdi>{name}</bdi></label>
         <div className={styles.input}><input id={`environment-${name}`} type={visible[name] ? "text" : "password"} autoComplete="new-password" dir="ltr" minLength={publicNames[name] ? 0 : 4} maxLength={4096} value={values[name] ?? ""}
-          aria-describedby={isPublicClientEnvironmentKey(name) ? `visibility-${name}` : undefined}
-          onChange={event => setValues(current => ({ ...current, [name]: event.target.value }))} disabled={disabled || busy} />
+          aria-describedby={isPublicClientEnvironmentKey(name) ? `visibility-${name}` : canGenerateSigningSecret(name) ? `generation-help-${name}` : undefined}
+          onChange={event => { setValues(current => ({ ...current, [name]: event.target.value })); setGeneratedKeys(current => ({ ...current, [name]: false })); }} disabled={disabled || busy} />
           <button className="button-quiet" type="button" aria-label={`${visible[name] ? "پنهان‌کردن" : "نمایش"} مقدار ${name}`} aria-pressed={visible[name] === true} disabled={disabled || busy}
             onClick={() => setVisible(current => ({ ...current, [name]: !current[name] }))}><WorkspaceGlyph name={visible[name] ? "eye-off" : "eye"} /></button></div>
         {isPublicClientEnvironmentKey(name) ? <p className="note" id={`visibility-${name}`}>مقدار این متغیر در فایل‌های سایت برای بازدیدکنندگان قابل دیدن است؛ رمز یا کلید محرمانه وارد نکنید.</p> : null}
-        <label className={styles.visibility}><input type="checkbox" aria-label={`عمومی بودن ${name}`} checked={publicNames[name] === true} onChange={event => setPublicNames(current => ({ ...current, [name]: event.target.checked }))} disabled={disabled || busy} />این مقدار محرمانه نیست</label></div>)}</div>
+        {canGenerateSigningSecret(name) ? <>
+          <p className="hint" id={`generation-help-${name}`}>اگر برنامه برای امضا به مقدار تصادفی تازه نیاز دارد، آن را اینجا بسازید. جایگزینی کلید قبلی می‌تواند نشست‌ها و توکن‌های ورود را نامعتبر کند.</p>
+          {!imported.available.includes(name) && !imported.needsReview.includes(name) ? <div className={styles.actions}><button type="button" className="button-secondary"
+            aria-label={`ساخت مقدار تصادفی برای ${name}`} aria-describedby={`generation-help-${name}`}
+            disabled={disabled || busy || !!values[name] || publicNames[name] === true} onClick={() => generate(name)}>ساخت مقدار تصادفی</button></div> : null}
+          {generatedKeys[name] ? <p role="status" className="hint">مقدار تازه در همین فرم ساخته شد و هنوز اعمال نشده است. برای ادامه، تغییر را مرور کنید.</p> : null}
+        </> : null}
+        <label className={styles.visibility}><input type="checkbox" aria-label={`عمومی بودن ${name}`} checked={publicNames[name] === true} onChange={event => setPublicNames(current => ({ ...current, [name]: event.target.checked }))} disabled={disabled || busy || generatedKeys[name] === true} />این مقدار محرمانه نیست</label></div>)}</div>
       <p className="hint">مقدار محرمانه دست‌کم ۴ نویسه دارد. متغیرهای اجرایی مانند PORT توسط تنظیمات اجرا کنترل می‌شوند.</p>
       <div className={styles.actions}><button type="submit" disabled={disabled || busy || !names.some(name => values[name]) || names.some(name => values[name] && isPublicClientEnvironmentKey(name) && !publicNames[name])}><WorkspaceGlyph name="shield" />مرور تغییر اطلاعات برنامه</button></div>
       </details>
