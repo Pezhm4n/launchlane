@@ -9,6 +9,24 @@ const credentialUrl = /\b[a-z][a-z0-9+.-]*:\/\/[^\s/@:]+:[^\s/@]+@[^\s"'<>`]+/gi
 const sourceSensitiveAssignment =
   /(\b[\w-]*(?:api[_-]?key|token|password|secret|authorization)(?:[_-]?(?:value|key|hash))?["']?\s*(?::|=(?!=|>))\s*)("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s"',;}{]+)/gi;
 
+function knownSecretPatterns(secrets: readonly string[]): RegExp[] {
+  const patterns = new Set<string>();
+  const literal = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  for (const secret of secrets) {
+    if (secret.length < 4) continue;
+    patterns.add(literal(secret));
+    patterns.add(literal(JSON.stringify(secret).slice(1, -1)));
+    const wellFormed = secret.toWellFormed();
+    for (const encoded of [encodeURIComponent(wellFormed), new URLSearchParams({ v: wellFormed }).toString().slice(2)]) {
+      // Only percent-escape hex digits are case-insensitive. The actual value stays case-sensitive.
+      patterns.add(encoded.split(/(%[\da-f]{2})/i).map(part => /^%[\da-f]{2}$/i.test(part)
+        ? part.replace(/[a-f]/gi, digit => `[${digit.toLowerCase()}${digit.toUpperCase()}]`)
+        : literal(part)).join(""));
+    }
+  }
+  return [...patterns].sort((left, right) => right.length - left.length).map(pattern => new RegExp(pattern, "g"));
+}
+
 export function redact(value: string, secrets: readonly string[] = []): string {
   return scrub(value, secrets, sensitiveAssignment);
 }
@@ -70,12 +88,7 @@ function scrub(value: string, secrets: readonly string[], assignment: RegExp, so
       /-----BEGIN [\w ]*PRIVATE KEY-----[\s\S]*?(?:-----END [\w ]*PRIVATE KEY-----|$)/g,
       "[REDACTED_PRIVATE_KEY]",
     );
-  for (const secret of secrets) {
-    if (secret.length < 4) continue;
-    // JSON/log escaping must not turn a known secret into apparently harmless evidence.
-    for (const variant of new Set([secret, JSON.stringify(secret).slice(1, -1), encodeURIComponent(secret.toWellFormed())]))
-      result = result.split(variant).join("[REDACTED]");
-  }
+  for (const pattern of knownSecretPatterns(secrets)) result = result.replace(pattern, "[REDACTED]");
   return result;
 }
 
@@ -84,7 +97,7 @@ export function containsCredential(value: string, secrets: readonly string[] = [
 }
 
 export function containsSourceCredential(value: string, secrets: readonly string[] = [], path = ""): boolean {
-  for (const secret of secrets) if (secret.length >= 4 && [secret, JSON.stringify(secret).slice(1, -1), encodeURIComponent(secret.toWellFormed())].some(part => value.includes(part))) return true;
+  if (knownSecretPatterns(secrets).some(pattern => pattern.test(value))) return true;
   if (path.endsWith(".sql")) {
     const normalized = value.replace(/^\s*--[^\r\n]*$/gm, line => line.replace(/postgres(?:ql)?:\/\/[A-Za-z_]\w{0,63}:(?:YOUR_)?PASS(?:WORD)?@(?:YOUR_)?HOST(?:NAME)?:PORT\/(?:YOUR_)?(?:DB|DBNAME|DATABASE)(?:\?sslmode=(?:require|verify-full|disable))?/gi, url => url.replace("://", "//")));
     return scrub(normalized, secrets, sourceSensitiveAssignment, true) !== normalized;
@@ -111,7 +124,6 @@ export function containsSourceCredential(value: string, secrets: readonly string
   if (/(?:^|\/)package(?:-lock)?\.json$/.test(path)) {
     // Npm packages such as jsonwebtoken/gtoken are dependency names, not credential fields.
     // Only actual semver values in the manifest's dependency maps receive this exception.
-    for (const secret of secrets) if (secret.length >= 4 && [secret, JSON.stringify(secret).slice(1, -1), encodeURIComponent(secret.toWellFormed())].some(part => value.includes(part))) return true;
     try {
       const parsed: unknown = JSON.parse(value);
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
@@ -141,9 +153,6 @@ export function containsSourceCredential(value: string, secrets: readonly string
     return scrub(expressions, secrets, sourceSensitiveAssignment, true, false, true, test, false, unitFixtures) !== expressions;
   }
   if (path.endsWith(".py")) {
-    for (const secret of secrets) {
-      if (secret.length >= 4 && [secret, JSON.stringify(secret).slice(1, -1), encodeURIComponent(secret.toWellFormed())].some(part => value.includes(part))) return true;
-    }
     // Preserve assignment detection after a Python type annotation or dataclass default.
     const normalized = pythonRuntimeReferences(value).replace(/(\b\w*(?:api_key|token|password|secret)\s*(?::\s*str\s*)?=\s*)[rubf]{0,2}("""|''')([\s\S]*?)\2/gi,
       (_match, prefix: string, _quote: string, body: string) => `${prefix}${JSON.stringify(body)}`)
