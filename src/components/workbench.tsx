@@ -289,17 +289,28 @@ function Proposal({
             }
           </p>
           {action.deployment.observation ? (
-            <p>
-              {action.deployment.observation.outcome === "verified"
-                ? "پاسخ و نسخه مورد انتظار همین صفحه تأیید شدند؛ این مشاهده فقط همین زمان و مسیر را پوشش می‌دهد."
-                : action.deployment.observation.outcome === "not_started"
-                  ? "انتشار نسخه شروع نشده است. وضعیت بارگذاری بسته ممکن است نامعلوم باشد؛ پیشنهاد تازه به تأیید دوباره نیاز دارد."
-                  : action.deployment.observation.outcome === "failed"
-                    ? "انتشار یا پاسخ مورد انتظار سایت تأیید نشد. رفع مشکل اعلام نمی‌شود."
-                    : action.deployment.observation.outcome === "pending"
-                      ? "آماده‌شدن release هنوز تأیید نشده است. کمی بعد فقط نتیجه را بررسی کنید."
-                      : "داده کافی برای تأیید نتیجه نداریم. ارسال دوباره انجام نشد."}
-            </p>
+            <>
+              <p>
+                {action.deployment.observation.outcome === "verified"
+                  ? "پاسخ و نسخه مورد انتظار همین صفحه تأیید شدند؛ این مشاهده فقط همین زمان و مسیر را پوشش می‌دهد."
+                  : action.deployment.observation.outcome === "not_started"
+                    ? "انتشار نسخه شروع نشده است. وضعیت بارگذاری بسته ممکن است نامعلوم باشد؛ پیشنهاد تازه به تأیید دوباره نیاز دارد."
+                    : action.deployment.observation.outcome === "failed"
+                      ? "انتشار یا پاسخ مورد انتظار سایت تأیید نشد. رفع مشکل اعلام نمی‌شود."
+                      : action.deployment.observation.outcome === "pending"
+                        ? "آماده‌شدن release هنوز تأیید نشده است. کمی بعد فقط نتیجه را بررسی کنید."
+                        : "داده کافی برای تأیید نتیجه نداریم. ارسال دوباره انجام نشد."}
+              </p>
+              {action.deployment.observation.assets ? (
+                <p>
+                  {action.deployment.observation.assets.outcome === "verified"
+                    ? `${new Intl.NumberFormat("fa-IR").format(action.deployment.observation.assets.checked)} فایل CSS/JS همین صفحه بررسی و در دسترس تأیید شد؛ اجرای JavaScript و همه مسیرها هنوز بررسی نشده‌اند.`
+                    : action.deployment.observation.assets.outcome === "failed"
+                      ? "دست‌کم یکی از فایل‌های CSS/JS این صفحه در دسترس نبود یا به‌جای فایل، صفحه HTML برگشت. انتشار سالم اعلام نمی‌شود."
+                      : "خواندن فایل‌های CSS/JS کامل نشد؛ نتیجه نامعلوم است و موفقیت اعلام نمی‌شود."}
+                </p>
+              ) : null}
+            </>
           ) : null}
         </div>
       ) : null}

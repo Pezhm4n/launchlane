@@ -62,6 +62,17 @@ export function matchesWorkload(contract: WorkloadContract, status: number, body
       object(value)[contract.assertion.field] === contract.assertion.equals;
   } catch { return false; }
 }
+export type DeploymentAssetFailure = Readonly<{
+  path: string;
+  reason: "status" | "html_fallback" | "insecure";
+}>;
+export type DeploymentAssets = Readonly<{
+  outcome: "verified" | "failed" | "inconclusive";
+  checked: number;
+  external: number;
+  omitted: number;
+  failures: readonly DeploymentAssetFailure[];
+}>;
 export type DeploymentObservation = Readonly<{
   outcome: "verified" | "failed" | "not_started" | "pending" | "inconclusive";
   code: string;
@@ -69,6 +80,8 @@ export type DeploymentObservation = Readonly<{
   releaseId: string | null;
   releaseState: string | null;
   status: number | null;
+  // Absent on historical journals; present only when an accepted HTML document referenced assets.
+  assets?: DeploymentAssets;
 }>;
 export type DeploymentProgress = Readonly<{
   stage: "claimed" | "upload_started" | "uploaded" | "release_started" | "release_accepted";
@@ -159,7 +172,7 @@ export function parseDeploymentProgress(value: unknown): DeploymentProgress {
   let observation: DeploymentObservation | null = null;
   if (row.observation !== null) {
     const item = object(row.observation);
-    exactKeys(item, ["outcome", "code", "checkedAt", "releaseId", "releaseState", "status"]);
+    exactKeys(item, ["outcome", "code", "checkedAt", "releaseId", "releaseState", "status", "assets"]);
     ensure(
       item.outcome === "verified" ||
         item.outcome === "failed" ||
@@ -169,6 +182,27 @@ export function parseDeploymentProgress(value: unknown): DeploymentProgress {
       "INVALID_RESPONSE",
       "نتیجه مشاهده معتبر نیست.",
     );
+    let assets: DeploymentAssets | undefined;
+    if (item.assets !== undefined) {
+      const value = object(item.assets);
+      exactKeys(value, ["outcome", "checked", "external", "omitted", "failures"]);
+      ensure(Array.isArray(value.failures) && value.failures.length <= 24, "INVALID_RESPONSE", "فهرست فایل‌های بررسی‌شده معتبر نیست.");
+      const outcome = value.outcome;
+      ensure(outcome === "verified" || outcome === "failed" || outcome === "inconclusive", "INVALID_RESPONSE", "نتیجه بررسی فایل‌ها معتبر نیست.");
+      assets = {
+        outcome,
+        checked: integer(value.checked, 0, 64),
+        external: integer(value.external, 0, 256),
+        omitted: integer(value.omitted, 0, 256),
+        failures: value.failures.map((entry) => {
+          const failure = object(entry);
+          exactKeys(failure, ["path", "reason"]);
+          const reason = failure.reason;
+          ensure(reason === "status" || reason === "html_fallback" || reason === "insecure", "INVALID_RESPONSE", "دلیل نامعتبر بودن فایل معتبر نیست.");
+          return { path: string(failure.path, 400), reason };
+        }),
+      };
+    }
     observation = {
       outcome: item.outcome,
       code: string(item.code, 64),
@@ -176,6 +210,7 @@ export function parseDeploymentProgress(value: unknown): DeploymentProgress {
       releaseId: item.releaseId === null ? null : string(item.releaseId, 128),
       releaseState: item.releaseState === null ? null : string(item.releaseState, 64),
       status: item.status === null ? null : integer(item.status, 100, 599),
+      ...(assets ? { assets } : {}),
     };
   }
   return {

@@ -220,6 +220,47 @@ test("cancellation during DNS never opens a socket; a late healthy answer never 
   );
 });
 
+
+test("asset fingerprinting allows a bounded query and pins the approved origin", async () => {
+  let calls = 0;
+  const probe = new WorkloadProbe(active, async () => [publicAddress], async (url, _pin, _signal, maxBytes, accept) => {
+    calls++;
+    assert.equal(maxBytes, 4 * 1024 * 1024);
+    assert.equal(accept, "*/*");
+    assert.equal(url.origin, config.probeOrigins[scope.app]);
+    assert.equal(url.pathname, "/assets/app.js");
+    assert.equal(url.search, "?v=2");
+    return { status: 200, body: "console.log(1)", bytes: 14, durationMs: 1, contentType: "text/javascript" };
+  });
+  const result = await probe.checkAsset(scope, "/assets/app.js?v=2", new RunBudget(active), signal());
+  assert.equal(result.status, 200);
+  assert.equal(result.contentType, "text/javascript");
+  assert.equal(result.sha256?.length, 64);
+  assert.equal(result.body, "");
+  assert.equal(result.outcome, "response");
+  assert.equal(calls, 1);
+});
+
+test("asset paths reject traversal, fragments, arbitrary origins and overlong queries before DNS", async () => {
+  let sockets = 0;
+  const probe = new WorkloadProbe(active, async () => [publicAddress], async () => {
+    sockets++;
+    return response;
+  });
+  for (const path of [
+    "//evil.example/a.js",
+    "/../a.js",
+    "/a.js#frag",
+    "https://evil.example/a.js",
+    `/a.js?${"x".repeat(300)}`,
+  ])
+    await assert.rejects(
+      probe.checkAsset(scope, path, new RunBudget(active), signal()),
+      code("PROBE_TARGET_DENIED"),
+    );
+  assert.equal(sockets, 0);
+});
+
 test("a response after a slow handshake retains its real 500 within the remaining operation deadline", async () => {
   let requests = 0;
   const probe = new WorkloadProbe(active, async () => [publicAddress], async (_url, pin, bounded) => {

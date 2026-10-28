@@ -32,6 +32,7 @@ import { assertApplicationPublicationScope } from "../policy/application-scope.t
 import { publicBuildAssets, publicAssetMime } from "./public-build-output.ts";
 import { checkPublicationDisk, currentDiskBinding } from "./disks.ts";
 import type { LiaraDiskClient } from "../liara/disks.ts";
+import { verifyHtmlAssets } from "./publication-assets.ts";
 
 type Dependencies = {
   read?: LiaraReadClient;
@@ -411,6 +412,25 @@ export async function observeDeployment(
           probe.observedAt >= action.deployment.releaseAcceptedAt &&
           probe.observedAt - action.deployment.releaseAcceptedAt < 300_000)
           result = { ...result, outcome: "pending", code: "WORKLOAD_STARTING" };
+        if (result.outcome === "verified" && spec.version !== 23 && spec.version !== 26) {
+          // A status and one text fragment do not prove that the page's own CSS/JS resolve.
+          // The oracle stays bounded and same-origin, and never becomes a crawler.
+          const assets = await verifyHtmlAssets({
+            origin: spec.workload.origin,
+            documentPath: spec.workload.path,
+            body: probe.body,
+            contentType: probe.contentType,
+            check: (path) => checker.checkAsset(spec.scope, path, budget, signal),
+            aborted: () => signal.aborted,
+          });
+          if (assets) {
+            result = assets.outcome === "failed"
+              ? { ...result, outcome: "failed", code: "FRONTEND_ASSET_MISMATCH", assets }
+              : assets.outcome === "inconclusive"
+                ? { ...result, outcome: "inconclusive", code: "ASSET_VERIFICATION_UNAVAILABLE", assets }
+                : { ...result, assets };
+          }
+        }
         if (result.outcome === "verified" && (spec.version === 23 || spec.version === 26)) {
           const proof = await (dependencies.probe ?? new WorkloadProbe(scoped)).check(spec.scope, compiledProofPath, budget, signal, 65536);
           ensure(proof.scope.teamId === spec.scope.teamId && proof.scope.app === spec.scope.app && proof.origin === spec.workload.origin && proof.path === compiledProofPath && proof.observedAt >= started,

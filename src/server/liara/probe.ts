@@ -30,11 +30,22 @@ export type ProbeTransport = (
   address: Address,
   signal: AbortSignal,
   maxBytes?: number,
+  accept?: string,
 ) => Promise<{ status: number; body: string; bytes: number; durationMs: number; sha256?: string; contentType?: string | null }>;
 export function validateProbePath(path: unknown): string {
   ensure(typeof path === "string" && /^\/(?:[A-Za-z0-9_./-]*)$/.test(path) &&
     path.length <= 200 && !path.startsWith("//") && !path.split("/").includes(".."),
     "PROBE_TARGET_DENIED", "مسیر بررسی معتبر نیست؛ query و مقصد دلخواه مجاز نیست.", 403);
+  return path;
+}
+/** A same-origin asset reference may carry a bounded query (cache-busting) but never
+ * a fragment, arbitrary origin, traversal segment or control character. */
+export function validateProbeAssetPath(path: unknown): string {
+  ensure(typeof path === "string" && path.length <= 400, "PROBE_TARGET_DENIED", "مسیر فایل بررسی معتبر نیست.", 403);
+  const queryAt = path.indexOf("?"), pathname = queryAt === -1 ? path : path.slice(0, queryAt), query = queryAt === -1 ? "" : path.slice(queryAt + 1);
+  ensure(/^\/(?:[A-Za-z0-9_./%~!$&'()*+,;=:@-]*)$/.test(pathname) && !pathname.startsWith("//") &&
+    !pathname.split("/").includes("..") && /^(?:[A-Za-z0-9_./%~!$&'()*+,;=:@?-]*)$/.test(query) && query.length <= 256,
+    "PROBE_TARGET_DENIED", "مسیر فایل بررسی معتبر نیست.", 403);
   return path;
 }
 const blocked = new BlockList();
@@ -96,7 +107,7 @@ function abortable<T>(task: Promise<T>, signal: AbortSignal): Promise<T> {
   });
 }
 
-export const pinnedHttps: ProbeTransport = (url, address, signal, maxBytes = 4096) =>
+export const pinnedHttps: ProbeTransport = (url, address, signal, maxBytes = 4096, accept = "text/html, text/plain, application/json") =>
   new Promise((resolve, reject) => {
     const started = performance.now();
     // Keep the original hostname for TLS/certificate checks; never resolve it again at socket time.
@@ -109,7 +120,7 @@ export const pinnedHttps: ProbeTransport = (url, address, signal, maxBytes = 409
         maxHeaderSize: 8192,
         lookup: (_hostname, _options, callback) => callback(null, address.address, address.family),
         headers: {
-          Accept: "text/html, text/plain, application/json",
+          Accept: accept,
           "Accept-Encoding": "identity",
           "User-Agent": "Launchlane-Health/1",
         },
@@ -169,10 +180,14 @@ export class WorkloadProbe {
   async checkFile(scope: Scope, path: string, budget: RunBudget, signal: AbortSignal): Promise<ProbeResult> {
     return this.read(scope, path, budget, signal, 8 * 1024 * 1024, true);
   }
+  /** Fingerprint one referenced script/stylesheet. A query is allowed, the origin is fixed. */
+  async checkAsset(scope: Scope, path: string, budget: RunBudget, signal: AbortSignal): Promise<ProbeResult> {
+    return this.read(scope, path, budget, signal, 4 * 1024 * 1024, true, false, true);
+  }
   async checkDocument(scope: Scope, path: string, budget: RunBudget, signal: AbortSignal): Promise<ProbeResult> {
     return this.read(scope, path, budget, signal, htmlWorkloadByteLimit, false, true);
   }
-  private async read(scope: Scope, path: string, budget: RunBudget, signal: AbortSignal, maxBytes: number, fingerprintOnly: boolean, document = false): Promise<ProbeResult> {
+  private async read(scope: Scope, path: string, budget: RunBudget, signal: AbortSignal, maxBytes: number, fingerprintOnly: boolean, document = false, asset = false): Promise<ProbeResult> {
     authorizeScope(scope, this.config);
     ensure(
       this.config.enableLiveLiara,
@@ -187,7 +202,8 @@ export class WorkloadProbe {
       "میزبان دقیق workload هنوز در تنظیمات سرور تأیید نشده است.",
       503,
     );
-    validateProbePath(path);
+    if (asset) validateProbeAssetPath(path);
+    else validateProbePath(path);
     const url = new URL(path, origin);
     ensure(url.origin === origin, "PROBE_TARGET_DENIED", "مقصد بررسی تغییر کرده است.", 403);
     budget.take("tool", signal);
@@ -203,7 +219,7 @@ export class WorkloadProbe {
       );
       const pinned = addresses[0];
       ensure(pinned && !boundedSignal.aborted, "CANCELLED", "بررسی متوقف شد.", 409);
-      const result = await abortable(this.send(url, pinned, boundedSignal, maxBytes), boundedSignal);
+      const result = await abortable(this.send(url, pinned, boundedSignal, maxBytes, asset ? "*/*" : undefined), boundedSignal);
       const responseLimit = document ? documentResponseLimit(result.contentType) : maxBytes;
       ensure(!boundedSignal.aborted, "CANCELLED", "پاسخ پس از پایان بررسی دریافت شد.", 409);
       ensure(
@@ -224,7 +240,8 @@ export class WorkloadProbe {
         path,
         observedAt: Date.now(),
         status: result.status, bytes: result.bytes, durationMs: result.durationMs,
-        ...(fingerprintOnly ? { sha256: result.sha256 ?? createHash("sha256").update(result.body).digest("hex"), contentType: result.contentType ?? null } : {}),
+        ...(fingerprintOnly ? { sha256: result.sha256 ?? createHash("sha256").update(result.body).digest("hex") } : {}),
+        contentType: result.contentType ?? null,
         body: redirect || fingerprintOnly
           ? ""
           : evidenceText(result.body, maxBytes, [

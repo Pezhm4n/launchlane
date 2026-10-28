@@ -37,7 +37,13 @@ const signal = () => AbortSignal.timeout(5000);
 const code = (expected: string) => (error: unknown) =>
   error instanceof AppError && error.code === expected;
 async function fixture(
-  options: { sourceId?: string; nodeRange?: string; workload?: unknown; write?: (url: string, init: RequestInit, store: Store) => Promise<Response> } = {},
+  options: {
+    sourceId?: string;
+    nodeRange?: string;
+    workload?: unknown;
+    write?: (url: string, init: RequestInit, store: Store) => Promise<Response>;
+    html?: { body: string; contentType?: string; assets?: Record<string, { status: number; contentType?: string; fail?: "timeout" }> };
+  } = {},
 ) {
   const sourceId = options.sourceId ?? "source-exact";
   const root = await mkdtemp(join(tmpdir(), "launchlane-deploy-")),
@@ -85,7 +91,8 @@ async function fixture(
     planId = "current-plan",
     releaseState = "READY",
     currentRelease = "release-exact",
-    body = '{"revision":"sample-v2"}',
+    body = options.html?.body ?? '{"revision":"sample-v2"}',
+    documentContentType: string | null = options.html?.contentType ?? null,
     status = 200,
     readFailure = false,
     changeAfterProbe = false;
@@ -157,9 +164,16 @@ async function fixture(
     async () => [{ address: "93.184.216.34", family: 4 }],
     async (url) => {
       probeCalls++;
+      const assetPath = url.pathname + url.search;
+      if (options.html?.assets && assetPath !== "/checkout") {
+        const asset = options.html.assets[assetPath];
+        if (!asset) return { status: 404, body: "", bytes: 5, durationMs: 1, contentType: "text/html" };
+        if (asset.fail === "timeout") throw new AppError("PROBE_TIMEOUT", "Synthetic asset timeout", 409);
+        return { status: asset.status, body: "", bytes: 10, durationMs: 1, contentType: asset.contentType ?? "application/javascript" };
+      }
       assert.equal(url.pathname, "/checkout");
       if (changeAfterProbe) currentRelease = "another-release";
-      return { status, body, bytes: Buffer.byteLength(body), durationMs: 3 };
+      return { status, body, bytes: Buffer.byteLength(body), durationMs: 3, contentType: documentContentType };
     },
   );
   const flow = await prepareProjectFlow(
@@ -932,5 +946,106 @@ test("a persistent 503 after the startup grace is a failed outcome with no retry
     assert.equal(result.state, "failed");
     assert.equal(result.deployment?.observation?.code, "WORKLOAD_MISMATCH");
     assert.equal(f.writes, 2);
+  } finally { await f.cleanup(); }
+});
+
+const htmlDocument = (middle: string, body = "Order accepted") =>
+  `<!doctype html><html><head><link rel="stylesheet" href="/assets/app.css"><script type="module" src="/assets/app.js"></script></head><body>${middle}${body}</body></html>`;
+
+test("v7 publication proves referenced same-origin script and stylesheet, not just page text", async () => {
+  const f = await fixture({
+    workload: { origin, path: "/checkout", status: 200, assertion: { kind: "text", contains: "Order accepted" } },
+    html: {
+      body: htmlDocument(""),
+      contentType: "text/html; charset=utf-8",
+      assets: {
+        "/assets/app.css": { status: 200, contentType: "text/css; charset=utf-8" },
+        "/assets/app.js": { status: 200, contentType: "text/javascript; charset=utf-8" },
+      },
+    },
+  });
+  try {
+    f.approve();
+    await executeDeployment(f.config, f.store, session, f.action.id, signal(), f.deps);
+    const observed = await observeDeployment(f.config, f.store, session, f.action.id, signal(), f.deps);
+    assert.equal(observed.state, "succeeded");
+    assert.equal(observed.deployment?.observation?.code, "WORKLOAD_VERIFIED");
+    assert.deepEqual(observed.deployment?.observation?.assets, {
+      outcome: "verified",
+      checked: 2,
+      external: 0,
+      omitted: 0,
+      failures: [],
+    });
+    assert.equal(f.probeCalls, 3);
+  } finally { await f.cleanup(); }
+});
+
+test("v7 rejects a missing script that the server answers with the HTML fallback", async () => {
+  const f = await fixture({
+    workload: { origin, path: "/checkout", status: 200, assertion: { kind: "text", contains: "Order accepted" } },
+    html: {
+      body: htmlDocument(""),
+      contentType: "text/html",
+      assets: {
+        "/assets/app.css": { status: 200, contentType: "text/css" },
+        "/assets/app.js": { status: 200, contentType: "text/html; charset=utf-8" },
+      },
+    },
+  });
+  try {
+    f.approve();
+    await executeDeployment(f.config, f.store, session, f.action.id, signal(), f.deps);
+    const observed = await observeDeployment(f.config, f.store, session, f.action.id, signal(), f.deps);
+    assert.equal(observed.state, "failed");
+    assert.equal(observed.deployment?.observation?.code, "FRONTEND_ASSET_MISMATCH");
+    assert.deepEqual(observed.deployment?.observation?.assets?.failures, [
+      { path: "/assets/app.js", reason: "html_fallback" },
+    ]);
+  } finally { await f.cleanup(); }
+});
+
+test("v7 keeps publication inconclusive when a referenced asset cannot be read", async () => {
+  const f = await fixture({
+    workload: { origin, path: "/checkout", status: 200, assertion: { kind: "text", contains: "Order accepted" } },
+    html: {
+      body: htmlDocument(""),
+      contentType: "text/html",
+      assets: {
+        "/assets/app.css": { status: 200, contentType: "text/css" },
+        "/assets/app.js": { status: 200, fail: "timeout" },
+      },
+    },
+  });
+  try {
+    f.approve();
+    await executeDeployment(f.config, f.store, session, f.action.id, signal(), f.deps);
+    const observed = await observeDeployment(f.config, f.store, session, f.action.id, signal(), f.deps);
+    assert.equal(observed.state, "observing");
+    assert.equal(observed.deployment?.observation?.outcome, "inconclusive");
+    assert.equal(observed.deployment?.observation?.code, "ASSET_VERIFICATION_UNAVAILABLE");
+    assert.equal(observed.deployment?.observation?.assets?.outcome, "inconclusive");
+    assert.equal(observed.deployment?.observation?.assets?.checked, 1);
+  } finally { await f.cleanup(); }
+});
+
+test("v7 rejects a cleartext asset reference as mixed content without fetching it", async () => {
+  const f = await fixture({
+    workload: { origin, path: "/checkout", status: 200, assertion: { kind: "text", contains: "Order accepted" } },
+    html: {
+      body: '<!doctype html><main>Order accepted<script src="http://test-node.example.com/app.js"></script></main>',
+      contentType: "text/html",
+      assets: {},
+    },
+  });
+  try {
+    f.approve();
+    await executeDeployment(f.config, f.store, session, f.action.id, signal(), f.deps);
+    const observed = await observeDeployment(f.config, f.store, session, f.action.id, signal(), f.deps);
+    assert.equal(observed.state, "failed");
+    assert.deepEqual(observed.deployment?.observation?.assets?.failures, [
+      { path: "/app.js", reason: "insecure" },
+    ]);
+    assert.equal(f.probeCalls, 1);
   } finally { await f.cleanup(); }
 });

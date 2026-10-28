@@ -34,7 +34,9 @@ export function AgentPublication({
       setCopy({ url: publishedUrl, state: "failed" });
     }
   }
-  const verified = action.state === "succeeded",
+  const assets = action.deployment?.observation?.assets,
+    assetCount = new Intl.NumberFormat("fa-IR").format(assets?.checked ?? 0),
+    verified = action.state === "succeeded",
     awaiting = waiting && action.state === "awaiting_approval",
     inFlight =
       action.state === "approved" ||
@@ -44,9 +46,13 @@ export function AgentPublication({
     stopped = action.state === "cancelled" || action.state === "expired",
     failed = action.state === "failed";
   const status = verified
-    ? "نسخه جاری و پاسخ مورد انتظار تأیید شدند."
+    ? assets && assets.checked > 0
+      ? `نسخه جاری، پاسخ مورد انتظار و ${assetCount} فایل CSS/JS همین صفحه تأیید شدند.`
+      : "نسخه جاری و پاسخ مورد انتظار تأیید شدند."
     : failed
-      ? "انتشار به نتیجه مورد انتظار نرسید؛ جزئیات بررسی حفظ شده است."
+      ? assets && assets.failures.length > 0
+        ? "انتشار به نتیجه نرسید؛ دست‌کم یکی از فایل‌های CSS/JS همین صفحه در دسترس یا قابل اجرا نبود."
+        : "انتشار به نتیجه مورد انتظار نرسید؛ جزئیات بررسی حفظ شده است."
       : action.state === "cancelled"
         ? "شما این انتشار را رد کردید."
         : action.state === "expired"
