@@ -12,10 +12,11 @@ import { assertPostgresWorkerBinding, disposableDatabaseProgram } from "./test-d
 import { abortable } from "../providers/http.ts";
 import { blankSandboxProxyArguments, hasBlankSandboxProxies } from "./docker-proxy.ts";
 import { htmlWorkloadByteLimit } from "../../contracts/deployment.ts";
+import type { PostgresMigrationTestReceipt } from "../../contracts/postgres-migration-test.ts";
 
 export const node22Image = projectBuildImage;
 export type CommandResult = { output: string; exitCode: number | null; signal: string | null };
-export type ContainerBuildResult = CommandResult & { containerId: string; image: string; buildOutput?: ValidatedBuildOutput };
+export type ContainerBuildResult = CommandResult & { containerId: string; image: string; buildOutput?: ValidatedBuildOutput; databaseMigration?: PostgresMigrationTestReceipt };
 export function docker(args: string[], signal: AbortSignal, maxBytes = 32768, input?: Buffer): Promise<CommandResult> {
   ensure(!signal.aborted, "CANCELLED", "اجرای ایزوله متوقف شد.", 409);
   return new Promise((resolve, reject) => {
@@ -204,7 +205,7 @@ export async function runContainerBuild(workspace: string, tarballs: string, val
   const compatibility = plan.version === 7 && plan.testDatabase !== undefined;
   ensure(compatibility ? !!options.fixture && !!options.endpoint && values.length === 0 : options.fixture === undefined,
     "TEST_DATABASE_BINDING_CHANGED","آزمون ساختگی به namespace همان job و ورودی خالی از تنظیمات واقعی نیاز دارد.",409);
-  if (options.fixture) assertPostgresWorkerBinding(options.fixture,options.expectedJobId,options.expectedSourceHash);
+  if (options.fixture) assertPostgresWorkerBinding(options.fixture,options.expectedJobId,options.expectedSourceHash, plan.version === 7 && plan.testDatabase?.version === 2);
   const raw = options.command ?? docker, host = options.endpoint ? dockerEndpointHost(options.endpoint) : null;
   const command: typeof docker = host ? (args,parent,maxBytes,input) => abortable(()=>raw(["--host",host,...args],parent,maxBytes,input),parent) : raw;
   ensure(plan.version !== 2 && plan.version !== 6, "BUILD_RUNTIME_UNSUPPORTED", "این runner فقط برای Node است.", 409);

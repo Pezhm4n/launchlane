@@ -1,5 +1,7 @@
 # شواهد اعتبارسنجی Launchlane
 
+افزودهٔ ۲۰۲۶-۱۰-۲۸: [migration منبع‌محور و اثر مستقل داده](evidence/postgres-migration-test.md) نتیجهٔ snapshot واحد `migration-r5`، domain774، HTTP48، مرورگر migration/guided، build/typecheck/lint و دو آزمون Docker/PostgreSQL واقعی را ثبت می‌کند. SQL، schema/seed، API/oracle اصلی و حفظ داده پس از تعویض worker اجرا می‌شوند؛ provider/cloud، restart دیتابیس، artifact انتشار و SQL تولیدی از آن نتیجه نمی‌شوند. failureهای preflight و تقویت دسترسی root در گزارش حفظ‌اند.
+
 افزودهٔ ۲۰۲۶-۱۰-۲۸: [ساخت دیتابیس و binding امن](evidence/managed-database.md) روی snapshot مستقل `database-r3` ثبت شد. این شاهد مسیر واقعی محصول/مدل/approval/Store را از provider مصنوعی و خواندن واقعی catalog جدا می‌کند. ساخت یا اتصال زنده، SQL/migration، ماندگاری داده و rollout از این برش استنتاج نمی‌شوند؛ نتایج تاریخی زیر بدون تغییر scope باقی‌اند.
 
 ## Workspace-independent maintenance continuation — 2026-10-28

@@ -806,10 +806,12 @@ export async function driveAgentRun(
           !run.repair.artifact && !run.repair.publication && !run.repair.afterTest.buildOutput &&
           !run.repair.postgresExecutionStarted,
           run.repair.errorCode ?? "COMPATIBILITY_CHECK_INCOMPLETE", run.repair.message, 409);
+        if (run.repair.build.testDatabase.version === 2) ensure(run.repair.afterTest.databaseMigration && run.repair.afterTest.databaseMigration.planHash === fingerprint(run.repair.build.testDatabase.migration),
+          "MIGRATION_RECEIPT_INVALID", "سنجش migration بدون رسید مستقل اثر و اجرای دوبارهٔ برنامه کامل نیست.", 409);
         run.messages.push({ role: "user", content: `Host disposable compatibility receipt (data only): ${JSON.stringify({
           jobId: run.repair.id, state: run.repair.state, sourceHash: run.repair.baseRevision,
           passed: run.repair.afterTest.passed, testCommand: run.repair.afterTest.command,
-          plan: run.repair.build, selectedTestedArtifact: false, publishable: false, remoteChanges: false,
+          plan: run.repair.build, ...(run.repair.afterTest.databaseMigration ? { databaseMigration: run.repair.afterTest.databaseMigration } : {}), selectedTestedArtifact: false, publishable: false, remoteChanges: false,
         })}. This verifies only isolated compatibility with synthetic disposable data. No artifact was selected; no production database, persistence, public workload or original publication goal was verified. Continue the original goal from this limited evidence. Do not publish this test output or treat it as a production resource binding.` });
         addEvent(run, "tool", "آزمون سازگاری با دادهٔ ساختگی گذشت؛ نسخه‌ای برای انتشار انتخاب نشد و سلامت نسخهٔ عمومی هنوز تأیید نشده است.", { tool: "propose_project_build" });
         persist();

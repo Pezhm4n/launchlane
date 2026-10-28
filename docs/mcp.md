@@ -1,5 +1,7 @@
 # اتصال به Launchlane از MCP
 
+افزودهٔ آزمون داده، ۲۰۲۶-۱۰-۲۸: همان registry ابزار `propose_project_build` با `compatibilityDatabase.migration`، SQL منبع‌محور و معیار schema/seed/ماندگاری موقت را می‌پذیرد. مدل مسیرها را پیشنهاد می‌کند و host hash/role/image را می‌بندد؛ تصمیم در همان کارت وب و اجرا در CodeRepairJob موجود است. MCP ابزار SQL آزاد، credential، approval یا executor تازه ندارد. [شاهد](evidence/postgres-migration-test.md) از Agent/worker/UI مشترک است؛ اجرای تازه از یک میزبان MCP واقعی در این برش ادعا نمی‌شود.
+
 افزودهٔ منابع، ۲۰۲۶-۱۰-۲۸: مأموریت انتشار MCP از همان registry و AgentRun می‌تواند به پیشنهاد `propose_database` برسد؛ schema این پیشنهاد فقط در وضعیت source/مقصد مناسب به مدل داده می‌شود. کارت تصمیم و credential binding در همان review وب انجام می‌شوند. هیچ tool عمومی برای دریافت password، ساخت بدون approval یا SQL اضافه نشده است. قطع/replay، بودجه و journal مشترک‌اند. [شاهد و حدود](evidence/managed-database.md).
 
 افزودهٔ ۲۰۲۶-۱۰-۲۸: `read_publications` سابقهٔ موفق همان actor/account/team/internal-app را با cursor می‌خواند؛ سابقه اثبات نسخهٔ جاری یا سازگاری داده نیست. `launchlane_maintain` با grant مأموریت، `requestKey` پایدار و هدف نگهداری به همان AgentRun وب وصل می‌شود. مدل برای هدف صریح بازگردانی می‌تواند `propose_rollback` را انتخاب کند؛ archive دقیق با application موجود انتخاب و همان کارت تصمیم وب باز می‌شود. reconnect/replay و ثبت تکراری بودجه تازه نمی‌سازند و MCP هنوز approve/execute ندارد. مسیر وب همان `POST /api/agent/runs` با `operation=maintain` است. [شاهد و مرزهای مدل/provider](evidence/agent-rollback-maintenance.md).

@@ -37,4 +37,6 @@ These rows reconcile the eight explicitly listed candidate repositories with the
 
 ## Active implementation order
 
+2026-10-28 source recheck: the [bounded SQL/data slice](evidence/postgres-migration-test.md) has real local PostgreSQL/API effects, but only 2 of Golestan's 12 unchanged SQL files fit its plain-SQL adapter. Its two-target apply/baseline runner must retain its own semantics in a future reviewed runner adapter. Factory feed's current root declares pnpm 11.19.0 and Node >=24; npm-only single-component tests are not evidence for that workspace. These were source reads, with no script, SQL or production mutation.
+
 Close a missing product boundary before adding another manually driven destination. First connect tested capabilities to native mission tools, review cards, cancellation/recovery and shared MCP execution. Then extend generic component/resource planning and runtime/dependency preparation against the next corpus gap. Each slice must include an unchanged failure case, independent meaningful behavior checks, exact artifacts and evidence at its measured level. A live test is scheduled only when the product path is ready and the concrete resource/cost decision is authorized.

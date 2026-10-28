@@ -5,6 +5,7 @@ import { sourceEnvironmentNames } from "../workspace/environment-names.ts";
 import { ensure } from "../errors.ts";
 import { exactKeys, object } from "../../contracts/validation.ts";
 import type { PostgresFixtureBinding } from "./postgres-fixture.ts";
+import { migrationSource } from "./postgres-migration-test.ts";
 
 export function validateTestDatabaseSource(files: readonly SourceFile[], profile: ProjectProfile, value: DisposableTestDatabase): DisposableTestDatabase {
   const plan = parseDisposableTestDatabase(value);
@@ -17,21 +18,23 @@ export function validateTestDatabaseSource(files: readonly SourceFile[], profile
     "TEST_DATABASE_DRIVER_REQUIRED","این برش آزمون به driver موجود pg در dependencyهای اصلی پروژه نیاز دارد؛ بسته‌ای خودکار اضافه نمی‌شود.",409);
   const declarations = new Set(files.filter(file => /\.(?:sql|[cm]?[jt]s)$/.test(file.path)).flatMap(file => [...file.content.toString("utf8").matchAll(/\bCREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(public\.[a-z_][a-z0-9_]*)\b/gi)].map(match => match[1]?.toLowerCase())));
   ensure(plan.requiredRelations.every(name => declarations.has(name)),"TEST_DATABASE_SOURCE_REQUIRED","جدول آزمون باید در schema همین source تعریف شده باشد.",409);
+  if (plan.version === 2) migrationSource(files, plan.migration);
   return plan;
 }
 
-export function assertPostgresWorkerBinding(binding: PostgresFixtureBinding, jobId: string | undefined, sourceHash: string | undefined): void {
+export function assertPostgresWorkerBinding(binding: PostgresFixtureBinding, jobId: string | undefined, sourceHash: string | undefined, migration = false): void {
   exactKeys(object(binding),["jobId","sourceHash","containerId","networkMode","host","port","database","user","authentication"]);
   ensure(typeof jobId === "string" && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(jobId) && typeof sourceHash === "string" && /^[a-f0-9]{64}$/.test(sourceHash) &&
     binding.jobId === jobId && binding.sourceHash === sourceHash && /^[a-f0-9]{64}$/.test(binding.containerId) && binding.networkMode === `container:${binding.containerId}` &&
-    binding.host === "127.0.0.1" && binding.port === 5432 && binding.database === "launchlane_fixture" && binding.user === "launchlane_fixture" && binding.authentication === "isolated_trust",
+    binding.host === "127.0.0.1" && binding.port === 5432 && binding.database === "launchlane_fixture" && binding.user === (migration ? "launchlane_migration_app" : "launchlane_fixture") && binding.authentication === "isolated_trust",
     "TEST_DATABASE_BINDING_CHANGED","namespace دیتابیس آزمون باید متعلق به همین job و source باشد.",409);
 }
 
 // Fixed worker code: input is JSON data; neither project SQL nor credentials enter this program.
 export const disposableDatabaseProgram = String.raw`function disposableDatabaseValues(plan,payload){
-const db=payload.testDatabase;if(!db||db.host!=='127.0.0.1'||db.port!==5432||db.database!=='launchlane_fixture'||db.user!=='launchlane_fixture'||db.authentication!=='isolated_trust'||!Array.isArray(payload.environment)||payload.environment.length)throw Error('invalid isolated database input');
-const url='postgresql://launchlane_fixture@127.0.0.1:5432/launchlane_fixture',values=Object.fromEntries(plan.testDatabase.environmentKeys.map(key=>[key,url]));
+const db=payload.testDatabase;if(!db||db.host!=='127.0.0.1'||db.port!==5432||db.database!=='launchlane_fixture'||db.user!==(plan.testDatabase.version===2?'launchlane_migration_app':'launchlane_fixture')||db.authentication!=='isolated_trust'||!Array.isArray(payload.environment)||payload.environment.length)throw Error('invalid isolated database input');
+const url='postgresql://'+db.user+'@127.0.0.1:5432/launchlane_fixture',values=Object.fromEntries(plan.testDatabase.environmentKeys.map(key=>[key,url]));
+if(plan.testDatabase.version===2)return values;
 return {...values,JWT_SECRET:require('node:crypto').randomBytes(32).toString('hex'),DB_MIGRATIONS_ENABLED:'true',AI_HISTORY_ENABLED:'true',SCRAPER_SYNC_ENABLED:'false',ALLOW_INSECURE_TLS:'true'};
 }
 async function waitForDisposableRelations(plan,values){

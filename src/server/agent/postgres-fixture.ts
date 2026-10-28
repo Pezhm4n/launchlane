@@ -16,14 +16,15 @@ const tmpfs = { [data]: "rw,nosuid,nodev,noexec,size=268435456,uid=999,gid=999,m
   [socket]: "rw,nosuid,nodev,noexec,size=16777216,uid=999,gid=999,mode=0700" };
 const fixture = { host: "127.0.0.1", port: 5432, database: "launchlane_fixture", user: "launchlane_fixture", authentication: "isolated_trust" } as const;
 const inspectFormat = '{"id":{{json .Id}},"name":{{json .Name}},"image":{{json .Config.Image}},"actualImage":{{json .Image}},"labels":{{json .Config.Labels}},"env":{{json .Config.Env}},"running":{{json .State.Running}},"oom":{{json .State.OOMKilled}},"user":{{json .Config.User}},"host":{{json .HostConfig}},"mounts":{{json .Mounts}},"networks":{{json .NetworkSettings.Networks}},"ports":{{json .NetworkSettings.Ports}}}';
-const imageFormat = '{"id":{{json .Id}},"os":{{json .Os}},"architecture":{{json .Architecture}},"digests":{{json .RepoDigests}},"volumes":{{json (index .Config "Volumes")}},"onBuild":{{json (index .Config "OnBuild")}}}';
+const imageFormat = '{"id":{{json .Id}},"os":{{json .Os}},"architecture":{{json .Architecture}},"digests":{{json .RepoDigests}},"descriptor":{{json (index . "Descriptor")}},"volumes":{{json (index .Config "Volumes")}},"onBuild":{{json (index .Config "OnBuild")}}}';
 type Command = typeof docker;
 type Owner = { jobId: string; sourceHash: string; name: string };
-export type PostgresFixtureBinding = Readonly<typeof fixture & { jobId: string; sourceHash: string; containerId: string; networkMode: `container:${string}` }>;
+export type PostgresFixtureBinding = Readonly<Omit<typeof fixture, "user"> & { user: "launchlane_fixture" | "launchlane_migration_app"; jobId: string; sourceHash: string; containerId: string; networkMode: `container:${string}` }>;
+export type PostgresFixtureSql = Readonly<{ apply: (sql: string, signal: AbortSignal) => Promise<CommandResult>; read: (sql: string, signal: AbortSignal) => Promise<CommandResult> }>;
 export type PostgresFixtureOptions = Readonly<{
   jobId: string; sourceHash: string; signal: AbortSignal;
   onCreated: (id: string) => void | Promise<void>;
-  command?: Command; endpoint?: LocalDockerEndpoint;
+  command?: Command; endpoint?: LocalDockerEndpoint; migration?: boolean;
 }>;
 function stop(signal: AbortSignal): void { ensure(!signal.aborted, "CANCELLED", "اجرای دیتابیس ساختگی متوقف شد.", 409); }
 function absent(result: CommandResult, reference: string, kind: "image" | "container"): boolean {
@@ -39,9 +40,9 @@ async function inspect(reference: string, command: Command, signal = AbortSignal
   ensure(ok(result), "POSTGRES_FIXTURE_UNCERTAIN", "هویت محیط دیتابیس ساختگی قابل بررسی نیست؛ ایجاد تازه انجام نشد.", 503);
   try { return object(JSON.parse(result.output)); } catch { throw new AppError("POSTGRES_FIXTURE_UNCERTAIN", "رسید محیط دیتابیس ساختگی معتبر نیست.", 503); }
 }
-function identity(row: Record<string, unknown>, id: string, owner: Owner): void {
+function identity(row: Record<string, unknown>, id: string, owner: Owner, verifiedImageId: string): void {
   const labels = row.labels && typeof row.labels === "object" && !Array.isArray(row.labels) ? object(row.labels) : {};
-  ensure(/^[a-f0-9]{64}$/.test(id) && row.id === id && row.name === `/${owner.name}` && row.image === postgresFixtureImage && row.actualImage === imageId &&
+  ensure(/^[a-f0-9]{64}$/.test(id) && row.id === id && row.name === `/${owner.name}` && row.image === postgresFixtureImage && row.actualImage === verifiedImageId &&
     labels["ir.launchlane.worker"] === worker && labels["ir.launchlane.job"] === owner.jobId && labels["ir.launchlane.source"] === owner.sourceHash,
     "POSTGRES_FIXTURE_IDENTITY_MISMATCH", "محیط دیتابیس با هویت همین job و source برابر نیست؛ استفاده یا حذف محیط دیگر مجاز نیست.", 409);
 }
@@ -58,16 +59,20 @@ function isolation(row: Record<string, unknown>, running: boolean): void {
     mounts.every(value => { const mount = object(value); return mount.Type === "tmpfs" && Object.hasOwn(tmpfs, String(mount.Destination)) && mount.RW === true && (mount.Source === "" || mount.Source === undefined); }),
     "POSTGRES_FIXTURE_ISOLATION_INVALID", "شبکه، منابع یا دیسک محیط ساختگی با قرارداد ایزوله برابر نیست؛ دسترسی برنامه داده نشد.", 409);
 }
-async function cachedImage(command: Command, signal: AbortSignal): Promise<void> {
+async function cachedImage(command: Command, signal: AbortSignal): Promise<string> {
   const result = await command(["image", "inspect", "--format", imageFormat, postgresFixtureImage], signal, 16384);
   ensure(!absent(result, postgresFixtureImage, "image"), "POSTGRES_FIXTURE_IMAGE_UNAVAILABLE", "image ثابت PostgreSQL در cache نیست؛ دانلود خودکار انجام نشد.", 409);
   ensure(ok(result), "POSTGRES_FIXTURE_UNCERTAIN", "هویت image ثابت قابل بررسی نیست؛ دانلود یا ایجاد مجدد انجام نشد.", 503);
   try {
     const row = object(JSON.parse(result.output)), volumes = object(row.volumes);
-    ensure(row.id === imageId && row.os === "linux" && row.architecture === "amd64" && Array.isArray(row.digests) &&
+    const descriptor = row.descriptor === undefined || row.descriptor === null ? null : object(row.descriptor);
+    const manifestIdentity = row.id === digest && descriptor !== null && descriptor.digest === digest && ["application/vnd.oci.image.manifest.v1+json", "application/vnd.docker.distribution.manifest.v2+json"].includes(String(descriptor.mediaType)) &&
+      typeof descriptor.size === "number" && Number.isSafeInteger(descriptor.size) && descriptor.size > 0 && descriptor.size <= 100000;
+    ensure((row.id === imageId || manifestIdentity) && row.os === "linux" && row.architecture === "amd64" && Array.isArray(row.digests) &&
       row.digests.some(value => value === `postgres@${digest}` || value === `docker.io/library/postgres@${digest}`) && empty(row.onBuild) &&
       Object.keys(volumes).length === 1 && Object.hasOwn(volumes, data),
       "POSTGRES_FIXTURE_IMAGE_MISMATCH", "بایت‌ها یا سکوی image با PostgreSQL مصوب برابر نیست.", 409);
+    return String(row.id);
   } catch (error) {
     if (error instanceof AppError && error.code === "POSTGRES_FIXTURE_IMAGE_MISMATCH") throw error;
     throw new AppError("POSTGRES_FIXTURE_IMAGE_MISMATCH", "رسید image ثابت PostgreSQL قابل تأیید نیست.", 409);
@@ -76,31 +81,34 @@ async function cachedImage(command: Command, signal: AbortSignal): Promise<void>
 function mountInfo(text: string): void {
   const mounts = text.split("\n").map(line => { const [left, right] = line.split(" - "); return { before: left?.split(" ") ?? [], after: right?.split(" ") ?? [] }; });
   for (const path of Object.keys(tmpfs)) {
-    const matches = mounts.filter(row => row.before[4] === path);
+    // The pinned Debian image resolves /var/run to /run; the kernel reports that canonical socket path.
+    const matches = mounts.filter(row => row.before[4] === path || path === socket && row.before[4] === "/run/postgresql");
     ensure(matches.length === 1 && matches[0]?.after[0] === "tmpfs" && ["rw", "nosuid", "nodev", "noexec"].every(flag => matches[0]?.before[5]?.split(",").includes(flag)),
       "POSTGRES_FIXTURE_ISOLATION_INVALID", "فضای داده یا socket واقعاً tmpfs محدود نیست؛ دسترسی برنامه داده نشد.", 409);
   }
 }
 
-/** Creates only an isolated synthetic-data service. No SQL, credential import, pull, host port or host volume.
+/** Creates only an isolated synthetic-data service. No credential import, pull, host port or host volume.
+ * SQL requires explicit migration mode and the caller's reviewed local-work contract.
  * Caller owns the persisted job, onCreated receipt, worker lifetime and any separate data-test authorization.
+ * Migration mode grants only an ordinary app role; root psql remains host-owned for independent readback.
  */
 export async function withPostgresFixture<T>(options: PostgresFixtureOptions,
-  use: (binding: PostgresFixtureBinding, signal: AbortSignal) => Promise<T>): Promise<T> {
-  const input = object(options); exactKeys(input, ["jobId", "sourceHash", "signal", "onCreated", "command", "endpoint"]);
+  use: (binding: PostgresFixtureBinding, signal: AbortSignal, sql: PostgresFixtureSql) => Promise<T>): Promise<T> {
+  const input = object(options); exactKeys(input, ["jobId", "sourceHash", "signal", "onCreated", "command", "endpoint", "migration"]);
   ensure(/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(options.jobId) && /^[a-f0-9]{64}$/.test(options.sourceHash) &&
     options.signal instanceof AbortSignal && typeof options.onCreated === "function" && typeof use === "function" &&
-    (options.command === undefined || typeof options.command === "function"), "POSTGRES_FIXTURE_INPUT_INVALID", "هویت job و source دیتابیس ساختگی باید از میزبان مشخص باشد.", 409);
+    (options.command === undefined || typeof options.command === "function") && (options.migration === undefined || typeof options.migration === "boolean"), "POSTGRES_FIXTURE_INPUT_INVALID", "هویت job و source دیتابیس ساختگی باید از میزبان مشخص باشد.", 409);
   stop(options.signal);
   const bounded = AbortSignal.any([options.signal, AbortSignal.timeout(360000)]), raw = options.command ?? docker;
   const endpoint = options.endpoint ?? await operatorDockerEndpoint(bounded, raw), host = dockerEndpointHost(endpoint);
   const command: Command = (args, signal, maxBytes, bytes) => abortable(() => raw(["--host", host, ...args], signal, maxBytes, bytes), signal);
   const owner = { jobId: options.jobId, sourceHash: options.sourceHash, name: `launchlane-postgres-${options.jobId}` };
-  let ownedId: string | null = null, createStarted = false, contradictoryReadback = false;
+  let ownedId: string | null = null, createStarted = false, contradictoryReadback = false, verifiedImageId = imageId;
   let callbackSettled = true, callbackUncertain = false, callbackSettlement: Promise<void> | null = null;
   let outcome: { ok: true; value: T } | { ok: false; error: AppError } = { ok: false, error: new AppError("POSTGRES_FIXTURE_UNAVAILABLE", "آزمون دیتابیس کامل نشد.", 503) };
   try {
-    await cachedImage(command, AbortSignal.any([bounded, AbortSignal.timeout(5000)])); stop(bounded);
+    verifiedImageId = await cachedImage(command, AbortSignal.any([bounded, AbortSignal.timeout(5000)])); stop(bounded);
     ensure(await inspect(owner.name, command, bounded) === null, "POSTGRES_FIXTURE_UNCERTAIN", "محیطی با نام همین job از قبل وجود دارد؛ اجرای قبلی باید بررسی شود.", 409);
     stop(bounded); createStarted = true;
     let created: CommandResult;
@@ -117,7 +125,7 @@ export async function withPostgresFixture<T>(options: PostgresFixtureOptions,
     const id = await resolveCreatedContainer(created, { name: owner.name, label: worker, image: postgresFixtureImage }, command);
     ensure(id, "POSTGRES_FIXTURE_UNCERTAIN", "ساخت محیط پاسخ قطعی ندارد؛ درخواست تازه خودکار ارسال نشد.", 503);
     const row = await inspect(id, command); ensure(row, "POSTGRES_FIXTURE_UNCERTAIN", "محیط ساخته‌شده قابل مشاهده نیست.", 503);
-    contradictoryReadback = row.id !== id; identity(row, id, owner); ownedId = id;
+    contradictoryReadback = row.id !== id; identity(row, id, owner, verifiedImageId); ownedId = id;
     try { await abortable(() => Promise.resolve(options.onCreated(id)), bounded); } catch { throw new AppError("POSTGRES_FIXTURE_RECEIPT_FAILED", "رسید محیط در job ثبت نشد؛ دیتابیس شروع نشد.", 503); }
     ensure(ok(created) && created.output.trim() === id, "POSTGRES_FIXTURE_UNCERTAIN", "پاسخ ساخت از دست رفته است؛ ایجاد مجدد یا ادامهٔ خودکار مجاز نیست.", 503);
     stop(bounded); isolation(row, false);
@@ -125,7 +133,7 @@ export async function withPostgresFixture<T>(options: PostgresFixtureOptions,
     ensure(ok(started) && started.output.trim() === id, "POSTGRES_FIXTURE_UNCERTAIN", "شروع محیط پاسخ قطعی ندارد؛ تکرار نشد.", 503);
     const ready = AbortSignal.any([bounded, AbortSignal.timeout(60000)]); let accepting = false;
     for (let attempt = 0; attempt < 120 && !accepting; attempt++) {
-      stop(ready); const state = await inspect(id, command); ensure(state, "POSTGRES_FIXTURE_UNCERTAIN", "محیط دیتابیس هنگام انتظار ناپدید شد.", 503); identity(state, id, owner); isolation(state, true);
+      stop(ready); const state = await inspect(id, command); ensure(state, "POSTGRES_FIXTURE_UNCERTAIN", "محیط دیتابیس هنگام انتظار ناپدید شد.", 503); identity(state, id, owner, verifiedImageId); isolation(state, true);
       const checked = await command(["exec", "--user", "999:999", id, "pg_isready", "-q", "-h", fixture.host, "-p", "5432", "-U", fixture.user, "-d", fixture.database, "-t", "1"],
         AbortSignal.any([ready, AbortSignal.timeout(2500)]), 4096);
       ensure(!checked.signal && checked.exitCode !== null && [0, 1, 2].includes(checked.exitCode), "POSTGRES_FIXTURE_NOT_READY", "بررسی آمادگی دیتابیس به نتیجهٔ معتبر نرسید.", 409);
@@ -135,16 +143,47 @@ export async function withPostgresFixture<T>(options: PostgresFixtureOptions,
     ensure(accepting, "POSTGRES_FIXTURE_NOT_READY", "دیتابیس ساختگی در مهلت محدود آماده نشد.", 409); stop(bounded);
     const mounted = await command(["exec", "--user", "999:999", id, "cat", "/proc/self/mountinfo"], bounded, 32768);
     ensure(ok(mounted), "POSTGRES_FIXTURE_ISOLATION_INVALID", "نوع واقعی فضای داده قابل بررسی نیست.", 409); mountInfo(mounted.output);
-    const current = await inspect(id, command); ensure(current, "POSTGRES_FIXTURE_UNCERTAIN", "محیط پیش از دسترسی برنامه قابل مشاهده نیست.", 503); identity(current, id, owner); isolation(current, true); stop(bounded);
-    const binding = Object.freeze({ ...fixture, jobId: owner.jobId, sourceHash: owner.sourceHash, containerId: id, networkMode: `container:${id}` as const });
+    const current = await inspect(id, command); ensure(current, "POSTGRES_FIXTURE_UNCERTAIN", "محیط پیش از دسترسی برنامه قابل مشاهده نیست.", 503); identity(current, id, owner, verifiedImageId); isolation(current, true); stop(bounded);
+    const query = async (sql: string, user: string, readOnly: boolean, signal: AbortSignal): Promise<CommandResult> => {
+      ensure(options.migration === true && Buffer.byteLength(sql) <= 1024 * 1024, "POSTGRES_MIGRATION_DENIED", "اجرای SQL فقط در آزمون migration مصوب و محدود مجاز است.", 409);
+      const checked = await inspect(id, command, signal); ensure(checked, "POSTGRES_FIXTURE_UNCERTAIN", "هویت دیتابیس پیش از SQL موجود نیست.", 409);
+      identity(checked, id, owner, verifiedImageId); isolation(checked, true); stop(signal);
+      const input = Buffer.from(`BEGIN${readOnly ? " READ ONLY" : ""}; SET LOCAL standard_conforming_strings=on; SET LOCAL statement_timeout='30s'; SET LOCAL lock_timeout='2s'; SET LOCAL idle_in_transaction_session_timeout='35s'; ${sql}\nCOMMIT;\n`);
+      return command(["exec", "--user", "999:999", "-i", id, "psql", "-X", "-q", "-t", "-A", "--set=ON_ERROR_STOP=1", "-h", user === fixture.user ? socket : fixture.host, "-p", "5432", "-U", user, "-d", fixture.database], signal, 32768, input);
+    };
+    if (options.migration) {
+      const initialized = await query(`CREATE ROLE launchlane_migration_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
+GRANT CONNECT ON DATABASE launchlane_fixture TO launchlane_migration_app;
+GRANT USAGE,CREATE ON SCHEMA public TO launchlane_migration_app;
+CREATE TABLE public._launchlane_migrations(path text PRIMARY KEY,sha256 text NOT NULL CHECK(length(sha256)=64));
+GRANT SELECT,INSERT ON public._launchlane_migrations TO launchlane_migration_app;`, fixture.user, false, bounded);
+      ensure(ok(initialized), "POSTGRES_MIGRATION_SETUP_FAILED", "آماده‌سازی role محدود و دفتر migration موفق نبود؛ source اجرا نشد.", 409);
+      // Shared network namespaces must not turn trust authentication into a root bypass.
+      // Root is reachable only through the unshared PG-container socket; workers get only the app role over TCP.
+      const hba = Buffer.from("local all launchlane_fixture trust\nlocal all all reject\nhost launchlane_fixture launchlane_migration_app 127.0.0.1/32 trust\nhost all all 0.0.0.0/0 reject\nhost all all ::0/0 reject\n");
+      const policy = await command(["exec", "--user", "999:999", "-i", id, "tee", `${data}/pg_hba.conf`], bounded, 4096, hba);
+      ensure(ok(policy), "POSTGRES_MIGRATION_SETUP_FAILED", "محدودکردن دسترسی دیتابیس موقت کامل نشد؛ worker شروع نشد.", 409);
+      const reload = await query("SELECT pg_catalog.pg_reload_conf();", fixture.user, false, bounded);
+      ensure(ok(reload) && reload.output.trim() === "t", "POSTGRES_MIGRATION_SETUP_FAILED", "بارگذاری policy دیتابیس موقت تأیید نشد؛ worker شروع نشد.", 409);
+      const policyDeadline = AbortSignal.any([bounded, AbortSignal.timeout(5000)]); let rootDenied = false;
+      while (!rootDenied) {
+        stop(policyDeadline);
+        const checked = await command(["exec", "--user", "999:999", "-i", id, "psql", "-X", "-q", "-t", "-A", "-h", fixture.host, "-U", fixture.user, "-d", fixture.database], policyDeadline, 4096, Buffer.from("SELECT 1;\n"));
+        rootDenied = checked.exitCode === 2 && !checked.signal && checked.output.includes("pg_hba.conf rejects connection");
+        ensure(rootDenied || ok(checked), "POSTGRES_MIGRATION_SETUP_FAILED", "رد دسترسی root از namespace برنامه قابل تأیید نیست؛ worker شروع نشد.", 409);
+        if (!rootDenied) await pause(100, undefined, { signal: policyDeadline });
+      }
+    }
+    const binding = Object.freeze({ ...fixture, user: options.migration ? "launchlane_migration_app" as const : fixture.user, jobId: owner.jobId, sourceHash: owner.sourceHash, containerId: id, networkMode: `container:${id}` as const });
+    const sql: PostgresFixtureSql = Object.freeze({ apply: (text, signal) => query(text, "launchlane_migration_app", false, signal), read: (text, signal) => query(text, fixture.user, true, signal) });
     callbackSettled = false;
-    const callback = Promise.resolve().then(() => use(binding, bounded));
+    const callback = Promise.resolve().then(() => use(binding, bounded, sql));
     callbackSettlement = callback.then(() => { callbackSettled = true; }, error => {
       callbackSettled = true;
       callbackUncertain = error instanceof AppError && /(?:UNCERTAIN|CLEANUP_UNCONFIRMED)/.test(error.code);
     });
     try { outcome = { ok: true, value: await abortable(() => callback, bounded) }; }
-    catch { if (bounded.aborted) throw new AppError("CANCELLED", "آزمون دیتابیس متوقف شد؛ نتیجهٔ موفق ثبت نشد.", 409); throw new AppError("POSTGRES_FIXTURE_CALLBACK_FAILED", "آزمون برنامه در دیتابیس ساختگی موفق نبود.", 409); }
+    catch (error) { if (bounded.aborted) throw new AppError("CANCELLED", "آزمون دیتابیس متوقف شد؛ نتیجهٔ موفق ثبت نشد.", 409); if (error instanceof AppError && error.code.startsWith("MIGRATION_")) throw error; throw new AppError("POSTGRES_FIXTURE_CALLBACK_FAILED", "آزمون برنامه در دیتابیس ساختگی موفق نبود.", 409); }
   } catch (error) {
     outcome = { ok: false, error: error instanceof AppError ? error : new AppError(options.signal.aborted || bounded.aborted ? "CANCELLED" : createStarted ? "POSTGRES_FIXTURE_UNCERTAIN" : "POSTGRES_FIXTURE_UNAVAILABLE",
       "اجرای دیتابیس ساختگی کامل نشد؛ جزئیات خصوصی نمایش داده نشد و ایجاد دوباره انجام نشد.", 503) };
@@ -157,14 +196,14 @@ export async function withPostgresFixture<T>(options: PostgresFixtureOptions,
         if (!ownedId) {
           const recovered = await inspect(owner.name, command, cleanup);
           if (recovered) {
-            const candidate = typeof recovered.id === "string" ? recovered.id : ""; identity(recovered, candidate, owner); ownedId = candidate;
+            const candidate = typeof recovered.id === "string" ? recovered.id : ""; identity(recovered, candidate, owner, verifiedImageId); ownedId = candidate;
             await abortable(() => Promise.resolve(options.onCreated(candidate)), cleanup);
           }
         }
         if (ownedId) {
           const before = await inspect(ownedId, command, cleanup);
           if (before) {
-            identity(before, ownedId, owner);
+            identity(before, ownedId, owner, verifiedImageId);
             const removed = await command(["rm", "--force", ownedId], cleanup, 4096);
             ensure(ok(removed) && await inspect(ownedId, command, cleanup) === null, "POSTGRES_FIXTURE_CLEANUP_UNCONFIRMED", "پایان محیط همین job تأیید نشد.", 503);
           }

@@ -5,6 +5,7 @@ import { ensure } from "../server/errors.ts";
 import { parseNodePreparation, type NodePreparation } from "./preparation.ts";
 import { parseProjectBuildPlan, type ProjectBuildPlan } from "./project-build.ts";
 import { parseBuildOutputReceipt, type BuildOutputReceipt } from "./build-output.ts";
+import { parsePostgresMigrationTestReceipt, type PostgresMigrationTestReceipt } from "./postgres-migration-test.ts";
 export type RepairTestReceipt = {
   command: string;
   exitCode: number | null;
@@ -13,6 +14,7 @@ export type RepairTestReceipt = {
   durationMs: number;
   passed: boolean;
   buildOutput?: BuildOutputReceipt;
+  databaseMigration?: PostgresMigrationTestReceipt;
 };
 export type CodeRepairJob = {
   id: string;
@@ -72,6 +74,7 @@ function receipt(value: unknown): RepairTestReceipt | null {
     durationMs: integer(row.durationMs, 0, 360000),
     passed: row.passed,
     ...(row.buildOutput === undefined ? {} : { buildOutput: parseBuildOutputReceipt(row.buildOutput) }),
+    ...(row.databaseMigration === undefined ? {} : { databaseMigration: parsePostgresMigrationTestReceipt(row.databaseMigration) }),
   };
 }
 export function parseCodeRepairJob(value: unknown): CodeRepairJob {
@@ -93,7 +96,7 @@ export function parseCodeRepairJob(value: unknown): CodeRepairJob {
     "وضعیت اصلاح معتبر نیست.",
     503,
   );
-  return {
+  const job: CodeRepairJob = {
     id: string(row.id, 36),
     parentRunId,
     projectId: string(row.projectId, 36),
@@ -144,4 +147,12 @@ export function parseCodeRepairJob(value: unknown): CodeRepairJob {
         ...(row.containerImage === undefined ? {} : { containerImage: string(row.containerImage, 240) }) };
     })()),
   };
+  if (job.build?.version === 7 && job.build.testDatabase?.version === 2 && (job.state === "succeeded" || job.afterTest?.passed)) {
+    const migration = job.build.testDatabase.migration, proof = job.afterTest?.databaseMigration;
+    ensure(job.afterTest?.passed && proof && proof.sourceHash === job.postgresFixtureSourceHash &&
+      JSON.stringify(proof.files) === JSON.stringify(migration.files) && proof.columnChecks === migration.columns.length && proof.rowChecks === migration.rows.length && proof.persistenceChecks === migration.persistence.length &&
+      job.artifact === null && job.publication === undefined && job.afterTest.buildOutput === undefined,
+      "MIGRATION_RECEIPT_INVALID", "موفقیت آزمون migration به رسید مستقل همان source، فایل‌ها و معیارها نیاز دارد؛ خروجی قابل انتشار نمی‌سازد.", 409);
+  }
+  return job;
 }

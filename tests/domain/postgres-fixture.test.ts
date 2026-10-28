@@ -92,6 +92,59 @@ test("synthetic fixture awaits receipt, verifies readiness and mounts, exposes o
   assert.deepEqual(h.events, ["create", "receipt", "start", "ready", "mount-readback", "use", "remove"]);
   assert.equal(h.calls.some(args => ["pull", "run", "network", "volume", "prune"].includes(args[0] ?? "")), false);
 });
+
+test("containerd manifest identity requires the pinned descriptor and remains frozen for every container readback", async () => {
+  const digest = postgresFixtureImage.split("@")[1]; assert.ok(digest);
+  const h = harness({ image: row => { row.id = digest; row.descriptor = { digest, mediaType: "application/vnd.oci.image.manifest.v1+json", size: 3641 }; }, row: row => { row.actualImage = digest; } });
+  await withPostgresFixture(setup(h), async () => { h.markUsed(); }); assert.equal(h.removed(), true);
+  for (const descriptor of [null, { digest: "sha256:" + "f".repeat(64), mediaType: "application/vnd.oci.image.manifest.v1+json", size: 3641 },
+    { digest, mediaType: "application/vnd.oci.image.index.v1+json", size: 3641 }]) {
+    const denied = harness({ image: row => { row.id = digest; row.descriptor = descriptor; } });
+    await assert.rejects(withPostgresFixture(setup(denied), async () => denied.markUsed()), code("POSTGRES_FIXTURE_IMAGE_MISMATCH")); assert.equal(denied.created(), false);
+  }
+});
+test("canonical Debian socket mount is still tmpfs with all required flags and a second ambiguous mount is denied", async () => {
+  for (const duplicate of [false, true]) {
+    const h = harness(), original = h.command;
+    const command: typeof docker = async (args, signal, max, input) => { const response = await original(args, signal, max, input);
+      if (args.includes("/proc/self/mountinfo")) return { ...response, output: response.output.replaceAll("/var/run/postgresql", "/run/postgresql") + (duplicate ? `\n44 1 0:3 / /var/run/postgresql rw,nosuid,nodev,noexec - tmpfs tmpfs rw` : "") }; return response; };
+    if (duplicate) await assert.rejects(withPostgresFixture({ ...setup(h), command }, async () => h.markUsed()), code("POSTGRES_FIXTURE_ISOLATION_INVALID"));
+    else await withPostgresFixture({ ...setup(h), command }, async () => h.markUsed());
+    assert.equal(h.removed(), true); assert.equal(h.uses(), !duplicate);
+  }
+});
+test("migration SQL uses an ordinary role, host reads are read-only, and every SQL call revalidates the fixture", async () => {
+  const h = harness(), inputs: { args: string[]; text: string }[] = [], original = h.command; let rootDenied = false;
+  const command: typeof docker = async (args, signal, max, input) => {
+    if (args.includes("tee")) { assert.ok(input); assert.match(input.toString(), /local all launchlane_fixture trust/); assert.match(input.toString(), /host all all 0.0.0.0\/0 reject/); return result(""); }
+    if (args.includes("psql")) { assert.ok(input);
+      if (args[args.indexOf("-U") + 1] === "launchlane_fixture" && args[args.indexOf("-h") + 1] === "127.0.0.1") { rootDenied = true; return result("pg_hba.conf rejects connection", 2); }
+      inputs.push({ args, text: input.toString() }); return result(input.includes(Buffer.from("pg_reload_conf")) ? "t\n" : ""); }
+    return original(args, signal, max, input);
+  };
+  await withPostgresFixture({ ...setup(h), command, migration: true }, async (binding, signal, sql) => {
+    h.markUsed(); assert.equal(rootDenied, true); assert.equal(binding.user, "launchlane_migration_app"); await sql.apply("CREATE TABLE public.example(id integer);", signal); await sql.read("SELECT 1;", signal);
+  });
+  assert.equal(inputs.length, 4); assert.match(inputs[0]?.text ?? "", /NOSUPERUSER NOCREATEDB NOCREATEROLE/);
+  assert.ok(inputs[2]?.args.includes("launchlane_migration_app")); assert.ok(inputs[3]?.args.includes("launchlane_fixture")); assert.match(inputs[3]?.text ?? "", /^BEGIN READ ONLY;/);
+  assert.ok(inputs[3]?.args.includes(socket)); assert.ok(inputs[2]?.args.includes("127.0.0.1"));
+  assert.ok(inputs.every(row => row.args.includes("--set=ON_ERROR_STOP=1") && row.text.includes("lock_timeout='2s'"))); assert.equal(h.removed(), true);
+});
+test("migration never exposes the namespace if policy installation or actual root rejection cannot be verified", async () => {
+  for (const kind of ["policy", "connection", "accepted"] as const) {
+    const h = harness(), original = h.command;
+    const command: typeof docker = async (args, signal, max, input) => {
+      if (args.includes("tee")) return result("", kind === "policy" ? 1 : 0);
+      if (args.includes("psql")) {
+        if (args[args.indexOf("-h") + 1] === "127.0.0.1") return kind === "accepted" ? result("1") : result("connection refused", 2);
+        return result(input?.includes(Buffer.from("pg_reload_conf")) ? "t\n" : "");
+      }
+      return original(args, signal, max, input);
+    };
+    await assert.rejects(withPostgresFixture({ ...setup(h, AbortSignal.timeout(250)), command, migration: true }, async () => h.markUsed()));
+    assert.equal(h.uses(), false); assert.equal(h.removed(), true);
+  }
+});
 test("an absent image fails before creation and never invokes pull or a callback", async () => {
   const h = harness(), absent: typeof docker = async (args, signal) => args.includes("image") ? result(`Error: No such image: ${postgresFixtureImage}`, 1) : h.command(args, signal);
   await assert.rejects(withPostgresFixture({ ...setup(h), command: absent }, async () => h.markUsed()), code("POSTGRES_FIXTURE_IMAGE_UNAVAILABLE"));

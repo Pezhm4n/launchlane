@@ -313,7 +313,7 @@ const rollbackTool: ToolDefinition = { type: "function", function: {
 } };
 const buildTool: ToolDefinition = { type: "function", function: {
   name: "propose_project_build",
-  description: "Propose a host-reviewed install/build/start and independent workload check in an isolated Node20, Node22, Node24 or Python3.12 container selected by the host from the source version constraints. Node uses npm v3 lockfiles; only a package with zero declared dependencies and no lockfile skips install, as verified by the host. For Python, root requirements.txt must pin all packages; the host verifies binary-wheel hashes, installs offline, compiles source and probes the actual start command. Read package/lock/source first; supply the original path/status/text or JSON assertion. Commands and port come from actual source, never invented. The user approves before any install/script runs. No code changes or cloud writes. A monorepo requires its actual leaf. Builds needing undeclared network or secrets fail explicitly. For a Node fullstack source that uses PostgreSQL, compatibilityDatabase can request disposable synthetic-data testing: supply only source-proven connection environment key names and public relation names. The host fixes the image and purpose, excludes stored real environment values and creates no publication artifact. This mode neither provisions a real database nor authorizes publication. The pinned database image must already be cached; it is never pulled automatically.",
+  description: "Propose a host-reviewed install/build/start and independent workload check in an isolated Node20, Node22, Node24 or Python3.12 container selected by the host from the source version constraints. Node uses npm v3 lockfiles; only a package with zero declared dependencies and no lockfile skips install, as verified by the host. For Python, root requirements.txt must pin all packages; the host verifies binary-wheel hashes, installs offline, compiles source and probes the actual start command. Read package/lock/source first; supply the original path/status/text or JSON assertion. Commands and port come from actual source, never invented. The user approves before any install/script runs. No code changes or cloud writes. A monorepo requires its actual leaf. Builds needing undeclared network or secrets fail explicitly. For a Node fullstack source that uses PostgreSQL, compatibilityDatabase can request disposable synthetic-data testing: supply source-proven connection environment key names and public relation names. Optional migration takes an ordered sqlFiles list plus independent columns (relation/name/type/nullable), synthetic row expectations (relation/key/values), and persistence targets (relation/key/column). rows contains fixed values that must remain true throughout the test. Never put a changing persistence column in rows, even with its initial null value; the host independently reads its baseline. The unchanged original test must write a fresh non-null persistence value through the application; the host hashes real database readbacks and requires that exact value after the second worker. An echo, unchanged seed or memory-only state cannot pass. The host binds actual SQL hashes, uses a non-superuser, executes transactionally, independently reads schema/data with psql and reruns the original application/tests in a fresh worker on the same disposable data. It adds no hidden environment flags in migration mode. No production migration or database restart is verified. The host fixes the image and purpose, excludes stored real environment values and creates no publication artifact. This mode neither provisions a real database nor authorizes publication. The pinned database image must already be cached; it is never pulled automatically.",
   parameters: { ...publicationTool.function.parameters, properties: { ...publicationTool.function.parameters.properties,
     apiChecks: { type: "array", minItems: 1, maxItems: 8, items: { type: "object", additionalProperties: false, required: ["path", "status", "assertions"], properties: {
       path: { type: "string", maxLength: 200 }, status: { type: "integer", minimum: 200, maximum: 299 }, assertions: { type: "array", minItems: 1, maxItems: 16,
@@ -324,6 +324,24 @@ const buildTool: ToolDefinition = { type: "function", function: {
     compatibilityDatabase: { type: "object", additionalProperties: false, required: ["environmentKeys", "requiredRelations"], properties: {
       environmentKeys: { type: "array", minItems: 1, maxItems: 8, items: { type: "string", maxLength: 128 } },
       requiredRelations: { type: "array", minItems: 1, maxItems: 16, items: { type: "string", maxLength: 70 } },
+      migration: { type: "object", additionalProperties: false, required: ["sqlFiles", "columns", "rows", "persistence"], properties: {
+        sqlFiles: { type: "array", minItems: 1, maxItems: 16, items: { type: "string", maxLength: 256 } },
+        columns: { type: "array", minItems: 1, maxItems: 64, items: { type: "object", additionalProperties: false, required: ["relation", "name", "type", "nullable"], properties: {
+          relation: { type: "string", maxLength: 70 }, name: { type: "string", maxLength: 63 }, type: { type: "string", maxLength: 80 }, nullable: { type: "boolean" },
+        } } },
+        rows: { type: "array", minItems: 1, maxItems: 16, items: { type: "object", additionalProperties: false, required: ["relation", "key", "values"], properties: {
+          relation: { type: "string", maxLength: 70 }, key: { type: "object", additionalProperties: false, required: ["column", "value"], properties: {
+            column: { type: "string", maxLength: 63 }, value: { type: ["string", "number", "boolean", "null"] },
+          } }, values: { type: "array", minItems: 1, maxItems: 8, items: { type: "object", additionalProperties: false, required: ["column", "value"], properties: {
+            column: { type: "string", maxLength: 63 }, value: { type: ["string", "number", "boolean", "null"] },
+          } } },
+        } } },
+        persistence: { type: "array", minItems: 1, maxItems: 8, items: { type: "object", additionalProperties: false, required: ["relation", "key", "column"], properties: {
+          relation: { type: "string", maxLength: 70 }, column: { type: "string", maxLength: 63 }, key: { type: "object", additionalProperties: false, required: ["column", "value"], properties: {
+            column: { type: "string", maxLength: 63 }, value: { type: ["string", "number", "boolean", "null"] },
+          } },
+        } } },
+      } },
     } },
   } },
 } };
@@ -489,17 +507,33 @@ export async function executeAgentTool(
     if (c.buildJob?.build) ensure(fingerprint(workload) === fingerprint(c.buildJob.build.workload), "MISSION_EXPECTATION_CHANGED", "معیار build قبلی تغییر نمی‌کند.", 409);
     if (name === "propose_project_build") {
       const testDatabase = args.compatibilityDatabase === undefined ? undefined : (() => {
-        const input = object(args.compatibilityDatabase); exactKeys(input, ["environmentKeys", "requiredRelations"]);
-        return validateTestDatabaseSource(captured.files, flow.profile, parseDisposableTestDatabase({ version: 1, kind: "postgresql", purpose: "compatibility_test",
-          image: postgresTestImage, environmentKeys: input.environmentKeys, requiredRelations: input.requiredRelations }));
+        const input = object(args.compatibilityDatabase); exactKeys(input, ["environmentKeys", "requiredRelations", "migration"]);
+        const migration = input.migration === undefined ? undefined : (() => {
+          const row = object(input.migration); exactKeys(row, ["sqlFiles", "columns", "rows", "persistence"]);
+          ensure(Array.isArray(row.sqlFiles) && row.sqlFiles.length > 0 && row.sqlFiles.length <= 16, "MIGRATION_SOURCE_INVALID", "فایل‌های migration لازم‌اند.", 409);
+          return { columns: row.columns, rows: row.rows, persistence: row.persistence, files: row.sqlFiles.map(path => {
+            const file = captured.profile.manifest.find(file => file.path === path);
+            ensure(file, "MIGRATION_SOURCE_INVALID", "فایل migration باید در source انتخاب‌شده باشد.", 409); return { path: file.path, sha256: file.sha256 };
+          }) };
+        })();
+        return validateTestDatabaseSource(captured.files, flow.profile, parseDisposableTestDatabase({ version: migration ? 2 : 1, kind: "postgresql", purpose: "compatibility_test",
+          image: postgresTestImage, environmentKeys: input.environmentKeys, requiredRelations: input.requiredRelations, ...(migration ? { migration } : {}) }));
       })();
       const previousDatabase = c.buildJob?.build?.version === 7 ? c.buildJob.build.testDatabase : undefined;
-      if (previousDatabase) ensure(fingerprint(testDatabase ?? null) === fingerprint(previousDatabase), "MISSION_EXPECTATION_CHANGED", "محدودهٔ دادهٔ آزمون قبلی بدون تغییر شواهد عوض نمی‌شود.", 409);
+      let migrationSelectionChanged = false;
+      if (previousDatabase?.version === 2 && testDatabase?.version === 2) {
+        const { files: previousFiles, ...previousOracle } = previousDatabase.migration, { files, ...oracle } = testDatabase.migration;
+        ensure(fingerprint({ keys: previousDatabase.environmentKeys, relations: previousDatabase.requiredRelations, oracle: previousOracle }) === fingerprint({ keys: testDatabase.environmentKeys, relations: testDatabase.requiredRelations, oracle }),
+          "MISSION_EXPECTATION_CHANGED", "معیار schema، داده و ماندگاری قبلی تغییر نمی‌کند.", 409);
+        migrationSelectionChanged = fingerprint(files) !== fingerprint(previousFiles);
+        ensure(!migrationSelectionChanged || c.buildJob?.state === "failed" && ["MIGRATION_EXECUTION_FAILED", "MIGRATION_ORACLE_FAILED"].includes(c.buildJob.errorCode ?? ""),
+          "MIGRATION_SELECTION_REVIEW_REQUIRED", "تغییر انتخاب SQL فقط پس از شکست همان migration و با تصمیم تازه مجاز است.", 409);
+      } else if (previousDatabase) ensure(fingerprint(testDatabase ?? null) === fingerprint(previousDatabase), "MISSION_EXPECTATION_CHANGED", "محدودهٔ دادهٔ آزمون قبلی بدون تغییر شواهد عوض نمی‌شود.", 409);
       const environment = testDatabase ? null : currentEnvironment(c.store, c.config.sessionSecret, c.actorId, flow.id);
       const sourceEnvironment = !testDatabase && !environment && flow.profile.runtime !== "docker" ? sourceBuildEnvironment(c.config, c.store, c.actorId, flow.id) : null;
       ensure(!((c.buildJob?.validationOnly || previousDatabase !== undefined) && c.buildJob?.state === "failed" && c.buildJob.baseRevision === c.context.sourceHash) || c.explicitBuildRetry === true ||
         fingerprint(c.buildJob?.build?.environment ?? null) !== fingerprint(environment) ||
-        fingerprint(c.buildJob?.build ? buildSourceEnvironment(c.buildJob.build) ?? null : null) !== fingerprint(sourceEnvironment) || testDatabase !== undefined && previousDatabase === undefined,
+        fingerprint(c.buildJob?.build ? buildSourceEnvironment(c.buildJob.build) ?? null : null) !== fingerprint(sourceEnvironment) || testDatabase !== undefined && previousDatabase === undefined || migrationSelectionChanged,
         "BUILD_NO_PROGRESS", "همان build ناموفق بدون تغییر شواهد تکرار نمی‌شود؛ علت توقف را بررسی کنید.", 409);
       c.budget.take("tool", c.signal);
       const preparation = flow.profile.fullstack ? fullstackPreparation(captured.files, flow.profile) : undefined;

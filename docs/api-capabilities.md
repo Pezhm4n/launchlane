@@ -1,5 +1,7 @@
 # قرارداد و وضعیت API لیارا
 
+افزودهٔ ۲۰۲۶-۱۰-۲۸: SQL محدود در [آزمون migration موقت](evidence/postgres-migration-test.md) از PostgreSQL داخل worker محلی و قرارداد `propose_project_build` استفاده می‌کند؛ endpoint SQL یا migration تازه‌ای برای DBaaS فرض نشده است. `operations.migrate=not_implemented` برای منابع واقعی provider همچنان درست است. credential واقعی به این آزمون تزریق نمی‌شود و اختیار ساخت/binding ابری، اجرای SQL تولیدی را مجاز نمی‌کند.
+
 افزودهٔ دیتابیس، ۲۰۲۶-۱۰-۲۸: [قرارداد رسمی DBaaS ذخیره‌شده](sources/liara-dbaas.openapi.yaml) همراه implementation رسمی CLI مبنای `POST /v1/databases?teamID` و پاسخ `databaseID` است. ساخت در v27 به approval/claim/journal مشترک وصل شد. `GET /v1/databases/{id}?teamID` فقط در adapter خصوصی binding خوانده می‌شود؛ اعتبار shape/هویت/config ضروری است و مقادیر اتصال به ابزار مدل یا پاسخ عمومی نمی‌روند. application آن را به env v9 رمز‌شده، merge و readback موجود می‌دهد. `operations.provision=approval_required` و `credentials=private_binding_only` به این حدود اشاره دارند؛ SQL/migration/resize اضافه نشده‌اند. read واقعی inventory در حساب فعلی خالی بود، پس write/detail این حساب هنوز live verified نیست. [شواهد و حدود](evidence/managed-database.md).
 
 ## پروژه‌های من و تنظیمات پوشه؛ ۲۰۲۶-۱۰-۲۳

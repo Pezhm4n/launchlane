@@ -14,6 +14,7 @@ import { AgentDestination } from "./AgentDestination.tsx";
 import { AgentNetwork } from "./AgentNetwork.tsx";
 import { AgentDisk } from "./AgentDisk.tsx";
 import { AgentDatabase } from "./AgentDatabase.tsx";
+import { MigrationTestReview } from "./MigrationTestReview.tsx";
 import { RichText } from "./RichText.tsx";
 import { FloatingAssistant } from "./FloatingAssistant.tsx";
 import { ProjectEnvironment } from "./ProjectEnvironment.tsx";
@@ -905,6 +906,7 @@ export function AgentPanel({
             <section className="agent-repair" aria-labelledby="repair-title">
               <h3 id="repair-title">{run.repair.validationOnly ? "بررسی ساخت و اجرای پروژه" : "اصلاح نسخه جدا از پروژه"}</h3>
               <BuildFailureNote job={run.repair} />
+              <MigrationTestReview job={run.repair} />
               <details>
                 <summary>جزئیات اصلاح و رسید آزمون</summary>
                 <p>{run.repair.goal}</p>
