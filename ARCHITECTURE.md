@@ -2,6 +2,8 @@
 
 هدف ادامهٔ توسعه، قابلیت عمومی محصول در [مجموعهٔ آزمون](docs/deployment-corpus.md) است. نمونه‌های موفقِ helper جای اجرای سرتاسری خود محصول را نمی‌گیرند. برش [ADR0031](docs/decisions/0031-single-worker-sqlite-and-bound-storage.md) آماده‌سازی Worker/SQLite، ورودی خصوصی build و دیسک25/انتشار26 را به سرویس، Agent و کارت انتشار مشترک متصل می‌کند؛ شاهد isolated و synthetic دارد و ماندگاری واقعی لیارا/پذیرش همه topologyها هنوز باز است.
 
+در ۲۰۲۶-۱۰-۲۸، مشاهدهٔ انتشار HTML (به‌جز مسیرهای compiled fullstack که proof مستقل دارند) یک گام asset هم‌مبدأ گرفت: پس از status/متن و نسخهٔ جاری، حداکثر۱۲ ارجاع `script`/`stylesheet` سند با origin/DNS تأییدشده و بدون redirect خوانده می‌شوند. سند و فایل با `ProbeResult` موجود بررسی می‌شوند؛ نتیجه در `DeploymentObservation.assets` ذخیره و برای journal قدیمی بدون فیلد جدید خوانده می‌شود. فایل گم‌شده/HTML-fallback/mixed-content ناموفق، خواندن ناقص نامعلوم و هیچ‌کدام جای اجرای JavaScript یا مسیر مرورگری را نمی‌گیرند. commit `1097e66075948117c2137f1a5e3c78c086cf4716`.
+
 ## build و انتشار Docker/fullstack؛ working tree در ۲۰۲۶-۱۰-۲۵
 
 [ADR0029](docs/decisions/0029-docker-and-compiled-fullstack-publication.md) قراردادهای Docker6/21/22 و fullstack7/23 را در همان services قبلی اضافه می‌کند. source requirements فقط شاهد ایستا است؛ runtime مستقل حل‌نشده یا analysis gap، انتشار ناقص را متوقف می‌کند. خروجی frontend قبل از حذف worker صادر و در artifact نهایی به source/plan/test receipt بسته می‌شود؛ cloud build ثابت فقط همان byteها را تأیید می‌کند. observation، release جاری، public proof، hash فایل‌های JS/CSS و معیار مستقل API را می‌سنجد. اجرای نامعلوم Docker marker پایدار و شناسهٔ job دارد و اجازهٔ retry تازه نمی‌سازد. برنامهٔ چندمرحله‌ای v7 و resource data plane همچنان بازند.
