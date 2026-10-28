@@ -31,6 +31,7 @@ export function projectRoot(
   if (flow.selection.kind === "upload")
     return { root: join(config.stateDir, "uploaded-sources", flow.id), directory: "." };
   if(flow.selection.kind==="repair") return {root:join(config.stateDir,"repair-workspaces",flow.selection.jobId),directory:"."};
+  ensure(flow.selection.kind !== "artifact", "ARTIFACT_FLOW_NO_WORKSPACE", "نسخهٔ بازگردانی‌شده از بستهٔ ذخیره‌شده منتشر می‌شود و پوشهٔ فعلی را دوباره نمی‌خواند.", 409);
   if (flow.selection.kind === "sample")
     return { root: resolve(/* turbopackIgnore: true */ "."), directory: "examples/node-service" };
   ensure(
@@ -195,6 +196,11 @@ export async function restoreProjectFlow(
         "این نتیجه مربوط به انتخاب قبلی پروژه است. برای ادامه، پروژه را دوباره انتخاب و بررسی کنید.",
     };
   if (flow.status === "stale") return flow;
+  if (flow.selection.kind === "artifact") {
+    ensure(flow.status === "ready" && flow.artifact, "ARTIFACT_FLOW_UNAVAILABLE", "بستهٔ نسخهٔ بازگردانی‌شده در دسترس نیست.", 409);
+    await readArtifact(config.stateDir, store.getArtifact(actorId, flow.artifact.archiveHash));
+    return flow;
+  }
   try {
     const location = projectRoot(config, flow);
     const current = await inspectProject(location.root, location.directory, {

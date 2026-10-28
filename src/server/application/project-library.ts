@@ -13,7 +13,7 @@ import { projectRoot } from "./project-flows.ts";
 
 export function libraryProjectName(config: Config, flow: ProjectFlow): string {
   const source = flow.selection;
-  return source.kind === "upload" ? source.name : source.kind === "repair" ? "نسخه اصلاح‌شده پروژه" : source.kind === "github"
+  return source.kind === "upload" ? source.name : source.kind === "repair" ? "نسخه اصلاح‌شده پروژه" : source.kind === "artifact" ? "نسخهٔ بازگردانی‌شده" : source.kind === "github"
     ? `${source.owner}/${source.name}${source.directory === "." ? "" : ` / ${source.directory}`}`
     : basename(source.directory === "." ? config.workspaceRoot || "پروژه" : source.directory);
 }
@@ -29,6 +29,15 @@ function libraryTarget(store: Store, actorId: string, projectId: string) {
       }
     }
   }
+  if (!target) {
+    const flow = store.getProjectFlow(actorId, projectId), connection = store.getConnection(actorId, "liara")?.view;
+    if (flow?.selection.kind === "artifact" && connection) {
+      const sourceSpec = store.getAction(flow.selection.sourceActionId, actorId).spec;
+      if ("targetAppId" in sourceSpec && "accountId" in sourceSpec && sourceSpec.scope.teamId === connection.teamId &&
+        connection.apps.some(app => app.id === sourceSpec.targetAppId && app.name === sourceSpec.scope.app))
+        target = { accountId: sourceSpec.accountId, teamId: sourceSpec.scope.teamId, appId: sourceSpec.targetAppId, app: sourceSpec.scope.app };
+    }
+  }
   if (target && store.db.prepare("SELECT id FROM actions WHERE actor_id=? AND state='succeeded' AND json_extract(spec,'$.version')=14 AND json_extract(spec,'$.operation')='delete_app' AND json_extract(spec,'$.targetAppId')=? AND team_id=? LIMIT 1").get(actorId, target.appId, target.teamId)) return null;
   return target;
 }
@@ -39,7 +48,7 @@ export function listProjects(config: Config, store: Store, actorId: string, offs
     const flow = store.getProjectFlow(actorId, string(row.id, 36));
     ensure(flow, "NOT_FOUND", "پروژه پیدا نشد.", 404);
     const run = repo.forProject(actorId, flow.id, "publication");
-    return { id: flow.id, name: libraryProjectName(config, flow), source: flow.selection.kind === "github" ? "GitHub" : flow.selection.kind === "upload" ? "از رایانه" : flow.selection.kind === "repair" ? "نسخه اصلاح‌شده" : "پوشهٔ این نصب",
+    return { id: flow.id, name: libraryProjectName(config, flow), source: flow.selection.kind === "github" ? "GitHub" : flow.selection.kind === "upload" ? "از رایانه" : flow.selection.kind === "repair" ? "نسخه اصلاح‌شده" : flow.selection.kind === "artifact" ? "نسخهٔ قبلی" : "پوشهٔ این نصب",
       runtime: flow.profile.runtime, updatedAt: Math.max(flow.updatedAt, run?.updatedAt ?? 0), active: active?.id === flow.id,
       state: run?.state ?? flow.status, app: libraryTarget(store, actorId, flow.id)?.app ?? null, runId: run?.id ?? null, sourceHash: flow.profile.sourceHash, removal: store.projectRemoval(actorId, flow.id) };
   });
@@ -51,6 +60,12 @@ export async function openLibraryProject(config: Config, store: Store, actorId: 
   ensure(!store.db.prepare("SELECT project_id FROM project_archives WHERE project_id=? AND actor_id=?").get(id, actorId), "PROJECT_ARCHIVED", "این پروژه از فهرست حذف شده است؛ پوشه را دوباره انتخاب کنید.", 409);
   if (store.getProjectFlow(actorId)?.id === flow.id) return { ...flow, displayName: libraryProjectName(config, flow) };
   store.assertAgentIdle(actorId, null, true);
+  if (flow.selection.kind === "artifact") {
+    ensure(flow.status === "ready" && flow.artifact, "ARTIFACT_FLOW_UNAVAILABLE", "بستهٔ نسخهٔ بازگردانی‌شده در دسترس نیست.", 409);
+    await readArtifact(config.stateDir, store.getArtifact(actorId, flow.artifact.archiveHash));
+    store.activateProjectFlow(actorId, id, libraryTarget(store, actorId, flow.id));
+    return { ...flow, displayName: libraryProjectName(config, flow) };
+  }
   let current: ProjectFlow["profile"];
   try {
     const location = projectRoot(config, flow);

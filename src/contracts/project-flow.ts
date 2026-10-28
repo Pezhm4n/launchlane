@@ -8,6 +8,7 @@ export type ProjectSelection =
   | { kind: "local" | "sample"; directory: string }
   | { kind: "upload"; directory: "."; name: string }
   | {kind:"repair";directory:".";jobId:string;artifactHash:string}
+  | { kind: "artifact"; directory: "."; sourceFlowId: string; sourceActionId: string; releaseId: string; artifactHash: string }
   | {
       kind: "github";
       directory: string;
@@ -33,7 +34,7 @@ export type ProjectFlowResponse = { flow: ProjectFlow; action: Action | null };
 export function parseSelection(value: unknown): ProjectSelection {
   const row = object(value);
   ensure(
-    row.kind === "local" || row.kind === "sample" || row.kind === "github" || row.kind === "repair" || row.kind === "upload",
+    row.kind === "local" || row.kind === "sample" || row.kind === "github" || row.kind === "repair" || row.kind === "upload" || row.kind === "artifact",
     "INVALID_INPUT",
     "روش انتخاب پروژه معتبر نیست.",
   );
@@ -45,6 +46,13 @@ export function parseSelection(value: unknown): ProjectSelection {
   if(row.kind==="repair") {
     const jobId=string(row.jobId,36);ensure(directory==="."&&/^[a-f0-9-]{36}$/.test(jobId),"INVALID_INPUT","نسخه اصلاح‌شده معتبر نیست.");
     return {kind:"repair",directory:".",jobId,artifactHash:hash(row.artifactHash)};
+  }
+  if (row.kind === "artifact") {
+    const sourceFlowId = string(row.sourceFlowId, 36), sourceActionId = string(row.sourceActionId, 36),
+      releaseId = string(row.releaseId, 128), artifactHash = hash(row.artifactHash);
+    ensure(directory === "." && /^[a-f0-9-]{36}$/.test(sourceFlowId) && /^[a-f0-9-]{36}$/.test(sourceActionId) &&
+      /^[a-zA-Z0-9_-]+$/.test(releaseId), "INVALID_INPUT", "نسخهٔ بازگردانی‌شده معتبر نیست.");
+    return { kind: "artifact", directory: ".", sourceFlowId, sourceActionId, releaseId, artifactHash };
   }
   if (row.kind !== "github") return { kind: row.kind, directory };
   return {

@@ -13,7 +13,8 @@ import {
   proposeDeployment,
   proposeWorkloadDeployment,
 } from "../../src/server/application/deployment.ts";
-import { prepareProjectFlow } from "../../src/server/application/project-flows.ts";
+import { prepareProjectFlow, restoreProjectFlow } from "../../src/server/application/project-flows.ts";
+import { proposePreviousRollback, proposeRollback } from "../../src/server/application/rollback.ts";
 import { sealCredential } from "../../src/server/connections/credentials.ts";
 import { readConfig } from "../../src/server/config.ts";
 import { AppError } from "../../src/server/errors.ts";
@@ -946,6 +947,97 @@ test("a persistent 503 after the startup grace is a failed outcome with no retry
     assert.equal(result.state, "failed");
     assert.equal(result.deployment?.observation?.code, "WORKLOAD_MISMATCH");
     assert.equal(f.writes, 2);
+  } finally { await f.cleanup(); }
+});
+
+
+test("rollback re-publishes the exact historical artifact without re-reading a changed workspace", async () => {
+  const f = await fixture({ workload: { origin, path: "/checkout", status: 200, assertion: { kind: "text", contains: "Order accepted" } } });
+  try {
+    f.approve();
+    const first = await executeDeployment(f.config, f.store, session, f.action.id, signal(), f.deps);
+    f.set({ body: "Order accepted" });
+    const firstObserved = await observeDeployment(f.config, f.store, session, f.action.id, signal(), f.deps);
+    assert.equal(firstObserved.state, "succeeded");
+    assert.equal(first.remoteId, "release-exact");
+    const oldArtifact = f.action.spec.version === 5 || f.action.spec.version === 7 ? f.action.spec.artifactHash : null;
+    assert.ok(oldArtifact);
+    // The selected folder changes after publication. A rollback must use the saved bytes.
+    await writeFile(join(f.root, "app/server.mjs"), "this changed source must never be uploaded");
+    const result = await proposeRollback(f.config, f.store, session.actorId, f.action.id, signal(), f.deps);
+    assert.equal(result.flow.selection.kind, "artifact");
+    assert.equal(result.flow.selection.kind === "artifact" && result.flow.selection.sourceActionId, f.action.id);
+    assert.equal(result.flow.selection.kind === "artifact" && result.flow.selection.releaseId, "release-exact");
+    assert.equal(result.flow.profile.sourceHash, firstObserved.spec.sourceHash);
+    assert.equal(result.action.spec.version, 7);
+    assert.equal(result.action.spec.artifactHash, oldArtifact);
+    assert.equal(result.action.spec.sourceHash, firstObserved.spec.sourceHash);
+    assert.equal(f.store.getProjectFlow(session.actorId)?.id, result.flow.id);
+    // Reopening the artifact flow does not inspect the changed folder.
+    const restored = await restoreProjectFlow(f.config, f.store, session.actorId, signal(), result.flow.id);
+    assert.equal(restored?.status, "ready");
+    assert.equal(restored?.profile.sourceHash, firstObserved.spec.sourceHash);
+    f.store.decide(result.action.id, session.actorId, session.id, result.action.hash, "approve");
+    const accepted = await executeDeployment(f.config, f.store, session, result.action.id, signal(), f.deps);
+    assert.equal(accepted.remoteId, "release-exact");
+    const observed = await observeDeployment(f.config, f.store, session, result.action.id, signal(), f.deps);
+    assert.equal(observed.state, "succeeded");
+    assert.equal(observed.deployment?.observation?.code, "WORKLOAD_VERIFIED");
+    assert.equal(f.writes, 4);
+    // The original successful action is historical evidence, not a mutable replay target.
+    assert.equal(f.store.getAction(f.action.id, session.actorId).state, "succeeded");
+    assert.equal(f.store.getAction(f.action.id, session.actorId).remoteId, "release-exact");
+  } finally { await f.cleanup(); }
+});
+
+test("rollback rejects a proposal that is not a completed publication and a changed target", async () => {
+  const f = await fixture({ workload: { origin, path: "/checkout", status: 200, assertion: { kind: "text", contains: "Order accepted" } } });
+  try {
+    await assert.rejects(proposeRollback(f.config, f.store, session.actorId, f.action.id, signal(), f.deps),
+      code("ROLLBACK_NOT_ELIGIBLE"));
+    f.approve();
+    await executeDeployment(f.config, f.store, session, f.action.id, signal(), f.deps);
+    f.set({ body: "Order accepted" });
+    await observeDeployment(f.config, f.store, session, f.action.id, signal(), f.deps);
+    const other = f.store.getAction(f.action.id, session.actorId);
+    assert.equal(other.state, "succeeded");
+    const connection = f.store.getConnection(session.actorId, "liara");
+    assert.ok(connection);
+    f.store.saveConnection(session.actorId, { ...connection, view: { ...connection.view, selectedApp: "other-app" } });
+    await assert.rejects(proposeRollback(f.config, f.store, session.actorId, f.action.id, signal(), f.deps),
+      code("LIARA_APP_REQUIRED"));
+  } finally { await f.cleanup(); }
+});
+
+
+test("previous rollback selects the latest successful publication before the displayed action", async () => {
+  const workload = { origin, path: "/checkout", status: 200, assertion: { kind: "text" as const, contains: "Order accepted" } };
+  const f = await fixture({ workload });
+  try {
+    f.approve();
+    await executeDeployment(f.config, f.store, session, f.action.id, signal(), f.deps);
+    f.set({ body: "Order accepted" });
+    assert.equal((await observeDeployment(f.config, f.store, session, f.action.id, signal(), f.deps)).state, "succeeded");
+    const firstArtifact = f.action.spec.version === 7 ? f.action.spec.artifactHash : null;
+    assert.ok(firstArtifact);
+    await writeFile(join(f.root, "app/server.mjs"), "app.listen(3000); // second revision");
+    const secondFlow = await prepareProjectFlow(f.config, f.store, session.actorId, { kind: "local", directory: "app" }, signal());
+    const second = await proposeWorkloadDeployment(f.config, f.store, session.actorId,
+      { flowId: secondFlow.id, app: scope.app, port: null, workload }, signal(), f.deps);
+    f.store.decide(second.id, session.actorId, session.id, second.hash, "approve");
+    await executeDeployment(f.config, f.store, session, second.id, signal(), f.deps);
+    f.set({ body: "Order accepted" });
+    assert.equal((await observeDeployment(f.config, f.store, session, second.id, signal(), f.deps)).state, "succeeded");
+    const secondArtifact = second.spec.version === 7 ? second.spec.artifactHash : null;
+    assert.ok(secondArtifact);
+    assert.notEqual(secondArtifact, firstArtifact);
+    const rollback = await proposePreviousRollback(f.config, f.store, session.actorId, second.id, signal(), f.deps);
+    assert.equal(rollback.flow.selection.kind, "artifact");
+    assert.equal(rollback.flow.selection.kind === "artifact" && rollback.flow.selection.sourceActionId, f.action.id);
+    assert.equal(rollback.flow.selection.kind === "artifact" && rollback.flow.selection.releaseId, "release-exact");
+    const rollbackArtifact = rollback.action.spec.version === 7 ? rollback.action.spec.artifactHash : null;
+    assert.equal(rollbackArtifact, firstArtifact);
+    assert.notEqual(rollbackArtifact, secondArtifact);
   } finally { await f.cleanup(); }
 });
 

@@ -14,14 +14,14 @@ import type { Config } from "../../../server/config.ts";
 function displayFlow(config: Config, flow: ProjectFlow | null): ProjectFlow | null {
   if (!flow) return null;
   const selection = flow.selection;
-  const displayName =
-    selection.kind === "upload" ? selection.name : selection.kind === "repair" ? "نسخه اصلاح‌شده پروژه" : selection.kind === "github"
+  const displayName = flow.displayName ?? (
+    selection.kind === "upload" ? selection.name : selection.kind === "repair" ? "نسخه اصلاح‌شده پروژه" : selection.kind === "artifact" ? "نسخهٔ بازگردانی‌شده" : selection.kind === "github"
       ? `${selection.owner}/${selection.name}${selection.directory === "." ? "" : ` / ${selection.directory}`}`
       : selection.directory === "."
         ? config.workspaceRoot
           ? basename(config.workspaceRoot)
           : "پوشه پروژه"
-        : selection.directory.split("/").at(-1) || "پروژه";
+        : selection.directory.split("/").at(-1) || "پروژه");
   return { ...flow, displayName };
 }
 

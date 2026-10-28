@@ -77,6 +77,7 @@ function locationState() { return workbenchLocation(window.location.search); }
 function projectName(flow: ProjectFlow): string {
   if (flow.displayName) return flow.displayName;
   if(flow.selection.kind==="repair")return "نسخه اصلاح‌شده پروژه";
+  if(flow.selection.kind==="artifact")return "نسخهٔ بازگردانی‌شده";
   return flow.selection.kind === "github"
     ? `${flow.selection.owner}/${flow.selection.name}${flow.selection.directory === "." ? "" : ` / ${flow.selection.directory}`}`
     : flow.selection.directory === "."
@@ -93,6 +94,8 @@ function Proposal({
   onNewProposal,
   onOperation,
   onNextVersion,
+  onRollback,
+  nextVersionAvailable,
 }: {
   action: Action;
   workspace: WorkspaceView;
@@ -102,6 +105,8 @@ function Proposal({
   onNewProposal: () => void;
   onOperation: (operation: "execute" | "observe") => void;
   onNextVersion: () => void;
+  onRollback: () => void;
+  nextVersionAvailable: boolean;
 }) {
   const state =
     action.expiresAt <= Date.now() &&
@@ -248,7 +253,13 @@ function Proposal({
           </button>
         </>
       ) : state === "succeeded" ? (
-        <button type="button" className="button-secondary" disabled={busy || expired} onClick={onNextVersion}>آماده‌سازی نسخه بعدی</button>
+        <>
+          <div className="button-row">
+            <button type="button" className="button-secondary" disabled={busy || expired || !nextVersionAvailable} onClick={onNextVersion}>آماده‌سازی نسخه بعدی</button>
+            <button type="button" className="button-secondary" disabled={busy || expired} onClick={onRollback}>بازگردانی آخرین نسخهٔ موفق قبلی</button>
+          </div>
+          <p className="hint">بازگردانی، بستهٔ دقیق یک انتشار موفق قبلی را دوباره ارسال می‌کند. تنظیمات و پلن فعلی برنامه ادامه دارند؛ سازگاری schema داده و تنظیمات تضمین نمی‌شود و نتیجهٔ همان نسخه دوباره بررسی می‌شود.</p>
+        </>
       ) : state === "failed" && canReadDeploymentResult(action) ? (
         <>
           <div className="button-row">
@@ -257,6 +268,9 @@ function Proposal({
             </button>
             <button type="button" className="button-secondary" disabled={busy || expired} onClick={onNewProposal}>
               دریافت پیشنهاد تازه
+            </button>
+            <button type="button" className="button-secondary" disabled={busy || expired} onClick={onRollback}>
+              بازگردانی آخرین نسخهٔ موفق قبلی
             </button>
           </div>
           <p className="hint">
@@ -738,6 +752,27 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
       setBusy(null);
     }
   }
+  async function rollback() {
+    if (!workspace || !action || disabled) return;
+    setBusy("rollback");
+    setError(null);
+    setNotice("در حال ساخت پیشنهاد بازگردانی از بستهٔ دقیق نسخهٔ قبلی…");
+    try {
+      const result = await api("/api/projects/rollback", decodeFlow, {
+        body: { beforeActionId: action.id },
+        csrf: workspace.session.csrfToken,
+      });
+      focusProposal.current = true;
+      applyFlow(result);
+      writeLocation("source", result.flow?.id ?? null);
+      setNotice("پیشنهاد بازگردانی آماده است. همان بستهٔ نسخهٔ قبلی ارسال می‌شود؛ تنظیمات فعلی برنامه ادامه دارد و معیار پاسخ همان نسخه دوباره بررسی می‌شود.");
+      await refresh();
+    } catch (error) {
+      fail(error);
+    } finally {
+      setBusy(null);
+    }
+  }
   async function decide(selected: Action, decision: "approve" | "reject") {
     if (!workspace || disabled) return;
     setBusy("decision");
@@ -1107,7 +1142,7 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
                         <strong><bdi>{projectName(flow)}</bdi></strong>
                       </p>
                       <p className="hint project-summary-source">
-                        {flow.selection.kind === "github" ? "از GitHub؛ نسخه انتخاب‌شده ثبت شده" : flow.selection.kind === "repair" ? "نسخه اصلاح‌شده و آزموده‌شده" : flow.selection.kind === "upload" ? "کپی واردشده از رایانه؛ فایل اصلی شما تغییر نمی‌کند" : "از پوشه‌های مجاز همین رایانه"}
+                        {flow.selection.kind === "github" ? "از GitHub؛ نسخه انتخاب‌شده ثبت شده" : flow.selection.kind === "repair" ? "نسخه اصلاح‌شده و آزموده‌شده" : flow.selection.kind === "artifact" ? "بستهٔ دقیق یک انتشار موفق قبلی؛ پوشهٔ فعلی دوباره خوانده نمی‌شود" : flow.selection.kind === "upload" ? "کپی واردشده از رایانه؛ فایل اصلی شما تغییر نمی‌کند" : "از پوشه‌های مجاز همین رایانه"}
                       </p>
                     </div>
                     <button
@@ -1135,7 +1170,7 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
                     <span className="badge badge-warning">پروژه نمونه</span>
                   ) : flow ? (
                     <span className="badge badge-quiet">
-                      {flow.selection.kind === "repair" ? "اصلاح آزموده‌شده" : flow.selection.kind === "github" ? "از GitHub" : flow.selection.kind === "upload" ? "از رایانه شما" : "روی این رایانه"}
+                      {flow.selection.kind === "repair" ? "اصلاح آزموده‌شده" : flow.selection.kind === "artifact" ? "بازگردانی نسخه" : flow.selection.kind === "github" ? "از GitHub" : flow.selection.kind === "upload" ? "از رایانه شما" : "روی این رایانه"}
                     </span>
                   ) : null}
                 </div>
@@ -1517,6 +1552,8 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
                           onNewProposal={() => void propose()}
                           onOperation={(operation) => void deploymentOperation(operation)}
                           onNextVersion={() => void prepare(flow.selection, "folder")}
+                          onRollback={() => void rollback()}
+                          nextVersionAvailable={flow.selection.kind !== "artifact"}
                         />
                         {busy === "execute" || busy === "observe" ? (
                           <button

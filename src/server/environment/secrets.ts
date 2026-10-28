@@ -22,6 +22,10 @@ export function environmentProjectIds(store: Store, actorId: string, projectId: 
   const projects = new Set<string>(); let flow = store.getProjectFlow(actorId, projectId), complete = false;
   for (let depth = 0; flow && depth < 8 && !projects.has(flow.id); depth++) {
     projects.add(flow.id);
+    if (flow.selection.kind === "artifact") {
+      flow = store.getProjectFlow(actorId, flow.selection.sourceFlowId);
+      continue;
+    }
     if (flow.selection.kind !== "repair") { complete = true; break; }
     const record = store.db.prepare("SELECT data_json FROM code_repair_jobs WHERE actor_id=? AND id=?").get(actorId, flow.selection.jobId);
     if (!record) break;
