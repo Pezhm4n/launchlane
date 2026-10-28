@@ -1,5 +1,11 @@
 # برنامه اجرایی Launchlane
 
+## A14 / AC34 — ساخت دیتابیس و اتصال امن به برنامه؛ ۲۰۲۶-۱۰-۲۸
+
+به‌جای توقف در inventory/quote، مسیر اصلی Agent اکنون `propose_database`، کارت تصمیم وب، ساخت خصوصی v27 با claim/journal موجود و readback شناسهٔ `databaseID` دارد. source consumer، engine/version واقعی catalog، حساب/تیم/app داخلی، network فعلی، archive و دو قیمت جدا به تصمیم متصل‌اند. credential جزئیات provider از adapter خصوصی به همان vault و proposal رمز‌شدهٔ env v9 می‌رود؛ browser/model مقدار را دریافت نمی‌کنند، کلیدهای قبلی حفظ می‌شوند و اعمال env تصمیم مستقل دارد. انتشار، دیتابیس ساخته‌شده را بدون binding تأییدشده در env انتخابی نادیده نمی‌گیرد. این برش provision/binding را پیاده می‌کند؛ SQL/migration/connectivity/persistence را موفق اعلام نمی‌کند.
+
+snapshot مستقل `database-r3` با runtime/package SHA256 `150d3b40a7c14cd543e6122d6890fde5ac45720b07d7408794931a488a1df9c4`: نتایج نهایی و failureهای اولیه در [شاهد دیتابیس](docs/evidence/managed-database.md) ثبت‌اند. مدل فعال واقعی با limits عادی در۸درخواست/۳۷۸۹۴توکن به کارت ساخته‌شدهٔ host رسید؛ دادهٔ provider این probe مصنوعی بود و کارت رد شد. خواندن واقعی حساب، inventory خالی و نسخه‌ها/قیمت‌های تازه را نشان داد؛ هیچ DB، app یا env واقعی تغییر نکرد و allowance/reserve تمدید نشد. [ADR0032](docs/decisions/0032-managed-database-and-private-binding.md). قدم اجرایی بعد، migration منبع‌محور با approval و receipt اثر مستقل، سپس آزمون زندهٔ اتصال/نوشتن/خواندن/ماندگاری در محیط disposable مجاز است. reuse منابع، چند resource/component و سایر شکل‌های binding همچنان backlog محصول‌اند؛ هدف همهٔ۱۴خانواده پابرجاست.
+
 ## ادامهٔ نگهداری بدون پوشهٔ اولیه؛ ۲۰۲۶-۱۰-۲۸
 
 snapshot نهایی `maintenance-r6`: domain۷۵۲/۷۵۲، HTTP۴۷/۴۷، typecheck و build Webpack موفق؛ lint صفرerror/۴۸warning/۲۰info؛ پنج حالت مرورگر با پوشهٔ مفقود و مدل/provider مصنوعی. probe مدل واقعی روی همان source:۲درخواست/۸۳۷۲توکن و پیشنهاد archive دقیق، صفرwrite واقعی. سابقه با سقف۱۶KiB و cursor آخرین ردیف واقعاً برگشتی، معیارهای UTF-8 طولانی را بدون حذف/تکرار صفحه‌بندی می‌کند. full sandbox/browser و rollout تازه ادعا نمی‌شوند.

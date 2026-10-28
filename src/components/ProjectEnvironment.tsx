@@ -21,6 +21,7 @@ export function ProjectEnvironment({ runId, csrf, disabled, onContinue, onLockCh
   const [visible, setVisible] = useState<Record<string, boolean>>({});
   const [generatedKeys, setGeneratedKeys] = useState<Record<string, boolean>>({});
   const [imported, setImported] = useState<{ available: string[]; needsReview: string[]; publicKeys: string[] }>({ available: [], needsReview: [], publicKeys: [] });
+  const [database, setDatabase] = useState<{ hostname: string; keys: string[] } | null>(null);
   const failed = useCallback((cause: unknown) => {
     if (cause instanceof ClientError && cause.code === "AUTH_REQUIRED") onExpired();
     else setError(cause instanceof ClientError ? cause.message : "ارتباط کامل نشد؛ وضعیت ثبت‌شده را دریافت کنید.");
@@ -30,12 +31,15 @@ export function ProjectEnvironment({ runId, csrf, disabled, onContinue, onLockCh
       const row = object(value);
       if (!Array.isArray(row.names)) throw new ClientError("INVALID_RESPONSE", "فهرست اطلاعات لازم معتبر نیست.");
       const source = object(row.imported), keys = (value: unknown) => { if (!Array.isArray(value)) throw new ClientError("INVALID_RESPONSE", "فهرست تنظیمات معتبر نیست."); return value.map(environmentKey); };
+      const db = row.database === undefined || row.database === null ? null : object(row.database);
       return { names: row.names.map(environmentKey), app: string(row.app, 63), action: row.action === null ? null : decodeAction(row.action),
+        database: db ? { hostname: string(db.hostname, 63), keys: keys(db.keys) } : null,
         imported: { available: keys(source.available), needsReview: keys(source.needsReview), publicKeys: keys(source.publicKeys) } };
     }, { ...(signal ? { signal } : {}) });
     if (signal?.aborted) return;
     setNames(data.names); setApp(data.app); setAction(data.action);
     setImported(data.imported);
+    setDatabase(data.database);
     if (data.action && ["cancelled", "expired", "failed"].includes(data.action.state)) key.current = null;
   }, [runId]);
   useEffect(() => {
@@ -71,6 +75,13 @@ export function ProjectEnvironment({ runId, csrf, disabled, onContinue, onLockCh
     catch (cause) { failed(cause); await load().catch(failed); key.current = null; }
     finally { setBusy(false); }
   }
+  async function reviewDatabase() {
+    if (busy || disabled || !database) return;
+    key.current ??= crypto.randomUUID(); setBusy(true); setError(null);
+    try { setAction(await api("/api/project-environment", result, { csrf, body: { operation: "propose-database", runId, requestKey: key.current } })); }
+    catch (cause) { failed(cause); await load().catch(failed); key.current = null; }
+    finally { setBusy(false); }
+  }
   async function reviewImported() {
     if (busy || disabled) return;
     key.current ??= crypto.randomUUID(); setBusy(true); setError(null);
@@ -96,6 +107,8 @@ export function ProjectEnvironment({ runId, csrf, disabled, onContinue, onLockCh
     {loading ? <p role="status">در حال بازیابی وضعیت…</p> : null}
     {error ? <p className="note" role="alert">{error}</p> : null}
     {!loading && (!action || ["cancelled", "expired", "failed"].includes(action.state)) ? <form onSubmit={event => void submit(event)} autoComplete="off">
+      {database ? <div className="note"><p>اتصال دیتابیس همین مأموریت، <bdi>{database.hostname}</bdi>، برای {database.keys.map(name => <bdi key={name}> {name} </bdi>)} آمادهٔ دریافت امن است. مقدار اتصال نمایش داده نمی‌شود؛ پیش از اعمال، تغییر را جدا تأیید می‌کنید.</p>
+        <button type="button" disabled={disabled || busy} onClick={() => void reviewDatabase()}>آماده‌کردن اتصال امن دیتابیس</button></div> : null}
       {imported.available.length ? <div className="note"><p>این تنظیمات از پوشهٔ شما امن دریافت شده‌اند؛ لازم نیست مقدارها را دوباره وارد کنید: {imported.available.map(name => <bdi key={name}> {name} </bdi>)}</p>
         {imported.publicKeys.filter(name => imported.available.includes(name)).map(name => <label key={name} className="radio-option"><input type="checkbox" checked={publicNames[name] === true} onChange={event => setPublicNames(current => ({ ...current, [name]: event.target.checked }))} disabled={disabled || busy} />مقدار <bdi>{name}</bdi> عمومی است و در سایت دیده می‌شود.</label>)}
         <button type="button" disabled={disabled || busy || imported.publicKeys.filter(name => imported.available.includes(name)).some(name => !publicNames[name])} onClick={() => void reviewImported()}>مرور و استفاده از تنظیمات پوشه</button></div> : null}

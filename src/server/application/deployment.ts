@@ -29,6 +29,7 @@ import { fullstackVerification } from "./fullstack-verification.ts";
 import { matchesFullstackApi } from "../../contracts/fullstack.ts";
 import { compiledProof, compiledProofPath } from "../agent/fullstack-artifact.ts";
 import { assertApplicationPublicationScope } from "../policy/application-scope.ts";
+import { assertDatabaseEnvironmentBinding } from "../environment/database-binding.ts";
 import { publicBuildAssets, publicAssetMime } from "./public-build-output.ts";
 import { checkPublicationDisk, currentDiskBinding } from "./disks.ts";
 import type { LiaraDiskClient } from "../liara/disks.ts";
@@ -178,6 +179,7 @@ async function prepareDeployment(
   const connection = store.getConnection(actorId, "liara")?.view;
   ensure(connection?.status === "connected", "LIARA_AUTH_REQUIRED", "ابتدا حساب را متصل کنید.", 409);
   const environment = currentEnvironment(store, scoped.sessionSecret, actorId, flow.id);
+  assertDatabaseEnvironmentBinding(store, scoped.sessionSecret, actorId, flow, environment);
   assertApplicationPublicationScope(flow.profile);
   if (flow.profile.dockerRuntime) assertDockerRuntimeSource(flow.profile, flow.profile.dockerRuntime);
   ensure(generic || !environment, "ENV_PUBLICATION_REQUIRED", "انتشار با اطلاعات امن از مسیر مرحله‌ای و تصمیم متصل به همان اطلاعات ادامه می‌یابد.", 409);

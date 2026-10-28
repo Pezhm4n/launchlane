@@ -63,8 +63,8 @@ export type DatabaseCapabilities = DatabaseAccountScope & Readonly<{
   balanceToman: number | null;
   operations: Readonly<{
     inventory: "read_only";
-    credentials: "unsupported";
-    provision: "not_implemented";
+    credentials: "private_binding_only";
+    provision: "approval_required";
     migrate: "not_implemented";
     connectivity: "unverified";
   }>;

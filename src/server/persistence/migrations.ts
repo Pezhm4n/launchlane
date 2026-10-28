@@ -237,4 +237,12 @@ CREATE TABLE project_archives (
 CREATE TABLE disk_progress (action_id TEXT PRIMARY KEY REFERENCES actions(id), data_json TEXT NOT NULL) STRICT;
 `,
   },
+  {
+    version: 19,
+    sql: `
+CREATE TABLE database_progress (action_id TEXT PRIMARY KEY REFERENCES actions(id), data_json TEXT NOT NULL) STRICT;
+CREATE UNIQUE INDEX database_request_keys ON actions(actor_id,json_extract(spec,'$.requestKey')) WHERE json_extract(spec,'$.version')=27;
+CREATE TABLE database_environment_bindings (action_id TEXT PRIMARY KEY REFERENCES actions(id), database_action_id TEXT NOT NULL REFERENCES actions(id)) STRICT;
+`,
+  },
 ] as const;

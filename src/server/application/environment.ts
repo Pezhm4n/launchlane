@@ -13,7 +13,7 @@ import { restoreProjectFlow, validateProjectAction } from "./project-flows.ts";
 import { object, exactKeys } from "../../contracts/validation.ts";
 import { importedEnvironment, importedEnvironmentReview } from "../environment/import.ts";
 
-type Dependencies = { client?: LiaraEnvironmentClient };
+type Dependencies = { client?: LiaraEnvironmentClient; onCreated?: (action: Action) => void };
 export async function proposeImportedEnvironment(config: Config, store: Store, session: Session, runId: string, requestKey: string,
   publicKeys: readonly string[], signal: AbortSignal, deps: Dependencies = {}): Promise<Action> {
   const { flow } = environmentContext(config, store, session.actorId, runId), review = importedEnvironmentReview(config, store, session.actorId, flow);
@@ -52,6 +52,16 @@ async function withBudget<T>(config: Config, store: Store, actorId: string, runI
 }
 export async function proposeEnvironment(config: Config, store: Store, session: Session, runId: string, requestKey: string,
   input: unknown, signal: AbortSignal, deps: Dependencies = {}): Promise<Action> {
+  return withBudget(config, store, session.actorId, runId, budget => environmentProposal(config, store, session, runId, requestKey, input, signal, budget, deps));
+}
+// Server-owned resource adapters may obtain private values inside the SAME durable mission budget.
+// The regular validation, encryption, merge, approval and executor remain authoritative.
+export async function proposeResourceEnvironment(config: Config, store: Store, session: Session, runId: string, requestKey: string,
+  readValues: (budget: RunBudget) => Promise<unknown>, signal: AbortSignal, deps: Dependencies = {}): Promise<Action> {
+  return withBudget(config, store, session.actorId, runId, async budget => environmentProposal(config, store, session, runId, requestKey, await readValues(budget), signal, budget, deps));
+}
+async function environmentProposal(config: Config, store: Store, session: Session, runId: string, requestKey: string,
+  input: unknown, signal: AbortSignal, budget: RunBudget, deps: Dependencies): Promise<Action> {
   ensure(config.enableLiveLiara && config.enableMutations, "MUTATIONS_DISABLED", "تغییر واقعی اطلاعات برنامه در این نصب خاموش است.", 403);
   ensure(/^[a-f0-9-]{36}$/.test(requestKey), "INVALID_INPUT", "شناسه درخواست معتبر نیست.");
   ensure(Array.isArray(input) && input.length <= 32, "INVALID_ENV_INPUT", "اطلاعات متغیرها معتبر نیست.");
@@ -78,7 +88,7 @@ export async function proposeEnvironment(config: Config, store: Store, session: 
   }
   store.assertAgentIdle(session.actorId);
   await restoreProjectFlow(config, store, session.actorId, signal, flow.id);
-  return withBudget(config, store, session.actorId, runId, async budget => {
+  {
     const client = deps.client ?? new LiaraEnvironmentClient(scoped), scope = { teamId: target.teamId, app: target.app },
       current = await client.read({ scope, targetAppId: target.appId }, budget, signal), merged = new Map(current.values.map(row => [row.key, row]));
     for (const row of changes) merged.set(row.key, row);
@@ -89,8 +99,8 @@ export async function proposeEnvironment(config: Config, store: Store, session: 
       keys: changes.map(row => row.key), secretKeys: changes.filter(row => !publicKeys.has(row.key)).map(row => row.key), args: { port: null, planId: current.planId } };
     environmentContext(config, store, session.actorId, runId);
     saveEnvironmentInput(store, config.sessionSecret, session.actorId, spec, values, Date.now() + 600000);
-    return store.createAction(session.actorId, spec);
-  });
+    return store.createAction(session.actorId, spec, Date.now(), 600000, deps.onCreated);
+  }
 }
 export async function executeEnvironment(config: Config, store: Store, session: Session, id: string, signal: AbortSignal, deps: Dependencies = {}): Promise<Action> {
   const action = store.getAction(id, session.actorId);

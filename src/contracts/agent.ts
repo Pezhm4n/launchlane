@@ -51,7 +51,7 @@ export type AgentView = {
   question: string | null;
   updatedAt: number;
   // A host-owned statement. Model prose is never an execution receipt.
-  effect: "no_remote_changes" | "network_created" | "destination_created" | "configuration_changed" | "disk_created" | "remote_changes_unverified" | "remote_changes_verified";
+  effect: "no_remote_changes" | "network_created" | "destination_created" | "configuration_changed" | "disk_created" | "database_created" | "remote_changes_unverified" | "remote_changes_verified";
   repair: CodeRepairJob | null;
   publication: Action | null;
   destination: Action | null;
@@ -63,6 +63,8 @@ export type AgentView = {
   networkContinued?: boolean;
   disk?: Action | null;
   diskContinued?: boolean;
+  database?: Action | null;
+  databaseContinued?: boolean;
   destinationRecommendation?: DestinationRecommendation | null;
 };
 export function parseAgentView(value: unknown): AgentView {
@@ -75,7 +77,7 @@ export function parseAgentView(value: unknown): AgentView {
   const nextAction =
     row.nextAction === null ? null : nextActions.find((action) => action === row.nextAction);
   ensure(
-    state && nextAction !== undefined && (row.effect === "no_remote_changes" || row.effect === "network_created" || row.effect === "destination_created" || row.effect === "configuration_changed" || row.effect === "disk_created" || row.effect === "remote_changes_unverified" || row.effect === "remote_changes_verified"),
+    state && nextAction !== undefined && (row.effect === "no_remote_changes" || row.effect === "network_created" || row.effect === "destination_created" || row.effect === "configuration_changed" || row.effect === "disk_created" || row.effect === "database_created" || row.effect === "remote_changes_unverified" || row.effect === "remote_changes_verified"),
     "INVALID_RESPONSE",
     "وضعیت دستیار معتبر نیست.",
   );
@@ -118,6 +120,9 @@ export function parseAgentView(value: unknown): AgentView {
   ensure(!destination || isProvisionSpec(destination.spec), "INVALID_RESPONSE", "رسید مقصد با قرارداد ساخت تطبیق ندارد.");
   const network = row.network === null || row.network === undefined ? null : decodeAction(row.network);
   const disk = row.disk === null || row.disk === undefined ? null : decodeAction(row.disk);
+  const database = row.database === null || row.database === undefined ? null : decodeAction(row.database);
+  ensure(!database || database.spec.version === 27 && database.spec.agentRunId === row.id, "INVALID_RESPONSE", "رسید دیتابیس متعلق به همین مأموریت نیست.");
+  ensure(row.databaseContinued === undefined || typeof row.databaseContinued === "boolean", "INVALID_RESPONSE", "رسید ادامه دیتابیس معتبر نیست.");
   ensure(!disk || disk.spec.version === 25 && disk.spec.agentRunId === row.id, "INVALID_RESPONSE", "رسید فضای پایدار متعلق به همین مأموریت نیست.");
   const destinationRecommendation = row.destinationRecommendation === null || row.destinationRecommendation === undefined ? null : parseDestinationRecommendation(row.destinationRecommendation);
   const destinationSpec = destination?.spec;
@@ -146,6 +151,7 @@ export function parseAgentView(value: unknown): AgentView {
     authority: row.authority === undefined || row.authority === null ? null : parseMissionAuthority(row.authority),
     network, networkContinued: row.networkContinued === true,
     disk, diskContinued: row.diskContinued === true,
+    database, databaseContinued: row.databaseContinued === true,
     destinationRecommendation,
   };
 }

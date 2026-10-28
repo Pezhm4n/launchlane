@@ -13,6 +13,7 @@ import type { CodingAgentChoice } from "../contracts/coding-agent.ts";
 import { AgentDestination } from "./AgentDestination.tsx";
 import { AgentNetwork } from "./AgentNetwork.tsx";
 import { AgentDisk } from "./AgentDisk.tsx";
+import { AgentDatabase } from "./AgentDatabase.tsx";
 import { RichText } from "./RichText.tsx";
 import { FloatingAssistant } from "./FloatingAssistant.tsx";
 import { ProjectEnvironment } from "./ProjectEnvironment.tsx";
@@ -537,6 +538,13 @@ export function AgentPanel({
     } catch (cause) { failed(cause); }
     finally { setBusy(false); }
   }
+  async function databaseRequest(decision?: "approve" | "reject") {
+    if (!run?.database || busy || disabled) return;
+    setRetryable(null); setBusy(true); setError(null);
+    try { accept(await api(`/api/agent/runs/${run.id}`, decodeRun, { csrf,
+      body: decision ? { operation: "database-decision", revision: run.revision, actionId: run.database.id, decision } : { operation: "database-observe", revision: run.revision },
+    })); } catch (cause) { failed(cause); } finally { setBusy(false); }
+  }
   async function diskRequest(decision?: "approve" | "reject") {
     if (!run?.disk || busy || disabled) return;
     setRetryable(null);setBusy(true);setError(null);
@@ -602,6 +610,7 @@ export function AgentPanel({
   const runEffect = run ? <p className="agent-effect">{run.effect === "remote_changes_verified" ? "نسخه منتشرشده و پاسخ مورد انتظار بررسی شدند."
     : run.effect === "configuration_changed" ? "تنظیمات برنامه ذخیره و بررسی شد؛ نسخه تازه و سلامت آن هنوز جدا بررسی می‌شوند."
     : run.effect === "disk_created" ? "فضای پایدار تأیید شد؛ انتشار و ماندگاری داده هنوز جدا بررسی می‌شوند."
+    : run.effect === "database_created" ? "هویت دیتابیس تأیید شد؛ اتصال و بررسی داده هنوز باقی است."
     : run.effect === "destination_created" ? "مقصد ساخته و تنظیمات آن تأیید شد؛ انتشار هنوز جداگانه بررسی می‌شود."
     : run.effect === "network_created" ? "شبکه با هویت واقعی تأیید شد؛ ساخت مقصد و انتشار هنوز انجام نشده‌اند."
     : run.effect === "remote_changes_unverified" ? "ارسال به سرویس آغاز شده است؛ نتیجه نهایی هنوز تأیید نشده است."
@@ -996,6 +1005,9 @@ export function AgentPanel({
             resumable={run.destination.state === "succeeded" && !run.destinationContinued}
             onDecision={(decision) => void destinationRequest(decision)}
             onObserve={() => void destinationRequest()} /> : null}
+          {run.database && !run.databaseContinued ? <AgentDatabase key={run.database.id} action={run.database} waiting={run.state === "needs_approval"}
+            disabled={disabled || busy || active || !sameProject} resumable={run.database.state === "succeeded" && !run.databaseContinued}
+            onDecision={decision => void databaseRequest(decision)} onObserve={() => void databaseRequest()} /> : null}
           {run.disk && !run.diskContinued ? <AgentDisk key={run.disk.id} action={run.disk} waiting={run.state === "needs_approval"}
             disabled={disabled || busy || active || !sameProject} resumable={run.disk.state === "succeeded" && !run.diskContinued}
             onDecision={decision => void diskRequest(decision)} onObserve={() => void diskRequest()} /> : null}

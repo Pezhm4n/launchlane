@@ -46,6 +46,7 @@ import { projectFileReadRange, projectFileText } from "./project-file-read.ts";
 import { compareSelectedSource } from "./source-comparison.ts";
 import { proposeRollback, readPublicationHistory } from "../application/rollback.ts";
 import type { ProjectFlow } from "../../contracts/project-flow.ts";
+import { proposeDatabase } from "../application/databases.ts";
 
 export function privateValues(c: Config): string[] {
   return [c.liaraToken, c.modelKey, c.operatorToken, c.sessionSecret, ...c.projectSecretValues].filter(Boolean);
@@ -212,18 +213,20 @@ const repairTool: ToolDefinition = {
 function registeredTools(config: Config): readonly ToolDefinition[] {
   return [...agentTools, ...(config.enableLocalRepair ? [repairTool, preparationTool, buildTool] : []),
     ...(config.enableLiveLiara ? catalogTools : []),
-    ...(config.enableMutations && config.enableLiveLiara ? [publicationTool, destinationTool, networkTool, diskTool, rollbackTool] : [])];
+    ...(config.enableMutations && config.enableLiveLiara ? [publicationTool, destinationTool, networkTool, diskTool, rollbackTool, databaseTool] : [])];
 }
 export function toolsForConversation(config: Config): readonly ToolDefinition[] {
   return [...agentTools, ...(config.enableLiveLiara ? catalogTools : [])];
 }
-export function toolsForAgent(config: Config, preparation: "native" | "build" | "fullstack" = "native", hasTarget = true, publicationProgram = false, persistentStorage = false): readonly ToolDefinition[] {
+export function toolsForAgent(config: Config, preparation: "native" | "build" | "fullstack" = "native", hasTarget = true, publicationProgram = false, persistentStorage = false, managedDatabase = false): readonly ToolDefinition[] {
   // Offer the applicable preparation path without two competing tools for the same task.
   const omitted = preparation === "native" ? "propose_project_build" : "propose_project_preparation";
   return registeredTools(config).filter(tool => tool.function.name !== omitted && tool.function.name !== (hasTarget ? "propose_network" : "read_metrics") &&
     (tool.function.name !== "propose_rollback" || hasTarget && !publicationProgram && !persistentStorage) &&
     (tool.function.name !== "read_publications" || hasTarget && !publicationProgram) &&
     (tool.function.name !== "propose_disk" || hasTarget && persistentStorage) &&
+    (tool.function.name !== "propose_database" || hasTarget && managedDatabase) &&
+    (!managedDatabase || !["read_publications", "propose_rollback", "read_metrics"].includes(tool.function.name)) &&
     !(publicationProgram && !hasTarget && (tool.function.name === "propose_publication" || preparation !== "fullstack" && tool.function.name === "propose_project_build")));
 }
 const preparationTool: ToolDefinition = { type: "function", function: {
@@ -274,6 +277,14 @@ const networkTool: ToolDefinition = { type: "function", function: {
 const diskTool: ToolDefinition = { type: "function", function: {
   name: "propose_disk", description: "Propose the detected single Worker/SQLite project's required persistent storage after its exact compiled build and private environment readback succeed. The host verifies a fresh product-created empty destination and current included capacity, fixes one 1 GB disk and /data, and obtains a separate human decision before the only create request. No resize, existing data adoption, release, mount change or publication permission is granted. Never manufacture a disk ID or replay an uncertain create; read its durable receipt instead.",
   parameters: { type: "object", additionalProperties: false, required: [], properties: {} },
+} };
+const databaseTool: ToolDefinition = { type: "function", function: {
+  name: "propose_database",
+  description: "Propose one private managed database required by the inspected component. First read_database_resources capabilities and quote. Supply the source consumer root, exact provider type/version/plan/bundle. The host checks source evidence, destination identity, existing team network, current separate prices and credit, then pauses for human approval. Creation is NOT credential binding, migration, connectivity or persistence. Never substitute PostgreSQL for Supabase/D1, duplicate an uncertain request or omit the remaining data requirements.",
+  parameters: { type: "object", additionalProperties: false, required: ["consumerRoot", "type", "version", "planId", "bundleId"], properties: {
+    consumerRoot: { type: "string", maxLength: 512 }, type: { type: "string", maxLength: 63 }, version: { type: "string", maxLength: 64 },
+    planId: { type: "string", maxLength: 63 }, bundleId: { type: "string", maxLength: 63 },
+  } },
 } };
 const publicationTool: ToolDefinition = {
   type: "function",
@@ -335,6 +346,7 @@ export const toolLabels: Readonly<Record<string, string>> = {
   propose_destination: "آماده‌کردن مقصد تازه و هزینه پایه آن",
   propose_network: "آماده‌کردن تصمیم ساخت شبکه موردنیاز",
   propose_disk: "آماده‌کردن فضای پایدار موردنیاز همین نسخه",
+  propose_database: "آماده‌کردن دیتابیس موردنیاز همین بخش برنامه",
   propose_project_preparation: "آماده‌کردن فرمان اجرا و پورت برای تصمیم شما",
   propose_project_build: "آماده‌کردن نصب قفل‌شده و بررسی ساخت و اجرای برنامه",
   read_workload: "خواندن پاسخ تازه همان صفحه سایت",
@@ -542,6 +554,15 @@ export async function executeAgentTool(
       { budget: c.budget, agentRunId: c.parentRunId, ...(c.disk ? { client: c.disk } : {}) });
     assertAgentContext(c.config, c.store, c.actorId, c.context);
     return { diskProposal: action };
+  }
+  if (name === "propose_database") {
+    ensure(c.context.projectId && c.context.target && c.parentRunId, "AGENT_PROJECT_REQUIRED", "پروژه، مقصد و مأموریت انتشار لازم است.", 409);
+    const action = await proposeDatabase(c.config, c.store, c.actorId, {
+      flowId: c.context.projectId, agentRunId: c.parentRunId, requestKey: randomUUID(), consumerRoot: string(args.consumerRoot, 512),
+      type: identifier(args.type), version: string(args.version, 64), planId: identifier(args.planId), bundleId: identifier(args.bundleId),
+    }, c.signal, { budget: c.budget, ...(c.database ? { read: c.database } : {}), ...(c.account ? { account: c.account } : {}) });
+    assertAgentContext(c.config, c.store, c.actorId, c.context);
+    return { databaseProposal: action };
   }
   if (name === "propose_network") {
     ensure(c.context.projectId && c.context.account && c.parentRunId, "AGENT_PROJECT_REQUIRED", "پروژه، حساب و مأموریت لازم است.", 409);

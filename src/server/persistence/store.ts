@@ -18,6 +18,7 @@ import { parseNetworkProgress, type NetworkProgress } from "../../contracts/netw
 import { parseEnvironmentProgress, type EnvironmentProgress } from "../../contracts/environment.ts";
 import { isLifecycleSpec, parseLifecycleProgress, type LifecycleProgress } from "../../contracts/project-lifecycle.ts";
 import { parseDiskProgress, type DiskProgress, type DiskReadback } from "../../contracts/persistent-disk.ts";
+import { parseDatabaseProvisionProgress, type DatabaseProvisionProgress } from "../../contracts/database-provision.ts";
 import { environmentProjectIds } from "../environment/secrets.ts";
 import { actionPlatform } from "../../contracts/platform.ts";
 import { assertDockerRuntimeSource } from "../../contracts/docker-runtime.ts";
@@ -306,7 +307,7 @@ export class Store {
     });
   }
   assertProjectAction(actorId: string, spec: ActionSpec, existingId?: string): void {
-    if (spec.version !== 3 && spec.version !== 4 && spec.version !== 5 && (spec.version !== 7 && spec.version !== 10 && spec.version !== 11 && spec.version !== 15 && spec.version !== 17 && spec.version !== 19 && spec.version !== 21 && (spec.version !== 23 && spec.version !== 26)) && (spec.version !== 8 && spec.version !== 12 && spec.version !== 16 && spec.version !== 18 && spec.version !== 20 && spec.version !== 22) && spec.version !== 9 && spec.version !== 13 && spec.version !== 25) return;
+    if (spec.version !== 3 && spec.version !== 4 && spec.version !== 5 && (spec.version !== 7 && spec.version !== 10 && spec.version !== 11 && spec.version !== 15 && spec.version !== 17 && spec.version !== 19 && spec.version !== 21 && (spec.version !== 23 && spec.version !== 26)) && (spec.version !== 8 && spec.version !== 12 && spec.version !== 16 && spec.version !== 18 && spec.version !== 20 && spec.version !== 22) && spec.version !== 9 && spec.version !== 13 && spec.version !== 25 && spec.version !== 27) return;
     const flow = this.getProjectFlow(actorId);
     ensure(
       flow &&
@@ -333,6 +334,7 @@ export class Store {
     const connection = this.getConnection(actorId, "liara")?.view;
     if (spec.version === 25) ensure(flow.profile.fullstack?.workerSqlite && connection?.identityId === spec.accountId && connection.apps.some(app => app.id === spec.targetAppId && app.name === spec.scope.app), "DISK_SCOPE_INVALID", "دیسک فقط برای Worker و مقصد همین حساب مجاز است.", 409);
     if (spec.version === 25 && spec.agentRunId !== null) ensure(this.db.prepare("SELECT id FROM agent_runs WHERE actor_id=? AND id=? AND json_extract(data_json,'$.context.projectId')=? AND json_extract(data_json,'$.context.sourceHash')=? AND json_extract(data_json,'$.context.selectionHash')=? AND json_extract(data_json,'$.context.target.appId')=?").get(actorId, spec.agentRunId, flow.id, spec.sourceHash, spec.selectionHash, spec.targetAppId), "DISK_SCOPE_INVALID", "فضای پایدار باید به همین مأموریت، پروژه و مقصد تعلق داشته باشد.", 409);
+    if (spec.version === 27 && spec.agentRunId !== null) ensure(this.db.prepare("SELECT id FROM agent_runs WHERE actor_id=? AND id=? AND json_extract(data_json,'$.context.projectId')=? AND json_extract(data_json,'$.context.sourceHash')=? AND json_extract(data_json,'$.context.selectionHash')=? AND json_extract(data_json,'$.context.target.appId')=?").get(actorId, spec.agentRunId, flow.id, spec.sourceHash, spec.selectionHash, spec.targetAppId), "DATABASE_SCOPE_INVALID", "دیتابیس باید به همین مأموریت، پروژه و مقصد تعلق داشته باشد.", 409);
     if (spec.version === 26) {
       const action = this.getAction(spec.storage.actionId, actorId), disk = action.spec;
       ensure(flow.profile.fullstack?.workerSqlite && disk.version === 25 && action.state === "succeeded" && action.disk?.outcome === "verified" && action.disk.diskId &&
@@ -359,11 +361,11 @@ export class Store {
     ensure(
       connection?.status === "connected" &&
         connection.teamId === spec.scope.teamId &&
-        (((spec.version !== 7 && spec.version !== 10 && spec.version !== 11 && spec.version !== 15 && spec.version !== 17 && spec.version !== 19 && spec.version !== 21 && (spec.version !== 23 && spec.version !== 26)) && spec.version !== 9 && spec.version !== 25) || connection.identityId === spec.accountId) &&
+        (((spec.version !== 7 && spec.version !== 10 && spec.version !== 11 && spec.version !== 15 && spec.version !== 17 && spec.version !== 19 && spec.version !== 21 && (spec.version !== 23 && spec.version !== 26)) && spec.version !== 9 && spec.version !== 25 && spec.version !== 27) || connection.identityId === spec.accountId) &&
         connection.selectedApp === spec.scope.app &&
         connection.apps.some(
           (app) =>
-            app.name === spec.scope.app && (!(isDeploymentSpec(spec) || spec.version === 9 || spec.version === 25) || app.id === spec.targetAppId),
+            app.name === spec.scope.app && (!(isDeploymentSpec(spec) || spec.version === 9 || spec.version === 25 || spec.version === 27) || app.id === spec.targetAppId),
         ),
       "PROJECT_ACCESS_CHANGED",
       "حساب یا برنامه مقصد تغییر کرده است. اتصال را بررسی و پیشنهاد تازه دریافت کنید.",
@@ -637,11 +639,21 @@ export class Store {
     const spec = parseActionSpec(input);
     ensure(ttlMs > 0 && ttlMs <= 10 * 60_000, "INVALID_INPUT", "مهلت تأیید معتبر نیست.");
     return this.transaction(() => {
+      if (spec.version === 27) {
+        const prior = this.db.prepare("SELECT id FROM actions WHERE actor_id=? AND json_extract(spec,'$.version')=27 AND json_extract(spec,'$.requestKey')=?").get(actorId, spec.requestKey);
+        if (prior) {
+          const action = this.getAction(string(prior.id, 36), actorId);
+          ensure(action.spec.version === 27, "STORAGE_INVALID", "قرارداد درخواست دیتابیس معتبر نیست.", 503);
+          const { cost: _oldCost, ...oldIntent } = action.spec, { cost: _newCost, ...intent } = spec;
+          ensure(fingerprint(oldIntent) === fingerprint(intent), "IDEMPOTENCY_CONFLICT", "شناسه ساخت دیتابیس به درخواست دیگری تعلق دارد.", 409);
+          return action;
+        }
+      }
       this.ensureNoConflict(spec, "", actorId);
       this.assertActionContext(actorId, spec);
       if (
         ((spec.version === 2 || spec.version === 3 || spec.version === 4 || spec.version === 5 || (spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 15 || spec.version === 17 || spec.version === 19 || spec.version === 21 || (spec.version === 23 || spec.version === 26))) &&
-        spec.operation === "deploy") || (spec.version === 8 || spec.version === 12 || spec.version === 16 || spec.version === 18 || spec.version === 20 || spec.version === 22) || spec.version === 9 || spec.version === 13 || spec.version === 25
+        spec.operation === "deploy") || (spec.version === 8 || spec.version === 12 || spec.version === 16 || spec.version === 18 || spec.version === 20 || spec.version === 22) || spec.version === 9 || spec.version === 13 || spec.version === 25 || spec.version === 27
       ) {
         const artifact = this.getArtifact(actorId, spec.artifactHash ?? "");
         ensure(
@@ -687,7 +699,7 @@ export class Store {
           .run(action.id, spec.secretRef, actorId, now);
         ensure(linked.changes === 1, "ENV_INPUT_EXPIRED", "اطلاعات امن مصرف شده یا منقضی است.", 409);
       }
-      if (spec.version === 3 || spec.version === 4 || spec.version === 5 || (spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 15 || spec.version === 17 || spec.version === 19 || spec.version === 21 || (spec.version === 23 || spec.version === 26)) || (spec.version === 8 || spec.version === 12 || spec.version === 16 || spec.version === 18 || spec.version === 20 || spec.version === 22) || spec.version === 9 || spec.version === 13 || spec.version === 25) {
+      if (spec.version === 3 || spec.version === 4 || spec.version === 5 || (spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 15 || spec.version === 17 || spec.version === 19 || spec.version === 21 || (spec.version === 23 || spec.version === 26)) || (spec.version === 8 || spec.version === 12 || spec.version === 16 || spec.version === 18 || spec.version === 20 || spec.version === 22) || spec.version === 9 || spec.version === 13 || spec.version === 25 || spec.version === 27) {
         const flow = this.getProjectFlow(actorId);
         if (flow) this.invalidateProjectAction(flow, actorId);
         this.db
@@ -712,6 +724,7 @@ export class Store {
     const network = this.db.prepare("SELECT data_json FROM network_progress WHERE action_id=?").get(id);
     const lifecycle = this.db.prepare("SELECT data_json FROM lifecycle_progress WHERE action_id=?").get(id);
     const disk = this.db.prepare("SELECT data_json FROM disk_progress WHERE action_id=?").get(id);
+    const database = this.db.prepare("SELECT data_json FROM database_progress WHERE action_id=?").get(id);
     return {
       ...action,
       ...(progress ? { deployment: parseDeploymentProgress(JSON.parse(string(progress.data_json, 4096))) } : {}),
@@ -721,6 +734,7 @@ export class Store {
       ...(network ? { network: parseNetworkProgress(JSON.parse(string(network.data_json, 4096))) } : {}),
       ...(lifecycle ? { lifecycle: parseLifecycleProgress(JSON.parse(string(lifecycle.data_json, 4096))) } : {}),
       ...(disk ? { disk: parseDiskProgress(JSON.parse(string(disk.data_json, 4096))) } : {}),
+      ...(database ? { database: parseDatabaseProvisionProgress(JSON.parse(string(database.data_json, 4096))) } : {}),
     };
   }
 
@@ -771,6 +785,10 @@ export class Store {
           "CATALOG_STALE", "اعتبار قیمت تمام شده است؛ پیشنهاد تازه لازم است.", 409);
         if (action.spec.version === 25) ensure(action.spec.cost.expiresAt > now, "CATALOG_STALE", "قیمت و ظرفیت دیسک باید دوباره بررسی شوند.", 409);
         if (action.spec.version === 25 && action.spec.agentRunId !== null) ensure(this.db.prepare("SELECT id FROM agent_runs WHERE actor_id=? AND id=? AND state='needs_approval' AND json_extract(data_json,'$.disk.id')=?").get(actorId, action.spec.agentRunId, id), "AGENT_CONFLICT", "پیشنهاد فضای پایدار دیگر منتظر تصمیم همین مأموریت نیست.", 409);
+        if (action.spec.version === 27) {
+          ensure(action.spec.cost.expiresAt > now, "CATALOG_STALE", "اعتبار قیمت دیتابیس تمام شده است.", 409);
+          if (action.spec.agentRunId !== null) ensure(this.db.prepare("SELECT id FROM agent_runs WHERE actor_id=? AND id=? AND state='needs_approval' AND json_extract(data_json,'$.database.id')=?").get(actorId, action.spec.agentRunId, id), "AGENT_CONFLICT", "پیشنهاد دیتابیس دیگر منتظر تصمیم همین مأموریت نیست.", 409);
+        }
         if (action.spec.version === 13) ensure(options.acknowledgeUnknownCost === true,
           "UNKNOWN_COST_ACK_REQUIRED", "تعرفه مستقل شبکه مشخص نیست؛ پذیرش صریح این هزینه نامعلوم لازم است.", 409);
       }
@@ -803,6 +821,8 @@ export class Store {
   }
 
   private ensureNoConflict(spec: ActionSpec, except = "", actorId = ""): void {
+    if (spec.version === 27) ensure(!this.db.prepare("SELECT id FROM actions WHERE team_id=? AND id<>? AND json_extract(spec,'$.version')=27 AND state IN ('executing','observing','uncertain') LIMIT 1").get(spec.scope.teamId, except),
+      "UNRESOLVED_EFFECT", "نتیجه ساخت دیتابیس قبلی این تیم روشن نیست؛ ساخت تازه مجاز نیست.", 409);
     if (spec.version === 13) ensure(!this.db.prepare("SELECT id FROM actions WHERE team_id=? AND id<>? AND json_extract(spec,'$.version')=13 AND state IN ('executing','observing','uncertain') LIMIT 1")
       .get(spec.scope.teamId, except), "UNRESOLVED_EFFECT", "نتیجه ساخت شبکه قبلی همین تیم روشن نیست؛ ساخت دیگری مجاز نیست.", 409);
     const conflicts = this.db
@@ -833,7 +853,7 @@ export class Store {
     for (const row of this.db.prepare("SELECT id,revision,data_json FROM agent_runs WHERE actor_id=? AND state='needs_approval' AND (? IS NULL OR json_extract(data_json,'$.projectId')=?)").all(actorId, projectId, projectId)) {
       this.db.prepare("UPDATE mission_authorities SET state='revoked' WHERE actor_id=? AND run_id=? AND state IN ('proposed','approved')").run(actorId, string(row.id, 36));
       const data = object(JSON.parse(string(row.data_json, 512 * 1024)));
-      for (const value of [data.publication, data.destination, data.network, data.disk]) {
+      for (const value of [data.publication, data.destination, data.network, data.disk, data.database]) {
         if (!value) continue;
         const action = this.getAction(string(object(value).id, 36), actorId);
         if (action.state === "awaiting_approval" || action.state === "approved") {
@@ -852,13 +872,13 @@ export class Store {
   }
 
   assertAgentIdle(actorId: string, actionId: string | null = null, allowPendingDecision = false, resumingRunId: string | null = null): void {
-    if (actionId === null) ensure(!this.db.prepare("SELECT id FROM actions WHERE actor_id=? AND json_extract(spec,'$.version') IN (9,13,14,25) AND state IN ('awaiting_approval','approved','executing','observing','uncertain') AND (expires_at>? OR state IN ('executing','observing','uncertain')) LIMIT 1").get(actorId, Date.now()),
+    if (actionId === null) ensure(!this.db.prepare("SELECT id FROM actions WHERE actor_id=? AND json_extract(spec,'$.version') IN (9,13,14,25,27) AND state IN ('awaiting_approval','approved','executing','observing','uncertain') AND (expires_at>? OR state IN ('executing','observing','uncertain')) LIMIT 1").get(actorId, Date.now()),
       "UNRESOLVED_EFFECT", "ابتدا نتیجه تغییر اطلاعات برنامه را بررسی کنید.", 409);
     const active = this.db.prepare(
-      "SELECT id FROM agent_runs WHERE actor_id=? AND (? IS NULL OR id<>?) AND (state IN ('queued','working') OR (state='needs_approval' AND ?=0)) AND (? IS NULL OR (COALESCE(json_extract(data_json,'$.publication.id'),'')<>? AND COALESCE(json_extract(data_json,'$.destination.id'),'')<>? AND COALESCE(json_extract(data_json,'$.network.id'),'')<>? AND COALESCE(json_extract(data_json,'$.disk.id'),'')<>?)) LIMIT 1",
-    ).get(actorId, resumingRunId, resumingRunId, allowPendingDecision ? 1 : 0, actionId, actionId, actionId, actionId, actionId);
+      "SELECT id FROM agent_runs WHERE actor_id=? AND (? IS NULL OR id<>?) AND (state IN ('queued','working') OR (state='needs_approval' AND ?=0)) AND (? IS NULL OR (COALESCE(json_extract(data_json,'$.publication.id'),'')<>? AND COALESCE(json_extract(data_json,'$.destination.id'),'')<>? AND COALESCE(json_extract(data_json,'$.network.id'),'')<>? AND COALESCE(json_extract(data_json,'$.disk.id'),'')<>? AND COALESCE(json_extract(data_json,'$.database.id'),'')<>?)) LIMIT 1",
+    ).get(actorId, resumingRunId, resumingRunId, allowPendingDecision ? 1 : 0, actionId, actionId, actionId, actionId, actionId, actionId);
     ensure(!active, "AGENT_BUSY", "یک مأموریت یا تصمیم در جریان است؛ ابتدا آن را تمام یا متوقف کنید. تغییر تب، مجوز عملیات موازی نمی‌دهد.", 409);
-    if (actionId === null) ensure(!this.db.prepare("SELECT a.id FROM actions a JOIN agent_runs r ON r.actor_id=a.actor_id AND (json_extract(r.data_json,'$.publication.id')=a.id OR json_extract(r.data_json,'$.destination.id')=a.id OR json_extract(r.data_json,'$.network.id')=a.id OR json_extract(r.data_json,'$.disk.id')=a.id) WHERE a.actor_id=? AND json_extract(r.data_json,'$.mission.kind')='publication' AND a.state IN ('executing','observing','uncertain') LIMIT 1").get(actorId),
+    if (actionId === null) ensure(!this.db.prepare("SELECT a.id FROM actions a JOIN agent_runs r ON r.actor_id=a.actor_id AND (json_extract(r.data_json,'$.publication.id')=a.id OR json_extract(r.data_json,'$.destination.id')=a.id OR json_extract(r.data_json,'$.network.id')=a.id OR json_extract(r.data_json,'$.disk.id')=a.id OR json_extract(r.data_json,'$.database.id')=a.id) WHERE a.actor_id=? AND json_extract(r.data_json,'$.mission.kind')='publication' AND a.state IN ('executing','observing','uncertain') LIMIT 1").get(actorId),
       "UNRESOLVED_EFFECT", "نتیجه عملیات قبلی هنوز قطعی نیست؛ ابتدا همان رسید را بررسی کنید.", 409);
   }
 
@@ -876,6 +896,11 @@ export class Store {
       this.assertActionContext(actorId, action.spec, id);
       assertMissionActionClaim(this, actorId, sessionId, action, now);
       if (action.spec.version === 25 && action.spec.agentRunId !== null) ensure(this.db.prepare("SELECT id FROM agent_runs WHERE actor_id=? AND id=? AND state IN ('queued','working') AND json_extract(data_json,'$.disk.id')=?").get(actorId, action.spec.agentRunId, id), "AGENT_CONFLICT", "مأموریت مالک ساخت فضای پایدار متوقف یا تغییر کرده است.", 409);
+      if (action.spec.version === 27) {
+        ensure(action.spec.cost.expiresAt > now, "CATALOG_STALE", "اعتبار قیمت دیتابیس تمام شده است.", 409);
+        if (action.spec.agentRunId !== null) ensure(this.db.prepare("SELECT id FROM agent_runs WHERE actor_id=? AND id=? AND state IN ('queued','working') AND json_extract(data_json,'$.database.id')=?").get(actorId, action.spec.agentRunId, id),
+          "AGENT_CONFLICT", "مأموریت مالک ساخت دیتابیس متوقف یا تغییر کرده است.", 409);
+      }
       ensure(
         action.state === "approved" && !action.attemptId,
         "ACTION_CONFLICT",
@@ -922,6 +947,7 @@ export class Store {
       if (action.spec.version === 9) this.writeEnvironmentProgress(id, { stage: "claimed", checkedAt: null, outcome: null });
       if (action.spec.version === 13) this.writeNetworkProgress(id, { stage: "claimed", acceptedAt: null, networkId: null, observation: null });
       if (action.spec.version === 25) this.writeDiskProgress(id, { stage: "claimed", checkedAt: null, outcome: null, diskId: null });
+      if (action.spec.version === 27) this.writeDatabaseProgress(id, { stage: "claimed", acceptedAt: null, databaseId: null, observation: null });
       if (isLifecycleSpec(action.spec)) {
         this.db.prepare("INSERT INTO lifecycle_progress VALUES (?,?)").run(id, JSON.stringify({ stage: "claimed", checkedAt: null, outcome: null }));
         this.db.prepare("UPDATE mission_authorities SET state='revoked' WHERE actor_id=? AND state IN ('proposed','approved') AND run_id IN (SELECT id FROM agent_runs WHERE actor_id=? AND json_extract(data_json,'$.context.target.appId')=?)").run(actorId, actorId, action.spec.targetAppId);
@@ -936,6 +962,7 @@ export class Store {
       const action = this.getAction(id, actorId);
       ensure(!isLifecycleSpec(action.spec), "LIFECYCLE_RECEIPT_REQUIRED", "این اقدام رسید مدیریت مقصد لازم دارد.", 409);
       ensure(action.spec.version !== 25, "DISK_RECEIPT_REQUIRED", "دیسک به بازخوانی و رسید هویت خودش نیاز دارد.", 409);
+      ensure(action.spec.version !== 27, "DATABASE_RECEIPT_REQUIRED", "دیتابیس به رسید شناسه و بازخوانی همان درخواست نیاز دارد.", 409);
       ensure(action.spec.version !== 6, "RESTART_RECEIPT_REQUIRED", "راه‌اندازی دوباره رسید انتشار ندارد.", 409);
       ensure(action.spec.version !== 9, "ENV_RECEIPT_REQUIRED", "تغییر اطلاعات برنامه رسید انتشار ندارد.", 409);
       ensure(
@@ -1094,6 +1121,50 @@ export class Store {
 
   private writeDiskProgress(id: string, progress: DiskProgress): void {
     this.db.prepare("INSERT INTO disk_progress VALUES (?,?) ON CONFLICT(action_id) DO UPDATE SET data_json=excluded.data_json").run(id, JSON.stringify(parseDiskProgress(progress)));
+  }
+  private writeDatabaseProgress(id: string, progress: DatabaseProvisionProgress): void {
+    this.db.prepare("INSERT INTO database_progress VALUES (?,?) ON CONFLICT(action_id) DO UPDATE SET data_json=excluded.data_json")
+      .run(id, JSON.stringify(parseDatabaseProvisionProgress(progress)));
+  }
+  startDatabaseRequest(id: string, actorId: string): void {
+    this.transaction(() => {
+      const action = this.getAction(id, actorId);
+      ensure(action.spec.version === 27 && action.state === "executing" && action.attemptId && action.database?.stage === "claimed",
+        "ACTION_CONFLICT", "ساخت دیتابیس قبلاً شروع شده یا مجوز ندارد.", 409);
+      this.assertProjectAction(actorId, action.spec, id);
+      this.writeDatabaseProgress(id, { ...action.database, stage: "request_started" });
+      this.audit(action, "database_request_started", Date.now());
+    });
+  }
+  acceptDatabase(id: string, actorId: string, databaseId: string | null): Action {
+    return this.transaction(() => {
+      const action = this.getAction(id, actorId);
+      ensure(action.spec.version === 27 && action.state === "executing" && action.database?.stage === "request_started",
+        "ACTION_CONFLICT", "رسید ساخت دیتابیس ترتیب معتبر ندارد.", 409);
+      const confirmed = databaseId === null ? null : providerObjectId(databaseId);
+      this.writeDatabaseProgress(id, { ...action.database, stage: "accepted", acceptedAt: Date.now(), databaseId: confirmed });
+      this.db.prepare("UPDATE actions SET state='observing',remote_id=? WHERE id=?").run(confirmed, id);
+      if (confirmed) this.db.prepare("UPDATE attempts SET remote_id=? WHERE action_id=?").run(confirmed, id);
+      this.audit(action, "database_accepted", Date.now()); return this.getAction(id, actorId);
+    });
+  }
+  recordDatabaseObservation(id: string, actorId: string, expectedCheckedAt: number | null,
+    proof: { accountId: string; teamId: string; id: string; hostname: string; type: string; planId: string | null; bundleId: string | null; observedAt: number } | null): Action {
+    return this.transaction(() => {
+      const action = this.getAction(id, actorId), progress = action.database;
+      ensure(action.spec.version === 27 && progress && ["observing", "uncertain"].includes(action.state) && (progress.observation?.checkedAt ?? null) === expectedCheckedAt,
+        "ACTION_CONFLICT", "وضعیت بررسی دیتابیس تغییر کرده است.", 409);
+      const checkedAt = Math.max(Date.now(), (expectedCheckedAt ?? 0) + 1), spec = action.spec;
+      if (proof) ensure(progress.acceptedAt !== null && progress.databaseId !== null && proof.id === progress.databaseId && proof.id === action.remoteId &&
+        proof.accountId === spec.accountId && proof.teamId === spec.scope.teamId && proof.hostname === spec.database.hostname && proof.type === spec.database.type &&
+        proof.planId === spec.database.planId && proof.bundleId === spec.database.bundleId && proof.observedAt >= action.createdAt && proof.observedAt <= checkedAt,
+        "EVIDENCE_MISMATCH", "هویت دیتابیس باید با شناسه رسید همان درخواست و مشخصات آن برابر باشد.", 409);
+      const notStarted = progress.stage === "claimed", outcome = proof ? "identity_verified" : notStarted ? "not_started" : "inconclusive";
+      const code = proof ? "DATABASE_IDENTITY_VERIFIED" : notStarted ? "DATABASE_NOT_STARTED" : "DATABASE_RECEIPT_UNKNOWN";
+      this.writeDatabaseProgress(id, { ...progress, stage: proof ? "created" : progress.stage, observation: { outcome, code, checkedAt } });
+      this.db.prepare("UPDATE actions SET state=?,error_code=? WHERE id=?").run(proof ? "succeeded" : notStarted ? "failed" : "uncertain", proof ? null : code, id);
+      this.audit(action, `database_${outcome}`, checkedAt); return this.getAction(id, actorId);
+    });
   }
   diskStep(id: string, actorId: string, stage: "request_started" | "accepted"): Action {
     return this.transaction(() => {
@@ -1471,6 +1542,7 @@ export class Store {
       ensure(action.spec.version !== 6, "RESTART_OBSERVATION_REQUIRED", "این اقدام باید با بازخوانی مخصوص راه‌اندازی دوباره بررسی شود.", 409);
       ensure(action.spec.version !== 13, "NETWORK_OBSERVATION_REQUIRED", "هویت شبکه باید از بازخوانی همان حساب و درخواست تأیید شود.", 409);
       ensure(action.spec.version !== 25, "DISK_OBSERVATION_REQUIRED", "هویت دیسک باید از مسیر بازخوانی دیسک تأیید شود.", 409);
+      ensure(action.spec.version !== 27, "DATABASE_OBSERVATION_REQUIRED", "هویت دیتابیس باید از شناسهٔ رسید و بازخوانی همان درخواست تأیید شود.", 409);
       ensure(!isLifecycleSpec(action.spec), "LIFECYCLE_OBSERVATION_REQUIRED", "مدیریت مقصد باید از وضعیت واقعی همان مقصد تأیید شود.", 409);
       ensure(!isProvisionSpec(action.spec), "PROVISION_OBSERVATION_REQUIRED", "ساخت مقصد باید با هویت و تنظیمات همان برنامه بررسی شود.", 409);
       ensure(

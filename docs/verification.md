@@ -1,5 +1,7 @@
 # شواهد اعتبارسنجی Launchlane
 
+افزودهٔ ۲۰۲۶-۱۰-۲۸: [ساخت دیتابیس و binding امن](evidence/managed-database.md) روی snapshot مستقل `database-r3` ثبت شد. این شاهد مسیر واقعی محصول/مدل/approval/Store را از provider مصنوعی و خواندن واقعی catalog جدا می‌کند. ساخت یا اتصال زنده، SQL/migration، ماندگاری داده و rollout از این برش استنتاج نمی‌شوند؛ نتایج تاریخی زیر بدون تغییر scope باقی‌اند.
+
 ## Workspace-independent maintenance continuation — 2026-10-28
 
 Follow-up to6941393 removes the mutable-folder startup dependency only for maintenance and exposes same-run paused/interrupted continuation through MCP. Source tools keep their own fences and scope drift remains fatal. [The r5 evidence](evidence/agent-rollback-maintenance.md) separates the exact-source real-model probe with a missing original folder, synthetic provider checks, command results and retained historical failures. No live rollback, production rollout or managed DB write occurred.

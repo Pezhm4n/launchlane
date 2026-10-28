@@ -30,6 +30,7 @@ import { parseFullstackInspection, parseFullstackVerification } from "./fullstac
 import { parseApplicationRequirements } from "./application-requirements.ts";
 import { parseSourceFixtureReviews } from "./source-fixture-review.ts";
 import { parseDiskBinding, parseDiskProgress, parseDiskSpec } from "./persistent-disk.ts";
+import { parseDatabaseProvisionSpec, parseDatabaseProvisionProgress } from "./database-provision.ts";
 
 function nullableString(value: unknown, max = 256): string | null {
   return value === null ? null : string(value, max);
@@ -60,6 +61,10 @@ export function decodeAction(value: unknown): Action {
     spec = object(raw.spec),
     scope = object(spec.scope),
     args = object(spec.args);
+  if (spec.version === 27) {
+    const parsed = parseDatabaseProvisionSpec(spec), base = decodeAction({ ...raw, spec: { version: 1, operation: "restart", scope: spec.scope, sourceHash: null, args: { port: null, planId: null } } });
+    return { ...base, spec: parsed, ...(raw.database === undefined ? {} : { database: parseDatabaseProvisionProgress(raw.database) }) };
+  }
   if (spec.version === 25) {
     const parsed = parseDiskSpec(spec), base = decodeAction({ ...raw, spec: { version: 1, operation: "restart", scope: spec.scope, sourceHash: null, args: { port: null, planId: null } } });
     return { ...base, spec: parsed, ...(raw.disk === undefined ? {} : { disk: parseDiskProgress(raw.disk) }) };
@@ -161,7 +166,7 @@ export function decodeAction(value: unknown): Action {
   else if (spec.version === 8) parsedSpec = parseProvisionSpec(spec);
   else {
     ensure(spec.operation === "deploy" || spec.operation === "restart", "INVALID_RESPONSE", "نوع اقدام معتبر نیست.");
-    const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12 | 13 | 14 | 16 | 18 | 20 | 22 | 24 | 25}>, "scope" | "operation" | "sourceHash" | "args"> = {
+    const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12 | 13 | 14 | 16 | 18 | 20 | 22 | 24 | 25 | 27}>, "scope" | "operation" | "sourceHash" | "args"> = {
       operation: spec.operation,
       scope: { teamId: string(scope.teamId), app: string(scope.app) },
       sourceHash: nullableString(spec.sourceHash),

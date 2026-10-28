@@ -64,7 +64,11 @@ export function projectSecretValues(store: Store, secret: string, actorId: strin
     // Merging a new key must not leave inherited credential-like values exposed in later evidence.
     return openEnvironmentInput(store, secret, actorId, spec, true).filter(value => spec.secretKeys.includes(value.key) ||
       (!publicKeys.has(value.key) && !isPublicClientEnvironmentKey(value.key) && value.value.length >= 8 && /(?:^|_)(?:PRIVATE|TOKEN|SECRET|PASSWORD|API_KEY|ACCESS|AUTH|CREDENTIALS?)(?:_|$)/i.test(value.key)))
-      .map(row => row.value).filter(value => value.length >= 4);
+      .flatMap(row => {
+        const values = [row.value];
+        try { const url = new URL(row.value); if (url.password) values.push(url.password, decodeURIComponent(url.password)); } catch { /* Ordinary non-URL secrets keep their exact value. */ }
+        return values;
+      }).filter(value => value.length >= 4);
   })])];
 }
 export function saveEnvironmentInput(store: Store, secret: string, actorId: string, spec: EnvironmentSpec,

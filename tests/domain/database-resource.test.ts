@@ -58,7 +58,7 @@ test("account capabilities use dynamic provider type/version/plan identifiers an
     monthlyDisplayToman: 72_000, ramAmount: 1, cpuAmount: 0.5, volumeAmount: 2 }]);
   assert.deepEqual(result.bundles, [{ planId: "g2-fixture", bundleId: "basic", available: true, hourlyToman: 10, monthlyDisplayToman: 7_200 }]);
   assert.deepEqual(result.defaults, { postgres: "16.4" }); assert.equal(result.balanceToman, 100_000);
-  assert.deepEqual(result.operations, { inventory: "read_only", credentials: "unsupported", provision: "not_implemented", migrate: "not_implemented", connectivity: "unverified" });
+  assert.deepEqual(result.operations, { inventory: "read_only", credentials: "private_binding_only", provision: "approval_required", migrate: "not_implemented", connectivity: "unverified" });
   assert.equal(JSON.stringify(result).includes(privateValue), false);
   const missing = parseDatabaseCapabilitiesResponse({ user: source.user, team: source.team }, scope);
   assert.equal(missing.catalog, "unsupported"); assert.deepEqual(missing.engines, []);

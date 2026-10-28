@@ -135,7 +135,7 @@ export function parseDatabaseCapabilitiesResponse(value: unknown, expected: Data
     return publicMetadata({ contract: "liara-database-capabilities-v1" as const, ...scope, observedAt: snapshotTime(observedAt),
       catalog: supported ? "observed" as const : "unsupported" as const, engines, plans, bundles, defaults,
       balanceToman: providerAmount(object(root.team).balance),
-      operations: { inventory: "read_only" as const, credentials: "unsupported" as const, provision: "not_implemented" as const,
+      operations: { inventory: "read_only" as const, credentials: "private_binding_only" as const, provision: "approval_required" as const,
         migrate: "not_implemented" as const, connectivity: "unverified" as const } }, secrets);
   });
 }

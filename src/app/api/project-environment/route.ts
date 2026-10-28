@@ -6,6 +6,7 @@ import { endpoint, jsonBody, reply } from "../../../server/http.ts";
 import { ensure } from "../../../server/errors.ts";
 import { exactKeys, hash, object, string } from "../../../contracts/validation.ts";
 import { isApplicationEnvironmentKey, validateEnvironmentVisibility } from "../../../contracts/environment.ts";
+import { databaseEnvironmentOption, proposeDatabaseEnvironment } from "../../../server/application/database-environment.ts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,13 +19,18 @@ export async function GET(request: Request) {
     const row = store.db.prepare("SELECT id FROM actions WHERE actor_id=? AND json_extract(spec,'$.version')=9 AND json_extract(spec,'$.agentRunId')=? ORDER BY rowid DESC LIMIT 1").get(session.actorId, id);
     return reply({ names: flow.profile.envNames.filter(isApplicationEnvironmentKey), app: target.app,
       imported: importedEnvironmentReview(config, store, session.actorId, flow),
+      database: databaseEnvironmentOption(config, store, session.actorId, id),
       action: row ? store.getAction(String(row.id), session.actorId) : null });
   });
 }
 export async function POST(request: Request) {
   return endpoint(request, true, async ({ config, store, session }) => {
     const input = object(await jsonBody(request));
-    ensure(["propose", "propose-import", "decision", "execute", "observe"].includes(String(input.operation)), "INVALID_OPERATION", "عملیات معتبر نیست.");
+    ensure(["propose", "propose-import", "propose-database", "decision", "execute", "observe"].includes(String(input.operation)), "INVALID_OPERATION", "عملیات معتبر نیست.");
+    if (input.operation === "propose-database") {
+      exactKeys(input, ["operation", "runId", "requestKey"]);
+      return reply({ action: await proposeDatabaseEnvironment(config, store, session, string(input.runId, 36), string(input.requestKey, 36), request.signal) });
+    }
     if (input.operation === "propose-import") {
       exactKeys(input, ["operation", "runId", "requestKey", "publicKeys"]);
       ensure(Array.isArray(input.publicKeys) && input.publicKeys.length <= 32 && input.publicKeys.every(key => typeof key === "string"), "INVALID_INPUT", "انتخاب متغیرهای عمومی معتبر نیست.");

@@ -14,6 +14,8 @@ import {
   resumeAgentNetwork,
   decideAgentDisk,
   resumeAgentDisk,
+  decideAgentDatabase,
+  resumeAgentDatabase,
 } from "../../../../../server/agent/runs.ts";
 import { AgentRepository, agentView } from "../../../../../server/agent/store.ts";
 import { AppError, ensure } from "../../../../../server/errors.ts";
@@ -112,6 +114,18 @@ export async function POST(request: Request, { params }: Context) {
       const run = resumeAgentPublication(store, session, id, revision);
       after(() => driveAgentRun(config, store, session, id));
       return reply({ run: agentView(run) });
+    }
+    if (input.operation === "database-decision") {
+      exactKeys(input, ["operation", "revision", "actionId", "decision"]);
+      ensure(input.decision === "approve" || input.decision === "reject", "INVALID_INPUT", "تصمیم معتبر نیست.");
+      const run = await decideAgentDatabase(config, store, session, id, revision, string(input.actionId, 36), input.decision);
+      if (input.decision === "approve") after(() => driveAgentRun(config, store, session, id));
+      return reply({ run: agentView(run) });
+    }
+    if (input.operation === "database-observe") {
+      exactKeys(input, ["operation", "revision"]);
+      const run = resumeAgentDatabase(store, session, id, revision);
+      after(() => driveAgentRun(config, store, session, id)); return reply({ run: agentView(run) });
     }
     if (input.operation === "disk-decision") {
       exactKeys(input, ["operation", "revision", "actionId", "decision"]);

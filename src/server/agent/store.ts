@@ -208,6 +208,7 @@ export function agentView(run: AgentRecord): AgentView {
     authority: run.authority ?? null,
     network: run.network ?? null, networkContinued: run.networkContinued === true,
     disk: run.disk ?? null, diskContinued: run.diskContinued === true,
+    database: run.database ?? null, databaseContinued: run.databaseContinued === true,
     destinationRecommendation: run.destinationRecommendation ?? null,
   };
 }
@@ -259,6 +260,13 @@ export class AgentRepository {
       if (!run.publication?.attemptId) {
         if (run.destination.state === "succeeded") run.effect = "destination_created";
         else if (run.destination.attemptId) run.effect = "remote_changes_unverified";
+      }
+    }
+    if (run.database) {
+      run.database = this.store.getAction(run.database.id, actorId);
+      if (!run.publication?.attemptId) {
+        if (run.database.state === "succeeded") run.effect = "database_created";
+        else if (run.database.attemptId) run.effect = "remote_changes_unverified";
       }
     }
     if (!run.publication?.attemptId && (!run.destination?.attemptId || run.destination.state === "succeeded")) {
@@ -418,7 +426,7 @@ export class AgentRepository {
         run = this.get(actor, string(row.id));
       if (!run) continue;
       this.store.db.prepare("UPDATE mission_authorities SET state='revoked' WHERE actor_id=? AND run_id=? AND state='approved'").run(actor, run.id);
-      for (const action of [run.publication, run.destination, run.network, run.disk]) {
+      for (const action of [run.publication, run.destination, run.network, run.disk, run.database]) {
         if (action?.state === "approved" && !action.attemptId) {
           // A queued approval must not become an unattended write after a process restart.
           this.store.db.prepare("UPDATE actions SET state='cancelled' WHERE id=? AND actor_id=? AND state='approved' AND attempt_id IS NULL")
@@ -431,6 +439,7 @@ export class AgentRepository {
       if (run.destination) run.destination = this.store.getAction(run.destination.id, actor);
       if (run.network) run.network = this.store.getAction(run.network.id, actor);
       if (run.disk) run.disk = this.store.getAction(run.disk.id, actor);
+      if (run.database) run.database = this.store.getAction(run.database.id, actor);
       run.state = "interrupted";
       run.errorCode = "PROCESS_INTERRUPTED";
       run.nextAction = "reply";
