@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { setTimeout as pause } from "node:timers/promises";
 import { chromium } from "playwright";
@@ -31,6 +31,13 @@ try {
   await page.getByRole("button", { name: "ورود به میز کار", exact: true }).click();
   await page.getByRole("button", { name: "امتحان با پروژه نمونه", exact: true }).click();
   await page.locator("h1").filter({ hasText: "node-service" }).waitFor();
+  // Select the disposable copy, so the original repository/example is never moved.
+  await page.evaluate(async () => {
+    const workspace = await (await fetch("/api/workspace")).json();
+    const response = await fetch("/api/project-flows", { method: "POST", headers: { "content-type": "application/json", "x-csrf-token": workspace.session.csrfToken },
+      body: JSON.stringify({ operation: "prepare", selection: { kind: "local", directory: "examples/node-service" } }) });
+    if (!response.ok) throw Error("Disposable source selection failed");
+  });
   const actor = createHash("sha256").update(server.token).digest("hex").slice(0, 24);
   store = new Store(join(server.stateDir, "state.sqlite"));
   const flow = store.getProjectFlow(actor), scope = { teamId: server.teamId, app: server.app }, origin = "https://sample-node.liara.run";
@@ -47,6 +54,7 @@ try {
   store.db.prepare("UPDATE actions SET state='succeeded',remote_id='previous-release' WHERE id=?").run(historical.id);
   store.db.prepare("INSERT INTO deployment_progress VALUES (?,?)").run(historical.id,
     JSON.stringify({ stage: "release_accepted", sourceId: "previous.tar.gz", releaseAcceptedAt: Date.now(), observation: null }));
+  await rename(join(server.workspace, "examples/node-service"), join(server.workspace, "examples/moved-source"));
   const grant = await page.evaluate(async () => {
     const workspace = await (await fetch("/api/workspace")).json();
     const response = await fetch("/api/mcp/access", { method: "POST", headers: { "content-type": "application/json", "x-csrf-token": workspace.session.csrfToken }, body: JSON.stringify({ missions: true }) });
@@ -78,7 +86,7 @@ try {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
     const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
     assert.deepEqual(axe.violations.map(row => row.id), []);
-    results.push({ width, state: "rollback-decision", overflow: false, axeViolations: 0 });
+    results.push({ width, state: "rollback-decision-missing-source", overflow: false, axeViolations: 0 });
     await page.screenshot({ path: join(output, `rollback-${width}.png`), fullPage: true });
   }
   await page.reload(); await reject.waitFor();

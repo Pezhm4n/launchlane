@@ -1,5 +1,7 @@
 # معیارهای پذیرش محصول
 
+افزودهٔ ۲۰۲۶-۱۰-۲۸ / AC24/AC30/AC31: نگهداری می‌تواند با نبود/تغییر پوشهٔ اولیه از سابقه و archive دقیق استفاده کند؛ خطای source به موفقیت تبدیل نمی‌شود و build/repair/publication همچنان اعتبارسنجی مستقل دارند. ادامهٔ MCP، run و بودجهٔ قبلی را حفظ و مالک هم‌زمان/تغییر مقصد/سقف پرشده را رد می‌کند؛ interrupted فقط با ادامهٔ صریح و بدون احیای approval قدیمی جلو می‌رود. [شاهد و حدود](evidence/agent-rollback-maintenance.md). سازگاری schema/data و rollback ابری هنوز از این شاهد نتیجه نمی‌شوند.
+
 افزودهٔ ۲۰۲۶-۱۰-۲۸ / AC17/AC24/AC30/AC31: `read_publications` و `propose_rollback` از همان registry/AgentRun و application بازگردانی استفاده می‌کنند. مأموریت MCP با `launchlane_maintain` به همان کارت وب می‌رسد؛ خواندن scope، انتخاب archive، budget، decision و journal مشترک‌اند. source/داده/config/current release از صرف سابقه اثبات نمی‌شوند و AC30 کامل یا rollback زنده ادعا نمی‌شود. [شاهد مستقل این برش](evidence/agent-rollback-maintenance.md).
 
 افزودهٔ ۲۰۲۶-۱۰-۲۸ / AC34: `read_database_resources` اکنون قیمت ساعتی/نمایش ماهانهٔ پلن و باندل، RAM/CPU/volume گزارش‌شده، نسخه‌های پیش‌فرض و موجودی حساب را می‌خواند و `view=quote` یک ترکیب را دوباره اعتبارسنجی می‌کند. total ترکیبی محاسبه نمی‌شود و قیمت نامعلوم null می‌ماند؛ هیچ create/credential/SQL/migration/connectivity در این مسیر نیست. AC34 همچنان برای ساخت/اتصال/مهاجرت واقعی باز است. domain `743/743` و build پاس؛ یک خواندن واقعی فقط‌خواندنی `/v1/me` نیز ۴۱ پلن/۳۷ باندل و موجودی `1,678,178.4` تومان را با `combinedTotal=not_computed` دید و صفر write داشت. [شاهد](verification.md).

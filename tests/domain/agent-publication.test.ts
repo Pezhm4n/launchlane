@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { rename, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { test } from "node:test";
 import { agentFixture } from "../helpers/agent-fixture.ts";
 import { createAgentRun, decideAgentPublication, driveAgentRun, resumeAgentPublication } from "../../src/server/agent/runs.ts";
@@ -146,6 +148,29 @@ test("publication history scopes internal app/account/team and paginates without
   } finally { f.close(); }
 });
 
+test("publication history partitions long UTF-8 workload criteria by bytes without losing or repeating records", async () => {
+  const f = await completedPublication();
+  try {
+    assert.ok(isWorkloadDeploymentSpec(f.publication.spec));
+    for (let i = 0; i < 20; i++) {
+      const action = f.store.createAction(f.session.actorId, { ...f.publication.spec,
+        workload: { ...f.publication.spec.workload, path: `/${"a".repeat(190)}`, assertion: { kind: "text", contains: "ش".repeat(256) } } });
+      f.store.db.prepare("UPDATE actions SET state='succeeded',remote_id=? WHERE id=?").run(`long-${i}`, action.id);
+    }
+    let page = readPublicationHistory(f.config, f.store, f.session.actorId);
+    assert.ok(page.publications.length > 0 && page.publications.length < 20);
+    const ids: string[] = [];
+    while (true) {
+      assert.ok(Buffer.byteLength(JSON.stringify(page)) < 17 * 1024);
+      ids.push(...page.publications.map(row => row.actionId));
+      if (!page.nextBeforeActionId) break;
+      assert.equal(page.nextBeforeActionId, page.publications.at(-1)?.actionId);
+      page = readPublicationHistory(f.config, f.store, f.session.actorId, page.nextBeforeActionId);
+    }
+    assert.equal(ids.length, 21); assert.equal(new Set(ids).size, 21); assert.equal(ids.at(-1), f.publication.id);
+  } finally { f.close(); }
+});
+
 test("MCP maintenance uses the existing run, joins retries and obeys read-only/revoked grants", async () => {
   const f = await completedPublication();
   try {
@@ -193,6 +218,85 @@ test("paused maintenance MCP reads reserve the same remaining allowance and cann
     assert.equal(repo.get(f.session.actorId, run.id)?.usage.toolCalls, run.limits.maxToolCalls);
     assert.equal(repo.get(f.session.actorId, run.id)?.usage.modelCalls, 2);
     assert.ok(!((await callMcpTool(context, "launchlane_mission", { id: run.id }, AbortSignal.timeout(3000))).isError));
+  } finally { f.close(); }
+});
+
+test("maintenance can investigate a changed/missing workspace and restore only the historical archive after the source tool reports its failure", async () => {
+  for (const missing of [false, true]) {
+    const f = await completedPublication();
+    try {
+      if (missing) await rename(f.project, join(f.workspace, "moved-source"));
+      else await writeFile(join(f.project, "server.mjs"), "throw Error('changed source must never be published');\n");
+      let calls = 0;
+      const model = new GoalModelClient(f.config, async (_url, init) => {
+        calls++;
+        const body = JSON.parse(String(init.body));
+        if (calls === 2) assert.ok(JSON.stringify(body.messages.at(-1)).includes("PROJECT_CHANGED"));
+        const name = calls === 1 ? "inspect_project" : calls === 2 ? "read_publications" : "propose_rollback";
+        return Response.json({ choices: [{ finish_reason: "tool_calls", message: { role: "assistant", tool_calls: [{ id: randomUUID(), type: "function",
+          function: { name, arguments: JSON.stringify(calls < 3 ? {} : { actionId: f.publication.id }) } }] } }], usage: { total_tokens: 42 } });
+      });
+      const run = createAgentRun(f.config, f.store, f.session, randomUUID(), "نسخه قبلی را از archive برای بازگردانی آماده کن", f.flow.id, "maintenance").run;
+      await driveAgentRun(f.config, f.store, f.session, run.id, { ...f.dependencies, model });
+      const proposed = f.repo.get(f.session.actorId, run.id);
+      assert.equal(proposed?.state, "needs_approval");
+      assert.ok(proposed?.publication && isWorkloadDeploymentSpec(proposed.publication.spec) && isWorkloadDeploymentSpec(f.publication.spec));
+      assert.equal(proposed.publication.spec.artifactHash, f.publication.spec.artifactHash);
+      assert.deepEqual(proposed.publication.spec.workload, f.publication.spec.workload);
+      assert.equal(proposed.events.find(event => event.tool === "inspect_project" && event.kind === "tool")?.outcome, "failed");
+      assert.equal(proposed.usage.modelCalls, 3); assert.equal(f.counts().sends, 2);
+      await decideAgentPublication(f.config, f.store, f.session, proposed.id, proposed.revision, proposed.publication.id, "approve");
+      await driveAgentRun(f.config, f.store, f.session, run.id, { ...f.dependencies, model });
+      assert.equal(f.repo.get(f.session.actorId, run.id)?.state, "completed");
+      assert.equal(f.counts().sends, 4); assert.equal(calls, 3);
+    } finally { f.close(); }
+  }
+});
+
+test("MCP resumes a paused maintenance owner once without renewing its budget and rejects another owner or exhaustion", async () => {
+  const f = await agentFixture();
+  try {
+    const repo = new AgentRepository(f.store), run = createAgentRun(f.config, f.store, f.session, randomUUID(), "بررسی نگهداری", f.flow.id, "maintenance").run;
+    run.state = "partially_completed"; run.usage.modelCalls = 2; run.usage.toolCalls = 3; repo.save(f.session.actorId, run);
+    let scheduled = 0;
+    const context = { config: f.config, store: f.store, access: { session: f.session, parentSessionId: f.session.id, missions: true }, schedule: () => { scheduled++; } };
+    const args = { id: run.id, revision: run.revision, requestKey: randomUUID() };
+    assert.ok(!(await callMcpTool(context, "launchlane_resume", args, AbortSignal.timeout(3000))).isError);
+    assert.ok(!(await callMcpTool(context, "launchlane_resume", args, AbortSignal.timeout(3000))).isError);
+    assert.equal(scheduled, 1);
+    const queued = repo.get(f.session.actorId, run.id); assert.ok(queued);
+    assert.equal(queued.state, "queued"); assert.deepEqual(queued.limits, run.limits);
+    assert.equal(queued.usage.modelCalls, 2); assert.equal(queued.usage.toolCalls, 3);
+    queued.state = "partially_completed"; repo.save(f.session.actorId, queued);
+    const competing = createAgentRun(f.config, f.store, f.session, randomUUID(), "هدف دیگر", f.flow.id, "maintenance").run;
+    const denied = await callMcpTool(context, "launchlane_resume", { ...args, revision: queued.revision, requestKey: randomUUID() }, AbortSignal.timeout(3000));
+    assert.ok(JSON.stringify(denied).includes("AGENT_BUSY")); assert.equal(scheduled, 1);
+    competing.state = "cancelled"; repo.save(f.session.actorId, competing);
+    queued.usage.modelCalls = queued.limits.maxModelCalls; repo.save(f.session.actorId, queued);
+    const exhausted = await callMcpTool(context, "launchlane_resume", { ...args, revision: queued.revision, requestKey: randomUUID() }, AbortSignal.timeout(3000));
+    assert.ok(JSON.stringify(exhausted).includes("BUDGET_EXHAUSTED")); assert.equal(scheduled, 1);
+  } finally { f.close(); }
+});
+
+test("maintenance restart recovery resumes its persisted allowance while a changed target still stops before model or write", async () => {
+  const f = await completedPublication();
+  try {
+    const run = createAgentRun(f.config, f.store, f.session, randomUUID(), "ادامه نگهداری", f.flow.id, "maintenance").run;
+    run.usage.modelCalls = 2; run.usage.toolCalls = 4; f.repo.save(f.session.actorId, run);
+    f.repo.recover();
+    const interrupted = f.repo.get(f.session.actorId, run.id); assert.equal(interrupted?.state, "interrupted"); assert.ok(interrupted);
+    const context = { config: f.config, store: f.store, access: { session: f.session, parentSessionId: f.session.id, missions: true }, schedule: () => {} };
+    const resumed = await callMcpTool(context, "launchlane_resume", { id: run.id, revision: interrupted.revision, requestKey: randomUUID() }, AbortSignal.timeout(3000));
+    assert.ok(!resumed.isError);
+    const queued = f.repo.get(f.session.actorId, run.id); assert.ok(queued);
+    assert.equal(queued.state, "queued"); assert.equal(queued.errorCode, null);
+    assert.deepEqual(queued.limits, run.limits); assert.equal(queued.usage.modelCalls, 2); assert.equal(queued.usage.toolCalls, 4);
+    const connection = f.store.getConnection(f.session.actorId, "liara"); assert.ok(connection);
+    f.store.saveConnection(f.session.actorId, { ...connection, view: { ...connection.view, apps: connection.view.apps.map(app => ({ ...app, id: "different-internal-id" })) } });
+    const before = f.counts();
+    await driveAgentRun(f.config, f.store, f.session, run.id, f.dependencies);
+    assert.equal(f.repo.get(f.session.actorId, run.id)?.errorCode, "AGENT_CONTEXT_CHANGED");
+    assert.deepEqual(f.counts(), before);
   } finally { f.close(); }
 });
 

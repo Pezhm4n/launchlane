@@ -4,7 +4,7 @@ import { exactKeys, integer, object, string, text } from "../../contracts/valida
 import { publicationInputSchema } from "../../contracts/publication-mission.ts";
 import { capabilities } from "../application/capabilities.ts";
 import { createPublicationMission, resumePublicationMission } from "../application/publication-mission.ts";
-import { cancelAgentRun, createAgentRun, driveAgentRun } from "../agent/runs.ts";
+import { cancelAgentRun, continueAgentRun, createAgentRun, driveAgentRun } from "../agent/runs.ts";
 import { AgentRepository, agentView } from "../agent/store.ts";
 import { assertAgentContext, currentAgentContext, executeAgentTool, toolsForAgent } from "../agent/tools.ts";
 import type { Config } from "../config.ts";
@@ -23,7 +23,7 @@ const lifecycle: readonly Tool[] = [
   { name: "launchlane_mission", description: "Replay an existing owned mission, decision, job, artifact and progress events. Omit id to read the latest mission. Never starts or retries work. Human decisions are made in the supplied Launchlane review URL.", inputSchema: { ...empty, properties: { id: runId, after: { type: "integer", minimum: 0, maximum: 10000 } } }, annotations: { readOnlyHint: true, idempotentHint: true } },
   { name: "launchlane_publish", description: "Start or join the web publication mission for the exact selected project/source. May consume the configured mission model budget. Does not grant approval: the operator must review required changes in Launchlane. Persist requestKey before calling and reuse it after a lost response.", inputSchema: { ...empty, required: ["requestKey", "publication"], properties: { requestKey: key, publication: publicationInputSchema } }, annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true } },
   { name: "launchlane_maintain", description: "Start or join a maintenance goal in the same web AgentRun and configured cumulative model/tool budget. The model may investigate or propose an explicitly requested exact-artifact rollback. No approval or remote write is granted by this call. Review any proposal in Launchlane; use launchlane_mission to replay progress. Reuse requestKey after a lost response. Ordinary questions can use the read tools without starting a model mission.", inputSchema: { ...empty, required: ["requestKey", "goal"], properties: { requestKey: key, goal: { type: "string", minLength: 1, maxLength: 2000 } } }, annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true } },
-  { name: "launchlane_resume", description: "Continue an existing publication with the same source, criterion, budget and server policy. Does not approve changes or replay an uncertain write. Reuse requestKey after a lost response.", inputSchema: { ...empty, required: ["id", "revision", "requestKey"], properties: { id: runId, revision, requestKey: key } }, annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true } },
+  { name: "launchlane_resume", description: "Continue an existing publication or paused maintenance run with the same source context, criterion, cumulative budget and server policy. Does not approve changes or replay an uncertain write. Reuse requestKey after a lost response.", inputSchema: { ...empty, required: ["id", "revision", "requestKey"], properties: { id: runId, revision, requestKey: key } }, annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true } },
   { name: "launchlane_cancel", description: "Cancel the owned mission at its observed revision. Does not undo accepted cloud operations; uncertain effects remain in the journal. Read the current mission after a conflict.", inputSchema: { ...empty, required: ["id", "revision"], properties: { id: runId, revision } }, annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false } },
 ];
 type Context = { config: Config; store: Store; access: McpAccess; schedule: (work: () => Promise<void>) => void };
@@ -72,8 +72,12 @@ export async function callMcpTool(c: Context, name: string, value: unknown, sign
       result = view(c, created.run);
     } else if (name === "launchlane_publish" || name === "launchlane_resume") {
       exactKeys(args, name === "launchlane_publish" ? ["requestKey", "publication"] : ["id", "revision", "requestKey"]);
+      const previous = name === "launchlane_resume" ? new AgentRepository(store).get(session.actorId, uuid(args.id)) : null;
       const created = name === "launchlane_publish"
         ? await createPublicationMission(config, store, session, uuid(args.requestKey), args.publication, signal)
+        : previous?.channel === "maintenance"
+        ? continueAgentRun(config, store, session, previous.id, integer(args.revision, 1, 10000), uuid(args.requestKey),
+          "همان هدف نگهداری را با شواهد ثبت‌شده و بودجهٔ باقی‌مانده ادامه بده؛ این پیام مجوز تغییر یا تکرار اثر نامعلوم نیست.")
         : await resumePublicationMission(config, store, session, uuid(args.id), integer(args.revision, 1, 10000), uuid(args.requestKey), signal);
       if (created.created) c.schedule(() => driveAgentRun(config, store, session, created.run.id,
         { checkAuthorization: () => assertMcpSession(store, access) }));

@@ -35,7 +35,7 @@ export function readPublicationHistory(config: Config, store: Store, actorId: st
     AND (? IS NULL OR rowid < (SELECT rowid FROM actions WHERE id=? AND actor_id=?))
     ORDER BY rowid DESC LIMIT 21`).all(actorId, connection.teamId, app.name, app.id, connection.identityId,
       beforeActionId ?? null, beforeActionId ?? null, actorId);
-  const publications = rows.slice(0, 20).map(row => {
+  const candidates = rows.slice(0, 20).map(row => {
     const action = store.getAction(string(row.id), actorId);
     ensure(isWorkloadDeploymentSpec(action.spec), "STORAGE_INVALID", "قرارداد سابقهٔ انتشار معتبر نیست.", 503);
     const flow = store.getProjectFlow(actorId, action.spec.projectFlowId);
@@ -43,7 +43,15 @@ export function readPublicationHistory(config: Config, store: Store, actorId: st
       projectId: action.spec.projectFlowId, workload: action.spec.workload,
       rollback: flow?.profile.fullstack ? "unsupported_fullstack" : !flow?.artifact ? "source_unavailable" : "requires_revalidation" };
   });
-  return { publications, nextBeforeActionId: rows.length > 20 ? publications.at(-1)?.actionId ?? null : null,
+  const publications: typeof candidates = [];
+  let bytes = 2;
+  for (const candidate of candidates) {
+    const size = Buffer.byteLength(JSON.stringify(candidate)) + 1;
+    if (bytes + size > 16 * 1024) break;
+    publications.push(candidate); bytes += size;
+  }
+  ensure(rows.length === 0 || publications.length > 0, "PUBLICATION_HISTORY_LIMIT", "معیار ذخیره‌شده از سقف خواندن سابقه بزرگ‌تر است.", 413);
+  return { publications, nextBeforeActionId: rows.length > publications.length ? publications.at(-1)?.actionId ?? null : null,
     currentReleaseVerified: false, dataCompatibilityVerified: false };
 }
 

@@ -144,12 +144,13 @@ export function continueAgentRun(
   }
   ensure(
     run.revision === revision &&
-      (run.state === "needs_input" || run.state === "partially_completed"),
+      (run.state === "needs_input" || run.state === "partially_completed" || run.channel === "maintenance" && run.state === "interrupted"),
     "AGENT_CONFLICT",
     "بررسی هنوز آماده پیام بعدی نیست یا وضعیت آن تغییر کرده است.",
     409,
   );
   assertAgentContext(config, store, session.actorId, run.context);
+  if (run.channel === "maintenance") store.assertAgentIdle(session.actorId, null, false, run.id);
   ensure(
     run.usage.modelCalls < run.limits.maxModelCalls &&
       run.messages.length < 70 &&
@@ -162,6 +163,7 @@ export function continueAgentRun(
   run.lastInput = message;
   run.lastInputKey = key;
   run.state = "queued";
+  if (run.channel === "maintenance") run.errorCode = null;
   run.nextAction = null;
   run.question = null;
   addEvent(run, "user", message);
@@ -544,7 +546,9 @@ export async function driveAgentRun(
   try {
     checkAuthorization();
     config = { ...config, projectSecretValues: projectSecretValues(store, config.sessionSecret, session.actorId) };
-    if (run.projectId) {
+    // Service investigation and historical-archive recovery do not execute the selected workspace.
+    // Source-reading/build/repair tools still revalidate it at their own application boundary.
+    if (run.projectId && run.channel !== "maintenance") {
       const flow = await restoreProjectFlow(config, store, session.actorId, signal, run.projectId);
       ensure(
         flow &&
@@ -822,6 +826,7 @@ export async function driveAgentRun(
         },
         { role: "system", content: "For the final response call finish_investigation with structured arguments. Do not emit prose, Markdown or a JSON text response. All earlier outcome and evidence limits still apply." },
         ...(run.channel === "conversation" ? [{ role: "system" as const, content: conversationGuidance }] : []),
+        ...(run.channel === "maintenance" ? [{ role: "system" as const, content: "Service investigation and an explicitly requested historical-archive rollback do not require the mutable original folder to remain available. Stored source metadata is not a fresh source inspection. Source tools still validate paths and hashes; PROJECT_CHANGED means that source cannot authorize build/repair/publication, not that live service evidence or saved publication history is unavailable. Use the exact saved archive only for an explicit rollback goal. If the goal needs editing current source, obtain a valid source selection instead of treating historical metadata as current code. Account/app scope, human decisions and the existing cumulative budget always remain mandatory." }] : []),
         ...(run.mission ? [{ role: "system" as const, content: environmentGuidance }] : []),
         ...(run.mission ? [{ role: "system" as const, content: "A proposal only creates a review card; it does not execute a write or grant consent. When all effective inputs are known, use the relevant propose_destination, propose_code_repair or propose_publication tool to obtain that card. Never replace that tool with an approval question in finish_investigation. The host records the actual decision separately after displaying the exact scope and cost." }] : []),
         ...(sourceProfile?.runtime === "static" && run.mission ? [{ role: "system" as const, content: "The host verified this is a plain static site, with index.html and existing local assets. Native Liara Static serves it on port 80; no Node version, install, build script or start command is required. Do not ask the user to choose Static vs Node or a port. Read index.html only to derive the original workload assertion, reuse the connected account/network and quote a destination, then propose_publication for its exact artifact. External CDN assets still need browser verification. Do not claim account registration or login works when the source is only frontend forms." }] : []),
@@ -996,7 +1001,7 @@ export async function driveAgentRun(
             "BUDGET_EXHAUSTED",
             "CANCELLED",
             "AGENT_CONTEXT_CHANGED",
-            "PROJECT_CHANGED",
+            ...(run.channel === "maintenance" ? [] : ["PROJECT_CHANGED"]),
             "SCOPE_DENIED",
           ].includes(error.code)
         )

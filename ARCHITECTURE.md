@@ -1,5 +1,7 @@
 # معماری Launchlane
 
+ادامهٔ همان برش نگهداری: startup این channel به پوشهٔ mutable وابسته نیست؛ اعتبار source در ابزارهای file/build/repair/publication باقی می‌ماند. خطای source در نگهداری، نتیجهٔ failed ابزار است و scope/context/budget همچنان fatal هستند. ادامهٔ paused/interrupted با همان `continueAgentRun`، CAS و شمارنده‌ها انجام می‌شود؛ مالک هم‌زمان و سقف پرشده رد می‌شوند. سابقه علاوه بر۲۰رکورد، سقف۱۶KiB و cursor آخرین ردیف برگشتی دارد تا معیار UTF-8 طولانی، نتیجه ابزار را از حد خارج نکند. [شاهد](docs/evidence/agent-rollback-maintenance.md).
+
 در ۲۰۲۶-۱۰-۲۸، channel نگهداری روی همان AgentRun، registry و driver اضافه شد: `read_publications` سابقهٔ scoped و cursorدار می‌دهد و `propose_rollback` application موجود را مصرف می‌کند. callback انتخاب flow، context و projectId همان run را در transaction انتخاب archive و پیش از ادامهٔ ثبت بودجه تغییر می‌دهد؛ سپس همان publication decision/claim/journal اجرا می‌شود. وب `operation=maintain` و MCP `launchlane_maintain` مالک یا موتور دوم ندارند. ActionSpec، migration و budget تاریخی تغییر نکرده‌اند. [شاهد](docs/evidence/agent-rollback-maintenance.md).
 
 هدف ادامهٔ توسعه، قابلیت عمومی محصول در [مجموعهٔ آزمون](docs/deployment-corpus.md) است. نمونه‌های موفقِ helper جای اجرای سرتاسری خود محصول را نمی‌گیرند. برش [ADR0031](docs/decisions/0031-single-worker-sqlite-and-bound-storage.md) آماده‌سازی Worker/SQLite، ورودی خصوصی build و دیسک25/انتشار26 را به سرویس، Agent و کارت انتشار مشترک متصل می‌کند؛ شاهد isolated و synthetic دارد و ماندگاری واقعی لیارا/پذیرش همه topologyها هنوز باز است.

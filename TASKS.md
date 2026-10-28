@@ -1,5 +1,11 @@
 # برنامه اجرایی Launchlane
 
+## ادامهٔ نگهداری بدون پوشهٔ اولیه؛ ۲۰۲۶-۱۰-۲۸
+
+snapshot نهایی `maintenance-r6`: domain۷۵۲/۷۵۲، HTTP۴۷/۴۷، typecheck و build Webpack موفق؛ lint صفرerror/۴۸warning/۲۰info؛ پنج حالت مرورگر با پوشهٔ مفقود و مدل/provider مصنوعی. probe مدل واقعی روی همان source:۲درخواست/۸۳۷۲توکن و پیشنهاد archive دقیق، صفرwrite واقعی. سابقه با سقف۱۶KiB و cursor آخرین ردیف واقعاً برگشتی، معیارهای UTF-8 طولانی را بدون حذف/تکرار صفحه‌بندی می‌کند. full sandbox/browser و rollout تازه ادعا نمی‌شوند.
+
+پس از `6941393`، channel نگهداری برای تحقیق سرویس/بازگردانی archive به بازکردن پوشهٔ mutable در شروع وابسته نیست. ابزار source همچنان مسیر/hash را کنترل و خطای واقعی را ثبت می‌کند؛ تغییر account/app/scope همچنان fatal است. `launchlane_resume` همان run متوقف‌شده یا interrupted نگهداری را با همان limits/counters و single-owner ادامه می‌دهد؛ تصمیم و write تازه نمی‌سازد. هدفمند۲۵/۲۵ و probe مدل واقعی با پوشهٔ جابه‌جاشده به همان archive/کارت تصمیم رسید؛ provider مصنوعی و cloud-write صفر. [شاهد snapshot و checks نهایی](docs/evidence/agent-rollback-maintenance.md). قدم اجرایی بعدی در A14/AC34، قرارداد ساخت DB و receipt مستقل آن، سپس binding رمز‌شده، migration و data-plane/persistence است؛ catalog موفق این زنجیره را نمی‌بندد.
+
 ## نگهداری و بازگردانی از Agent مشترک؛ ۲۰۲۶-۱۰-۲۸
 
 AC17/AC24/AC30/AC31: سابقهٔ صفحه‌بندی‌شده و scoped با `read_publications` و پیشنهاد `propose_rollback` به همان application بازگردانی متصل‌اند. انتخاب archive در همان AgentRun و بودجه پیش از read بعدی ثبت می‌شود؛ channel نگهداری در همان JSON، مسیر وب `operation=maintain` و MCP `launchlane_maintain` دارد. تصمیم و نتیجه در همان تب انتشار دیده می‌شوند؛ MCP اختیار approve/execute ندارد. معیار تاریخی، archive و مقصد مجدداً کنترل می‌شوند و پلن/config فعلی و تأییدنشدن سازگاری داده به کاربر گفته می‌شود. [شاهد، failureها و validation همین برش](docs/evidence/agent-rollback-maintenance.md). پایان کامل AC30/AC34 ادعا نمی‌شود؛ مرز بعدی، نگهداری هنگام نبود پوشهٔ اصلی، سپس DB provisioning/binding/migration و workload واقعی است.

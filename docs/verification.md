@@ -1,5 +1,9 @@
 # شواهد اعتبارسنجی Launchlane
 
+## Workspace-independent maintenance continuation — 2026-10-28
+
+Follow-up to6941393 removes the mutable-folder startup dependency only for maintenance and exposes same-run paused/interrupted continuation through MCP. Source tools keep their own fences and scope drift remains fatal. [The r5 evidence](evidence/agent-rollback-maintenance.md) separates the exact-source real-model probe with a missing original folder, synthetic provider checks, command results and retained historical failures. No live rollback, production rollout or managed DB write occurred.
+
 ## Shared maintenance and exact-artifact rollback — 2026-10-28
 
 The existing rollback application is connected to shared history/tool selection, a durable maintenance channel and MCP lifecycle. [The slice evidence](evidence/agent-rollback-maintenance.md) records source binding, final-candidate checks, real-model versus synthetic-provider boundaries, financial accounting and retained failures. The public host was independently read as503 at10:19:54–10:19:58UTC; this slice has not been rolled out there.

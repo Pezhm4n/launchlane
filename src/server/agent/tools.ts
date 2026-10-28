@@ -91,7 +91,7 @@ export function assertAgentContext(
 export const agentTools: readonly ToolDefinition[] = [
   { type: "function", function: {
     name: "read_publications",
-    description: "Read up to twenty successful Launchlane publication records for the selected actor/account/team/internal app, newest first. Use nextBeforeActionId to continue. Historical receipts do not identify the current remote release or prove current health. rollback=requires_revalidation is not eligibility or data/schema/config compatibility. Use an exact returned actionId for an explicitly requested rollback; never choose by project name.",
+    description: "Read up to twenty successful Launchlane publication records within a 16KiB row budget for the selected actor/account/team/internal app, newest first. Use nextBeforeActionId to continue after the last returned record; no rows are skipped when the byte limit is reached. Historical receipts do not identify the current remote release or prove current health. rollback=requires_revalidation is not eligibility or data/schema/config compatibility. Use an exact returned actionId for an explicitly requested rollback; never choose by project name.",
     parameters: { type: "object", additionalProperties: false, required: [], properties: {
       beforeActionId: { type: "string", pattern: "^[a-f0-9-]{36}$", maxLength: 36 },
     } },

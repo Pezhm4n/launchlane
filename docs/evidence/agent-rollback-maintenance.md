@@ -1,5 +1,32 @@
 # Exact-artifact rollback through the shared Agent — 2026-10-28
 
+## Workspace-independent maintenance and continuation
+
+Follow-up on `69413935f8b50d6d92e3535c4a58b04dc66387da`: maintenance service reads and historical-archive rollback no longer depend on reopening the selected mutable folder at driver startup. Source/file/build/repair/publication applications still validate the actual selected source at their own boundary. A source tool's `PROJECT_CHANGED` becomes a correlated failed result for the maintenance model to reason about; `AGENT_CONTEXT_CHANGED`, cancellation, exhausted budget and denied scope remain fatal. Ordinary publication/question startup behavior is unchanged. Cached profile metadata is explicitly not fresh source evidence.
+
+`launchlane_resume` now continues paused or process-interrupted maintenance through the same `continueAgentRun` used by web messages. It preserves run ID, limits, counters, remaining elapsed allowance and receipts; duplicate keys schedule once. A competing owner, stale context or exhausted budget cannot resume it. Process recovery still cancels unused publication approvals and retains uncertain effects; continuing never grants a new approval or repeats an accepted write. Pending decisions use their existing web decision controls, and terminal failed/cancelled maintenance is not silently reopened by this path.
+
+Candidate `maintenance-r5`, Node24.18.0/npm11.16.0/Next16.4.2 with existing pinned dependencies, has runtime source/package SHA256 `ce61dadc8e20e8d728eafbfaa76de1970db4ebae93f557e2a2effaa5b8fda18a`. The initial targeted command `node --test tests/domain/agent-publication.test.ts tests/domain/mcp.test.ts tests/domain/agent-conversation.test.ts` passed25/25. It includes changed/missing source, source-read failure followed by exact archived publication with the unchanged oracle, target drift before model/write, restart continuation, duplicate resume, competing owners and exhaustion. The same r5 export subsequently passed751/751 domain, typecheck, lint (zero errors/48warnings/20infos), Webpack production build,47/47 HTTP and five missing-source browser review states. Browser artifacts are in `candidate-maintenance-r5/.artifacts/maintenance/2026-10-28T10-49-42.949Z/` under the private coordination directory. These r5 results are historical, not a fresh r6 pass.
+
+The r5 real-model probe uses that exact runtime source and the active `gpt-6-luna/none`,1024 output tokens. It moved only its owned temporary fixture folder after seeding a synthetic successful historical publication. The goal loop selected `read_publications` then `propose_rollback`: two actual model requests,8323reported tokens,10367ms, three counted tools, exact archive and `awaiting_approval`; the decision was then rejected. The provider/history were synthetic, with zero real cloud writes. Conservative ceiling$0.008377; no allowance or reserve renewal. At r5, accumulated work was eight actual requests/32609reported tokens, ceiling$0.032839; local remaining ceiling$0.188895, allowance$2 and prior reserves$0.887866 unchanged. These are ledger ceilings, not provider invoice or BoxAPI account-balance verification.
+
+Final candidate `maintenance-r6` adds a16KiB row budget to the twenty-record history page. The cursor is the last record actually returned; a byte-limited page never skips later records. A regression uses long UTF-8 criteria and checks full traversal with no missing/duplicate IDs and a bounded response. Final runtime source/package SHA256: `18e33b1751de7a14e136b2f841c9815a1ecfb262e8e65ce4e98c9560b2b0bb27` on the same base6941393 and pinned runtime/dependencies.
+
+| Command on final r6 | Observed result |
+| --- | --- |
+| `npm run test:domain` |752/752, zero fail/skip/cancel,249832ms |
+| `npm run typecheck` |route generation and tsc passed |
+| `npm run lint` |exit0, zero errors,48warnings/20infos |
+| `npm run build -- --webpack` |passed |
+| `npm run test:http` |47/47, zero fail/skip/cancel,23197ms |
+| `node scripts/test-maintenance-browser.mjs` |actual SDK→Agent→artifact decision→web keyboard rejection/reload in five widths320/360/390/768/1280, with the original disposable source folder moved; zero measured axe violations/overflow/page errors/external browser requests and zero cloud writes |
+
+Final browser report/screenshots: `candidate-maintenance-r6/.artifacts/maintenance/2026-10-28T10-58-47.413Z/` under `.local/continuation-20261028`;360/1280 images inspected. All rows in this table belong to r6. The model/provider in these suites are synthetic; the actual-model probe is listed separately below. No new Docker worker execution or full aggregate browser run is inferred.
+
+The exact-r6 real-model probe, again with its owned original fixture folder moved, selected history then rollback in two requests/8372reported tokens/9045ms and three tools. The exact archive reached `awaiting_approval` and was rejected with zero real cloud writes. Ceiling$0.008427. Accumulated across this work: ten actual requests/40981reported tokens, conservative ceiling$0.041266; local remaining ceiling$0.180468. Allowance$2 and prior reserves$0.887866 remain unchanged. The synthetic receipt is not proof of a current remote release, live rollback, data compatibility or general model quality across multiple candidate histories.
+
+This supersedes the original-folder startup limitation recorded in the historical r4 section below. Managed DB provision/binding/migration, browser-route workloads, fullstack/data-safe rollback and a live provider rollback remain separate open boundaries.
+
 ## Problem and product behavior
 
 Commit `9d66e5e` already implements rollback through an immutable artifact flow and the normal publication service. This slice connects that existing capability to the actual goal loop and MCP. It does not implement a second rollback executor.
@@ -34,7 +61,7 @@ The pre-existing local financial partition was read and consumed through `openMo
 
 The final real-model probe was on r3, source/package SHA256 `355c20028f70bfa0a1feb3257c29a469527bcfeff722fcc6930f1c4767643cd4`: two requests,8098reported tokens,8641ms, three counted tool operations, `read_publications` followed by `propose_rollback`, exact historical archive and `awaiting_approval`. Its conservative receipt ceiling was$0.008159. It then rejected the exact decision without sending publication. The later r4 changes accept multiline maintenance goals through the same text parser as web and add a paused-maintenance budget regression; this real-model probe is not relabelled as an r4 run.
 
-Across all three real-model probes in this work, six requests reported24286tokens and consumed a conservative$0.024462 from the existing local partition. Remaining local ceiling was$0.197272; allowance$2 and prior reserves$0.887866 stayed unchanged. The original failed harness cleanup remains recorded separately: two real model requests reached `awaiting_approval`, then `cancelAgentRun` correctly rejected cancellation of a pending decision. The test fixture closed in `finally`. The corrected harness rejects the exact decision through `decideAgentPublication`; it does not broaden cancellation or retry a cloud write.
+Across the first slice's three real-model probes, six requests reported24286tokens and consumed a conservative$0.024462 from the existing local partition. At that point, remaining local ceiling was$0.197272; allowance$2 and prior reserves$0.887866 stayed unchanged. The original failed harness cleanup remains recorded separately: two real model requests reached `awaiting_approval`, then `cancelAgentRun` correctly rejected cancellation of a pending decision. The test fixture closed in `finally`. The corrected harness rejects the exact decision through `decideAgentPublication`; it does not broaden cancellation or retry a cloud write.
 
 ## Failures retained
 
@@ -45,7 +72,7 @@ Across all three real-model probes in this work, six requests reported24286token
 ## Still open and next executable boundaries
 
 - Managed DB provisioning, encrypted credential binding, migrations, connectivity and persistence remain AC34 work. A fresh read-only `/v1/me` on2026-10-28 revalidated the previously evidenced account/team and reported nine database engine families, including PostgreSQL18.4/17.10/16.14/15.18/14.23/13.23. That catalog is not a provision or data-plane receipt.
-- The public host `launchlane-live-1023.liara.run` returned503 for `/`, `/api/health` and `/api/workspace` at10:19:54–10:19:58UTC on2026-10-28. No deployment, restart or public-state change was performed. Local acceptance does not repair or verify that release.
+- The public host `launchlane-live-1023.liara.run` returned503 for `/`, `/api/health` and `/api/workspace` at10:19:54–10:19:58UTC on2026-10-28, and again at10:59:34–10:59:38UTC. No deployment, restart or public-state change was performed. Local acceptance does not repair or verify that release.
 - Fullstack/Worker rollback, schema/data/config compatibility, automatic regression-triggered rollback, browser-route workloads and a fresh live Liara rollback remain unverified/unimplemented as applicable. Current configuration and resources continue; the historical artifact is not a database backup.
 - Maintenance still initially validates a selected mutable source before starting the model. Recovery when that original folder is changed/unavailable is the next specific boundary; source reads/build/repair must retain their own source validation when that startup dependency is removed.
 
