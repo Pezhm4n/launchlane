@@ -1,5 +1,7 @@
 # شواهد اعتبارسنجی Launchlane
 
+افزودهٔ اتصال وب/worker، ۲۰۲۶-۱۰-۲۸: [شاهد اجرای یکپارچهٔ migration](evidence/postgres-migration-test.md#follow-up-actual-web-approval-to-actual-sql-worker) بارگذاری واقعی پوشه→ثبت مأموریت→کارت و تصمیم HTTP واقعی→یک PostgreSQL و دو worker→رسید مستقل داده در همان صفحه، replay409 و reload بدون اجرای تازه را ثبت می‌کند. مانع build پیش از مقصد برای fullstack معمولی رفع شد. runtime `c12b89e…`، domain775/775 و build/typecheck؛ harness نهایی همان runtime با guided54 و HTTP48/48 و مدل مصنوعی، SQL/برنامه واقعی و صفر cloud write. snapshotهای harness و failureها جدا ثبت‌اند؛ مدل واقعی تازه و rollout انجام نشدند.
+
 افزودهٔ ۲۰۲۶-۱۰-۲۸: [migration منبع‌محور و اثر مستقل داده](evidence/postgres-migration-test.md) نتیجهٔ snapshot واحد `migration-r5`، domain774، HTTP48، مرورگر migration/guided، build/typecheck/lint و دو آزمون Docker/PostgreSQL واقعی را ثبت می‌کند. SQL، schema/seed، API/oracle اصلی و حفظ داده پس از تعویض worker اجرا می‌شوند؛ provider/cloud، restart دیتابیس، artifact انتشار و SQL تولیدی از آن نتیجه نمی‌شوند. failureهای preflight و تقویت دسترسی root در گزارش حفظ‌اند.
 
 افزودهٔ ۲۰۲۶-۱۰-۲۸: [ساخت دیتابیس و binding امن](evidence/managed-database.md) روی snapshot مستقل `database-r3` ثبت شد. این شاهد مسیر واقعی محصول/مدل/approval/Store را از provider مصنوعی و خواندن واقعی catalog جدا می‌کند. ساخت یا اتصال زنده، SQL/migration، ماندگاری داده و rollout از این برش استنتاج نمی‌شوند؛ نتایج تاریخی زیر بدون تغییر scope باقی‌اند.

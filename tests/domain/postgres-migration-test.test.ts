@@ -19,6 +19,7 @@ import { createAgentRun, driveAgentRun } from "../../src/server/agent/runs.ts";
 import { AgentRepository } from "../../src/server/agent/store.ts";
 import type { ModelPort } from "../../src/server/agent/model.ts";
 import { randomUUID } from "node:crypto";
+import { createPublicationMission } from "../../src/server/application/publication-mission.ts";
 
 const sql = "-- original schema\nCREATE TABLE public.entries(id integer PRIMARY KEY, label text NOT NULL, note text);\nINSERT INTO public.entries(id,label) VALUES (7,'original datum');\n";
 const sourceFile = { path: "001_entries.sql", content: Buffer.from(sql) }, source = [sourceFile], sha = createHash("sha256").update(sql).digest("hex");
@@ -138,5 +139,23 @@ test("the real-model contradictory null expectation returns actionable feedback 
     assert.deepEqual(result.repair.build.testDatabase.migration.persistence, migrationBuildInput.compatibilityDatabase.migration.persistence);
     assert.deepEqual(result.repair.build.testDatabase.migration.rows, migrationBuildInput.compatibilityDatabase.migration.rows);
     assert.equal(f.store.db.prepare("SELECT count(*) n FROM actions").get()?.n, 0);
+  } finally { f.close(); }
+});
+
+test("structured fullstack publication can review local database preparation before selecting any account or destination", async () => {
+  const f = await migrationFixture(); try {
+    assert.ok(f.flow.profile.fullstack); assert.notEqual(f.flow.profile.fullstack.requiresPreparation, true);
+    assert.equal(currentAgentContext(f.config, f.store, f.session.actorId).target, null);
+    const model: ModelPort = { async complete(_messages, tools, budget, stopped) {
+      budget.take("model", stopped); assert.ok(tools.some(tool => tool.function.name === "propose_project_build"));
+      assert.equal(tools.some(tool => tool.function.name === "propose_publication"), false);
+      return { content: null, calls: [{ id: "fullstack-before-target", type: "function", function: { name: "propose_project_build", arguments: JSON.stringify(migrationBuildInput) } }], usage: 5 };
+    } };
+    const { run } = await createPublicationMission(f.config, f.store, f.session, randomUUID(), { projectId: f.flow.id, sourceHash: f.flow.profile.sourceHash, path: "/", expectedText: "Migration lifecycle" }, signal());
+    await driveAgentRun(f.config, f.store, f.session, run.id, { model });
+    const result = new AgentRepository(f.store).get(f.session.actorId, run.id); assert.ok(result?.repair);
+    assert.equal(result.state, "needs_approval"); assert.equal(result.repair.state, "proposed"); assert.deepEqual(result.repair.containerIds, []);
+    assert.equal(result.repair.afterTest, null); assert.equal(result.repair.artifact, null); assert.equal(result.destination, null); assert.equal(result.publication, null);
+    assert.equal(result.authority, null); assert.equal(result.effect, "no_remote_changes"); assert.equal(f.store.db.prepare("SELECT count(*) n FROM actions").get()?.n, 0);
   } finally { f.close(); }
 });

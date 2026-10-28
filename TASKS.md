@@ -1,5 +1,11 @@
 # برنامه اجرایی Launchlane
 
+## A07/A08/A14 / AC17/19/24/32/34 — اتصال مرورگر به worker واقعی داده؛ ۲۰۲۶-۱۰-۲۸
+
+آزمون یکپارچهٔ واقعی وب، خطای `TOOL_DENIED` را پیش از job آشکار کرد: مأموریت fullstack معمولی بدون `requiresPreparation` تا انتخاب مقصد build tool نداشت. این flag فقط تبدیل شکل source را بیان می‌کند، نه ساخته‌شدن artifact. orchestration اکنون از وجود profile fullstack حالت مربوط را انتخاب می‌کند تا کارت محلی ساخت/سازگاری داده پیش از حساب/مقصد قابل تصمیم باشد؛ انتشار بدون مقصد ارائه نمی‌شود و authority ابری ساخته نمی‌شود. upload پوشه، ثبت مأموریت، تأیید با keyboard از API واقعی، اجرای یک PostgreSQL و دو worker واقعی، رسید مستقل داده، رد replay با409 و reload بدون مصرف/اجرای تازه گذشتند. مدل فقط در transport مصنوعی است؛ کارت، تصمیم، job و receipt شبیه‌سازی نشده‌اند.
+
+runtime/package SHA256 `c12b89e347e4927046acb73e1aefa285fdc7e719c4f935c0c85c8935325433a6` بر پایهٔ `20daa69`: build/typecheck و domain775/775 در `migration-web-r3`، integration مرورگر/worker و guided54 و HTTP48/48 در harness نهایی `migration-web-r4` با همان runtime و build ثابت؛ snapshot و failureهای هر harness در [شاهد](docs/evidence/postgres-migration-test.md) جدا ثبت‌اند. full browser/sandbox aggregate تازه ادعا نمی‌شود. کار طبق انتخاب مالک بدون مصرف تازهٔ مدل ادامه یافت؛ ledger قبلی تمدید نشد. قدم بعد همچنان runnerهای migration اصلی و برنامهٔ چند resource/component، سپس اتصال و اثر دادهٔ نسخهٔ منتشرشده است؛ تولید و دادهٔ گلستان محیط آزمایش نیستند.
+
 ## A14 / AC17/22/26/34 — اجرای SQL و سنجش مستقل اثر داده؛ ۲۰۲۶-۱۰-۲۸
 
 مسیر اصلی `propose_project_build` اکنون plan v2 برای migration موقت دارد: فایل SQL و ترتیب آن از source با hash واقعی، معیار schema/seed و مقدار تازهٔ نوشته‌شدهٔ برنامه به همان CodeRepairJob، تصمیم وب و budget متصل‌اند. SQL با role عادی اجرا و schema/داده از psql مستقل میزبان خوانده می‌شوند؛ دو worker تازهٔ برنامه روی همان دیتابیس، نوشتن واقعی و حفظ همان مقدار را بررسی می‌کنند. TCP root پیش از شروع worker واقعاً باید با HBA رد شود. شکست migration/oracle اجازهٔ پیشنهاد انتخاب SQL تازه با همان معیارها و تصمیم تازه می‌دهد؛ تست و source اصلی بازنویسی نمی‌شوند. این مسیر artifact قابل انتشار یا اختیار SQL روی دیتابیس واقعی نمی‌سازد.
