@@ -26,7 +26,7 @@ export type AgentUsage = {
   elapsedMs: number;
 };
 export type AgentRecord = AgentView & {
-  channel: "legacy" | "conversation";
+  channel: "legacy" | "conversation" | "maintenance";
   buildRetryKey: string | null;
   buildRetryConsumed: boolean;
   lastResumeRevision: number | null;
@@ -48,7 +48,7 @@ function parseRecord(value: unknown): AgentRecord {
     context = object(row.context),
     usage = object(row.usage),
     limits = object(row.limits);
-  ensure(row.channel === undefined || row.channel === "legacy" || row.channel === "conversation", "STORAGE_INVALID", "نوع کانال بررسی معتبر نیست.", 503);
+  ensure(row.channel === undefined || row.channel === "legacy" || row.channel === "conversation" || row.channel === "maintenance", "STORAGE_INVALID", "نوع کانال بررسی معتبر نیست.", 503);
   ensure(row.buildRetryConsumed === undefined || typeof row.buildRetryConsumed === "boolean", "STORAGE_INVALID", "رسید تلاش مجدد معتبر نیست.", 503);
   const target = context.target === null ? null : object(context.target);
   const account = context.account === undefined || context.account === null ? target : object(context.account);
@@ -98,7 +98,7 @@ function parseRecord(value: unknown): AgentRecord {
   });
   return {
     ...view,
-    channel: row.channel === "conversation" ? "conversation" : "legacy",
+    channel: row.channel === "conversation" || row.channel === "maintenance" ? row.channel : "legacy",
     buildRetryKey: row.buildRetryKey === undefined || row.buildRetryKey === null ? null : string(row.buildRetryKey, 80),
     buildRetryConsumed: row.buildRetryConsumed !== false,
     lastResumeRevision: row.lastResumeRevision === undefined || row.lastResumeRevision === null ? null : integer(row.lastResumeRevision, 1, 10000),
@@ -219,7 +219,7 @@ export class AgentRepository {
   }
   forProject(actorId: string, projectId: string | null, kind: "publication" | "conversation" | null = null): AgentRecord | null {
     const row = this.store.db.prepare(
-      "SELECT id FROM agent_runs WHERE actor_id=? AND (json_extract(data_json,'$.projectId') IS ? OR json_extract(data_json,'$.mission.projectId') IS ?) AND (? IS NULL OR (?='publication' AND json_extract(data_json,'$.mission.kind')='publication') OR (?='conversation' AND json_extract(data_json,'$.mission.kind') IS NULL)) ORDER BY updated_at DESC,id DESC LIMIT 1",
+      "SELECT id FROM agent_runs WHERE actor_id=? AND (json_extract(data_json,'$.projectId') IS ? OR json_extract(data_json,'$.mission.projectId') IS ?) AND (? IS NULL OR (?='publication' AND (json_extract(data_json,'$.mission.kind')='publication' OR json_extract(data_json,'$.publication.id') IS NOT NULL OR json_extract(data_json,'$.channel')='maintenance')) OR (?='conversation' AND json_extract(data_json,'$.mission.kind') IS NULL AND json_extract(data_json,'$.publication.id') IS NULL AND COALESCE(json_extract(data_json,'$.channel'),'legacy')<>'maintenance')) ORDER BY updated_at DESC,id DESC LIMIT 1",
     ).get(actorId, projectId, projectId, kind, kind, kind);
     return row ? this.get(actorId, string(row.id)) : null;
   }
@@ -291,7 +291,7 @@ export class AgentRepository {
     goal: string,
     limits: AgentRecord["limits"],
     mission: PublicationMission | null = null,
-    channel: "legacy" | "conversation" = "legacy",
+    channel: AgentRecord["channel"] = "legacy",
   ): { run: AgentRecord; created: boolean } {
     this.store.db.exec("BEGIN IMMEDIATE");
     try {

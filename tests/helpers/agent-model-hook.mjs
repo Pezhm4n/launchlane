@@ -103,6 +103,13 @@ globalThis.fetch = async (input, init) => {
       worker: body.tools.some((tool) => tool.function.name === "submit_patch"),
     })}\n`,
   );
+  if (first === "آزمون نگهداری و بازگردانی نسخه") {
+    if (last.role === "user") return reply("read_publications");
+    const result = JSON.parse(last.content);
+    if (result.ok && Array.isArray(result.data?.publications))
+      return reply("propose_rollback", { actionId: result.data.publications[0].actionId });
+    throw Error("Unexpected maintenance fixture transition");
+  }
   if (first.includes("آزمون قالب‌بندی پاسخ") && last.role === "user")
     return reply("inspect_project");
   if (first.includes("آزمون قالب‌بندی پاسخ"))

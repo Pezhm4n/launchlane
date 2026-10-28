@@ -44,6 +44,8 @@ import { randomUUID } from "node:crypto";
 import { suggestedDestinationName } from "./proposal-progress.ts";
 import { projectFileReadRange, projectFileText } from "./project-file-read.ts";
 import { compareSelectedSource } from "./source-comparison.ts";
+import { proposeRollback, readPublicationHistory } from "../application/rollback.ts";
+import type { ProjectFlow } from "../../contracts/project-flow.ts";
 
 export function privateValues(c: Config): string[] {
   return [c.liaraToken, c.modelKey, c.operatorToken, c.sessionSecret, ...c.projectSecretValues].filter(Boolean);
@@ -87,6 +89,13 @@ export function assertAgentContext(
   );
 }
 export const agentTools: readonly ToolDefinition[] = [
+  { type: "function", function: {
+    name: "read_publications",
+    description: "Read up to twenty successful Launchlane publication records for the selected actor/account/team/internal app, newest first. Use nextBeforeActionId to continue. Historical receipts do not identify the current remote release or prove current health. rollback=requires_revalidation is not eligibility or data/schema/config compatibility. Use an exact returned actionId for an explicitly requested rollback; never choose by project name.",
+    parameters: { type: "object", additionalProperties: false, required: [], properties: {
+      beforeActionId: { type: "string", pattern: "^[a-f0-9-]{36}$", maxLength: 36 },
+    } },
+  } },
   {
     type: "function",
     function: {
@@ -203,7 +212,7 @@ const repairTool: ToolDefinition = {
 function registeredTools(config: Config): readonly ToolDefinition[] {
   return [...agentTools, ...(config.enableLocalRepair ? [repairTool, preparationTool, buildTool] : []),
     ...(config.enableLiveLiara ? catalogTools : []),
-    ...(config.enableMutations && config.enableLiveLiara ? [publicationTool, destinationTool, networkTool, diskTool] : [])];
+    ...(config.enableMutations && config.enableLiveLiara ? [publicationTool, destinationTool, networkTool, diskTool, rollbackTool] : [])];
 }
 export function toolsForConversation(config: Config): readonly ToolDefinition[] {
   return [...agentTools, ...(config.enableLiveLiara ? catalogTools : [])];
@@ -212,6 +221,8 @@ export function toolsForAgent(config: Config, preparation: "native" | "build" | 
   // Offer the applicable preparation path without two competing tools for the same task.
   const omitted = preparation === "native" ? "propose_project_build" : "propose_project_preparation";
   return registeredTools(config).filter(tool => tool.function.name !== omitted && tool.function.name !== (hasTarget ? "propose_network" : "read_metrics") &&
+    (tool.function.name !== "propose_rollback" || hasTarget && !publicationProgram && !persistentStorage) &&
+    (tool.function.name !== "read_publications" || hasTarget && !publicationProgram) &&
     (tool.function.name !== "propose_disk" || hasTarget && persistentStorage) &&
     !(publicationProgram && !hasTarget && (tool.function.name === "propose_publication" || preparation !== "fullstack" && tool.function.name === "propose_project_build")));
 }
@@ -282,6 +293,13 @@ const publicationTool: ToolDefinition = {
       } },
   },
 };
+const rollbackTool: ToolDefinition = { type: "function", function: {
+  name: "propose_rollback",
+  description: "Only for an explicit rollback goal: propose restoring the exact archive of a successful publication actionId from read_publications. The host revalidates account/app identity, original release receipt, source/archive hashes and original workload, then selects that archive and pauses for a separate human publication decision. Current plan/configuration continue; schema/data compatibility is NOT verified. Fullstack/Worker is unsupported. No cloud write, automatic recovery, expectation edit or publication-program authority is granted. Do not call during an ordinary publication goal.",
+  parameters: { type: "object", additionalProperties: false, required: ["actionId"], properties: {
+    actionId: { type: "string", pattern: "^[a-f0-9-]{36}$", maxLength: 36 },
+  } },
+} };
 const buildTool: ToolDefinition = { type: "function", function: {
   name: "propose_project_build",
   description: "Propose a host-reviewed install/build/start and independent workload check in an isolated Node20, Node22, Node24 or Python3.12 container selected by the host from the source version constraints. Node uses npm v3 lockfiles; only a package with zero declared dependencies and no lockfile skips install, as verified by the host. For Python, root requirements.txt must pin all packages; the host verifies binary-wheel hashes, installs offline, compiles source and probes the actual start command. Read package/lock/source first; supply the original path/status/text or JSON assertion. Commands and port come from actual source, never invented. The user approves before any install/script runs. No code changes or cloud writes. A monorepo requires its actual leaf. Builds needing undeclared network or secrets fail explicitly. For a Node fullstack source that uses PostgreSQL, compatibilityDatabase can request disposable synthetic-data testing: supply only source-proven connection environment key names and public relation names. The host fixes the image and purpose, excludes stored real environment values and creates no publication artifact. This mode neither provisions a real database nor authorizes publication. The pinned database image must already be cached; it is never pulled automatically.",
@@ -304,6 +322,8 @@ export const toolLabels: Readonly<Record<string, string>> = {
   read_destination: "بررسی حساب و مقصد انتخاب‌شده",
   read_service_status: "خواندن وضعیت تازه برنامه",
   read_releases: "بررسی نسخه‌های منتشرشده",
+  read_publications: "خواندن سابقهٔ انتشارهای تأییدشدهٔ همین برنامه",
+  propose_rollback: "آماده‌کردن نسخهٔ قبلی برای تصمیم بازگردانی",
   read_build_logs: "خواندن گزارش ساخت همان نسخه",
   read_logs: "خواندن گزارش‌های اخیر برنامه",
   propose_code_repair: "آماده‌کردن محدوده اصلاح و آزمون محلی",
@@ -339,6 +359,7 @@ export type AgentToolContext = {
   explicitBuildRetry?: boolean;
   disk?: LiaraDiskClient;
   environment?: LiaraEnvironmentClient;
+  onRollbackSelected?: (flow: ProjectFlow) => void;
 };
 function evidenceRows<T>(rows: readonly T[], maxRows: number, maxBytes: number) {
   const selected: T[] = [];
@@ -366,6 +387,21 @@ export async function executeAgentTool(
     "ورودی ابزار کامل نیست.",
   );
   assertAgentContext(c.config, c.store, c.actorId, c.context);
+  if (name === "read_publications" || name === "propose_rollback") {
+    const id = name === "propose_rollback" ? string(args.actionId, 36) : args.beforeActionId === undefined ? undefined : string(args.beforeActionId, 36);
+    ensure(id === undefined || /^[a-f0-9-]{36}$/.test(id), "INVALID_INPUT", "شناسهٔ انتشار معتبر نیست.");
+    if (name === "read_publications") {
+      c.budget.take("tool", c.signal);
+      return readPublicationHistory(c.config, c.store, c.actorId, id);
+    }
+    ensure(c.parentRunId && c.onRollbackSelected && !c.mission && !c.publicationExpectation && !c.buildJob,
+      "ROLLBACK_MISSION_REQUIRED", "بازگردانی به مأموریت نگهداری مستقل نیاز دارد؛ معیار انتشار جاری تغییر نمی‌کند.", 409);
+    c.budget.take("tool", c.signal);
+    const result = await proposeRollback(c.config, c.store, c.actorId, id ?? "", c.signal,
+      { budget: c.budget, parentRunId: c.parentRunId, onSelected: c.onRollbackSelected,
+        ...(c.read ? { read: c.read } : {}), ...(c.environment ? { environment: c.environment } : {}) });
+    return { publicationProposal: result.action, restoredProjectId: result.flow.id, dataCompatibilityVerified: false };
+  }
   const fileRange = name === "read_project_file" ? projectFileReadRange(args) : null;
   const probePath = name === "read_workload" ? validateProbePath(args.path) : null,
     workloadAssets = name === "read_workload" && args.assets === true;

@@ -1,5 +1,9 @@
 # برنامه اجرایی Launchlane
 
+## نگهداری و بازگردانی از Agent مشترک؛ ۲۰۲۶-۱۰-۲۸
+
+AC17/AC24/AC30/AC31: سابقهٔ صفحه‌بندی‌شده و scoped با `read_publications` و پیشنهاد `propose_rollback` به همان application بازگردانی متصل‌اند. انتخاب archive در همان AgentRun و بودجه پیش از read بعدی ثبت می‌شود؛ channel نگهداری در همان JSON، مسیر وب `operation=maintain` و MCP `launchlane_maintain` دارد. تصمیم و نتیجه در همان تب انتشار دیده می‌شوند؛ MCP اختیار approve/execute ندارد. معیار تاریخی، archive و مقصد مجدداً کنترل می‌شوند و پلن/config فعلی و تأییدنشدن سازگاری داده به کاربر گفته می‌شود. [شاهد، failureها و validation همین برش](docs/evidence/agent-rollback-maintenance.md). پایان کامل AC30/AC34 ادعا نمی‌شود؛ مرز بعدی، نگهداری هنگام نبود پوشهٔ اصلی، سپس DB provisioning/binding/migration و workload واقعی است.
+
 ## قیمت و باندل دیتابیس از حساب واقعی؛ ۲۰۲۶-۱۰-۲۸
 
 - `read_database_resources` اکنون در `view=capabilities` علاوه بر موتور/نسخه/پلن، قیمت ساعتی و نمایش ماهانهٔ پلن، RAM/CPU/volume گزارش‌شده، باندل‌های `databaseBundlePlans`، نسخه‌های پیش‌فرض و موجودی حساب را برمی‌گرداند. `view=quote` یک ترکیب type/version/plan/bundle را دوباره اعتبارسنجی می‌کند و مؤلفه‌های قیمت را جدا می‌دهد؛ **total ترکیبی محاسبه نمی‌شود** و `combinedTotal:"not_computed"` با unknown صریح برمی‌گردد. قیمت نامعلوم/نامعتبر null می‌ماند و صفر نمی‌شود.

@@ -24,7 +24,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   return endpoint(request, true, async ({ config, store, session }) => {
     const input = object(await jsonBody(request));
-    exactKeys(input, input.operation === "publish" ? ["operation", "requestKey", "publication"] : ["requestKey", "goal", "projectId", ...(input.operation === "question" ? ["operation"] : [])]);
+    exactKeys(input, input.operation === "publish" ? ["operation", "requestKey", "publication"] : ["requestKey", "goal", "projectId", ...(input.operation === "question" || input.operation === "maintain" ? ["operation"] : [])]);
     const key = string(input.requestKey, 80);
     ensure(/^[a-f0-9-]{36}$/.test(key), "INVALID_INPUT", "شناسه درخواست معتبر نیست.");
     const result = input.operation === "publish" ? await createPublicationMission(config, store, session, key, input.publication, request.signal) : createAgentRun(
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
       key,
       text(input.goal, 2000).trim(),
       input.projectId === null ? null : string(input.projectId, 36),
-      input.operation === "question" ? "conversation" : "legacy",
+      input.operation === "question" ? "conversation" : input.operation === "maintain" ? "maintenance" : "legacy",
     );
     if (result.created) after(() => driveAgentRun(config, store, session, result.run.id));
     return reply({ run: agentView(result.run) }, result.created ? 201 : 200);

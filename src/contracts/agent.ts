@@ -57,7 +57,7 @@ export type AgentView = {
   destination: Action | null;
   destinationContinued: boolean;
   mission?: PublicationMission | null;
-  channel?: "legacy" | "conversation";
+  channel?: "legacy" | "conversation" | "maintenance";
   authority?: MissionAuthority | null;
   network?: Action | null;
   networkContinued?: boolean;
@@ -142,7 +142,7 @@ export function parseAgentView(value: unknown): AgentView {
     destination,
     destinationContinued: row.destinationContinued === true,
     mission: row.mission === undefined || row.mission === null ? null : parsePublicationMission(row.mission),
-    channel: row.channel === "conversation" ? "conversation" : "legacy",
+    channel: row.channel === "conversation" || row.channel === "maintenance" ? row.channel : "legacy",
     authority: row.authority === undefined || row.authority === null ? null : parseMissionAuthority(row.authority),
     network, networkContinued: row.networkContinued === true,
     disk, diskContinued: row.diskContinued === true,

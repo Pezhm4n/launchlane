@@ -1,5 +1,9 @@
 # شواهد اعتبارسنجی Launchlane
 
+## Shared maintenance and exact-artifact rollback — 2026-10-28
+
+The existing rollback application is connected to shared history/tool selection, a durable maintenance channel and MCP lifecycle. [The slice evidence](evidence/agent-rollback-maintenance.md) records source binding, final-candidate checks, real-model versus synthetic-provider boundaries, financial accounting and retained failures. The public host was independently read as503 at10:19:54–10:19:58UTC; this slice has not been rolled out there.
+
 ## Database offer quote — 2026-10-28
 
 The shared `read_database_resources` read now exposes the connected account's actual database prices instead of hiding them: `view=capabilities` returns plan and `databaseBundlePlans` component prices, provider RAM/CPU/volume amounts, defaults and team balance; `view=quote` revalidates one engine/version/plan/bundle and returns the plan and bundle hourly/monthly-display components separately. It never computes a combined total (`combinedTotal:"not_computed"`), taxes, traffic or capacity, and an absent/invalid provider amount stays null. The adapter still performs no create, credential, SQL, migration, resize or connectivity operation.

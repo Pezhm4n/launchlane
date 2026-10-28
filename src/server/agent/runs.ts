@@ -77,7 +77,7 @@ export function createAgentRun(
   key: string,
   goal: string,
   projectId: string | null,
-  channel: "legacy" | "conversation" = "legacy",
+  channel: AgentRecord["channel"] = "legacy",
 ) {
   config = { ...config, projectSecretValues: projectSecretValues(store, config.sessionSecret, session.actorId) };
   goal = text(goal, 2000).trim();
@@ -968,6 +968,18 @@ export async function driveAgentRun(
               context: run.context,
               createdAt: run.createdAt,
               parentRunId: run.id,
+              onRollbackSelected: flow => {
+                checkAuthorization();
+                ensure(!signal.aborted && repo.get(session.actorId, id)?.state === "working" && !run.mission && !run.authority && !run.publication && !run.repair,
+                  "ROLLBACK_MISSION_REQUIRED", "بازگردانی به مأموریت نگهداری مستقل نیاز دارد.", 409);
+                const selected = currentAgentContext(config, store, session.actorId);
+                ensure(selected.projectId === flow.id && flow.selection.kind === "artifact" &&
+                  fingerprint(selected.target) === fingerprint(run.context.target),
+                  "AGENT_CONTEXT_CHANGED", "مقصد یا انتخاب بازگردانی تغییر کرده است.", 409);
+                run.projectId = flow.id;
+                run.context = selected;
+                persist();
+              },
               mission: run.mission ?? null,
               buildJob: run.repair?.build ? run.repair : null,
               explicitBuildRetry: run.buildRetryKey === run.lastInputKey && !run.buildRetryConsumed,
@@ -1018,7 +1030,7 @@ export async function driveAgentRun(
           persist(); break;
         }
       }
-      if (name === "propose_publication" && object(result).ok) {
+      if ((name === "propose_publication" || name === "propose_rollback") && object(result).ok) {
         run.publication = decodeAction(object(object(result).data).publicationProposal);
         ensure(isWorkloadDeploymentSpec(run.publication.spec), "INVALID_RESPONSE", "قرارداد انتشار معتبر نیست.");
         if (run.authority?.state === "approved") {
@@ -1042,7 +1054,9 @@ export async function driveAgentRun(
         run.state = "needs_approval";
         run.nextAction = null;
         run.question = null;
-        addEvent(run, "assistant", "پیشنهاد انتشار آماده است. مقصد، فایل‌ها و معیار بررسی را ببینید؛ فقط پس از تصمیم شما ارسال می‌شود.");
+        addEvent(run, "assistant", name === "propose_rollback"
+          ? "پیشنهاد بازگردانی همان بستهٔ ذخیره‌شده آماده است. پلن و تنظیمات فعلی ادامه دارند و سازگاری schema و داده تأیید نشده است؛ فقط پس از تصمیم شما انتشار انجام می‌شود."
+          : "پیشنهاد انتشار آماده است. مقصد، فایل‌ها و معیار بررسی را ببینید؛ فقط پس از تصمیم شما ارسال می‌شود.");
         persist();
         break;
       }
