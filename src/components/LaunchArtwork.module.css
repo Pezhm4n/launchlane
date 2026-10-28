@@ -1,0 +1,120 @@
+.artwork {
+  --art-x: 0;
+  --art-y: 0;
+  isolation: isolate;
+}
+
+.artwork .trigger {
+  display: block;
+  position: relative;
+  inline-size: 100%;
+  min-block-size: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--color-primary);
+  box-shadow: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.artwork .trigger:hover,
+.artwork .trigger:active {
+  transform: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.artwork .trigger:focus-visible {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--space-2);
+}
+
+.stage { display: block; }
+.stage svg { display: block; }
+.hint {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: calc(var(--space-4) * -1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+  font-weight: 400;
+  line-height: var(--leading-heading);
+  transition: color var(--motion-feedback) var(--ease-standard);
+}
+.hint svg { inline-size: var(--icon-size); block-size: var(--icon-size); stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.trigger:is(:hover, :focus-visible) .hint { color: var(--color-primary); }
+.packet { opacity: 0; fill: var(--color-primary-hover); pointer-events: none; }
+.halo { opacity: 0; fill: var(--color-primary-soft); stroke: var(--color-primary); pointer-events: none; }
+.orbit { transition: stroke var(--studio-enter) var(--ease-standard); }
+.sourceLid, .bottomLayer, .middleLayer { transition: transform var(--studio-enter) var(--ease-spring); }
+.cloudIcon, .code, .spark, .halo { transition: filter var(--studio-enter), opacity var(--studio-enter); }
+.trigger:is(:hover, :focus-visible) .orbit { stroke: var(--color-control-border); }
+.trigger:is(:hover, :focus-visible) :is(.code, .cloudIcon),
+.artwork[data-activated="true"] .cloudIcon { filter: drop-shadow(0 0 var(--space-1) var(--color-primary)); }
+.artwork[data-activated="true"] .halo { opacity: 0.28; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .stage {
+    transform: perspective(var(--art-perspective)) rotateX(calc(var(--art-y) * var(--art-tilt) * -1)) rotateY(calc(var(--art-x) * var(--art-tilt))) translate3d(calc(var(--art-x) * var(--art-travel)), calc(var(--art-y) * var(--art-travel)), 0);
+    transition: transform var(--motion-enter) var(--ease-out), scale var(--motion-quick) var(--ease-spring);
+  }
+  .trigger:active .stage { scale: 0.985; }
+  .sequence .sourceLid { animation: lift var(--art-flight) var(--ease-spring) both; }
+  .trigger:is(:hover, :focus-visible) .sourceLid { transform: translateY(calc(var(--space-1) * -1)); }
+  .trigger:is(:hover, :focus-visible) .bottomLayer { transform: translateY(var(--space-1)); }
+  .trigger:has(.sourceZone:hover) .sourceLid { transform: translateY(calc(var(--space-2) * -1)); }
+  .trigger:has(.sourceZone:hover) .bottomLayer { transform: translateY(var(--space-2)); }
+  .trigger:has(.sourceZone:hover) .middleLayer { transform: translateY(var(--space-1)); }
+  .trigger:has(.cloudZone:hover) :global(.studio-cloud-tile) { transform: translateY(calc(var(--space-5) * -1)); }
+  .trigger:is(:hover, :focus-visible) .spark { animation: glint var(--motion-art-float) var(--ease-standard) infinite; transform-origin: 380px 216px; }
+  .sequence .packet {
+    offset-path: path("M124 166h57c24 0 24-57 48-57h75");
+    offset-rotate: 0deg;
+    filter: drop-shadow(0 0 var(--space-2) var(--color-primary));
+    animation: flight var(--art-flight) linear both;
+  }
+  .sequence .packetTrail { animation-duration: calc(var(--art-flight) * 0.72); animation-delay: calc(var(--art-flight) * 0.12); }
+  .sequence .halo { animation: arrival var(--art-flight) var(--ease-out) both; transform-origin: 337px 112px; }
+  .sequence .cloudIcon { animation: illuminate var(--art-flight) var(--ease-standard) both; }
+  .sequence .check { animation: check var(--art-flight) var(--ease-standard) both; stroke-dasharray: 1; }
+}
+
+@keyframes flight {
+  0% { offset-distance: 0%; opacity: 0; }
+  12% { opacity: 1; }
+  82% { opacity: 1; }
+  100% { offset-distance: 100%; opacity: 0; }
+}
+@keyframes lift {
+  0%, 100% { transform: translateY(0); }
+  20%, 55% { transform: translateY(calc(var(--space-3) * -1)); }
+}
+@keyframes arrival {
+  0%, 42% { opacity: 0; transform: scale(0.82); }
+  72% { opacity: 0.65; transform: scale(1.08); }
+  100% { opacity: 0.28; transform: scale(1); }
+}
+@keyframes illuminate {
+  0%, 42% { filter: none; }
+  72%, 100% { filter: drop-shadow(0 0 var(--space-2) var(--color-primary)); }
+}
+@keyframes check {
+  0%, 58% { stroke-dashoffset: 1; opacity: 0.35; }
+  100% { stroke-dashoffset: 0; opacity: 1; }
+}
+@keyframes glint {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  50% { transform: scale(1.15) rotate(12deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .artwork .stage, .artwork .trigger:active .stage { transform: none; scale: none; transition: none; }
+  .artwork :is(.sourceLid, .bottomLayer, .middleLayer, .cloudIcon, .code, .spark, .halo, .hint, .orbit) { animation: none; transition: none; }
+}

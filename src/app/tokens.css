@@ -119,6 +119,10 @@
   --motion-card-enter: 320ms;
   --motion-stagger-step: 50ms;
   --motion-art-float: 6s;
+  --art-flight: 1800ms;
+  --art-perspective: 56rem;
+  --art-tilt: 5deg;
+  --art-travel: 0.375rem;
   --motion-launcher-shine: 7s;
   --ease-tab-slide: cubic-bezier(0.2, 0.8, 0.25, 1);
   --ease-panel-enter: cubic-bezier(0.16, 1, 0.3, 1);

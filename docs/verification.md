@@ -1,5 +1,9 @@
 # شواهد اعتبارسنجی Launchlane
 
+## تصویر تعاملی معرفی؛ ۲۰۲۶-۱۰-۲۸
+
+[شاهد](evidence/interactive-launch-artwork.md): استخراج SVG به client leaf با parallax محدود، hover لایه‌ها و پالس قابل replay؛ بدون API/model/publication. روی snapshot مستقل پایه`095229c` همراه برش UI، build با Webpack، typecheck، lint صفرerror/48warning/22info، آزمون اختصاصی10حالت و رگرسیون studio43حالت گذشتند. keyboard/touch، متن200٪، عرض280/360/768/1280، reduced-motion و تغییر آن وسط اجرا، pointer reset و unmount بررسی شدند؛ خطای صفحه و درخواست خارجی صفر. دو درخواست مدل suite استودیو مصنوعی‌اند؛ cloud write صفر. این نتیجه، پذیرش WIP migration/runner هم‌زمان یا rollout عمومی نیست. baseline و GIF از UI واقعی در بستهٔ excluded ثبت‌اند؛ شکست‌های اولیهٔ harness و self-test مستقل کیت در شاهد تفکیک شده‌اند.
+
 افزودهٔ اتصال وب/worker، ۲۰۲۶-۱۰-۲۸: [شاهد اجرای یکپارچهٔ migration](evidence/postgres-migration-test.md#follow-up-actual-web-approval-to-actual-sql-worker) بارگذاری واقعی پوشه→ثبت مأموریت→کارت و تصمیم HTTP واقعی→یک PostgreSQL و دو worker→رسید مستقل داده در همان صفحه، replay409 و reload بدون اجرای تازه را ثبت می‌کند. مانع build پیش از مقصد برای fullstack معمولی رفع شد. runtime `c12b89e…`، domain775/775 و build/typecheck؛ harness نهایی همان runtime با guided54 و HTTP48/48 و مدل مصنوعی، SQL/برنامه واقعی و صفر cloud write. snapshotهای harness و failureها جدا ثبت‌اند؛ مدل واقعی تازه و rollout انجام نشدند.
 
 افزودهٔ ۲۰۲۶-۱۰-۲۸: [migration منبع‌محور و اثر مستقل داده](evidence/postgres-migration-test.md) نتیجهٔ snapshot واحد `migration-r5`، domain774، HTTP48، مرورگر migration/guided، build/typecheck/lint و دو آزمون Docker/PostgreSQL واقعی را ثبت می‌کند. SQL، schema/seed، API/oracle اصلی و حفظ داده پس از تعویض worker اجرا می‌شوند؛ provider/cloud، restart دیتابیس، artifact انتشار و SQL تولیدی از آن نتیجه نمی‌شوند. failureهای preflight و تقویت دسترسی root در گزارش حفظ‌اند.
