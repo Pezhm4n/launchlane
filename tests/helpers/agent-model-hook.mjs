@@ -2,6 +2,7 @@
 import { appendFileSync, existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { migrationBuildInput } from "./migration-fixture.ts";
+import { runnerBuildInput } from "./runner-fixture.ts";
 const nativeFetch = globalThis.fetch;
 let environmentValues = [{ key: "EXISTING_PRIVATE", value: "existing-private-fixture-value" }];
 let lifecycleScale = 1, lifecyclePresent = true, lifecycleDefaultSubdomain = process.env.LAUNCHLANE_ACTIVATION_FIXTURE !== "true";
@@ -109,6 +110,12 @@ globalThis.fetch = async (input, init) => {
       return final("reply", null, "migration و نوشتن و حفظ داده در دیتابیس موقت بررسی شدند؛ انتشار و دیتابیس واقعی تأیید نشده‌اند.");
     if (last.role === "user") return reply("propose_project_build", migrationBuildInput);
     throw Error("Unexpected migration worker fixture transition");
+  }
+  if (first.includes('نشانه الزامی صفحه: "Runner lifecycle"')) {
+    if (body.messages.some(message => message.role === "user" && message.content.startsWith("Host disposable compatibility receipt")))
+      return final("reply", null, "runner پروژه و داده در دو دیتابیس موقت بررسی شدند؛ منابع واقعی و انتشار تأیید نشده‌اند.");
+    if (last.role === "user") return reply("propose_project_build", await runnerBuildInput());
+    throw Error("Unexpected independent-database runner fixture transition");
   }
   if (first === "آزمون نگهداری و بازگردانی نسخه") {
     if (last.role === "user") return reply("read_publications");

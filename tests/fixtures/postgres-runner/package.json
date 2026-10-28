@@ -1,0 +1,9 @@
+{
+  "name": "launchlane-runner-fixture",
+  "version": "1.0.0",
+  "private": true,
+  "engines": { "node": "22" },
+  "scripts": { "start": "node server.cjs", "server": "node server.cjs", "build": "vite build", "test:db": "node --test oracle.test.cjs", "predb:migrate": "node preflight.cjs", "db:migrate": "node migrate.cjs" },
+  "dependencies": { "express": "5.1.0", "pg": "8.16.3", "react": "19.2.0" },
+  "devDependencies": { "vite": "6.4.5" }
+}

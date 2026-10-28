@@ -6,6 +6,9 @@ import { ensure } from "../errors.ts";
 import { exactKeys, object } from "../../contracts/validation.ts";
 import type { PostgresFixtureBinding } from "./postgres-fixture.ts";
 import { migrationSource } from "./postgres-migration-test.ts";
+import { sourceMigrationRunner } from "./postgres-runner-test.ts";
+import { fingerprint } from "../policy/action.ts";
+import type { PostgresRunnerTarget } from "../../contracts/postgres-runner-test.ts";
 
 export function validateTestDatabaseSource(files: readonly SourceFile[], profile: ProjectProfile, value: DisposableTestDatabase): DisposableTestDatabase {
   const plan = parseDisposableTestDatabase(value);
@@ -17,27 +20,34 @@ export function validateTestDatabaseSource(files: readonly SourceFile[], profile
   ensure(pkg && typeof object(object(JSON.parse(pkg.content.toString("utf8"))).dependencies ?? {}).pg === "string",
     "TEST_DATABASE_DRIVER_REQUIRED","این برش آزمون به driver موجود pg در dependencyهای اصلی پروژه نیاز دارد؛ بسته‌ای خودکار اضافه نمی‌شود.",409);
   const declarations = new Set(files.filter(file => /\.(?:sql|[cm]?[jt]s)$/.test(file.path)).flatMap(file => [...file.content.toString("utf8").matchAll(/\bCREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(public\.[a-z_][a-z0-9_]*)\b/gi)].map(match => match[1]?.toLowerCase())));
-  ensure(plan.requiredRelations.every(name => declarations.has(name)),"TEST_DATABASE_SOURCE_REQUIRED","جدول آزمون باید در schema همین source تعریف شده باشد.",409);
+  if (plan.version !== 3) ensure(plan.requiredRelations.every(name => declarations.has(name)),"TEST_DATABASE_SOURCE_REQUIRED","جدول آزمون باید در schema همین source تعریف شده باشد.",409);
   if (plan.version === 2) migrationSource(files, plan.migration);
+  if (plan.version === 3) ensure(fingerprint(sourceMigrationRunner(files, plan.runner.script)) === fingerprint(plan.runner), "MIGRATION_RUNNER_CHANGED", "script و hookهای migration با source برابر نیستند.", 409);
   return plan;
 }
 
-export function assertPostgresWorkerBinding(binding: PostgresFixtureBinding, jobId: string | undefined, sourceHash: string | undefined, migration = false): void {
-  exactKeys(object(binding),["jobId","sourceHash","containerId","networkMode","host","port","database","user","authentication"]);
+export function assertPostgresWorkerBinding(binding: PostgresFixtureBinding, jobId: string | undefined, sourceHash: string | undefined, migration = false, targets?: readonly PostgresRunnerTarget[]): void {
+  exactKeys(object(binding),["jobId","sourceHash","containerId","networkMode","host","port","database","user","authentication", ...(targets ? ["targets"] : [])]);
   ensure(typeof jobId === "string" && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(jobId) && typeof sourceHash === "string" && /^[a-f0-9]{64}$/.test(sourceHash) &&
     binding.jobId === jobId && binding.sourceHash === sourceHash && /^[a-f0-9]{64}$/.test(binding.containerId) && binding.networkMode === `container:${binding.containerId}` &&
-    binding.host === "127.0.0.1" && binding.port === 5432 && binding.database === "launchlane_fixture" && binding.user === (migration ? "launchlane_migration_app" : "launchlane_fixture") && binding.authentication === "isolated_trust",
+    binding.host === "127.0.0.1" && binding.port === 5432 && binding.database === "launchlane_fixture" && binding.user === (migration && !targets ? "launchlane_migration_app" : "launchlane_fixture") && binding.authentication === "isolated_trust",
     "TEST_DATABASE_BINDING_CHANGED","namespace دیتابیس آزمون باید متعلق به همین job و source باشد.",409);
+  if (targets) ensure(binding.targets?.length === targets.length && targets.every((target, index) => { const bound = binding.targets?.[index]; if (!bound) return false;
+    exactKeys(object(bound), ["id", "database", "user"]); return bound.id === target.id && bound.database === `launchlane_target_${index}` && bound.user === `launchlane_app_${index}`;
+  }), "TEST_DATABASE_BINDING_CHANGED", "هر ورودی باید به دیتابیس و role مستقل همان طرح وصل باشد.", 409);
 }
 
 // Fixed worker code: input is JSON data; neither project SQL nor credentials enter this program.
 export const disposableDatabaseProgram = String.raw`function disposableDatabaseValues(plan,payload){
 const db=payload.testDatabase;if(!db||db.host!=='127.0.0.1'||db.port!==5432||db.database!=='launchlane_fixture'||db.user!==(plan.testDatabase.version===2?'launchlane_migration_app':'launchlane_fixture')||db.authentication!=='isolated_trust'||!Array.isArray(payload.environment)||payload.environment.length)throw Error('invalid isolated database input');
+if(plan.testDatabase.version===3){if(!Array.isArray(db.targets)||db.targets.length!==plan.testDatabase.targets.length)throw Error('invalid database targets');const values={};
+for(const [i,target] of plan.testDatabase.targets.entries()){const actual=db.targets[i];if(actual?.id!==target.id||actual.database!=='launchlane_target_'+i||actual.user!=='launchlane_app_'+i)throw Error('database target changed');for(const key of target.environmentKeys)values[key]='postgresql://'+actual.user+'@127.0.0.1:5432/'+actual.database}return values;}
 const url='postgresql://'+db.user+'@127.0.0.1:5432/launchlane_fixture',values=Object.fromEntries(plan.testDatabase.environmentKeys.map(key=>[key,url]));
 if(plan.testDatabase.version===2)return values;
 return {...values,JWT_SECRET:require('node:crypto').randomBytes(32).toString('hex'),DB_MIGRATIONS_ENABLED:'true',AI_HISTORY_ENABLED:'true',SCRAPER_SYNC_ENABLED:'false',ALLOW_INSECURE_TLS:'true'};
 }
 async function waitForDisposableRelations(plan,values){
+if(plan.testDatabase.version===3){for(const target of plan.testDatabase.targets)await waitForDisposableRelations({testDatabase:{...target,requiredRelations:target.requiredRelations.map(name=>name.split('.').map(part=>'"'+part+'"').join('.'))}},values);return;}
 const {Client}=require('/work/project/node_modules/pg'),deadline=Date.now()+30000;let healthy=false;
 while(Date.now()<deadline&&!healthy){const client=new Client({connectionString:values[plan.testDatabase.environmentKeys[0]],ssl:false,connectionTimeoutMillis:1000,query_timeout:2000,statement_timeout:1500,application_name:'launchlane-disposable-test'});
 try{await client.connect();const result=await client.query('SELECT name, pg_catalog.to_regclass(name) IS NOT NULL AS ready FROM unnest($1::text[]) AS requested(name)',[plan.testDatabase.requiredRelations]);

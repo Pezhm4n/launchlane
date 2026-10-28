@@ -1,5 +1,9 @@
 # شواهد اعتبارسنجی Launchlane
 
+افزودهٔ ۲۰۲۶-۱۰-۲۸: [شاهد runner منبع‌محور و چند دیتابیس](evidence/project-migration-runners.md) snapshot اختصاصی `runner-r4`، ادغام با کامیت هم‌زمان UI در `runner-r5` و قرارداد نهایی سخت‌تر در `runner-r6` را جدا ثبت می‌کند. PostgreSQL و چهار worker، npm/build/API/oracle اصلی، schema-only و رد پاک‌شدن داده در replay واقعی‌اند؛ مدل و provider مصنوعی‌اند. برش قبلی SQL نیز دوباره با worker واقعی و HTTP آزموده شد. مصرف تازهٔ مدل، تمدید allowance، write روی لیارا، rollout و تغییر دادهٔ اصلی صفر است؛ اعداد snapshotهای تاریخی زیر full pass تازه محسوب نمی‌شوند.
+
+در r6، build/typecheck/lint بدون error، HTTP48، guided54 و مسیر واقعی وب/چهار worker با۱۰چیدمان گذشتند. domain نخست782/783 و سپس، بدون تغییر source/assertion/timeout و بدون کار سنگین هم‌زمان،783/783 شد؛ علت observation نامشخصِ اولیه تأیید نشده و در شاهد نگه داشته شده است. Docker6/6 و مرورگر legacy روی r4 باقی‌اند، نه یک full sandbox aggregate تازه روی r6.
+
 ## تصویر تعاملی معرفی؛ ۲۰۲۶-۱۰-۲۸
 
 [شاهد](evidence/interactive-launch-artwork.md): استخراج SVG به client leaf با parallax محدود، hover لایه‌ها و پالس قابل replay؛ بدون API/model/publication. روی snapshot مستقل پایه`095229c` همراه برش UI، build با Webpack، typecheck، lint صفرerror/48warning/22info، آزمون اختصاصی10حالت و رگرسیون studio43حالت گذشتند. keyboard/touch، متن200٪، عرض280/360/768/1280، reduced-motion و تغییر آن وسط اجرا، pointer reset و unmount بررسی شدند؛ خطای صفحه و درخواست خارجی صفر. دو درخواست مدل suite استودیو مصنوعی‌اند؛ cloud write صفر. این نتیجه، پذیرش WIP migration/runner هم‌زمان یا rollout عمومی نیست. baseline و GIF از UI واقعی در بستهٔ excluded ثبت‌اند؛ شکست‌های اولیهٔ harness و self-test مستقل کیت در شاهد تفکیک شده‌اند.

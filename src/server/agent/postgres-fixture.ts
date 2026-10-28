@@ -19,12 +19,13 @@ const inspectFormat = '{"id":{{json .Id}},"name":{{json .Name}},"image":{{json .
 const imageFormat = '{"id":{{json .Id}},"os":{{json .Os}},"architecture":{{json .Architecture}},"digests":{{json .RepoDigests}},"descriptor":{{json (index . "Descriptor")}},"volumes":{{json (index .Config "Volumes")}},"onBuild":{{json (index .Config "OnBuild")}}}';
 type Command = typeof docker;
 type Owner = { jobId: string; sourceHash: string; name: string };
-export type PostgresFixtureBinding = Readonly<Omit<typeof fixture, "user"> & { user: "launchlane_fixture" | "launchlane_migration_app"; jobId: string; sourceHash: string; containerId: string; networkMode: `container:${string}` }>;
-export type PostgresFixtureSql = Readonly<{ apply: (sql: string, signal: AbortSignal) => Promise<CommandResult>; read: (sql: string, signal: AbortSignal) => Promise<CommandResult> }>;
+export type PostgresFixtureTarget = Readonly<{ id: string; database: string; user: string }>;
+export type PostgresFixtureBinding = Readonly<Omit<typeof fixture, "user"> & { user: "launchlane_fixture" | "launchlane_migration_app"; jobId: string; sourceHash: string; containerId: string; networkMode: `container:${string}`; targets?: readonly PostgresFixtureTarget[] }>;
+export type PostgresFixtureSql = Readonly<{ apply: (sql: string, signal: AbortSignal) => Promise<CommandResult>; read: (sql: string, signal: AbortSignal, target?: string) => Promise<CommandResult> }>;
 export type PostgresFixtureOptions = Readonly<{
   jobId: string; sourceHash: string; signal: AbortSignal;
   onCreated: (id: string) => void | Promise<void>;
-  command?: Command; endpoint?: LocalDockerEndpoint; migration?: boolean;
+  command?: Command; endpoint?: LocalDockerEndpoint; migration?: boolean; targets?: readonly string[];
 }>;
 function stop(signal: AbortSignal): void { ensure(!signal.aborted, "CANCELLED", "اجرای دیتابیس ساختگی متوقف شد.", 409); }
 function absent(result: CommandResult, reference: string, kind: "image" | "container"): boolean {
@@ -95,11 +96,15 @@ function mountInfo(text: string): void {
  */
 export async function withPostgresFixture<T>(options: PostgresFixtureOptions,
   use: (binding: PostgresFixtureBinding, signal: AbortSignal, sql: PostgresFixtureSql) => Promise<T>): Promise<T> {
-  const input = object(options); exactKeys(input, ["jobId", "sourceHash", "signal", "onCreated", "command", "endpoint", "migration"]);
+  const input = object(options); exactKeys(input, ["jobId", "sourceHash", "signal", "onCreated", "command", "endpoint", "migration", "targets"]);
   ensure(/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(options.jobId) && /^[a-f0-9]{64}$/.test(options.sourceHash) &&
     options.signal instanceof AbortSignal && typeof options.onCreated === "function" && typeof use === "function" &&
     (options.command === undefined || typeof options.command === "function") && (options.migration === undefined || typeof options.migration === "boolean"), "POSTGRES_FIXTURE_INPUT_INVALID", "هویت job و source دیتابیس ساختگی باید از میزبان مشخص باشد.", 409);
   stop(options.signal);
+  ensure(options.targets === undefined || options.migration === true && Array.isArray(options.targets) && options.targets.length > 0 && options.targets.length <= 4 &&
+    options.targets.every(id => typeof id === "string" && /^[a-z][a-z0-9_]{0,31}$/.test(id)) && new Set(options.targets).size === options.targets.length,
+    "POSTGRES_FIXTURE_INPUT_INVALID", "دیتابیس‌های runner باید محدود و متعلق به همین آزمون باشند.", 409);
+  const targets = options.targets?.map((id, index) => Object.freeze({ id, database: `launchlane_target_${index}`, user: `launchlane_app_${index}` }));
   const bounded = AbortSignal.any([options.signal, AbortSignal.timeout(360000)]), raw = options.command ?? docker;
   const endpoint = options.endpoint ?? await operatorDockerEndpoint(bounded, raw), host = dockerEndpointHost(endpoint);
   const command: Command = (args, signal, maxBytes, bytes) => abortable(() => raw(["--host", host, ...args], signal, maxBytes, bytes), signal);
@@ -144,23 +149,35 @@ export async function withPostgresFixture<T>(options: PostgresFixtureOptions,
     const mounted = await command(["exec", "--user", "999:999", id, "cat", "/proc/self/mountinfo"], bounded, 32768);
     ensure(ok(mounted), "POSTGRES_FIXTURE_ISOLATION_INVALID", "نوع واقعی فضای داده قابل بررسی نیست.", 409); mountInfo(mounted.output);
     const current = await inspect(id, command); ensure(current, "POSTGRES_FIXTURE_UNCERTAIN", "محیط پیش از دسترسی برنامه قابل مشاهده نیست.", 503); identity(current, id, owner, verifiedImageId); isolation(current, true); stop(bounded);
-    const query = async (sql: string, user: string, readOnly: boolean, signal: AbortSignal): Promise<CommandResult> => {
+    const query = async (sql: string, user: string, readOnly: boolean, signal: AbortSignal, database: string = fixture.database, transaction = true): Promise<CommandResult> => {
       ensure(options.migration === true && Buffer.byteLength(sql) <= 1024 * 1024, "POSTGRES_MIGRATION_DENIED", "اجرای SQL فقط در آزمون migration مصوب و محدود مجاز است.", 409);
       const checked = await inspect(id, command, signal); ensure(checked, "POSTGRES_FIXTURE_UNCERTAIN", "هویت دیتابیس پیش از SQL موجود نیست.", 409);
       identity(checked, id, owner, verifiedImageId); isolation(checked, true); stop(signal);
-      const input = Buffer.from(`BEGIN${readOnly ? " READ ONLY" : ""}; SET LOCAL standard_conforming_strings=on; SET LOCAL statement_timeout='30s'; SET LOCAL lock_timeout='2s'; SET LOCAL idle_in_transaction_session_timeout='35s'; ${sql}\nCOMMIT;\n`);
-      return command(["exec", "--user", "999:999", "-i", id, "psql", "-X", "-q", "-t", "-A", "--set=ON_ERROR_STOP=1", "-h", user === fixture.user ? socket : fixture.host, "-p", "5432", "-U", user, "-d", fixture.database], signal, 32768, input);
+      const local = transaction ? "LOCAL " : "", prefix = transaction ? `BEGIN${readOnly ? " READ ONLY" : ""}; ` : "";
+      const input = Buffer.from(`${prefix}SET ${local}standard_conforming_strings=on; SET ${local}statement_timeout='30s'; SET ${local}lock_timeout='2s'; SET ${local}idle_in_transaction_session_timeout='35s'; ${targets ? `SET ${local}search_path=pg_catalog; ` : ""}${sql}\n${transaction ? "COMMIT;" : ""}\n`);
+      return command(["exec", "--user", "999:999", "-i", id, "psql", "-X", "-q", "-t", "-A", "--set=ON_ERROR_STOP=1", "-h", user === fixture.user || user === "launchlane_observer" ? socket : fixture.host, "-p", "5432", "-U", user, "-d", database], signal, 32768, input);
     };
     if (options.migration) {
-      const initialized = await query(`CREATE ROLE launchlane_migration_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
+      if (targets) {
+        const observer = await query("CREATE ROLE launchlane_observer LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION BYPASSRLS; GRANT pg_read_all_data TO launchlane_observer;", fixture.user, false, bounded);
+        ensure(ok(observer), "POSTGRES_MIGRATION_SETUP_FAILED", "خوانندهٔ مستقل داده ساخته نشد؛ source اجرا نشد.", 409);
+        for (const target of targets) {
+          const created = await query(`CREATE ROLE ${target.user} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION; CREATE DATABASE ${target.database};`, fixture.user, false, bounded, fixture.database, false);
+          ensure(ok(created), "POSTGRES_MIGRATION_SETUP_FAILED", "دیتابیس مستقل موقت آماده نشد؛ source اجرا نشد.", 409);
+          const grants = await query(`REVOKE ALL ON DATABASE ${target.database} FROM PUBLIC; GRANT CONNECT ON DATABASE ${target.database} TO ${target.user},launchlane_observer; REVOKE CREATE ON SCHEMA public FROM PUBLIC; GRANT USAGE,CREATE ON SCHEMA public TO ${target.user};`, fixture.user, false, bounded, target.database);
+          ensure(ok(grants), "POSTGRES_MIGRATION_SETUP_FAILED", "دسترسی مستقل هر دیتابیس آماده نشد؛ source اجرا نشد.", 409);
+        }
+      } else {
+        const initialized = await query(`CREATE ROLE launchlane_migration_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION;
 GRANT CONNECT ON DATABASE launchlane_fixture TO launchlane_migration_app;
 GRANT USAGE,CREATE ON SCHEMA public TO launchlane_migration_app;
 CREATE TABLE public._launchlane_migrations(path text PRIMARY KEY,sha256 text NOT NULL CHECK(length(sha256)=64));
 GRANT SELECT,INSERT ON public._launchlane_migrations TO launchlane_migration_app;`, fixture.user, false, bounded);
       ensure(ok(initialized), "POSTGRES_MIGRATION_SETUP_FAILED", "آماده‌سازی role محدود و دفتر migration موفق نبود؛ source اجرا نشد.", 409);
+      }
       // Shared network namespaces must not turn trust authentication into a root bypass.
       // Root is reachable only through the unshared PG-container socket; workers get only the app role over TCP.
-      const hba = Buffer.from("local all launchlane_fixture trust\nlocal all all reject\nhost launchlane_fixture launchlane_migration_app 127.0.0.1/32 trust\nhost all all 0.0.0.0/0 reject\nhost all all ::0/0 reject\n");
+      const hba = Buffer.from(`local all launchlane_fixture trust\n${targets ? "local all launchlane_observer trust\n" : ""}local all all reject\n${targets ? targets.map(target => `host ${target.database} ${target.user} 127.0.0.1/32 trust\n`).join("") : "host launchlane_fixture launchlane_migration_app 127.0.0.1/32 trust\n"}host all all 0.0.0.0/0 reject\nhost all all ::0/0 reject\n`);
       const policy = await command(["exec", "--user", "999:999", "-i", id, "tee", `${data}/pg_hba.conf`], bounded, 4096, hba);
       ensure(ok(policy), "POSTGRES_MIGRATION_SETUP_FAILED", "محدودکردن دسترسی دیتابیس موقت کامل نشد؛ worker شروع نشد.", 409);
       const reload = await query("SELECT pg_catalog.pg_reload_conf();", fixture.user, false, bounded);
@@ -174,8 +191,10 @@ GRANT SELECT,INSERT ON public._launchlane_migrations TO launchlane_migration_app
         if (!rootDenied) await pause(100, undefined, { signal: policyDeadline });
       }
     }
-    const binding = Object.freeze({ ...fixture, user: options.migration ? "launchlane_migration_app" as const : fixture.user, jobId: owner.jobId, sourceHash: owner.sourceHash, containerId: id, networkMode: `container:${id}` as const });
-    const sql: PostgresFixtureSql = Object.freeze({ apply: (text, signal) => query(text, "launchlane_migration_app", false, signal), read: (text, signal) => query(text, fixture.user, true, signal) });
+    const binding = Object.freeze({ ...fixture, user: options.migration && !targets ? "launchlane_migration_app" as const : fixture.user, jobId: owner.jobId, sourceHash: owner.sourceHash, containerId: id, networkMode: `container:${id}` as const, ...(targets ? { targets: Object.freeze(targets) } : {}) });
+    const sql: PostgresFixtureSql = Object.freeze({ apply: (text, signal) => { ensure(!targets, "MIGRATION_RUNNER_SQL_DENIED", "runner اصلی مسئول SQL است؛ میزبان SQL جایگزین تزریق نمی‌کند.", 409); return query(text, "launchlane_migration_app", false, signal); },
+      read: (text, signal, targetId) => { if (!targets) { ensure(targetId === undefined, "MIGRATION_TARGET_UNKNOWN", "دیتابیس انتخاب‌شده متعلق به این آزمون نیست.", 409); return query(text, fixture.user, true, signal); }
+        const target = targets.find(target => target.id === targetId); ensure(target, "MIGRATION_TARGET_UNKNOWN", "خواندن فقط از دیتابیس همان معیار مصوب مجاز است.", 409); return query(text, "launchlane_observer", true, signal, target.database); } });
     callbackSettled = false;
     const callback = Promise.resolve().then(() => use(binding, bounded, sql));
     callbackSettlement = callback.then(() => { callbackSettled = true; }, error => {

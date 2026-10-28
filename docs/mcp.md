@@ -1,5 +1,7 @@
 # اتصال به Launchlane از MCP
 
+افزودهٔ runner داده، ۲۰۲۶-۱۰-۲۸: همان `propose_project_build` اکنون شکل `compatibilityDatabase: { runnerScript, targets }` هم دارد. هر target شامل `id/environmentKeys/requiredRelations/oracle` است؛ oracle از `columns/rows/persistence` تشکیل می‌شود و `rows` برای schema-only می‌تواند خالی باشد. host زنجیره و hash script/hook موجود، image، DB/role و خلاصهٔ اتصال را می‌سازد؛ مدل نمی‌تواند URL واقعی، role، SQL میزبان یا رسید موفق بسازد. تصمیم همچنان در وب و execution در job مشترک است. [شاهد مسیر مشترک](evidence/project-migration-runners.md) اجرای تازه از میزبان MCP واقعی یا اختیار SQL روی provider نیست.
+
 افزودهٔ آزمون داده، ۲۰۲۶-۱۰-۲۸: همان registry ابزار `propose_project_build` با `compatibilityDatabase.migration`، SQL منبع‌محور و معیار schema/seed/ماندگاری موقت را می‌پذیرد. مدل مسیرها را پیشنهاد می‌کند و host hash/role/image را می‌بندد؛ تصمیم در همان کارت وب و اجرا در CodeRepairJob موجود است. MCP ابزار SQL آزاد، credential، approval یا executor تازه ندارد. [شاهد](evidence/postgres-migration-test.md) از Agent/worker/UI مشترک است؛ اجرای تازه از یک میزبان MCP واقعی در این برش ادعا نمی‌شود.
 
 افزودهٔ منابع، ۲۰۲۶-۱۰-۲۸: مأموریت انتشار MCP از همان registry و AgentRun می‌تواند به پیشنهاد `propose_database` برسد؛ schema این پیشنهاد فقط در وضعیت source/مقصد مناسب به مدل داده می‌شود. کارت تصمیم و credential binding در همان review وب انجام می‌شوند. هیچ tool عمومی برای دریافت password، ساخت بدون approval یا SQL اضافه نشده است. قطع/replay، بودجه و journal مشترک‌اند. [شاهد و حدود](evidence/managed-database.md).

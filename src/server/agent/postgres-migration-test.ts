@@ -93,6 +93,8 @@ export async function runPostgresMigrationTest<T extends CommandResult>(options:
   options.take(); const written = verify(await sql.read(oracle, signal), plan);
   ensure(written.every((value, i) => !value.empty && value.hash !== baseline[i]?.hash), "MIGRATION_APPLICATION_WRITE_UNVERIFIED", "آزمون اصلی باید مقدار تازه‌ای در دیتابیس بنویسد؛ echo یا حافظهٔ برنامه شاهد نوشتن نیست.", 409);
   options.take(); successful(await sql.apply(apply, signal), "MIGRATION_REPLAY_FAILED");
+  options.take(); const replayed = verify(await sql.read(oracle, signal), plan);
+  ensure(replayed.every((value, i) => !value.empty && value.hash === written[i]?.hash), "MIGRATION_REPLAY_FAILED", "اجرای دوبارهٔ migration داده را تغییر داد؛ برنامهٔ دوم برای پنهان‌کردن این افت اجرا نشد.", 409);
   const second = await options.run(); if (second.exitCode !== 0 || second.signal) return second;
   options.take(); const retained = verify(await sql.read(oracle, signal), plan);
   ensure(retained.every((value, i) => !value.empty && value.hash === written[i]?.hash), "MIGRATION_PERSISTENCE_FAILED", "همان داده پس از اجرای دوبارهٔ برنامه حفظ نشد.", 409);

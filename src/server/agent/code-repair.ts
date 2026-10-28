@@ -40,6 +40,7 @@ import { fullstackTarballs, prepareFullstackFiles } from "./fullstack-preparatio
 import { assembleFullstackArtifact } from "./fullstack-artifact.ts";
 import { withPostgresFixture } from "./postgres-fixture.ts";
 import { runPostgresMigrationTest } from "./postgres-migration-test.ts";
+import { runPostgresRunnerTest } from "./postgres-runner-test.ts";
 import { operatorDockerEndpoint } from "./docker-engine.ts";
 
 const patchTool: ToolDefinition = {
@@ -685,12 +686,14 @@ export class CodeRepairAdapter {
                 const command=this.sandbox.command ?? docker,endpoint=this.sandbox.endpoint ?? await operatorDockerEndpoint(testSignal,command);
                 record.job.postgresExecutionStarted=true;record.job.postgresFixtureSourceHash=source.profile.sourceHash;this.save(record);
                 try {
-                  if (build.testDatabase.version === 2) budget.take("tool", testSignal);
-                  const result=await withPostgresFixture({jobId:record.job.id,sourceHash:source.profile.sourceHash,signal:testSignal,command,endpoint, migration: build.testDatabase.version === 2,
+                  if (build.testDatabase.version !== 1) budget.take("tool", testSignal);
+                  const result=await withPostgresFixture({jobId:record.job.id,sourceHash:source.profile.sourceHash,signal:testSignal,command,endpoint, migration: build.testDatabase.version !== 1,
+                    ...(build.testDatabase.version === 3 ? { targets: build.testDatabase.targets.map(target => target.id) } : {}),
                     onCreated:containerId=>{record.job.postgresFixtureId=containerId;onCreated(containerId);}},
                     async(fixture,fixtureSignal,sql)=>{
-                      const run = () => runContainerBuild(record.workspace,tarballs,build,fixtureSignal,onCreated,[],
-                        {command,endpoint,fixture,expectedJobId:record.job.id,expectedSourceHash:source.profile.sourceHash});
+                      const run = (phase?: "runner" | "application") => runContainerBuild(record.workspace,tarballs,build,fixtureSignal,onCreated,[],
+                        {command,endpoint,fixture,expectedJobId:record.job.id,expectedSourceHash:source.profile.sourceHash, ...(phase === "runner" ? { runnerPhase: true } : {})});
+                      if (build.testDatabase?.version === 3) return runPostgresRunnerTest({ files: source.files, plan: build.testDatabase, fixture, sql, signal: fixtureSignal, take: () => budget.take("tool", fixtureSignal), run });
                       return build.testDatabase?.version === 2 ? runPostgresMigrationTest({ files: source.files, plan: build.testDatabase.migration, fixture, sql, signal: fixtureSignal,
                         take: () => budget.take("tool", fixtureSignal), run: () => { budget.take("tool", fixtureSignal); return run(); } }) : run();
                     });
@@ -707,6 +710,8 @@ export class CodeRepairAdapter {
           if (build.version === 7 && build.testDatabase?.version === 2 && result.exitCode === 0 && !result.signal) ensure(result.databaseMigration &&
             result.databaseMigration.sourceHash === record.job.postgresFixtureSourceHash && result.databaseMigration.planHash === fingerprint(build.testDatabase.migration) &&
             fingerprint(result.databaseMigration.files) === fingerprint(build.testDatabase.migration.files), "MIGRATION_RECEIPT_INVALID", "build موفق، بدون رسید مستقل migration و داده پذیرفته نمی‌شود.", 409);
+          if (build.version === 7 && build.testDatabase?.version === 3 && result.exitCode === 0 && !result.signal) ensure(result.databaseRunner &&
+            result.databaseRunner.sourceHash === record.job.postgresFixtureSourceHash && result.databaseRunner.planHash === fingerprint(build.testDatabase), "MIGRATION_RUNNER_RECEIPT_INVALID", "runner موفق بدون رسید مستقل تمام دیتابیس‌ها پذیرفته نمی‌شود.", 409);
           if (build.version === 6) record.job.builtImage = result.image;
           let outputReceipt: RepairTestReceipt["buildOutput"];
           if (frontendSource && result.exitCode === 0 && !result.signal && !bounded.aborted) {
@@ -716,9 +721,9 @@ export class CodeRepairAdapter {
             checkParent();
             outputReceipt = await persistBuildOutput(this.config.stateDir, result.buildOutput, { sourceHash: after.profile.sourceHash, planHash: fingerprint(record.job.build) });
           }
-          return { command: build.version === 7 && build.testDatabase?.version === 2 ? "psql reviewed SQL; independent schema/seed checks; original build/API/tests in two fresh workers; checksum replay; independent write/persistence checks" : build.version === 6 ? `isolated Docker build; independent GET ${build.workload.path}` : build.version === 2 ? `pip install --no-index --require-hashes; compileall; unittest ${record.job.testFiles.join(" ")}; ${build.startCommand}; GET ${build.workload.path}` : `${build.install === "none" ? "no dependencies to install" : "npm ci --offline"}${build.buildCommand ? " && npm run build" : ""}${build.testCommand ? " && npm test" : ""} && ${build.version === 5 ? `host serve ${build.frontend.outputDirectory}; verify local JS/CSS` : "npm start"}; GET ${build.workload.path}`,
+          return { command: build.version === 7 && build.testDatabase?.version === 3 ? `npm run ${build.testDatabase.runner.script} in two fresh workers; independent per-database schema/seed and replay checks; original build/API/tests in two fresh app workers; independent write/persistence checks` : build.version === 7 && build.testDatabase?.version === 2 ? "psql reviewed SQL; independent schema/seed checks; original build/API/tests in two fresh workers; checksum replay; independent write/persistence checks" : build.version === 6 ? `isolated Docker build; independent GET ${build.workload.path}` : build.version === 2 ? `pip install --no-index --require-hashes; compileall; unittest ${record.job.testFiles.join(" ")}; ${build.startCommand}; GET ${build.workload.path}` : `${build.install === "none" ? "no dependencies to install" : "npm ci --offline"}${build.buildCommand ? " && npm run build" : ""}${build.testCommand ? " && npm test" : ""} && ${build.version === 5 ? `host serve ${build.frontend.outputDirectory}; verify local JS/CSS` : "npm start"}; GET ${build.workload.path}`,
             exitCode: result.exitCode, signal: result.signal, durationMs: Date.now() - started, output: redact(result.output, [...this.secrets(actor), ...environment.map(row => row.value).filter(value => value.length >= 4)]),
-            passed: result.exitCode === 0 && !bounded.aborted && !result.signal, ...(outputReceipt ? { buildOutput: outputReceipt } : {}), ...(result.databaseMigration ? { databaseMigration: result.databaseMigration } : {}) };
+            passed: result.exitCode === 0 && !bounded.aborted && !result.signal, ...(outputReceipt ? { buildOutput: outputReceipt } : {}), ...(result.databaseMigration ? { databaseMigration: result.databaseMigration } : {}), ...(result.databaseRunner ? { databaseRunner: result.databaseRunner } : {}) };
         }
         const run = () => { checkParent(); return runRepairTests(
           record.workspace,

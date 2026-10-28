@@ -54,7 +54,7 @@ test("migration and original oracles run around two separate app lifetimes; rece
   const events: string[] = [], scripts: string[] = []; let charged = 0, reads = 0;
   const db: PostgresFixtureSql = { apply: async text => { events.push("apply"); scripts.push(text); return result(); }, read: async text => { events.push("read"); assert.match(text, /pg_catalog\.pg_attribute/); assert.match(text, /count\(\*\)=1/); return result(proof(true, ++reads === 1 ? null : "written once")); } };
   const outcome = await runPostgresMigrationTest({ files: source, plan, fixture, sql: db, signal: signal(), take: () => { charged++; }, run: async () => { events.push("app"); return result("app passed"); } });
-  assert.deepEqual(events, ["apply", "read", "app", "read", "apply", "app", "read"]); assert.equal(charged, 5); assert.equal(scripts[0], scripts[1]);
+  assert.deepEqual(events, ["apply", "read", "app", "read", "apply", "read", "app", "read"]); assert.equal(charged, 6); assert.equal(scripts[0], scripts[1]);
   const script = scripts[0]; assert.ok(script); assert.match(script, /pg_advisory_xact_lock/); assert.match(script, /migration checksum changed/);
   assert.ok(outcome.databaseMigration); assert.equal(outcome.databaseMigration.planHash, fingerprint(plan)); assert.equal(outcome.databaseMigration.production, false); assert.equal(outcome.databaseMigration.databaseRestartVerified, false);
   assert.equal(parsePostgresMigrationTestReceipt(outcome.databaseMigration).sourceHash, fixture.sourceHash);
@@ -83,6 +83,14 @@ test("superuser fixture and fabricated production/restart receipt are rejected b
   await assert.rejects(runPostgresMigrationTest({ files: source, plan, fixture: { ...fixture, user: "launchlane_fixture" }, signal: signal(), take: () => undefined,
     sql: { apply: async () => { calls++; return result(); }, read: async () => result(proof()) }, run: async () => result() }), code("MIGRATION_ROLE_REQUIRED")); assert.equal(calls, 0);
   assert.throws(() => parsePostgresMigrationTestReceipt({ kind: "disposable_postgres_migration", production: true }));
+});
+
+test("legacy SQL replay cannot reset data and rely on the second app to recreate the same value", async () => {
+  let reads = 0, apps = 0;
+  await assert.rejects(runPostgresMigrationTest({ files: source, plan, fixture, signal: signal(), take: () => undefined,
+    sql: { apply: async () => result(), read: async () => result(proof(true, ++reads === 2 ? "written once" : null)) },
+    run: async () => { apps++; return result("a later app could write the same value again"); } }), code("MIGRATION_REPLAY_FAILED"));
+  assert.equal(apps, 1); assert.equal(reads, 3);
 });
 test("shared build registry derives source SQL hashes and refuses model-provided identity, credentials and missing files", async () => {
   const f = await migrationFixture(); try {

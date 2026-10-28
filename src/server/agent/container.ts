@@ -13,10 +13,11 @@ import { abortable } from "../providers/http.ts";
 import { blankSandboxProxyArguments, hasBlankSandboxProxies } from "./docker-proxy.ts";
 import { htmlWorkloadByteLimit } from "../../contracts/deployment.ts";
 import type { PostgresMigrationTestReceipt } from "../../contracts/postgres-migration-test.ts";
+import type { PostgresRunnerTestReceipt } from "../../contracts/postgres-runner-test.ts";
 
 export const node22Image = projectBuildImage;
 export type CommandResult = { output: string; exitCode: number | null; signal: string | null };
-export type ContainerBuildResult = CommandResult & { containerId: string; image: string; buildOutput?: ValidatedBuildOutput; databaseMigration?: PostgresMigrationTestReceipt };
+export type ContainerBuildResult = CommandResult & { containerId: string; image: string; buildOutput?: ValidatedBuildOutput; databaseMigration?: PostgresMigrationTestReceipt; databaseRunner?: PostgresRunnerTestReceipt };
 export function docker(args: string[], signal: AbortSignal, maxBytes = 32768, input?: Buffer): Promise<CommandResult> {
   ensure(!signal.aborted, "CANCELLED", "اجرای ایزوله متوقف شد.", 409);
   return new Promise((resolve, reject) => {
@@ -168,6 +169,7 @@ stage='install';if(plan.install!=='none')await npm(['ci','--offline','--no-audit
 const cacheBefore=fs.statfsSync('/work');fs.rmSync('/work/cache',{recursive:true,force:true});const cacheAfter=fs.statfsSync('/work');
 console.log('Launchlane: dependency staging released before build',JSON.stringify({workBytesBefore:(cacheBefore.blocks-cacheBefore.bfree)*cacheBefore.bsize,workBytesAfter:(cacheAfter.blocks-cacheAfter.bfree)*cacheAfter.bsize}));
 stage='build';if(plan.buildCommand!==null)await npm(['run','build']);
+if(payload.runnerPhase===true){stage='migration';if(plan.testDatabase?.version!==3)throw Error('migration runner mode denied');const runner=plan.testDatabase.runner,scripts=JSON.parse(fs.readFileSync('/work/project/package.json','utf8')).scripts,chain=['pre'+runner.script,runner.script,'post'+runner.script].filter(name=>scripts[name]!==undefined).map(name=>({name,command:scripts[name]}));if(createHash('sha256').update(JSON.stringify(chain)).digest('hex')!==runner.sha256)throw Error('migration script changed');await npm(['run',runner.script],false,{...env,...runtimeValues,NODE_ENV:'test'});console.log('Launchlane: reviewed source migration runner completed; independent data checks still required');clearTimeout(watchdog);return;}
 stage='test';if(plan.version===7){if(!plan.testDatabase)for(const script of plan.fullstack.testScripts)await npm(['run',script],true)}else if(plan.testCommand!==null)await npm(['test']);
 stage='workload';
 let child;
@@ -198,14 +200,15 @@ if(plan.testDatabase){stage='test';for(const script of plan.fullstack.testScript
 clearTimeout(watchdog);process.exit(0)
 })().catch(error=>{console.error('Launchlane build check failed:',stage,error.message);process.exit({cache:74,install:71,build:72,workload:73,test:76}[stage]??75)});`;
 
-export type NodeBuildDependencies = { command?: typeof docker; endpoint?: LocalDockerEndpoint; fixture?: PostgresFixtureBinding; expectedJobId?: string; expectedSourceHash?: string };
+export type NodeBuildDependencies = { command?: typeof docker; endpoint?: LocalDockerEndpoint; fixture?: PostgresFixtureBinding; expectedJobId?: string; expectedSourceHash?: string; runnerPhase?: true };
 export async function runContainerBuild(workspace: string, tarballs: string, value: ProjectBuildPlan, signal: AbortSignal,
   onCreated?: (id: string) => void | Promise<void>, environment: readonly EnvironmentVariable[] = [], options: NodeBuildDependencies = {}): Promise<ContainerBuildResult> {
   const plan = parseProjectBuildPlan(value), values = environmentVariables(environment);
   const compatibility = plan.version === 7 && plan.testDatabase !== undefined;
   ensure(compatibility ? !!options.fixture && !!options.endpoint && values.length === 0 : options.fixture === undefined,
     "TEST_DATABASE_BINDING_CHANGED","آزمون ساختگی به namespace همان job و ورودی خالی از تنظیمات واقعی نیاز دارد.",409);
-  if (options.fixture) assertPostgresWorkerBinding(options.fixture,options.expectedJobId,options.expectedSourceHash, plan.version === 7 && plan.testDatabase?.version === 2);
+  if (options.fixture) assertPostgresWorkerBinding(options.fixture,options.expectedJobId,options.expectedSourceHash, plan.version === 7 && plan.testDatabase?.version === 2, plan.version === 7 && plan.testDatabase?.version === 3 ? plan.testDatabase.targets : undefined);
+  ensure(!options.runnerPhase || plan.version === 7 && plan.testDatabase?.version === 3, "MIGRATION_RUNNER_INVALID", "مرحلهٔ runner فقط برای طرح مستقل داده مجاز است.", 409);
   const raw = options.command ?? docker, host = options.endpoint ? dockerEndpointHost(options.endpoint) : null;
   const command: typeof docker = host ? (args,parent,maxBytes,input) => abortable(()=>raw(["--host",host,...args],parent,maxBytes,input),parent) : raw;
   ensure(plan.version !== 2 && plan.version !== 6, "BUILD_RUNTIME_UNSUPPORTED", "این runner فقط برای Node است.", 409);
@@ -250,7 +253,7 @@ export async function runContainerBuild(workspace: string, tarballs: string, val
       const started = await command(["start", id], signal, 4096);
       ensure(started.exitCode === 0 && !started.signal, "SANDBOX_UNCERTAIN", "شروع محیط همین ساخت تأیید نشد؛ خروجی قابل انتشار نیست.", 409);
     }
-    const input = Buffer.from(JSON.stringify(compatibility ? {environment:[],testDatabase:options.fixture} : values));
+    const input = Buffer.from(JSON.stringify(compatibility ? {environment:[],testDatabase:options.fixture, ...(options.runnerPhase ? { runnerPhase: true } : {})} : values));
     let result: CommandResult;
     try { result = await command(plan.version === 5 || plan.version === 7 ? ["exec", "--interactive", id, "/usr/local/bin/node", "-e", buildProgram, "--", JSON.stringify(plan)] : ["start", "--attach", "--interactive", id], signal, 32768, input); }
     finally { input.fill(0); }

@@ -1,7 +1,9 @@
 import type { CodeRepairJob } from "../contracts/code-repair.ts";
+import { RunnerTestReview } from "./RunnerTestReview.tsx";
 
 export function MigrationTestReview({ job }: { job: CodeRepairJob }) {
   const database = job.build?.version === 7 ? job.build.testDatabase : undefined;
+  if (database?.version === 3) return <RunnerTestReview database={database} receipt={job.afterTest?.passed ? job.afterTest.databaseRunner : undefined} />;
   if (database?.version !== 2) return null;
   const migration = database.migration, receipt = job.afterTest?.passed ? job.afterTest.databaseMigration : undefined,
     number = new Intl.NumberFormat("fa-IR");

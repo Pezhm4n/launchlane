@@ -145,6 +145,32 @@ test("migration never exposes the namespace if policy installation or actual roo
     assert.equal(h.uses(), false); assert.equal(h.removed(), true);
   }
 });
+
+test("runner setup separates database roles and observer, denies source SQL, and fails closed on partial setup or unknown targets", async () => {
+  for (const fail of [false, true]) {
+    const h = harness(), original = h.command, inputs: { args: string[]; text: string }[] = []; let callback = false;
+    const command: typeof docker = async (args, signal, max, input) => {
+      if (args.includes("tee")) { assert.ok(input); const policy = input.toString(); assert.match(policy, /local all launchlane_observer trust/); assert.match(policy, /host launchlane_target_0 launchlane_app_0 127.0.0.1\/32 trust/); assert.match(policy, /host launchlane_target_1 launchlane_app_1 127.0.0.1\/32 trust/); assert.equal(policy.includes("host all launchlane_observer"), false); return result(""); }
+      if (args.includes("psql")) { assert.ok(input);
+        if (args[args.indexOf("-U") + 1] === "launchlane_fixture" && args[args.indexOf("-h") + 1] === "127.0.0.1") return result("pg_hba.conf rejects connection", 2);
+        inputs.push({ args, text: input.toString() }); return result(input.includes(Buffer.from("pg_reload_conf")) ? "t\n" : "", fail && input.includes(Buffer.from("CREATE DATABASE launchlane_target_1")) ? 1 : 0);
+      }
+      return original(args, signal, max, input);
+    };
+    const task = () => withPostgresFixture({ ...setup(h), command, migration: true, targets: ["auth", "profile"] }, async (binding, signal, sql) => {
+      callback = true; h.markUsed(); assert.deepEqual(binding.targets?.map(target => target.user), ["launchlane_app_0", "launchlane_app_1"]);
+      await assert.rejects(async () => sql.apply("INSERT INTO public.x VALUES(1);", signal), code("MIGRATION_RUNNER_SQL_DENIED"));
+      await assert.rejects(async () => sql.read("SELECT 1;", signal, "missing"), code("MIGRATION_TARGET_UNKNOWN"));
+      await sql.read("SELECT 1;", signal, "profile");
+    });
+    if (fail) await assert.rejects(task(), code("POSTGRES_MIGRATION_SETUP_FAILED")); else await task();
+    assert.equal(callback, !fail); assert.equal(h.removed(), true); assert.ok(inputs.some(input => input.text.includes("NOSUPERUSER") && input.text.includes("pg_read_all_data")));
+    if (!fail) { const read = inputs.at(-1); assert.ok(read); assert.equal(read.args[read.args.indexOf("-U") + 1], "launchlane_observer"); assert.equal(read.args[read.args.indexOf("-d") + 1], "launchlane_target_1"); assert.match(read.text, /^BEGIN READ ONLY;/); assert.match(read.text, /search_path=pg_catalog/); assert.ok(read.args.includes(socket)); }
+  }
+  const h = harness();
+  for (const targets of [["auth", "auth"], ["../../other"], []]) await assert.rejects(withPostgresFixture({ ...setup(h), migration: true, targets }, async () => h.markUsed()), code("POSTGRES_FIXTURE_INPUT_INVALID"));
+  assert.deepEqual(h.calls, []);
+});
 test("an absent image fails before creation and never invokes pull or a callback", async () => {
   const h = harness(), absent: typeof docker = async (args, signal) => args.includes("image") ? result(`Error: No such image: ${postgresFixtureImage}`, 1) : h.command(args, signal);
   await assert.rejects(withPostgresFixture({ ...setup(h), command: absent }, async () => h.markUsed()), code("POSTGRES_FIXTURE_IMAGE_UNAVAILABLE"));

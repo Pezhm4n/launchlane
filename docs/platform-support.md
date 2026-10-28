@@ -1,5 +1,7 @@
 # وضعیت پلتفرم‌ها و مسیر انتشار
 
+افزودهٔ runner داده، ۲۰۲۶-۱۰-۲۸: مسیر موجود Node fullstack با root `pg` و npm lock v3، script migration اصلی و hookهای source را روی چند target منطقی موقت اجرا می‌کند؛ transaction/ledger/SQL پروژه حفظ می‌شوند. [شاهد](evidence/project-migration-runners.md) شامل seeded/schema-only، quoted identifier، API و خواندن مستقل داده است. این adapter، CLI غایب یا driver تازه نمی‌سازد و پذیرش pnpm workspace، Python/framework-native، resourceهای مستقل provider یا باقی۱۴خانواده از آن نتیجه نمی‌شود.
+
 افزودهٔ آزمون داده، ۲۰۲۶-۱۰-۲۸: build7 موجود Node fullstack با npm lock می‌تواند plain SQL همین source را در PostgreSQL موقت اجرا و اثر schema/seed و نوشتن API را مستقل بسنجد؛ مقدار تازه باید پس از اجرای worker دوم حفظ شود. [شاهد](evidence/postgres-migration-test.md) به یک خانوادهٔ runtime یا provider production پذیرش عمومی نمی‌دهد. migrationهای framework، restart خود دیتابیس، چند component/resource و باقی۱۴خانواده همچنان هدف‌اند.
 
 افزودهٔ منابع، ۲۰۲۶-۱۰-۲۸: ساخت خصوصی دیتابیس برای requirement صریح PostgreSQL/MySQL/Redis و URL binding همان consumer در مسیر Agent/وب پیاده شد؛ نسخه‌ها از catalog فعلی انتخاب می‌شوند. این capability مشترک منبع است، پذیرش تازهٔ یک runtime یا اثبات کامل Django/Laravel/Worker نیست. [شاهد](evidence/managed-database.md) صریحاً migration، اتصال/داده و live provisioning را باز نگه می‌دارد. Supabase/D1 و سرویس‌های متفاوت با PostgreSQL ساده جایگزین نمی‌شوند.

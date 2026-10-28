@@ -9,6 +9,7 @@ export type PostgresMigrationTest = Readonly<{
   rows: readonly Readonly<{ relation: string; key: Readonly<{ column: string; value: MigrationScalar }>; values: readonly Readonly<{ column: string; value: MigrationScalar }>[] }>[];
   persistence: readonly Readonly<{ relation: string; key: Readonly<{ column: string; value: MigrationScalar }>; column: string }>[];
 }>;
+export type PostgresDataOracle = Pick<PostgresMigrationTest, "columns" | "rows" | "persistence">;
 export function migrationIdentifier(value: unknown): string {
   const name = string(value, 63);
   ensure(/^[a-z_][a-z0-9_]*$/.test(name) && !name.startsWith("_launchlane"), "MIGRATION_ORACLE_INVALID", "نام ستون سنجش معتبر نیست.", 409); return name;
@@ -21,37 +22,44 @@ function scalar(value: unknown): MigrationScalar {
     typeof value === "string" && value.length <= 256 && !value.includes("\0"), "MIGRATION_ORACLE_INVALID", "مقدار سنجش داده باید scalar محدود و ساختگی باشد.", 409);
   return value;
 }
-function rowValue(value: unknown) {
-  const row = object(value); exactKeys(row, ["column", "value"]); const column = migrationIdentifier(row.column);
+function rowValue(value: unknown, identifier = migrationIdentifier) {
+  const row = object(value); exactKeys(row, ["column", "value"]); const column = identifier(row.column);
   ensure(!/(?:password|secret|token|authorization|api_?key)/i.test(column), "MIGRATION_ORACLE_INVALID", "مقادیر محرمانه موضوع سنجش ردیف نیستند.", 409);
   return { column, value: scalar(row.value) };
 }
-export function parsePostgresMigrationTest(value: unknown): PostgresMigrationTest {
-  const row = object(value); exactKeys(row, ["files", "columns", "rows", "persistence"]);
-  ensure(Array.isArray(row.files) && row.files.length > 0 && row.files.length <= 16 && Array.isArray(row.columns) && row.columns.length > 0 && row.columns.length <= 64 &&
-    Array.isArray(row.rows) && row.rows.length > 0 && row.rows.length <= 16 && Array.isArray(row.persistence) && row.persistence.length > 0 && row.persistence.length <= 8, "MIGRATION_ORACLE_INVALID", "فایل‌ها، schema، داده و ستونِ ماندگار آزمون باید مشخص و محدود باشند.", 409);
-  const files = row.files.map(value => { const item = object(value); exactKeys(item, ["path", "sha256"]); const path = applicationSourcePath(item.path);
-    ensure(/\.sql$/.test(path) && path.length <= 256, "MIGRATION_SOURCE_INVALID", "فایل migration باید SQL همین source باشد.", 409); return { path, sha256: hash(item.sha256) }; });
+export function parsePostgresDataOracle(value: unknown, mode: "sql" | "runner" = "sql"): PostgresDataOracle {
+  const row = object(value); exactKeys(row, ["columns", "rows", "persistence"]);
+  const identifier = mode === "sql" ? migrationIdentifier : (value: unknown) => { const name = string(value, 63); ensure(/^[A-Za-z_][A-Za-z0-9_]*$/.test(name) && !name.toLowerCase().startsWith("_launchlane"), "MIGRATION_ORACLE_INVALID", "نام ستون معتبر نیست.", 409); return name; },
+    relation = mode === "sql" ? migrationRelation : (value: unknown) => { const name = string(value, 70); ensure(/^public\.[A-Za-z_][A-Za-z0-9_]{0,62}$/.test(name) && !name.toLowerCase().startsWith("public._launchlane"), "MIGRATION_ORACLE_INVALID", "نام جدول سنجش باید در schema عمومی باشد.", 409); return name; };
+  ensure(Array.isArray(row.columns) && row.columns.length > 0 && row.columns.length <= 64 &&
+    Array.isArray(row.rows) && row.rows.length >= (mode === "runner" ? 0 : 1) && row.rows.length <= 16 && Array.isArray(row.persistence) && row.persistence.length > 0 && row.persistence.length <= 8, "MIGRATION_ORACLE_INVALID", "فایل‌ها، schema، داده و ستونِ ماندگار آزمون باید مشخص و محدود باشند.", 409);
   const columns = row.columns.map(value => { const item = object(value); exactKeys(item, ["relation", "name", "type", "nullable"]); const type = string(item.type, 80);
     ensure(/^[a-z][a-z0-9 ,()[\]]*$/.test(type) && typeof item.nullable === "boolean", "MIGRATION_ORACLE_INVALID", "نوع و nullable ستون باید صریح باشند.", 409);
-    return { relation: migrationRelation(item.relation), name: migrationIdentifier(item.name), type, nullable: item.nullable }; });
+    return { relation: relation(item.relation), name: identifier(item.name), type, nullable: item.nullable }; });
   const rows = row.rows.map(value => { const item = object(value); exactKeys(item, ["relation", "key", "values"]);
     ensure(Array.isArray(item.values) && item.values.length > 0 && item.values.length <= 8, "MIGRATION_ORACLE_INVALID", "مقادیر مورد انتظار ردیف لازم‌اند.", 409);
-    const values = item.values.map(rowValue); ensure(new Set(values.map(value => value.column)).size === values.length, "MIGRATION_ORACLE_INVALID", "ستون ردیف تکراری نیست.", 409);
-    return { relation: migrationRelation(item.relation), key: rowValue(item.key), values }; });
-  const persistence = row.persistence.map(value => { const item = object(value); exactKeys(item, ["relation", "key", "column"]); const column = migrationIdentifier(item.column);
+    const values = item.values.map(value => rowValue(value, identifier)); ensure(new Set(values.map(value => value.column)).size === values.length, "MIGRATION_ORACLE_INVALID", "ستون ردیف تکراری نیست.", 409);
+    return { relation: relation(item.relation), key: rowValue(item.key, identifier), values }; });
+  const persistence = row.persistence.map(value => { const item = object(value); exactKeys(item, ["relation", "key", "column"]); const column = identifier(item.column);
     ensure(!/(?:password|secret|token|authorization|api_?key)/i.test(column), "MIGRATION_ORACLE_INVALID", "ستون محرمانه موضوع سنجش ماندگاری نیست.", 409);
-    const relation = migrationRelation(item.relation), key = rowValue(item.key);
-    ensure(columns.some(item => item.relation === relation && item.name === column) && columns.some(item => item.relation === relation && item.name === key.column), "MIGRATION_ORACLE_INVALID", "ردیف ماندگاری باید به schema مصوب متصل باشد.", 409);
-    return { relation, key, column }; });
+    const relationName = relation(item.relation), key = rowValue(item.key, identifier);
+    ensure(columns.some(item => item.relation === relationName && item.name === column) && columns.some(item => item.relation === relationName && item.name === key.column), "MIGRATION_ORACLE_INVALID", "ردیف ماندگاری باید به schema مصوب متصل باشد.", 409);
+    return { relation: relationName, key, column }; });
   ensure(persistence.every(target => !rows.some(row => row.relation === target.relation && row.key.column === target.key.column && row.key.value === target.key.value && row.values.some(value => value.column === target.column))),
     "MIGRATION_PERSISTENCE_CONFLICT", "ستونِ persistence باید با نوشتن برنامه تغییر کند؛ همان ستون را در rows با مقدار ثابت، حتی null، قرار ندهید. rows معیار مقادیر ثابت مثل شناسه و عنوان است؛ میزبان مقدار اولیهٔ ستون ماندگار را جداگانه می‌خواند و تغییر واقعی آن را می‌سنجد. معیار نوشتن و ماندگاری را حذف نکنید.", 409);
-  ensure(new Set(files.map(file => file.path.toLowerCase())).size === files.length &&
-    new Set(columns.map(column => `${column.relation}.${column.name}`)).size === columns.length &&
+  ensure(new Set(columns.map(column => `${column.relation}.${column.name}`)).size === columns.length &&
     new Set(rows.map(row => JSON.stringify([row.relation, row.key]))).size === rows.length && new Set(persistence.map(row => JSON.stringify([row.relation, row.key, row.column]))).size === persistence.length &&
     rows.every(item => columns.some(column => column.relation === item.relation && column.name === item.key.column) && item.values.every(value => columns.some(column => column.relation === item.relation && column.name === value.column))),
     "MIGRATION_ORACLE_INVALID", "ترتیب فایل‌ها، یکتایی ستون‌ها و اتصال سنجش ردیف به schema باید مشخص باشند.", 409);
-  return { files, columns, rows, persistence };
+  return { columns, rows, persistence };
+}
+export function parsePostgresMigrationTest(value: unknown): PostgresMigrationTest {
+  const row = object(value); exactKeys(row, ["files", "columns", "rows", "persistence"]);
+  ensure(Array.isArray(row.files) && row.files.length > 0 && row.files.length <= 16, "MIGRATION_ORACLE_INVALID", "فایل‌های migration باید مشخص و محدود باشند.", 409);
+  const files = row.files.map(value => { const item = object(value); exactKeys(item, ["path", "sha256"]); const path = applicationSourcePath(item.path);
+    ensure(/\.sql$/.test(path) && path.length <= 256, "MIGRATION_SOURCE_INVALID", "فایل migration باید SQL همین source باشد.", 409); return { path, sha256: hash(item.sha256) }; });
+  ensure(new Set(files.map(file => file.path.toLowerCase())).size === files.length, "MIGRATION_ORACLE_INVALID", "فایل migration تکراری است.", 409);
+  return { files, ...parsePostgresDataOracle({ columns: row.columns, rows: row.rows, persistence: row.persistence }) };
 }
 export type PostgresMigrationTestReceipt = Readonly<{
   kind: "disposable_postgres_migration"; sourceHash: string; planHash: string; files: PostgresMigrationTest["files"];
