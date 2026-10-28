@@ -1,5 +1,10 @@
 # برنامه اجرایی Launchlane
 
+## قیمت و باندل دیتابیس از حساب واقعی؛ ۲۰۲۶-۱۰-۲۸
+
+- `read_database_resources` اکنون در `view=capabilities` علاوه بر موتور/نسخه/پلن، قیمت ساعتی و نمایش ماهانهٔ پلن، RAM/CPU/volume گزارش‌شده، باندل‌های `databaseBundlePlans`، نسخه‌های پیش‌فرض و موجودی حساب را برمی‌گرداند. `view=quote` یک ترکیب type/version/plan/bundle را دوباره اعتبارسنجی می‌کند و مؤلفه‌های قیمت را جدا می‌دهد؛ **total ترکیبی محاسبه نمی‌شود** و `combinedTotal:"not_computed"` با unknown صریح برمی‌گردد. قیمت نامعلوم/نامعتبر null می‌ماند و صفر نمی‌شود.
+- هیچ create، credential، SQL، migration، resize یا connectivity در این مسیر نیست؛ `operations` همان `provision:not_implemented` و `credentials:unsupported` را نگه می‌دارد. این خواندن برای انتخاب آگاهانهٔ منبع است، نه اثبات provision یا اتصال. آزمون: domain `743/743`، typecheck، build با Webpack؛ خواندن واقعی فقط‌خواندنی `/v1/me` نیز `catalog=observed`، ۹ موتور، Postgres 18.4، ۴۱ پلن/۳۷ باندل و موجودی `1,678,178.4` تومان را دید و `small-g2` + `basic` را جدا (۶۵۹٫۷۲ و ۳۸۱٫۹۴ تومان/ساعت) با `combinedTotal=not_computed` برگرداند. هیچ create/credential/SQL/model/cloud write در این خواندن نبود. مرز بعدی: ساخت دیتابیس با approval/readback، اتصال امن و migration/connectivity.
+
 ## بازگردانی بستهٔ دقیق یک انتشار موفق؛ ۲۰۲۶-۱۰-۲۸
 
 - آخرین انتشار موفق دارای معیار پاسخ، پیش از اکشن نمایش‌داده‌شده، اکنون می‌تواند از کارت نتیجه بازگردانده شود. `proposePreviousRollback` با `beforeActionId` نسخهٔ قبلی را انتخاب و `proposeRollback` اکشن/نسخه/بسته/hashها/حساب/برنامه را تطبیق می‌دهد، یک flow با انتخاب `artifact` می‌سازد و همان بستهٔ ذخیره‌شده را با معیار پاسخ اصلی به مسیر عادی deployment/approval/claim/upload/release/observe می‌دهد. فایل‌های فعلی یا پوشهٔ تغییرکرده دوباره خوانده نمی‌شوند و action قبلی mutable نمی‌شود.

@@ -1,4 +1,4 @@
-import { object, exactKeys, integer, string, text } from "../../contracts/validation.ts";
+import { object, exactKeys, identifier, integer, string, text } from "../../contracts/validation.ts";
 import type { Config } from "../config.ts";
 import { connectedLiaraConfig, connectedLiaraAccountConfig } from "../connections/liara.ts";
 import { AppError, ensure } from "../errors.ts";
@@ -13,7 +13,7 @@ import type { ToolDefinition } from "./model.ts";
 import { CodeRepairAdapter } from "./code-repair.ts";
 import { proposeWorkloadDeployment } from "../application/deployment.ts";
 import { LiaraAccountClient, quotePaaSOffer } from "../liara/catalog.ts";
-import { LiaraDatabaseReadClient } from "../liara/database-read.ts";
+import { LiaraDatabaseReadClient, quoteDatabaseOffer } from "../liara/database-read.ts";
 import { providerObjectId } from "../../contracts/provision.ts";
 import { proposeDestination } from "../application/provision.ts";
 import { proposeNetwork } from "../application/network.ts";
@@ -226,9 +226,11 @@ const preparationTool: ToolDefinition = { type: "function", function: {
 } };
 const catalogTools: readonly ToolDefinition[] = [
   { type: "function", function: {
-    name: "read_database_resources", description: "Read fresh database metadata for the connected account/team. view=inventory lists observed IDs; view=capabilities reads provider engines/versions and plan availability, without prices; view=identity looks up one internal databaseId from inventory. Completeness is unknown. Network/version details may be unknown, RUNNING is not connectivity or data health. No credentials, SQL, provision, migration, resize or reset. Never substitute plain PostgreSQL for Supabase, D1 or WordPress services.",
+    name: "read_database_resources", description: "Read fresh database metadata for the connected account/team. view=inventory lists observed IDs; view=capabilities reads provider engines/versions, plan availability and component prices; view=identity looks up one internal databaseId; view=quote revalidates one type/version/plan/bundle and returns its exact provider price components, balance and base-plan credit coverage without computing a combined total. Completeness is unknown. Network/version details may be unknown, RUNNING is not connectivity or data health. No credentials, SQL, provision, migration, resize or reset. Never substitute plain PostgreSQL for Supabase, D1 or WordPress services.",
     parameters: { type: "object", additionalProperties: false, required: ["view"], properties: {
-      view: { type: "string", enum: ["inventory", "capabilities", "identity"] }, databaseId: { type: "string", minLength: 24, maxLength: 24 },
+      view: { type: "string", enum: ["inventory", "capabilities", "identity", "quote"] }, databaseId: { type: "string", minLength: 24, maxLength: 24 },
+      type: { type: "string", maxLength: 63 }, version: { type: "string", maxLength: 64 },
+      planId: { type: "string", maxLength: 63 }, bundleId: { type: "string", maxLength: 63 },
     } },
   } },
   { type: "function", function: {
@@ -309,7 +311,7 @@ export const toolLabels: Readonly<Record<string, string>> = {
   read_catalog: "خواندن پلن‌ها و قیمت‌های تازه حساب",
   quote_resource_plan: "بررسی هزینه پایه و گزینه‌های پلن",
   read_networks: "بررسی شبکه‌های موجود همین حساب",
-  read_database_resources: "بررسی مشخصات دیتابیس‌های همین حساب",
+  read_database_resources: "بررسی مشخصات و قیمت دیتابیس‌های همین حساب",
   propose_destination: "آماده‌کردن مقصد تازه و هزینه پایه آن",
   propose_network: "آماده‌کردن تصمیم ساخت شبکه موردنیاز",
   propose_disk: "آماده‌کردن فضای پایدار موردنیاز همین نسخه",
@@ -375,15 +377,31 @@ export async function executeAgentTool(
   ensure(buildSince === null || explicitIsoTime(buildSince) !== null, "INVALID_INPUT", "زمان آغاز گزارش ساخت باید تاریخ معتبر باشد.");
   if (name === "read_database_resources") {
     ensure(c.context.account, "LIARA_AUTH_REQUIRED", "ابتدا حساب مقصد را متصل کنید.", 409);
-    ensure(["inventory", "capabilities", "identity"].includes(string(args.view, 24)) && (args.view === "identity" ? args.databaseId !== undefined : args.databaseId === undefined),
-      "INVALID_INPUT", "نوع خواندن دیتابیس و شناسهٔ آن معتبر نیست.", 400);
-    const databaseId = args.view === "identity" ? providerObjectId(args.databaseId) : null;
+    const view = string(args.view, 24);
+    ensure(["inventory", "capabilities", "identity", "quote"].includes(view),
+      "INVALID_INPUT", "نوع خواندن دیتابیس معتبر نیست.", 400);
     const scoped = connectedLiaraAccountConfig(c.config, c.store, c.actorId), client = c.database ?? new LiaraDatabaseReadClient(scoped, c.context.account.accountId);
-    const result = args.view === "capabilities" ? await client.capabilities(c.budget, c.signal) : databaseId
+    if (view === "quote") {
+      ensure(args.databaseId === undefined && ["type", "version", "planId", "bundleId"].every(key => args[key] !== undefined),
+        "INVALID_INPUT", "مشخصات پلن دیتابیس برای قیمت‌گیری کامل نیست.", 400);
+      const quoteInput = { type: identifier(args.type), version: string(args.version, 64),
+        planId: identifier(args.planId), bundleId: identifier(args.bundleId) };
+      const capabilities = await client.capabilities(c.budget, c.signal);
+      assertAgentContext(c.config, c.store, c.actorId, c.context);
+      return { ...quoteDatabaseOffer(capabilities, quoteInput), remoteChanges: false, workloadVerified: false,
+        provisioned: false, credentialsReturned: false };
+    }
+    ensure(["type", "version", "planId", "bundleId"].every(key => args[key] === undefined),
+      "INVALID_INPUT", "این فیلدها فقط برای قیمت‌گیری دیتابیس مجازند.", 400);
+    ensure(view === "identity" ? args.databaseId !== undefined : args.databaseId === undefined,
+      "INVALID_INPUT", "نوع خواندن دیتابیس و شناسهٔ آن معتبر نیست.", 400);
+    const databaseId = view === "identity" ? providerObjectId(args.databaseId) : null;
+    const result = view === "capabilities" ? await client.capabilities(c.budget, c.signal) : databaseId
       ? await client.database({ ...c.context.account, databaseId }, c.budget, c.signal) : await client.inventory(c.budget, c.signal);
     assertAgentContext(c.config, c.store, c.actorId, c.context);
     return { ...result, remoteChanges: false, workloadVerified: false };
   }
+
   if (name === "read_networks") {
     ensure(c.context.account, "LIARA_AUTH_REQUIRED", "ابتدا حساب مقصد را متصل کنید.", 409);
     const scoped = connectedLiaraAccountConfig(c.config, c.store, c.actorId),

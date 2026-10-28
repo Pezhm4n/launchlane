@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { databaseAccountScope } from "../../src/contracts/database-resource.ts";
 import { readConfig, type Config } from "../../src/server/config.ts";
 import { AppError } from "../../src/server/errors.ts";
-import { LiaraDatabaseReadClient, parseDatabaseCapabilitiesResponse, parseDatabaseInventoryResponse } from "../../src/server/liara/database-read.ts";
+import { LiaraDatabaseReadClient, parseDatabaseCapabilitiesResponse, parseDatabaseInventoryResponse, quoteDatabaseOffer } from "../../src/server/liara/database-read.ts";
 import { RunBudget } from "../../src/server/policy/budget.ts";
 import type { Transport } from "../../src/server/providers/http.ts";
 
@@ -16,9 +16,12 @@ const signal = () => AbortSignal.timeout(2500);
 const code = (expected: string) => (error: unknown) => error instanceof AppError && error.code === expected;
 const database = (overrides: Record<string, unknown> = {}) => ({ _id: id, hostname: "fixture-postgres", type: "postgres", scale: 1,
   status: "RUNNING", planID: "g2-fixture", bundlePlanID: "fixture-bundle", created_at: "2026-10-25T00:00:00.000Z", ...overrides });
-const me = () => ({ user: { _id: scope.accountId }, team: { _id: scope.teamId },
+const me = () => ({ user: { _id: scope.accountId }, team: { _id: scope.teamId, balance: 100_000 },
   databaseVersions: { postgres: [{ value: "16.4", label: "Untrusted display text" }] },
-  plans: { databases: { "g2-fixture": { available: true, supports: ["postgres"], price: 100, RAM: { amount: 1024 }, CPU: { amount: 1 } } } } });
+  defaultDatabaseVersions: { postgres: "16.4" },
+  plans: { databases: { "g2-fixture": { available: true, supports: ["postgres"], price: 100, displayPrice: 72_000,
+      RAM: { amount: 1 }, CPU: { amount: 0.5 }, volume: 2 } },
+    databaseBundlePlans: { "g2-fixture": { basic: { available: true, price: 10, displayPrice: 7_200 } } } } });
 const json = (value: unknown, status = 200) => Response.json(value, { status });
 
 test("CLI-shaped inventory exports only metadata; RUNNING, scale and a hostname are not database health", () => {
@@ -51,12 +54,40 @@ test("account capabilities use dynamic provider type/version/plan identifiers an
   const source = me(); source.databaseVersions.postgres.push({ value: "17.2", label: privateValue });
   const result = parseDatabaseCapabilitiesResponse(source, scope);
   assert.equal(result.catalog, "observed"); assert.deepEqual(result.engines, [{ type: "postgres", versions: ["16.4", "17.2"] }]);
-  assert.deepEqual(result.plans, [{ id: "g2-fixture", available: true, supports: ["postgres"] }]);
+  assert.deepEqual(result.plans, [{ id: "g2-fixture", available: true, supports: ["postgres"], hourlyToman: 100,
+    monthlyDisplayToman: 72_000, ramAmount: 1, cpuAmount: 0.5, volumeAmount: 2 }]);
+  assert.deepEqual(result.bundles, [{ planId: "g2-fixture", bundleId: "basic", available: true, hourlyToman: 10, monthlyDisplayToman: 7_200 }]);
+  assert.deepEqual(result.defaults, { postgres: "16.4" }); assert.equal(result.balanceToman, 100_000);
   assert.deepEqual(result.operations, { inventory: "read_only", credentials: "unsupported", provision: "not_implemented", migrate: "not_implemented", connectivity: "unverified" });
-  assert.equal(JSON.stringify(result).includes(privateValue), false); assert.equal("price" in (result.plans[0] ?? {}), false);
+  assert.equal(JSON.stringify(result).includes(privateValue), false);
   const missing = parseDatabaseCapabilitiesResponse({ user: source.user, team: source.team }, scope);
   assert.equal(missing.catalog, "unsupported"); assert.deepEqual(missing.engines, []);
 });
+
+test("database quote exposes component prices without inventing a combined total", () => {
+  const capabilities = parseDatabaseCapabilitiesResponse(me(), scope);
+  const quote = quoteDatabaseOffer(capabilities, { type: "postgres", version: "16.4", planId: "g2-fixture", bundleId: "basic" });
+  assert.equal(quote.planHourlyToman, 100); assert.equal(quote.planMonthlyDisplayToman, 72_000);
+  assert.equal(quote.bundleHourlyToman, 10); assert.equal(quote.bundleMonthlyDisplayToman, 7_200);
+  assert.equal(quote.balanceToman, 100_000); assert.equal(quote.creditCoversPlanBaseHour, true);
+  assert.equal(quote.combinedTotal, "not_computed"); assert.equal(quote.unit, "toman_per_hour");
+  assert.ok(quote.unknown.includes("combined_total")); assert.ok(quote.unknown.includes("tax_traffic_storage"));
+  for (const input of [
+    { type: "mysql", version: "16.4", planId: "g2-fixture", bundleId: "basic" },
+    { type: "postgres", version: "15.0", planId: "g2-fixture", bundleId: "basic" },
+    { type: "postgres", version: "16.4", planId: "missing-plan", bundleId: "basic" },
+    { type: "postgres", version: "16.4", planId: "g2-fixture", bundleId: "missing-bundle" },
+    { type: "postgres", version: "16.4", planId: "g2-fixture" },
+  ]) assert.throws(() => quoteDatabaseOffer(capabilities, input));
+  const unknownPrice = parseDatabaseCapabilitiesResponse({ ...me(),
+    plans: { databases: { "g2-fixture": { available: true, supports: ["postgres"] } },
+      databaseBundlePlans: { "g2-fixture": { basic: { available: true } } } } }, scope);
+  const uncertain = quoteDatabaseOffer(unknownPrice, { type: "postgres", version: "16.4", planId: "g2-fixture", bundleId: "basic" });
+  assert.equal(uncertain.planHourlyToman, null); assert.equal(uncertain.bundleHourlyToman, null);
+  assert.equal(uncertain.creditCoversPlanBaseHour, null); assert.equal(uncertain.unit, null);
+  assert.ok(uncertain.unknown.includes("plan_hourly_price")); assert.ok(uncertain.unknown.includes("bundle_hourly_price"));
+});
+
 test("catalog identity, malformed supported versions, availability and plan bounds fail closed", () => {
   for (const changed of [{ ...me(), user: { _id: otherId } }, { ...me(), team: { _id: otherId } }])
     assert.throws(() => parseDatabaseCapabilitiesResponse(changed, scope), code("SCOPE_DENIED"));

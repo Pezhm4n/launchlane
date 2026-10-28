@@ -1,7 +1,7 @@
-import type { DatabaseAccountScope, DatabaseCapabilities, DatabaseInventory, DatabaseInventoryResource, DatabaseLookup, DatabaseResourceIdentity } from "../../contracts/database-resource.ts";
+import type { DatabaseAccountScope, DatabaseBundleOffer, DatabaseCapabilities, DatabaseInventory, DatabaseInventoryResource, DatabaseLookup, DatabasePlanOffer, DatabaseQuote, DatabaseResourceIdentity } from "../../contracts/database-resource.ts";
 import { databaseAccountScope } from "../../contracts/database-resource.ts";
 import { providerObjectId } from "../../contracts/provision.ts";
-import { identifier, integer, object, string } from "../../contracts/validation.ts";
+import { exactKeys, identifier, integer, object, string } from "../../contracts/validation.ts";
 import { containsCredential } from "../policy/redaction.ts";
 import { explicitIsoTime } from "./read-contracts.ts";
 import type { Config } from "../config.ts";
@@ -51,8 +51,19 @@ export function parseDatabaseInventoryResponse(value: unknown, expected: Databas
   });
 }
 
+/** Provider amounts are exposed raw; an invalid or missing amount stays null instead of zero. */
+function providerAmount(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1_000_000_000 ? value : null;
+}
+function nestedAmount(value: unknown, key: string): number | null {
+  if (value === undefined || value === null) return null;
+  const row = object(value);
+  return providerAmount(row[key]);
+}
 /** CLI 9.4.7 db/create.js obtains the engine/version choices and plan.supports from /v1/me.
- * Values remain the provider's identifiers. No PostgreSQL alias, version, price or network is inferred.
+ * Values remain the provider's identifiers. No PostgreSQL alias, version or network is inferred;
+ * a provider price is exposed as hourly and displayPrice as the monthly display value the CLI multiplies by 720.
+ * An absent or malformed price stays null rather than becoming zero.
  */
 export function parseDatabaseCapabilitiesResponse(value: unknown, expected: DatabaseAccountScope, observedAt = Date.now(), secrets: readonly string[] = []): DatabaseCapabilities {
   const scope = databaseAccountScope(expected);
@@ -60,7 +71,8 @@ export function parseDatabaseCapabilitiesResponse(value: unknown, expected: Data
     const root = object(value);
     ensure(object(root.user)._id === scope.accountId && object(root.team)._id === scope.teamId,
       "SCOPE_DENIED", "اطلاعات دیتابیس متعلق به حساب و تیم انتخاب‌شده نیست.", 403);
-    const engines: { type: string; versions: string[] }[] = [], plans: { id: string; available: boolean; supports: string[] }[] = [];
+    const engines: { type: string; versions: string[] }[] = [], plans: DatabasePlanOffer[] = [],
+      bundles: DatabaseBundleOffer[] = [];
     const rawPlans = root.plans === undefined || root.plans === null ? undefined : object(root.plans).databases;
     const supported = root.databaseVersions !== undefined && rawPlans !== undefined;
     if (root.databaseVersions !== undefined) {
@@ -88,14 +100,82 @@ export function parseDatabaseCapabilitiesResponse(value: unknown, expected: Data
           "DATABASE_RESPONSE_INVALID", "قابلیت یا موجودبودن پلن دیتابیس مشخص نیست.", 502);
         const supports = row.supports.map((value: unknown) => identifier(value));
         ensure(new Set(supports).size === supports.length, "DATABASE_RESPONSE_INVALID", "موتورهای پشتیبانی‌شده در پلن تکراری‌اند.", 502);
-        plans.push({ id, available: row.available, supports });
+        plans.push({ id, available: row.available, supports, hourlyToman: providerAmount(row.price),
+          monthlyDisplayToman: providerAmount(row.displayPrice), ramAmount: nestedAmount(row.RAM, "amount"),
+          cpuAmount: nestedAmount(row.CPU, "amount"), volumeAmount: providerAmount(row.volume) });
+      }
+    }
+    const rawBundles = root.plans === undefined || root.plans === null ? undefined : object(root.plans).databaseBundlePlans;
+    if (rawBundles !== undefined) {
+      const catalog = object(rawBundles);
+      ensure(Object.keys(catalog).length <= 64, "DATABASE_RESPONSE_INVALID", "تعداد پلن‌های باندل دیتابیس از سقف بررسی بیشتر است.", 502);
+      for (const [planId, value] of Object.entries(catalog)) {
+        identifier(planId);
+        const entries = object(value);
+        ensure(Object.keys(entries).length <= 64, "DATABASE_RESPONSE_INVALID", "تعداد باندل‌های دیتابیس از سقف بررسی بیشتر است.", 502);
+        for (const [bundleId, input] of Object.entries(entries)) {
+          const bundle = object(input);
+          identifier(bundleId);
+          ensure(typeof bundle.available === "boolean", "DATABASE_RESPONSE_INVALID", "موجودبودن باندل دیتابیس مشخص نیست.", 502);
+          bundles.push({ planId, bundleId, available: bundle.available,
+            hourlyToman: providerAmount(bundle.price), monthlyDisplayToman: providerAmount(bundle.displayPrice) });
+        }
+      }
+    }
+    let defaults: Record<string, string> | null = null;
+    if (root.defaultDatabaseVersions !== undefined) {
+      const rows = object(root.defaultDatabaseVersions);
+      ensure(Object.keys(rows).length <= 32, "DATABASE_RESPONSE_INVALID", "تعداد نسخه‌های پیش‌فرض دیتابیس از سقف بیشتر است.", 502);
+      defaults = {};
+      for (const [type, version] of Object.entries(rows)) {
+        identifier(type);
+        defaults[type] = string(version, 64);
       }
     }
     return publicMetadata({ contract: "liara-database-capabilities-v1" as const, ...scope, observedAt: snapshotTime(observedAt),
-      catalog: supported ? "observed" as const : "unsupported" as const, engines, plans,
+      catalog: supported ? "observed" as const : "unsupported" as const, engines, plans, bundles, defaults,
+      balanceToman: providerAmount(object(root.team).balance),
       operations: { inventory: "read_only" as const, credentials: "unsupported" as const, provision: "not_implemented" as const,
         migrate: "not_implemented" as const, connectivity: "unverified" as const } }, secrets);
   });
+}
+
+/** Quote one provider offer without provisioning, credentials or a connectivity claim. */
+export function quoteDatabaseOffer(capabilities: DatabaseCapabilities, value: unknown): DatabaseQuote {
+  const input = object(value);
+  exactKeys(input, ["type", "version", "planId", "bundleId"]);
+  const type = identifier(input.type), version = string(input.version, 64), planId = identifier(input.planId), bundleId = identifier(input.bundleId);
+  ensure(capabilities.catalog === "observed", "DATABASE_CATALOG_UNAVAILABLE", "فهرست پلن‌های دیتابیس در این حساب خوانده نشد.", 409);
+  const engine = capabilities.engines.find(row => row.type === type);
+  ensure(engine, "DATABASE_ENGINE_UNAVAILABLE", "این موتور دیتابیس در حساب موجود نیست.", 409);
+  ensure(engine.versions.includes(version), "DATABASE_VERSION_UNAVAILABLE", "این نسخهٔ دیتابیس در حساب موجود نیست.", 409);
+  const plan = capabilities.plans.find(row => row.id === planId);
+  ensure(plan, "DATABASE_PLAN_UNAVAILABLE", "این پلن در فهرست همین حساب نیست.", 409);
+  ensure(plan.available && plan.supports.includes(type), "DATABASE_PLAN_UNAVAILABLE", "این پلن برای موتور انتخاب‌شده موجود یا پشتیبانی‌شده نیست.", 409);
+  const bundle = capabilities.bundles.find(row => row.planId === planId && row.bundleId === bundleId);
+  ensure(bundle, "DATABASE_BUNDLE_UNAVAILABLE", "این باندل برای پلن انتخاب‌شده در فهرست نیست.", 409);
+  ensure(bundle.available, "DATABASE_BUNDLE_UNAVAILABLE", "این باندل برای پلن انتخاب‌شده موجود نیست.", 409);
+  const unknown = ["combined_total", "tax_traffic_storage"];
+  if (plan.hourlyToman === null) unknown.push("plan_hourly_price");
+  if (plan.monthlyDisplayToman === null) unknown.push("plan_monthly_display_price");
+  if (bundle.hourlyToman === null) unknown.push("bundle_hourly_price");
+  if (bundle.monthlyDisplayToman === null) unknown.push("bundle_monthly_display_price");
+  if (capabilities.balanceToman === null) unknown.push("balance");
+  return {
+    contract: "liara-database-quote-v1",
+    observedAt: capabilities.observedAt,
+    type, version, planId, bundleId,
+    supports: plan.supports,
+    planHourlyToman: plan.hourlyToman,
+    planMonthlyDisplayToman: plan.monthlyDisplayToman,
+    bundleHourlyToman: bundle.hourlyToman,
+    bundleMonthlyDisplayToman: bundle.monthlyDisplayToman,
+    balanceToman: capabilities.balanceToman,
+    creditCoversPlanBaseHour: plan.hourlyToman === null || capabilities.balanceToman === null ? null : capabilities.balanceToman >= plan.hourlyToman,
+    combinedTotal: "not_computed",
+    unit: plan.hourlyToman === null ? null : "toman_per_hour",
+    unknown,
+  };
 }
 
 /** Read-only account adapter. Caller supplies connectedLiaraAccountConfig, never model-supplied credentials.
