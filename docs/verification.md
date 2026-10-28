@@ -1,5 +1,7 @@
 # شواهد اعتبارسنجی Launchlane
 
+افزودهٔ ۲۰۲۶-۱۰-۲۸: [شاهد انتخاب دیتابیس موجود](evidence/existing-managed-database.md) قرارداد v29، revalidation، انتخاب بدون create، اتصال خصوصی با تصمیم جدا، بازیابی همان identity/purpose و رد proof نامرتبط را ثبت می‌کند. snapshot و فرمان‌های تازه جدا از passهای تاریخی‌اند. مدل/provider این برش مصنوعی‌اند؛ credential واقعی، SQL تولیدی، adoption واقعی، rollout یا مصرف تازهٔ مدل ادعا نمی‌شود.
+
 افزودهٔ ۲۰۲۶-۱۰-۲۸: [دیتابیس‌های نام‌دار و اتصال امن چندمنبعی](evidence/managed-database-targets.md) source snapshot، آزمون‌های قرارداد/مهاجرت/uncertainty، مسیر واقعی وب و API با دو تصمیم منبع و دو تصمیم env، و provider/model مصنوعی را جدا ثبت می‌کند. هیچ ساخت واقعی لیارا یا SQL تولیدی انجام نشده؛ شواهد migration موقت قبلی به live data-plane ارتقا داده نمی‌شوند.
 
 نتیجهٔ نهایی `database-targets-r4`: domain787، HTTP48، guided54، legacy v27 در۵عرض و مسیر واقعی وب/API دو منبع در۸چیدمان، typecheck/lint بدون error گذشتند. runtime/package دقیقاً برابر build Webpack ثابت r2 است؛ reuse و failureهای harness در شاهد مشخص‌اند. هر دو اتصال و مقدار قبلی در تنظیمات ادغام‌شده حفظ شدند؛ replay409 و reload بدون مصرف/write تازه ثبت شد. این نتایج، connectivity، migration یا ماندگاری دیتابیس واقعی را اثبات نمی‌کنند.

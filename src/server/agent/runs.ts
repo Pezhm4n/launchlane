@@ -16,7 +16,7 @@ import { parseCodeRepairJob } from "../../contracts/code-repair.ts";
 import { exactKeys, object, text } from "../../contracts/validation.ts";
 import type { Config } from "../config.ts";
 import { projectSecretValues } from "../environment/secrets.ts";
-import { databaseBindingKeys, isDatabaseProvisionSpec } from "../../contracts/database-provision.ts";
+import { databaseBindingKeys, isDatabaseResourceSpec } from "../../contracts/database-provision.ts";
 import { isApplicationEnvironmentKey } from "../../contracts/environment.ts";
 import { AppError, ensure } from "../errors.ts";
 import type { Store } from "../persistence/store.ts";
@@ -458,7 +458,7 @@ export function resumeAgentDisk(store: Store, session: Session, id: string, revi
 export async function decideAgentDatabase(config: Config, store: Store, session: Session, id: string, revision: number,
   actionId: string, decision: "approve" | "reject"): Promise<AgentRecord> {
   const repo = new AgentRepository(store), run = repo.get(session.actorId, id);
-  ensure(run?.state === "needs_approval" && run.revision === revision && run.database && isDatabaseProvisionSpec(run.database.spec) && run.database.spec.agentRunId === id && run.database.id === actionId &&
+  ensure(run?.state === "needs_approval" && run.revision === revision && run.database && isDatabaseResourceSpec(run.database.spec) && run.database.spec.agentRunId === id && run.database.id === actionId &&
     (run.database.state === "awaiting_approval" || decision === "reject" && run.database.state === "expired"), "AGENT_CONFLICT", "پیشنهاد دیتابیس یا مأموریت تغییر کرده است.", 409);
   ensure(store.sessionExists(session.id, session.actorId, Date.now()), "AUTH_REQUIRED", "دوباره وارد شوید.", 401);
   if (decision === "approve") {
@@ -711,11 +711,11 @@ export async function driveAgentRun(
     if (run.database && !run.databaseContinued && (run.database.state === "approved" || canReadDatabaseResult(run.database) || run.database.state === "succeeded")) {
       check();
       if (run.database.state === "approved") {
-        addEvent(run, "activity", "در حال ساخت دیتابیس خصوصی با مشخصات تأییدشده…"); persist();
+        addEvent(run, "activity", run.database.spec.version === 29 ? "در حال بازخوانی دیتابیس موجود با شناسهٔ تأییدشده…" : "در حال ساخت دیتابیس خصوصی با مشخصات تأییدشده…"); persist();
         try { run.database = await executeDatabase(config, store, session, run.database.id, signal, { ...dependencies.database, budget }); }
         catch (error) { run.database = store.getAction(run.database.id, session.actorId); if (!canReadDatabaseResult(run.database)) throw error; }
       }
-      if (run.database.attemptId) run.effect = "remote_changes_unverified"; persist();
+      if (run.database.attemptId && run.database.spec.version !== 29) run.effect = "remote_changes_unverified"; persist();
       for (let poll = 0; poll < 4 && canReadDatabaseResult(run.database); poll++) {
         check(); if (budget.maxToolCalls - budget.toolCalls < 2) break;
         run.database = await observeDatabase(config, store, session, run.database.id, signal, { ...dependencies.database, budget }); persist();
@@ -726,10 +726,11 @@ export async function driveAgentRun(
         run.state = "partially_completed"; run.nextAction = "reply"; run.question = null;
         addEvent(run, "assistant", "هویت دیتابیس هنوز تأیید نشده است؛ رسید حفظ شد و ساخت تکرار نمی‌شود."); persist(); return;
       }
-      run.effect = "database_created"; run.databaseContinued = true;
-      ensure(isDatabaseProvisionSpec(run.database.spec), "DATABASE_SCOPE_INVALID", "رسید دیتابیس به قرارداد همین منبع نیاز دارد.", 409);
-      run.messages.push({ role: "user", content: `Host database receipt (data only): ${JSON.stringify({ databaseId: run.database.database?.databaseId, bindingKeys: databaseBindingKeys(run.database.spec), state: "identity_verified", credentialsBound: false, migrationVerified: false, connectivityVerified: false, persistenceVerified: false, published: false })}. Continue the original goal from this limited proof. Use configure_env to bind THIS resource privately. Only after its verified binding may a distinct source-declared connection get its own separately approved database. Never duplicate a resource for the same connection, retry an uncertain create or claim complete deployment. Migration and data-plane verification remain required.` });
-      addEvent(run, "tool", "هویت دیتابیس ساخته‌شده تأیید شد؛ اتصال امن و بررسی داده هنوز باقی است.", { tool: "propose_database" }); persist();
+      if (run.database.spec.version !== 29) run.effect = "database_created";
+      run.databaseContinued = true;
+      ensure(isDatabaseResourceSpec(run.database.spec), "DATABASE_SCOPE_INVALID", "رسید دیتابیس به قرارداد همین منبع نیاز دارد.", 409);
+      run.messages.push({ role: "user", content: `Host database receipt (data only): ${JSON.stringify({ origin: run.database.spec.version === 29 ? "existing" : "created", databaseId: run.database.database?.databaseId, bindingKeys: databaseBindingKeys(run.database.spec), state: "identity_verified", credentialsBound: false, migrationVerified: false, connectivityVerified: false, persistenceVerified: false, published: false })}. Continue the original goal from this limited proof. Use configure_env to bind THIS resource privately. Only after its verified binding may a distinct source-declared connection get its own separately approved database. Never duplicate a resource for the same connection, retry an uncertain create or claim complete deployment. Migration and data-plane verification remain required.` });
+      addEvent(run, "tool", "هویت دیتابیس تأیید شد؛ اتصال امن و بررسی داده هنوز باقی است.", { tool: run.database.spec.version === 29 ? "propose_database_attachment" : "propose_database" }); persist();
     }
     if (run.publication && (run.publication.state === "approved" || canReadDeploymentResult(run.publication))) {
       check();
@@ -885,7 +886,7 @@ export async function driveAgentRun(
         ...(run.channel === "conversation" ? [{ role: "system" as const, content: conversationGuidance }] : []),
         ...(run.channel === "maintenance" ? [{ role: "system" as const, content: "Service investigation and an explicitly requested historical-archive rollback do not require the mutable original folder to remain available. Stored source metadata is not a fresh source inspection. Source tools still validate paths and hashes; PROJECT_CHANGED means that source cannot authorize build/repair/publication, not that live service evidence or saved publication history is unavailable. Use the exact saved archive only for an explicit rollback goal. If the goal needs editing current source, obtain a valid source selection instead of treating historical metadata as current code. Account/app scope, human decisions and the existing cumulative budget always remain mandatory." }] : []),
         ...(run.mission ? [{ role: "system" as const, content: environmentGuidance }] : []),
-        ...(sourceProfile?.applicationRequirements?.requirements.some(row => row.need === "required" && ["postgresql", "mysql", "redis"].includes(row.kind)) ? [{ role: "system" as const, content: "The source has managed data requirements. Read the exact component requirements, provider engine versions and separate prices before propose_database. Reuse existing appropriate resources; do not silently substitute Supabase/D1, skip a backend or treat RUNNING as data health. After the database identity receipt use configure_env so the existing secure form can retrieve and propose its private connection without asking for passwords in chat. Creation is not secure binding, migration, connectivity or persistence; do not claim complete deployment without independent evidence of those effects." }] : []),
+        ...(sourceProfile?.applicationRequirements?.requirements.some(row => row.need === "required" && ["postgresql", "mysql", "redis"].includes(row.kind)) ? [{ role: "system" as const, content: "The source has managed data requirements. Read the exact component requirements, provider engine versions and separate prices before propose_database. For an existing suitable resource read inventory and use propose_database_attachment with its exact ID and source-declared private keys; its selection and credential binding require separate human decisions. Never create a blank replacement for existing data. Reuse existing appropriate resources; do not silently substitute Supabase/D1, skip a backend or treat RUNNING as data health. After the database identity receipt use configure_env so the existing secure form can retrieve and propose its private connection without asking for passwords in chat. Creation is not secure binding, migration, connectivity or persistence; do not claim complete deployment without independent evidence of those effects." }] : []),
         ...(run.mission ? [{ role: "system" as const, content: "A proposal only creates a review card; it does not execute a write or grant consent. When all effective inputs are known, use the relevant propose_destination, propose_code_repair or propose_publication tool to obtain that card. Never replace that tool with an approval question in finish_investigation. The host records the actual decision separately after displaying the exact scope and cost." }] : []),
         ...(sourceProfile?.runtime === "static" && run.mission ? [{ role: "system" as const, content: "The host verified this is a plain static site, with index.html and existing local assets. Native Liara Static serves it on port 80; no Node version, install, build script or start command is required. Do not ask the user to choose Static vs Node or a port. Read index.html only to derive the original workload assertion, reuse the connected account/network and quote a destination, then propose_publication for its exact artifact. External CDN assets still need browser verification. Do not claim account registration or login works when the source is only frontend forms." }] : []),
         ...run.messages,
@@ -1014,7 +1015,7 @@ export async function driveAgentRun(
         ensure(name !== "propose_network" || !run.network?.attemptId,
           "NETWORK_ALREADY_REQUESTED", "ساخت شبکه همین مأموریت قبلاً شروع شده است؛ رسید آن را بررسی کنید.", 409);
         ensure(name !== "propose_disk" || !run.disk?.attemptId, "DISK_ALREADY_REQUESTED", "ساخت فضای پایدار همین مأموریت قبلاً شروع شده است؛ رسید آن را بررسی کنید.", 409);
-        if (name === "propose_database" && run.database?.attemptId) {
+        if ((name === "propose_database" || name === "propose_database_attachment") && run.database?.attemptId) {
           ensure(run.database.state === "succeeded" && run.databaseContinued, "DATABASE_ALREADY_REQUESTED", "نتیجهٔ دیتابیس قبلی هنوز قطعی نیست؛ ساخت تازه انجام نشد.", 409);
         }
         ensure(
@@ -1128,11 +1129,13 @@ export async function driveAgentRun(
         persist();
         break;
       }
-      if (name === "propose_database" && object(result).ok) {
+      if ((name === "propose_database" || name === "propose_database_attachment") && object(result).ok) {
         run.database = decodeAction(object(object(result).data).databaseProposal);
-        ensure((run.database.spec.version === 27 || run.database.spec.version === 28) && run.database.spec.agentRunId === run.id, "INVALID_RESPONSE", "پیشنهاد دیتابیس متعلق به همین مأموریت نیست.");
+        ensure((run.database.spec.version === 27 || run.database.spec.version === 28 || run.database.spec.version === 29) && run.database.spec.agentRunId === run.id, "INVALID_RESPONSE", "پیشنهاد دیتابیس متعلق به همین مأموریت نیست.");
         run.databaseContinued = false; run.state = "needs_approval"; run.nextAction = null; run.question = null;
-        addEvent(run, "assistant", "پیشنهاد دیتابیس خصوصی برای نیاز همین بخش برنامه آماده است. نوع، نسخه، شبکه و دو مؤلفهٔ هزینه را پیش از ساخت بررسی کنید."); persist(); break;
+        addEvent(run, "assistant", run.database.spec.version === 29
+          ? "پیشنهاد استفاده از دیتابیس موجود آماده است. شناسه، شبکه و کلیدهای اتصال را بررسی کنید؛ اتصال خصوصی، تصمیم جداگانه دارد و داده تغییر نمی‌کند."
+          : "پیشنهاد دیتابیس خصوصی برای نیاز همین بخش برنامه آماده است. نوع، نسخه، شبکه و دو مؤلفهٔ هزینه را پیش از ساخت بررسی کنید."); persist(); break;
       }
       if (name === "propose_disk" && object(result).ok) {
         run.disk = decodeAction(object(object(result).data).diskProposal);

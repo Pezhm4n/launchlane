@@ -1,4 +1,4 @@
-import type { DatabaseProvisionSpec } from "../../contracts/database-provision.ts";
+import { isDatabaseProvisionSpec, type DatabaseProvisionSpec } from "../../contracts/database-provision.ts";
 import { providerObjectId } from "../../contracts/provision.ts";
 import { object } from "../../contracts/validation.ts";
 import type { Config } from "../config.ts";
@@ -13,6 +13,7 @@ export class LiaraDatabaseProvisionClient {
   readonly send: Transport;
   constructor(config: Config, send: Transport = transport) { this.config = config; this.send = send; }
   async create(spec: DatabaseProvisionSpec, budget: RunBudget, signal: AbortSignal): Promise<{ databaseId: string | null }> {
+    ensure(isDatabaseProvisionSpec(spec) && spec.operation === "create_database", "INVALID_DATABASE_PROPOSAL", "انتخاب منبع موجود مجوز ساخت دیتابیس نیست.", 409);
     authorizeScope(spec.scope, this.config);
     ensure(this.config.enableMutations && this.config.enableLiveLiara && this.config.liaraToken && this.config.liaraBaseUrl === "https://api.liara.ir",
       "MUTATIONS_DISABLED", "اتصال مجاز ساخت دیتابیس آماده نیست.", 403);

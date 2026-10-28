@@ -48,8 +48,9 @@ import { projectFileReadRange, projectFileText } from "./project-file-read.ts";
 import { compareSelectedSource } from "./source-comparison.ts";
 import { proposeRollback, readPublicationHistory } from "../application/rollback.ts";
 import type { ProjectFlow } from "../../contracts/project-flow.ts";
-import { proposeDatabase } from "../application/databases.ts";
+import { proposeDatabase, proposeDatabaseAttachment } from "../application/databases.ts";
 import { parseDatabaseBindingKeys } from "../../contracts/database-provision.ts";
+import type { LiaraDatabaseCredentialsClient } from "../liara/database-credentials.ts";
 
 export function privateValues(c: Config): string[] {
   return [c.liaraToken, c.modelKey, c.operatorToken, c.sessionSecret, ...c.projectSecretValues].filter(Boolean);
@@ -216,7 +217,7 @@ const repairTool: ToolDefinition = {
 function registeredTools(config: Config): readonly ToolDefinition[] {
   return [...agentTools, ...(config.enableLocalRepair ? [repairTool, preparationTool, buildTool] : []),
     ...(config.enableLiveLiara ? catalogTools : []),
-    ...(config.enableMutations && config.enableLiveLiara ? [publicationTool, destinationTool, networkTool, diskTool, rollbackTool, databaseTool] : [])];
+    ...(config.enableMutations && config.enableLiveLiara ? [publicationTool, destinationTool, networkTool, diskTool, rollbackTool, databaseTool, databaseAttachmentTool] : [])];
 }
 export function toolsForConversation(config: Config): readonly ToolDefinition[] {
   return [...agentTools, ...(config.enableLiveLiara ? catalogTools : [])];
@@ -228,7 +229,7 @@ export function toolsForAgent(config: Config, preparation: "native" | "build" | 
     (tool.function.name !== "propose_rollback" || hasTarget && !publicationProgram && !persistentStorage) &&
     (tool.function.name !== "read_publications" || hasTarget && !publicationProgram) &&
     (tool.function.name !== "propose_disk" || hasTarget && persistentStorage) &&
-    (tool.function.name !== "propose_database" || hasTarget && managedDatabase) &&
+    (!["propose_database", "propose_database_attachment"].includes(tool.function.name) || hasTarget && managedDatabase) &&
     (!managedDatabase || !["read_publications", "propose_rollback", "read_metrics"].includes(tool.function.name)) &&
     !(publicationProgram && !hasTarget && (tool.function.name === "propose_publication" || preparation !== "fullstack" && tool.function.name === "propose_project_build")));
 }
@@ -288,6 +289,14 @@ const databaseTool: ToolDefinition = { type: "function", function: {
     consumerRoot: { type: "string", maxLength: 512 }, type: { type: "string", maxLength: 63 }, version: { type: "string", maxLength: 64 },
     bindingKeys: { type: "array", minItems: 1, maxItems: 4, items: { type: "string", maxLength: 128 } },
     planId: { type: "string", maxLength: 63 }, bundleId: { type: "string", maxLength: 63 },
+  } },
+} };
+const databaseAttachmentTool: ToolDefinition = { type: "function", function: {
+  name: "propose_database_attachment",
+  description: "Propose reusing an existing managed database, selected by its exact ID from read_database_resources inventory. Supply only source-declared consumerRoot and private bindingKeys, plus databaseId. The host privately checks exact identity, actual engine/version/plan/bundle and the consumer's same private network. A separate human decision selects this resource; then configure_env offers its private credential binding with a separate approval. This tool never creates, clones, resizes, migrates, queries or changes data. Existing data compatibility, connectivity and persistence remain unverified. Never adopt an uncertain create by hostname or substitute services.",
+  parameters: { type: "object", additionalProperties: false, required: ["consumerRoot", "bindingKeys", "databaseId"], properties: {
+    consumerRoot: { type: "string", maxLength: 512 }, databaseId: { type: "string", pattern: "^[a-f0-9]{24}$" },
+    bindingKeys: { type: "array", minItems: 1, maxItems: 4, items: { type: "string", maxLength: 128 } },
   } },
 } };
 const publicationTool: ToolDefinition = {
@@ -382,6 +391,7 @@ export const toolLabels: Readonly<Record<string, string>> = {
   propose_network: "آماده‌کردن تصمیم ساخت شبکه موردنیاز",
   propose_disk: "آماده‌کردن فضای پایدار موردنیاز همین نسخه",
   propose_database: "آماده‌کردن دیتابیس موردنیاز همین بخش برنامه",
+  propose_database_attachment: "انتخاب دیتابیس موجود برای همین بخش برنامه",
   propose_project_preparation: "آماده‌کردن فرمان اجرا و پورت برای تصمیم شما",
   propose_project_build: "آماده‌کردن نصب قفل‌شده و بررسی ساخت و اجرای برنامه",
   read_workload: "خواندن پاسخ تازه همان صفحه سایت",
@@ -399,6 +409,7 @@ export type AgentToolContext = {
   read?: LiaraReadClient;
   account?: LiaraAccountClient;
   database?: LiaraDatabaseReadClient;
+  databaseCredentials?: LiaraDatabaseCredentialsClient;
   probe?: WorkloadProbe;
   mission?: PublicationMission | null;
   publicationExpectation?: WorkloadContract;
@@ -611,6 +622,15 @@ export async function executeAgentTool(
       { budget: c.budget, agentRunId: c.parentRunId, ...(c.disk ? { client: c.disk } : {}) });
     assertAgentContext(c.config, c.store, c.actorId, c.context);
     return { diskProposal: action };
+  }
+  if (name === "propose_database_attachment") {
+    ensure(c.context.projectId && c.context.target && c.parentRunId, "AGENT_PROJECT_REQUIRED", "پروژه، مقصد و مأموریت انتشار لازم است.", 409);
+    const action = await proposeDatabaseAttachment(c.config, c.store, c.actorId, {
+      flowId: c.context.projectId, agentRunId: c.parentRunId, requestKey: randomUUID(), consumerRoot: string(args.consumerRoot, 512),
+      databaseId: providerObjectId(args.databaseId), bindingKeys: parseDatabaseBindingKeys(args.bindingKeys),
+    }, c.signal, { budget: c.budget, ...(c.database ? { read: c.database } : {}), ...(c.account ? { account: c.account } : {}), ...(c.databaseCredentials ? { credentials: c.databaseCredentials } : {}) });
+    assertAgentContext(c.config, c.store, c.actorId, c.context);
+    return { databaseProposal: action };
   }
   if (name === "propose_database") {
     ensure(c.context.projectId && c.context.target && c.parentRunId, "AGENT_PROJECT_REQUIRED", "پروژه، مقصد و مأموریت انتشار لازم است.", 409);

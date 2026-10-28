@@ -1,5 +1,13 @@
 # برنامه اجرایی Launchlane
 
+## A14 / AC17/22/23/24/32/34 — انتخاب دیتابیس موجود و اتصال خصوصی؛ ۲۰۲۶-۱۰-۲۸
+
+ابزار مشترک `propose_database_attachment`، شناسهٔ inventory و کلیدهای خصوصی همان consumer را به approval v29 می‌بندد. host، نوع/نسخه/پلن/باندل و شبکهٔ خصوصی را از پاسخ adapter می‌خواند و پس از تصمیم دوباره کنترل می‌کند؛ انتخاب منبع هیچ create یا SQL ارسال نمی‌کند و receipt آن `selected` است. credential از همان proposal رمز‌شده و تصمیم جداگانهٔ env v9 عبور می‌کند. بازتنظیم همان شناسه و همان purpose مجاز است؛ تعویض منبع، binding قبلی را تأیید نمی‌کند. migration21 فقط index مشترک درخواست را اضافه می‌کند. [تصمیم](docs/decisions/0036-existing-managed-database-selection.md)، [شاهد و validation دقیق](docs/evidence/existing-managed-database.md).
+
+snapshot نهایی `database-attachment-r9` بر پایهٔ `fc01252` با runtime/package SHA256 `170d2b905a1247d5375b0a60daa946ec006621c6522d87bb869a9ef247a35cad`: domain795/795، HTTP48/48، guided54، typecheck/build Webpack و lint صفرerror/48warning/22info گذشتند. مسیر واقعی وب/API دو دیتابیس موجود در۸چیدمانِ جزئیات باز، دو تصمیم انتخاب و دو تصمیم env را با صفر create، replay409 و reload بدون مصرف/عملیات تازه گذراند؛ regression دو دیتابیس تازه نیز در۸چیدمان گذشت. مدل/provider مصنوعی‌اند؛ نتایج snapshotهای اولیه جدا و failureها در شاهد حفظ‌اند.
+
+مهاجرت و صحت داده همچنان قرارداد مستقل می‌خواهند. اقدام بعد، اتصال runner اصلی پروژه به محیط مجاز مقصد و artifact آزموده‌شده، سپس سنجش مستقل اثر schema/data و رفتار/ماندگاری همان release است. مدل/provider آزمون این برش مصنوعی‌اند؛ مصرف تازهٔ مدل، تمدید ledger، write واقعی زیرساخت و rollout انجام نمی‌شود. مسیر runtime/componentها در worktree مستقل ایجنت دوم ادامه دارد.
+
 ## A14 / AC17/22/23/24/32/34 — منابع دادهٔ نام‌دار در همان مأموریت؛ ۲۰۲۶-۱۰-۲۸
 
 پیشنهاد Agent از v28 استفاده می‌کند و `bindingKeys` را پیش از ساخت، از نیاز همان consumer/source به approval می‌بندد. اتصال امن دیگر به دو نام پیش‌فرض محدود نیست؛ هر منبع به کلیدهای مصوب خودش متصل می‌شود. رزرو اتمیک Store، کلید مصرف‌شده را به دیتابیس دوم نمی‌دهد و uncertainty تیم میان v27/v28 حفظ است. پس از ساخت و binding تأییدشده، همان مأموریت با همان budget می‌تواند منبع مستقل بعدی را پیشنهاد کند؛ اتصال اول هنگام merge دوم حفظ می‌شود. فرم وب، موفقیت تنظیمات منبع اول را به‌جای تنظیم منبع دوم نشان نمی‌دهد. v27 و migrationهای۱–۱۹ بازنویسی نشده‌اند؛ index مشترک فقط در migration20 افزوده است.

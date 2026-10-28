@@ -1,5 +1,7 @@
 # قرارداد و وضعیت API لیارا
 
+افزودهٔ v29، ۲۰۲۶-۱۰-۲۸: [انتخاب دیتابیس موجود](evidence/existing-managed-database.md) فقط از inventory و GET جزئیات موجود استفاده می‌کند؛ endpoint ساخت، clone، SQL یا migration تازه‌ای فرض نشده است. adapter خصوصی فقط whitelist هویت/نسخه/شبکه را برای selection برمی‌گرداند و credential را جدا، فقط به vault env v9 می‌دهد. انتخاب منبع هیچ POST به provider ندارد؛ اعمال env پس از تصمیم جداگانه از مسیر موجود انجام می‌شود. live detail/adoption این حساب هنوز تأیید نشده است.
+
 افزودهٔ v28، ۲۰۲۶-۱۰-۲۸: [کلیدهای اتصال منبع](evidence/managed-database-targets.md) به قرارداد approval داخلی افزوده شدند؛ endpoint یا آرگومان DBaaS تازه‌ای فرض نشده است. همان create/ID-readback/private-detail و update-env موجود اجرا می‌شوند. bindingKey فقط ورودی برنامهٔ مصرف‌کننده است و برای provider به‌عنوان اختیار یا SQL ارسال نمی‌شود. catalog/قیمت تازه خوانده می‌شوند؛ هزینهٔ دو منبع بدون semantics معتبر جمع نمی‌شود و شاهد synthetic، live provisioning محسوب نمی‌شود.
 
 افزودهٔ runner داده، ۲۰۲۶-۱۰-۲۸: [اجرای migration اصلی و چند target موقت](evidence/project-migration-runners.md) در Docker محلی و registry مشترک انجام می‌شود. DBaaS endpoint تازه یا SQL/migration تولیدی اضافه نشده است؛ `operations.migrate=not_implemented` برای provider واقعی همچنان معتبر است. URLهای آزمون فقط برای roleهای محدود همان fixture هستند و credential حساب یا منبع واقعی وارد worker نمی‌شود.

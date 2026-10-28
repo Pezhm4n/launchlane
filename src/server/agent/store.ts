@@ -264,7 +264,7 @@ export class AgentRepository {
     }
     if (run.database) {
       run.database = this.store.getAction(run.database.id, actorId);
-      if (!run.publication?.attemptId) {
+      if (!run.publication?.attemptId && run.database.spec.version !== 29) {
         if (run.database.state === "succeeded") run.effect = "database_created";
         else if (run.database.attemptId) run.effect = "remote_changes_unverified";
       }

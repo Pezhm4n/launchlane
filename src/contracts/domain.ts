@@ -162,7 +162,7 @@ export type ActionSpec = (ActionInputs &
         nodeVersion: null; runtime: import("./docker-runtime.ts").DockerRuntime;
         environment: import("./environment.ts").EnvironmentReference | null;
       }>
-  )) | import("./provision.ts").ProvisionSpec | import("./environment.ts").EnvironmentSpec | import("./network.ts").NetworkSpec | import("./project-lifecycle.ts").LifecycleSpec | import("./persistent-disk.ts").DiskSpec | import("./database-provision.ts").DatabaseProvisionSpec;
+  )) | import("./provision.ts").ProvisionSpec | import("./environment.ts").EnvironmentSpec | import("./network.ts").NetworkSpec | import("./project-lifecycle.ts").LifecycleSpec | import("./persistent-disk.ts").DiskSpec | import("./database-provision.ts").DatabaseResourceSpec;
 
 export type ActionState =
   | "awaiting_approval"

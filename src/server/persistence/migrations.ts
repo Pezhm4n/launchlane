@@ -251,4 +251,10 @@ CREATE TABLE database_environment_bindings (action_id TEXT PRIMARY KEY REFERENCE
 CREATE UNIQUE INDEX database_bound_request_keys ON actions(actor_id,json_extract(spec,'$.requestKey')) WHERE json_extract(spec,'$.version') IN (27,28);
 `,
   },
+  {
+    version: 21,
+    sql: `
+CREATE UNIQUE INDEX database_resource_request_keys ON actions(actor_id,json_extract(spec,'$.requestKey')) WHERE json_extract(spec,'$.version') IN (27,28,29);
+`,
+  },
 ] as const;

@@ -8,12 +8,12 @@ import { LiaraAccountClient } from "../liara/catalog.ts";
 import type { LiaraEnvironmentClient } from "../liara/environment.ts";
 import { environmentContext, proposeResourceEnvironment } from "./environment.ts";
 import { string } from "../../contracts/validation.ts";
-import { databaseBindingKeys, isDatabaseProvisionSpec } from "../../contracts/database-provision.ts";
+import { databaseBindingKeys, isDatabaseResourceSpec } from "../../contracts/database-provision.ts";
 import { sourceDatabaseBindingKeys } from "../policy/database-targets.ts";
 
 function context(config: Config, store: Store, actor: string, runId: string) {
   const c = environmentContext(config, store, actor, runId), action = c.run.database;
-  ensure(action && isDatabaseProvisionSpec(action.spec) && action.state === "succeeded" && action.database?.databaseId && action.database.observation?.outcome === "identity_verified" &&
+  ensure(action && isDatabaseResourceSpec(action.spec) && action.state === "succeeded" && action.database?.databaseId && action.database.observation?.outcome === "identity_verified" &&
     action.spec.agentRunId === runId && action.spec.projectFlowId === c.flow.id && action.spec.accountId === c.target.accountId && action.spec.targetAppId === c.target.appId,
     "DATABASE_BINDING_UNAVAILABLE", "دیتابیس همین مأموریت باید ابتدا با شناسهٔ واقعی تأیید شود.", 409);
   store.assertProjectAction(actor, action.spec);
@@ -23,7 +23,7 @@ function context(config: Config, store: Store, actor: string, runId: string) {
   // A URL binding is accepted only when this exact consumer declares it. Never map unrelated application keys.
   const keys = databaseBindingKeys(spec);
   ensure(keys.every(key => requirement?.environmentKeys.includes(key) && c.flow.profile.envNames.includes(key)), "DATABASE_BINDING_SHAPE_UNSUPPORTED", "کلید اتصال این بخش در source مشخص نیست؛ مقدار حدسی ساخته نمی‌شود.", 409);
-  if (spec.version === 28) sourceDatabaseBindingKeys(c.flow.profile, spec.consumerRoot, spec.database.type, keys);
+  if (spec.version !== 27) sourceDatabaseBindingKeys(c.flow.profile, spec.consumerRoot, spec.database.type, keys);
   return { ...c, databaseAction: action, spec: action.spec, databaseId: action.database.databaseId, keys };
 }
 export function databaseEnvironmentOption(config: Config, store: Store, actor: string, runId: string) {
