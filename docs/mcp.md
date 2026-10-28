@@ -1,6 +1,6 @@
 # اتصال به Launchlane از MCP
 
-افزودهٔ working tree در۲۰۲۶-۱۰-۲۵: `read_database_resources` از همان registry وب/Agent، با `view=inventory|capabilities|identity` مشخصات دیتابیس حساب و تیم را فقط می‌خواند. identity به شناسهٔ داخلی نیاز دارد؛ password/connection string/SQL/migration/provision خروجی یا عملیات آن نیست. RUNNING، فهرست خالی و catalog نسخه‌ها سلامت data plane را ثابت نمی‌کنند؛ completeness و network/version readback نامعلوم صریح‌اند. آزمون این delta مصنوعی است و هنوز به شاهد اتصال عمومی تاریخی زیر افزوده نشده است.
+افزودهٔ working tree در۲۰۲۶-۱۰-۲۵: `read_database_resources` از همان registry وب/Agent، با `view=inventory|capabilities|identity` مشخصات دیتابیس حساب و تیم را فقط می‌خواند. identity به شناسهٔ داخلی نیاز دارد؛ password/connection string/SQL/migration/provision خروجی یا عملیات آن نیست. RUNNING، فهرست خالی و catalog نسخه‌ها سلامت data plane را ثابت نمی‌کنند؛ completeness و network/version readback نامعلوم صریح‌اند. آزمون این delta مصنوعی است و هنوز به شاهد اتصال عمومی تاریخی زیر افزوده نشده است. `read_workload` با `assets=true` همان شاهد محدود CSS/JS هم‌مبدأ را از registry مشترک برمی‌گرداند؛ این خواندن فقط حضور فایل را می‌سنجد و اجرای JavaScript، مسیر کاربر یا وجود artifact را ثابت نمی‌کند.
 
 [انتشار و آزمون واقعی HTTPS عمومی در۲۰۲۶-۱۰-۲۵](evidence/mcp-public-release-20261025.md) با نشست واقعی، grant خواندن، SDK HTTP/stdio، سیزده ابزار، سه call از Codex نصب‌شده، reconnect و revocation موفق شد. نسخهٔ عمومی اکنون این اصلاحات را دارد؛ grant آزمایشی پس از تست لغو شد. این شاهد شامل مأموریت پولی یا runtime واقعی Claude/OpenCode نیست.
 

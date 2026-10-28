@@ -19,6 +19,7 @@ import { proposeDestination } from "../application/provision.ts";
 import { proposeNetwork } from "../application/network.ts";
 import { nodePreparation } from "../../contracts/preparation.ts";
 import { WorkloadProbe, validateProbePath } from "../liara/probe.ts";
+import { verifyHtmlAssets } from "../application/publication-assets.ts";
 import { parseProbeOrigins } from "../policy/probe-target.ts";
 import type { PublicationMission } from "../../contracts/publication-mission.ts";
 import type { WorkloadContract } from "../../contracts/deployment.ts";
@@ -161,9 +162,9 @@ export const agentTools: readonly ToolDefinition[] = [
   },
   { type: "function", argumentValidation: "application", function: {
     name: "read_workload",
-    description: "Read one current HTTP response from the selected application's approved HTTPS origin and the specified path. No query, arbitrary host, private address, redirect or write. Returns status, timestamp and a bounded untrusted body preview. This does not verify the deployed artifact or a complete user journey; one latency sample is not p95 or a capacity measurement.",
+    description: "Read one current HTTP response from the selected application's approved HTTPS origin and the specified path. No query, arbitrary host, private address, redirect or write. Returns status, timestamp and a bounded untrusted body preview. Optionally set assets=true to also read up to twelve same-origin CSS/JS references from an HTML response; this proves asset presence, not JavaScript execution, routes or API behavior. This does not verify the deployed artifact or a complete user journey; one latency sample is not p95 or a capacity measurement.",
     parameters: { type: "object", additionalProperties: false, required: ["path"],
-      properties: { path: { type: "string", maxLength: 200 } } },
+      properties: { path: { type: "string", maxLength: 200 }, assets: { type: "boolean" } } },
   } },
   { type: "function", argumentValidation: "application", function: {
     name: "read_metrics",
@@ -365,7 +366,10 @@ export async function executeAgentTool(
   assertAgentContext(c.config, c.store, c.actorId, c.context);
   const fileRange = name === "read_project_file" ? projectFileReadRange(args) : null;
   const probePath = name === "read_workload" ? validateProbePath(args.path) : null,
-    logMinutes = name === "read_logs" ? (args.lookbackMinutes === undefined ? 5 : integer(args.lookbackMinutes, 1, 60)) : null;
+    workloadAssets = name === "read_workload" && args.assets === true;
+  ensure(name !== "read_workload" || args.assets === undefined || typeof args.assets === "boolean",
+    "INVALID_INPUT", "درخواست خواندن فایل‌های صفحه معتبر نیست.");
+  const logMinutes = name === "read_logs" ? (args.lookbackMinutes === undefined ? 5 : integer(args.lookbackMinutes, 1, 60)) : null;
   const buildReleaseId = name === "read_build_logs" ? providerObjectId(args.releaseId) : null,
     buildSince = name === "read_build_logs" && args.since !== undefined ? string(args.since, 64) : null;
   ensure(buildSince === null || explicitIsoTime(buildSince) !== null, "INVALID_INPUT", "زمان آغاز گزارش ساخت باید تاریخ معتبر باشد.");
@@ -695,15 +699,26 @@ export async function executeAgentTool(
     const probe = c.probe ?? new WorkloadProbe({ ...scoped,
       probeOrigins: parseProbeOrigins(JSON.stringify({ [target.app]: origin }), [target.app]) });
     ensure(probePath !== null, "PROBE_TARGET_DENIED", "مسیر بررسی معتبر نیست.", 403);
-    const response = await probe.check(scope, probePath, c.budget, c.signal, 65536);
+    const response = workloadAssets
+      ? await probe.checkDocument(scope, probePath, c.budget, c.signal)
+      : await probe.check(scope, probePath, c.budget, c.signal, 65536);
+    const assets = workloadAssets ? await verifyHtmlAssets({
+      origin,
+      documentPath: probePath,
+      body: response.body,
+      contentType: response.contentType,
+      check: (assetPath) => probe.checkAsset(scope, assetPath, c.budget, c.signal),
+      aborted: () => c.signal.aborted,
+    }) : null;
     const after = await read.project(scope, c.budget, c.signal);
     ensure(after.id === target.appId && response.origin === origin &&
       response.scope.app === target.app && response.scope.teamId === target.teamId,
       "SCOPE_DENIED", "هویت یا نشانی برنامه هنگام بررسی تغییر کرده است.", 403);
     assertAgentContext(c.config, c.store, c.actorId, c.context);
     return { ...response, body: response.body.slice(0, 4096), bodyTruncated: response.body.length > 4096,
+      ...(assets ? { assets } : {}),
       appId: target.appId, trust: "untrusted_response",
-      measurement: { samples: 1, unit: "milliseconds", dnsIncluded: false, responseLimitBytes: 65536 },
+      measurement: { samples: 1, unit: "milliseconds", dnsIncluded: false, responseLimitBytes: workloadAssets ? 1024 * 1024 : 65536 },
       remoteChanges: false, artifactVerified: false };
   }
   const result =
