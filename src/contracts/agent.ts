@@ -39,6 +39,7 @@ export type AgentEvent = {
   callId?: string;
   outcome?: "succeeded" | "failed";
   failure?: AgentFailure;
+  notice?: string;
 };
 export type AgentView = {
   id: string;
@@ -110,6 +111,7 @@ export function parseAgentView(value: unknown): AgentView {
       ...(event.callId === undefined ? {} : { callId: string(event.callId, 80) }),
       ...(event.outcome === undefined ? {} : { outcome: event.outcome }),
       ...(event.failure === undefined ? {} : { failure: parseAgentFailure(event.failure) }),
+      ...(event.notice === undefined ? {} : { notice: string(event.notice, 1000) }),
     };
   });
   const destination = row.destination === null || row.destination === undefined ? null : decodeAction(row.destination);

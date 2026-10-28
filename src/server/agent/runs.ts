@@ -32,6 +32,7 @@ import { projectBuildImage } from "../../contracts/project-build.ts";
 import { GoalModelClient, type ModelMessage, type ModelPort, type ToolDefinition } from "./model.ts";
 import { addEvent, AgentRepository, type AgentRecord } from "./store.ts";
 import { requiredDestinationProposal } from "./proposal-progress.ts";
+import { sourceComparisonNotice } from "./source-comparison.ts";
 import {
   toolsForAgent,
   assertAgentContext,
@@ -1002,11 +1003,12 @@ export async function driveAgentRun(
         413,
       );
       run.messages.push({ role: "tool", tool_call_id: call.id, content: encoded });
+      const sourceNotice = name === "read_releases" ? sourceComparisonNotice(result, run.context) : null;
       addEvent(
         run,
         "tool",
         `${toolLabels[name]}: ${object(result).ok ? "نتیجه دریافت شد" : "این مرحله کامل نشد"}`,
-        { tool: name, callId: call.id, outcome: object(result).ok ? "succeeded" : "failed" },
+        { tool: name, callId: call.id, outcome: object(result).ok ? "succeeded" : "failed", ...(sourceNotice ? { notice: sourceNotice } : {}) },
       );
       if (object(result).ok === false) {
         const failure = object(object(result).error);

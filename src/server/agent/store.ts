@@ -158,7 +158,7 @@ export function addEvent(
   run: AgentRecord,
   kind: AgentEvent["kind"],
   message: string,
-  extra: Pick<AgentEvent, "tool" | "callId" | "outcome"> = {},
+  extra: Pick<AgentEvent, "tool" | "callId" | "outcome" | "notice"> = {},
 ): void {
   ensure(run.events.length < 160, "AGENT_EVENT_LIMIT", "مکالمه به سقف ثبت مراحل رسیده است.", 409);
   run.events.push({

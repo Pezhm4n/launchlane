@@ -42,6 +42,7 @@ import type { LiaraEnvironmentClient } from "../liara/environment.ts";
 import { randomUUID } from "node:crypto";
 import { suggestedDestinationName } from "./proposal-progress.ts";
 import { projectFileReadRange, projectFileText } from "./project-file-read.ts";
+import { compareSelectedSource } from "./source-comparison.ts";
 
 export function privateValues(c: Config): string[] {
   return [c.liaraToken, c.modelKey, c.operatorToken, c.sessionSecret, ...c.projectSecretValues].filter(Boolean);
@@ -720,6 +721,8 @@ export async function executeAgentTool(
   );
   assertAgentContext(c.config, c.store, c.actorId, c.context);
   const observedAt = Date.now(), evidence = { ...result, scope, appId: target.appId, observedAt, remoteChanges: false };
+  if (name === "read_releases" && "currentRelease" in result)
+    return { ...evidence, sourceComparison: compareSelectedSource(c.store, c.actorId, c.context, result.currentRelease, observedAt) };
   if ("contract" in result && result.contract === "liara-cli-build-logs-v2") return { ...evidence, trust: "untrusted_build_logs", artifactVerified: false };
   if (name === "read_metrics" && "cpu" in result) {
     const cpu = evidenceRows(result.cpu.rawPoints, 20, 6000), memory = evidenceRows(result.memory.rawPoints, 20, 6000);

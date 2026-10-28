@@ -1,5 +1,13 @@
 # شواهد اعتبارسنجی Launchlane
 
+## Reference-upgrade continuation: recorded source provenance — 2026-10-27
+
+All five independent source-investigation/setup changes passed a fresh single frozen snapshot `r6` on base `1db39019174d8bd9bd5e83cc937cb79f869dd917`, manifest SHA-256 `f9ffb051c520ed8e30cd7fe5e0ed5121f5e5513cb383083e194de976b98447da`: domain726/726 (229005.9982ms), HTTP46/46 (15892.5161ms), typecheck, installed Webpack build and seven actual Chromium responsive/enlarged-text/review/import states. No failures or skips; browser page errors, external requests and provider writes were zero. Full lint had zero errors/48warnings/20infos. These are fresh r6 receipts, not a sum of older subsets.
+
+The release reader now compares the selected source with a single scoped accepted publication/attempt record using the actual currentRelease, and projects one host notice through stored correlated events. A null current ID never falls back to newest READY. Actor/account/team/internal-app/source/receipt mismatch or missing/corrupt attribution stays unknown; the result cannot prove running bytes, health, configuration or rollback authority. Independent bounded source/caller/test review found no blocking issue. [Implementation, commands and limits](evidence/source-investigation-and-setup-20261027.md).
+
+The reference reviews used static source/authored-test evidence only; no reference scripts or dependencies executed. Validation used existing pinned dependencies, disposable SQLite/state, synthetic model/provider transports and isolated loopback ports. No live model/cloud operation, new allowance, primary-server restart, production activation or real data/ledger mutation occurred in this chat. Public/active release identity was not freshly verified, so these source changes are not presented as a rollout. The earlier owner-authorized four-slice commit audit remains separate below.
+
 
 
 

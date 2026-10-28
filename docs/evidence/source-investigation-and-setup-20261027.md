@@ -6,7 +6,7 @@ Scope: A02/A03/A07/A17 and AC18/22/24/25/32; bounded local acceptance. Technical
 
 The mission began on `main@017298e5675b8a0d1a3a95f8499f1ce4cb45bf8e` with a nonempty shared index. Another agent advanced HEAD to `f6ef04f178051d8e1e481994073bc7309f1812c0` and staged a subsequent preparation slice during this work. These changes were preserved. That reference-review run performed no staging, commit, push, checkout, production activation or live provider/model operation. The later owner-authorized commit audit is recorded separately below.
 
-Graph discovery and coverage returned `Transport closed`; direct current source/import reads supplied the evidence. Earlier cumulative documentation is not treated as proof that a currently implemented path is absent. The previous duplicate-source context projection and expired-publication close control remain in use.
+Graph discovery and coverage initially returned `Transport closed`; direct current source/import reads supplied the evidence. After transport recovery, generation `2026-10-21T19:24:24Z` still reported current Agent/UI/MCP files as not_tracked and redaction/read-contracts as metadata_changed. Current source remains authoritative. Earlier cumulative documentation is not treated as proof that a currently implemented path is absent. The previous duplicate-source context projection and expired-publication close control remain in use.
 
 ## 1. Read a relevant part of a large source file
 
@@ -46,13 +46,37 @@ The existing redactor and unconditional known-value source check now share exact
 
 The change is active at the existing provider-evidence, model-request and source/archive-intake boundaries. No new credential is read, stored or exposed.
 
+## 5. Compare selected source with recorded publication provenance
+
+Baseline: the release reader exposed the provider's current-release ID, while accepted publication records already retained actor/account/team/internal-app identity, source/archive hashes and the release receipt. The reader did not connect those facts, so a selected future source could be mistaken for the running release's source.
+
+The same `read_releases` now adds a read-only comparison against one unambiguous accepted publication record. It uses the actual `currentRelease` field, never the newest READY release. Actor, account, team, public app name and internal app ID must match; the existing Store validates the action fingerprint, and the accepted source/release journal plus matching attempt receipt are required. Missing, corrupt, conflicting, foreign or unattributed records stay unknown. A saved failed workload may still have known publication provenance; this does not make its workload healthy.
+
+The original three-provider-read budget and before/after app-identity fence are unchanged. There is no extra provider/model request, archive read, approval, mutation, migration or allowance. No selected source is required for a service-only investigation. Technical results carry source/archive identity; the correlated step shows a short host-authored Persian notice. Replay reads stored events without repeating investigation. A comparison is explicitly limited to an accepted **recorded source**, not proof of current runtime bytes, configuration or health. It neither selects an old artifact nor authorizes a rollback.
+
+Use: when the agent investigates releases of the selected service, open the existing “مراحل بررسی” disclosure. It distinguishes matching recorded source, different recorded source, unattributed release and missing current-release identity. The same result is exposed through the shared MCP reader. Historical events without this optional notice remain readable.
+
 ## Validation and limits
 
-The reference-review run left aggregate validation pending. The subsequent owner-authorized commit audit below checked a frozen source snapshot with existing pinned dependencies, disposable state, synthetic provider/model transports and isolated loopback ports. No credentials, `.env.local`, production database, budget ledger or active server are copied or modified.
+Fresh final validation used frozen snapshot `r6`, base `1db39019174d8bd9bd5e83cc937cb79f869dd917`, manifest `f9ffb051c520ed8e30cd7fe5e0ed5121f5e5513cb383083e194de976b98447da`, Node24.18.0 and the existing pinned dependencies. Disposable SQLite/state, synthetic provider/model transports and isolated loopback ports were used. No credentials, `.env.local`, production database, budget ledger or active server were copied or modified. The earlier owner-authorized four-slice audit remains separate below.
+
+| Actual command | Fresh r6 outcome |
+|---|---|
+| `npm run lint` | Exit0; zero errors,48warnings,20infos |
+| `npm run typecheck` | Passed route generation and TypeScript |
+| `npm run build -- --webpack` | Passed installed Next16.4.2 production build |
+| `npm run test:domain` |726/726 passed;0fail/skip/cancel;229005.9982ms |
+| `npm run test:http` |46/46 passed;0fail/skip/cancel;15892.5161ms |
+| `node scripts/test-environment-guidance-browser.mjs` |7recorded states,280/360/768/1280 and200%text;0pageerrors/externalrequests/providerwrites |
+| `git diff --check` | No whitespace errors; existing Windows line-ending notices only |
+
+The browser used actual built components and authenticated proposal/rejection APIs; it exercised unavailable WebCrypto, keyboard generation/rejection, manual/imported-value preservation, private generated values, encrypted submission, reload clearing, failed-receipt guidance and a scoped recorded-source notice. An independent reader reviewed the fifth helper, callers and tests, matched13 current software files to r6 and found no blocking issue. Full aggregate browser suites, physical mobile keyboard, fresh live provider/model behavior and production rollout are not implied.
+
+The earlier r5 full-domain attempt was interrupted without a final receipt and was not counted; a separate completed r5 run passed721/721 for the original four changes. The final five-change claim above is entirely the fresh r6 run. One r6 launcher started before the dependency junction finished and reported missing Biome; waiting for snapshot completion fixed orchestration without installing anything. No check from that failed launch is counted.
 
 Earlier attempts are retained: a test initially expected recursively JSON-encoded values beyond the stated scope; the fixture was corrected to test the actual raw/one-level JSON/URL/form representations. The first no-emit check found an inferred nullable cursor type in a new test, corrected with an explicit type. Targeted lint caught an unsupported ARIA label on a generic element; the note now uses a named semantic section. A C-drive snapshot with an I-drive dependency junction failed module resolution before compilation; the same source was then built in a separate I-drive snapshot. None of these orchestration/test failures is counted as a product pass.
 
-Unconfirmed boundaries: live model reasoning/monetary savings, actual Liara build-log variations beyond validated fixtures, live environment updates, deployed-source identity, runtime browser workload execution, DNS/database provisioning/restore and complete platform acceptance. Larger lifecycle proposals remain separate scoped work and do not weaken original workload or approval contracts.
+Unconfirmed boundaries: live model reasoning/monetary savings, actual Liara build-log variations beyond validated fixtures, live environment updates, actual runtime source-content identity, runtime browser workload execution, DNS/database provisioning/restore and complete platform acceptance. Recorded publication-source comparison is a narrower implemented boundary. Larger lifecycle proposals remain separate scoped work and do not weaken original workload or approval contracts.
 
 ## Owner-authorized commit verification — 2026-10-27
 

@@ -28,6 +28,19 @@ async function componentUrl(path: string): Promise<string> {
 }
 const steps: typeof StepModule = await import(await componentUrl("src/components/AgentSteps.tsx")),
   plans: typeof PlanModule = await import(await componentUrl("src/components/DestinationPlans.tsx"));
+
+test("a host source notice stays with its correlated result without duplicating a step or implying workload success", () => {
+  const rows: AgentEvent[] = [
+    { sequence: 1, at: 1, kind: "activity", tool: "read_releases", callId: "release-case", message: "خواندن نسخه‌ها" },
+    { sequence: 2, at: 2, kind: "tool", tool: "read_releases", callId: "release-case", message: "نتیجه دریافت شد", outcome: "succeeded", notice: "سورس انتخاب‌شده با مبدأ نسخهٔ جاری متفاوت است؛ سلامت برنامه بررسی نشده است." },
+  ];
+  const original = structuredClone(rows), projected = steps.publicationSteps(rows, false);
+  assert.equal(projected.length, 1);assert.equal(projected[0]?.notice, rows[1]?.notice);
+  assert.deepEqual(steps.publicationStepSummary(projected), { succeeded: 1, failed: 0, pending: null });
+  assert.deepEqual(rows, original);
+  const html = renderToStaticMarkup(createElement(steps.AgentSteps, { run: run(rows), active: false }));
+  assert.match(html, /سورس انتخاب‌شده با مبدأ نسخهٔ جاری متفاوت است/);assert.match(html, /سلامت برنامه بررسی نشده است/);
+});
 function run(events: AgentEvent[]): AgentView {
   return { id: "summary-case", revision: 1, projectId: "project-case", state: "working", events, nextAction: null, question: null,
     updatedAt: 1, effect: "no_remote_changes", repair: null, publication: null, destination: null, destinationContinued: false };

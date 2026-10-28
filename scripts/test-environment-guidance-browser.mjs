@@ -13,6 +13,7 @@ import { prepareProjectFlow } from "../src/server/application/project-flows.ts";
 import { sealCredential } from "../src/server/connections/credentials.ts";
 import { fingerprint } from "../src/server/policy/action.ts";
 import { saveImportedEnvironment } from "../src/server/environment/import.ts";
+import { compareSelectedSource, sourceComparisonNotice } from "../src/server/agent/source-comparison.ts";
 
 // Real built components and authenticated APIs; all provider calls are denied or synthetic.
 const output = resolve(".artifacts/environment-guidance", new Date().toISOString().replaceAll(":", "-"));
@@ -43,7 +44,12 @@ try {
     afterTest: { command: "npm run build", exitCode: 1, signal: null, durationMs: 10, passed: false, output: 'npm error Missing script: "start"' },
     artifact: null, errorCode: "BUILD_FAILED", message: "ساخت کامل نشد", createdAt: now, updatedAt: now };
   store.db.prepare("INSERT INTO code_repair_jobs VALUES(?,?,?,?,?)").run(failedJob.id, actor, "failed", now, JSON.stringify({ job: failedJob }));
-  run.repair = failedJob;addEvent(run, "state", "تنظیمات باقی‌مانده را بررسی کنید.");repo.save(actor, run);
+  run.repair = failedJob;addEvent(run, "state", "تنظیمات باقی‌مانده را بررسی کنید.");
+  const sourceNotice = sourceComparisonNotice({ ok: true, data: { sourceComparison: compareSelectedSource(store, actor, context, "unattributed-fixture-release", now) } }, context);
+  assert.ok(sourceNotice);
+  addEvent(run, "activity", "خواندن نسخه‌های سرویس", { tool: "read_releases", callId: "release-source-fixture" });
+  addEvent(run, "tool", "خواندن نسخه‌های سرویس: نتیجه دریافت شد", { tool: "read_releases", callId: "release-source-fixture", outcome: "succeeded", notice: sourceNotice });
+  repo.save(actor, run);
   browser = await chromium.launch({ headless: true });
   const browserContext = await browser.newContext({ locale: "fa-IR", reducedMotion: "reduce" }), page = await browserContext.newPage();
   page.on("pageerror", error => pageErrors.push(error.message));
@@ -61,6 +67,8 @@ try {
   const env = page.locator('section[aria-labelledby="environment-title"]'), jwt = env.locator("#environment-JWT_SECRET"),
     session = env.locator("#environment-SESSION_SECRET"), generator = env.getByRole("button", { name: "ساخت مقدار تصادفی برای JWT_SECRET", exact: true });
   await generator.waitFor();
+  await page.getByText("مراحل بررسی", { exact: true }).click();
+  await page.getByText(sourceNotice, { exact: true }).waitFor();assert.equal(await page.getByText(sourceNotice, { exact: true }).count(), 1);
   assert.equal(await env.getByRole("button", { name: "ساخت مقدار تصادفی برای API_KEY", exact: true }).count(), 0);
   assert.equal(await env.getByRole("button", { name: "ساخت مقدار تصادفی برای VITE_PUBLIC_URL", exact: true }).count(), 0);
   await session.fill("manual-signing-fixture-value");
@@ -120,7 +128,7 @@ try {
   assert.deepEqual(pageErrors, []);assert.deepEqual(external, []);
   await writeFile(join(output, "report.json"), JSON.stringify({ states, operations, pageErrors, externalRequests: 0, liveModelCalls: 0,
     providerWrites: 0, keyboardGenerationAndReject: true, randomBytes: 32, generatedValuesPersistedInPlaintext: false,
-    manualValuePreserved: true, generatedValuePrivate: true, reloadClearsUnsubmittedValues: true, importedValueNotReplaced: true, unavailableCryptoFailsClosed: true, textEnlargement: "200%",
+    manualValuePreserved: true, generatedValuePrivate: true, reloadClearsUnsubmittedValues: true, importedValueNotReplaced: true, unavailableCryptoFailsClosed: true, textEnlargement: "200%", scopedSourceNotice: true,
     evidence: "Built product and actual authenticated proposal/rejection; disposable synthetic source/state/provider transport. No deployment or live configuration is claimed." }, null, 2));
   console.log(JSON.stringify({ cases: states.length, pageErrors: 0, externalRequests: 0, providerWrites: 0, output }));
 } finally {
