@@ -245,4 +245,10 @@ CREATE UNIQUE INDEX database_request_keys ON actions(actor_id,json_extract(spec,
 CREATE TABLE database_environment_bindings (action_id TEXT PRIMARY KEY REFERENCES actions(id), database_action_id TEXT NOT NULL REFERENCES actions(id)) STRICT;
 `,
   },
+  {
+    version: 20,
+    sql: `
+CREATE UNIQUE INDEX database_bound_request_keys ON actions(actor_id,json_extract(spec,'$.requestKey')) WHERE json_extract(spec,'$.version') IN (27,28);
+`,
+  },
 ] as const;

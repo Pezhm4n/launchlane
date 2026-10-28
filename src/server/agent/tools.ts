@@ -49,6 +49,7 @@ import { compareSelectedSource } from "./source-comparison.ts";
 import { proposeRollback, readPublicationHistory } from "../application/rollback.ts";
 import type { ProjectFlow } from "../../contracts/project-flow.ts";
 import { proposeDatabase } from "../application/databases.ts";
+import { parseDatabaseBindingKeys } from "../../contracts/database-provision.ts";
 
 export function privateValues(c: Config): string[] {
   return [c.liaraToken, c.modelKey, c.operatorToken, c.sessionSecret, ...c.projectSecretValues].filter(Boolean);
@@ -282,9 +283,10 @@ const diskTool: ToolDefinition = { type: "function", function: {
 } };
 const databaseTool: ToolDefinition = { type: "function", function: {
   name: "propose_database",
-  description: "Propose one private managed database required by the inspected component. First read_database_resources capabilities and quote. Supply the source consumer root, exact provider type/version/plan/bundle. The host checks source evidence, destination identity, existing team network, current separate prices and credit, then pauses for human approval. Creation is NOT credential binding, migration, connectivity or persistence. Never substitute PostgreSQL for Supabase/D1, duplicate an uncertain request or omit the remaining data requirements.",
-  parameters: { type: "object", additionalProperties: false, required: ["consumerRoot", "type", "version", "planId", "bundleId"], properties: {
+  description: "Propose one private managed database for explicit bindingKeys declared by that source consumer. Read the actual component, connection names, provider capabilities and quote first. Supply consumerRoot, bindingKeys, and exact type/version/plan/bundle. Multiple keys explicitly alias THIS database; separate data targets need separate reviewed resources. The host binds these keys into approval and rejects occupied, public, missing or cross-consumer keys. After identity readback use configure_env for private binding; only after verified binding may the same mission propose another distinct source-backed database. Never duplicate an uncertain request or claim creation proves migration, connectivity, persistence or publication. Never substitute PostgreSQL for Supabase/D1.",
+  parameters: { type: "object", additionalProperties: false, required: ["consumerRoot", "bindingKeys", "type", "version", "planId", "bundleId"], properties: {
     consumerRoot: { type: "string", maxLength: 512 }, type: { type: "string", maxLength: 63 }, version: { type: "string", maxLength: 64 },
+    bindingKeys: { type: "array", minItems: 1, maxItems: 4, items: { type: "string", maxLength: 128 } },
     planId: { type: "string", maxLength: 63 }, bundleId: { type: "string", maxLength: 63 },
   } },
 } };
@@ -614,7 +616,7 @@ export async function executeAgentTool(
     ensure(c.context.projectId && c.context.target && c.parentRunId, "AGENT_PROJECT_REQUIRED", "پروژه، مقصد و مأموریت انتشار لازم است.", 409);
     const action = await proposeDatabase(c.config, c.store, c.actorId, {
       flowId: c.context.projectId, agentRunId: c.parentRunId, requestKey: randomUUID(), consumerRoot: string(args.consumerRoot, 512),
-      type: identifier(args.type), version: string(args.version, 64), planId: identifier(args.planId), bundleId: identifier(args.bundleId),
+      type: identifier(args.type), version: string(args.version, 64), planId: identifier(args.planId), bundleId: identifier(args.bundleId), bindingKeys: parseDatabaseBindingKeys(args.bindingKeys),
     }, c.signal, { budget: c.budget, ...(c.database ? { read: c.database } : {}), ...(c.account ? { account: c.account } : {}) });
     assertAgentContext(c.config, c.store, c.actorId, c.context);
     return { databaseProposal: action };

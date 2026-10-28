@@ -61,7 +61,7 @@ export function decodeAction(value: unknown): Action {
     spec = object(raw.spec),
     scope = object(spec.scope),
     args = object(spec.args);
-  if (spec.version === 27) {
+  if ((spec.version === 27 || spec.version === 28)) {
     const parsed = parseDatabaseProvisionSpec(spec), base = decodeAction({ ...raw, spec: { version: 1, operation: "restart", scope: spec.scope, sourceHash: null, args: { port: null, planId: null } } });
     return { ...base, spec: parsed, ...(raw.database === undefined ? {} : { database: parseDatabaseProvisionProgress(raw.database) }) };
   }
@@ -166,7 +166,7 @@ export function decodeAction(value: unknown): Action {
   else if (spec.version === 8) parsedSpec = parseProvisionSpec(spec);
   else {
     ensure(spec.operation === "deploy" || spec.operation === "restart", "INVALID_RESPONSE", "نوع اقدام معتبر نیست.");
-    const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12 | 13 | 14 | 16 | 18 | 20 | 22 | 24 | 25 | 27}>, "scope" | "operation" | "sourceHash" | "args"> = {
+    const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12 | 13 | 14 | 16 | 18 | 20 | 22 | 24 | 25 | 27 | 28}>, "scope" | "operation" | "sourceHash" | "args"> = {
       operation: spec.operation,
       scope: { teamId: string(scope.teamId), app: string(scope.app) },
       sourceHash: nullableString(spec.sourceHash),

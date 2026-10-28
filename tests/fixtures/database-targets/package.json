@@ -1,0 +1,1 @@
+{"name":"database-targets","type":"module","engines":{"node":"22"},"scripts":{"start":"node server.mjs"},"dependencies":{"pg":"8.16.3"}}

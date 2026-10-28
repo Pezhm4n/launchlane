@@ -1,5 +1,9 @@
 # شواهد اعتبارسنجی Launchlane
 
+افزودهٔ ۲۰۲۶-۱۰-۲۸: [دیتابیس‌های نام‌دار و اتصال امن چندمنبعی](evidence/managed-database-targets.md) source snapshot، آزمون‌های قرارداد/مهاجرت/uncertainty، مسیر واقعی وب و API با دو تصمیم منبع و دو تصمیم env، و provider/model مصنوعی را جدا ثبت می‌کند. هیچ ساخت واقعی لیارا یا SQL تولیدی انجام نشده؛ شواهد migration موقت قبلی به live data-plane ارتقا داده نمی‌شوند.
+
+نتیجهٔ نهایی `database-targets-r4`: domain787، HTTP48، guided54، legacy v27 در۵عرض و مسیر واقعی وب/API دو منبع در۸چیدمان، typecheck/lint بدون error گذشتند. runtime/package دقیقاً برابر build Webpack ثابت r2 است؛ reuse و failureهای harness در شاهد مشخص‌اند. هر دو اتصال و مقدار قبلی در تنظیمات ادغام‌شده حفظ شدند؛ replay409 و reload بدون مصرف/write تازه ثبت شد. این نتایج، connectivity، migration یا ماندگاری دیتابیس واقعی را اثبات نمی‌کنند.
+
 افزودهٔ ۲۰۲۶-۱۰-۲۸: [شاهد runner منبع‌محور و چند دیتابیس](evidence/project-migration-runners.md) snapshot اختصاصی `runner-r4`، ادغام با کامیت هم‌زمان UI در `runner-r5` و قرارداد نهایی سخت‌تر در `runner-r6` را جدا ثبت می‌کند. PostgreSQL و چهار worker، npm/build/API/oracle اصلی، schema-only و رد پاک‌شدن داده در replay واقعی‌اند؛ مدل و provider مصنوعی‌اند. برش قبلی SQL نیز دوباره با worker واقعی و HTTP آزموده شد. مصرف تازهٔ مدل، تمدید allowance، write روی لیارا، rollout و تغییر دادهٔ اصلی صفر است؛ اعداد snapshotهای تاریخی زیر full pass تازه محسوب نمی‌شوند.
 
 در r6، build/typecheck/lint بدون error، HTTP48، guided54 و مسیر واقعی وب/چهار worker با۱۰چیدمان گذشتند. domain نخست782/783 و سپس، بدون تغییر source/assertion/timeout و بدون کار سنگین هم‌زمان،783/783 شد؛ علت observation نامشخصِ اولیه تأیید نشده و در شاهد نگه داشته شده است. Docker6/6 و مرورگر legacy روی r4 باقی‌اند، نه یک full sandbox aggregate تازه روی r6.

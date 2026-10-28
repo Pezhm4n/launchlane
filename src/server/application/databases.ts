@@ -1,6 +1,7 @@
 import type { Action, Session } from "../../contracts/domain.ts";
 import type { DatabaseProvisionSpec } from "../../contracts/database-provision.ts";
-import { databaseHostname } from "../../contracts/database-provision.ts";
+import { databaseHostname, parseDatabaseBindingKeys } from "../../contracts/database-provision.ts";
+import { sourceDatabaseBindingKeys } from "../policy/database-targets.ts";
 import { applicationSourcePath } from "../../contracts/application-requirements.ts";
 import { identifier, string } from "../../contracts/validation.ts";
 import { connectedLiaraConfig } from "../connections/liara.ts";
@@ -13,9 +14,11 @@ import type { Store } from "../persistence/store.ts";
 import { RunBudget } from "../policy/budget.ts";
 import { executeApproved } from "./execute.ts";
 import { restoreProjectFlow } from "./project-flows.ts";
+import { assertDatabaseEnvironmentBinding } from "../environment/database-binding.ts";
+import { currentEnvironment } from "../environment/secrets.ts";
 
 type Dependencies = { read?: LiaraDatabaseReadClient; account?: LiaraAccountClient; write?: LiaraDatabaseProvisionClient; budget?: RunBudget };
-type Input = { flowId: string; requestKey: string; consumerRoot: string; type: string; version: string; planId: string; bundleId: string; agentRunId?: string };
+type Input = { flowId: string; requestKey: string; consumerRoot: string; type: string; version: string; planId: string; bundleId: string; agentRunId?: string; bindingKeys?: readonly string[] };
 function context(config: Config, store: Store, actor: string, spec?: DatabaseProvisionSpec) {
   const flow = store.getProjectFlow(actor), connection = store.getConnection(actor, "liara")?.view,
     app = connection?.apps.find(row => row.name === connection.selectedApp);
@@ -54,18 +57,21 @@ export async function proposeDatabase(config: Config, store: Store, actor: strin
     version = string(input.version, 64), planId = identifier(input.planId), bundleId = identifier(input.bundleId), requestKey = string(input.requestKey, 36);
   ensure(c.flow.id === input.flowId && /^[a-f0-9-]{36}$/.test(requestKey), "INVALID_INPUT", "پروژه یا شناسه درخواست دیتابیس معتبر نیست.");
   sourceNeed(c, consumerRoot, type);
-  const prior = store.db.prepare("SELECT id FROM actions WHERE actor_id=? AND json_extract(spec,'$.version')=27 AND json_extract(spec,'$.requestKey')=?").get(actor, requestKey);
+  const bindingKeys = input.bindingKeys === undefined ? undefined : sourceDatabaseBindingKeys(c.flow.profile, consumerRoot, type, input.bindingKeys);
+  const prior = store.db.prepare("SELECT id FROM actions WHERE actor_id=? AND json_extract(spec,'$.version') IN (27,28) AND json_extract(spec,'$.requestKey')=?").get(actor, requestKey);
   if (prior) {
     const action = store.getAction(string(prior.id, 36), actor), spec = action.spec;
-    ensure(spec.version === 27 && spec.projectFlowId === input.flowId && spec.sourceHash === c.flow.profile.sourceHash && spec.artifactHash === c.artifact.archiveHash && spec.selectionHash === c.flow.selectionHash &&
+    ensure((spec.version === 27 || spec.version === 28) && spec.projectFlowId === input.flowId && spec.sourceHash === c.flow.profile.sourceHash && spec.artifactHash === c.artifact.archiveHash && spec.selectionHash === c.flow.selectionHash &&
       spec.accountId === c.connection.identityId && spec.targetAppId === c.app.id && spec.consumerRoot === consumerRoot && spec.agentRunId === (input.agentRunId ?? null) &&
-      spec.database.type === type && spec.database.version === version && spec.database.planId === planId && spec.database.bundleId === bundleId,
+      spec.database.type === type && spec.database.version === version && spec.database.planId === planId && spec.database.bundleId === bundleId &&
+      (spec.version === 28 ? bindingKeys !== undefined && JSON.stringify(spec.bindingKeys) === JSON.stringify(bindingKeys) : bindingKeys === undefined),
       "IDEMPOTENCY_CONFLICT", "شناسه درخواست دیتابیس به انتخاب دیگری تعلق دارد.", 409);
     return action;
   }
   store.assertAgentIdle(actor, null, false, input.agentRunId ?? null);
   const restored = await restoreProjectFlow(c.config, store, actor, signal, input.flowId);
   ensure(restored?.status === "ready" && restored.profile.sourceHash === c.flow.profile.sourceHash, "PROJECT_CHANGED", "source تغییر کرده است.", 409);
+  if (bindingKeys) assertDatabaseEnvironmentBinding(store, config.sessionSecret, actor, c.flow, currentEnvironment(store, config.sessionSecret, actor, c.flow.id));
   const budget = deps.budget ?? new RunBudget(c.config), reader = deps.read ?? new LiaraDatabaseReadClient(c.config, c.connection.identityId),
     account = deps.account ?? new LiaraAccountClient(c.config, c.connection.identityId),
     quote = quoteDatabaseOffer(await reader.capabilities(budget, signal), { type, version, planId, bundleId });
@@ -80,7 +86,7 @@ export async function proposeDatabase(config: Config, store: Store, actor: strin
   const fresh = context(config, store, actor);
   ensure(fresh.flow.id === c.flow.id && fresh.flow.profile.sourceHash === c.flow.profile.sourceHash && fresh.app.id === c.app.id && fresh.connection.identityId === c.connection.identityId,
     "DATABASE_TARGET_CHANGED", "پروژه یا مقصد هنگام پیشنهاد تغییر کرد.", 409);
-  return store.createAction(actor, { version: 27, operation: "create_database", scope: { teamId: c.config.teamId, app: c.app.name },
+  return store.createAction(actor, { ...(bindingKeys ? { version: 28 as const, bindingKeys: parseDatabaseBindingKeys(bindingKeys) } : { version: 27 as const }), operation: "create_database", scope: { teamId: c.config.teamId, app: c.app.name },
     projectFlowId: c.flow.id, sourceHash: c.flow.profile.sourceHash, artifactHash: c.artifact.archiveHash, selectionHash: c.flow.selectionHash,
     accountId: c.connection.identityId, targetAppId: c.app.id, consumerRoot, requestKey, agentRunId: input.agentRunId ?? null,
     database: { hostname, type, version, planId, bundleId, networkId: project.networkId, publicNetwork: false }, args: { port: null, planId },
@@ -88,15 +94,17 @@ export async function proposeDatabase(config: Config, store: Store, actor: strin
 }
 export async function executeDatabase(config: Config, store: Store, session: Session, id: string, signal: AbortSignal, deps: Dependencies = {}): Promise<Action> {
   const action = store.getAction(id, session.actorId);
-  ensure(action.spec.version === 27 && action.state === "approved" && !action.attemptId, "ACTION_CONFLICT", "دیتابیس مجوز معتبر اجرا ندارد.", 409);
+  ensure((action.spec.version === 27 || action.spec.version === 28) && action.state === "approved" && !action.attemptId, "ACTION_CONFLICT", "دیتابیس مجوز معتبر اجرا ندارد.", 409);
   const spec = action.spec, c = context(config, store, session.actorId, spec), budget = deps.budget ?? new RunBudget(c.config),
     writer = deps.write ?? new LiaraDatabaseProvisionClient(c.config);
   sourceNeed(c, spec.consumerRoot, spec.database.type);
+  if (spec.version === 28) sourceDatabaseBindingKeys(c.flow.profile, spec.consumerRoot, spec.database.type, spec.bindingKeys);
   return executeApproved({ config: c.config, store, session, id, currentSpec: spec, signal: budget.signal(signal), adapter: {
     async preflight(bounded) {
       ensure(budget.maxToolCalls - budget.toolCalls >= 6, "BUDGET_EXHAUSTED", "بودجه بررسی حساب، قیمت و دیتابیس کافی نیست.", 409);
       await preflight(c, spec, budget, bounded, deps);
       context(config, store, session.actorId, spec);
+      if (spec.version === 28) assertDatabaseEnvironmentBinding(store, config.sessionSecret, session.actorId, c.flow, currentEnvironment(store, config.sessionSecret, session.actorId, c.flow.id));
       ensure(budget.maxToolCalls - budget.toolCalls >= 1, "BUDGET_EXHAUSTED", "بودجه ارسال پس از بررسی‌ها کافی نیست.", 409);
     },
     async execute(claimed, bounded) {
@@ -109,7 +117,7 @@ export async function executeDatabase(config: Config, store: Store, session: Ses
 }
 export async function observeDatabase(config: Config, store: Store, session: Session, id: string, signal: AbortSignal, deps: Dependencies = {}): Promise<Action> {
   const action = store.getAction(id, session.actorId), progress = action.database;
-  ensure(action.spec.version === 27 && progress && ["observing", "uncertain"].includes(action.state), "ACTION_CONFLICT", "دیتابیس منتظر بازخوانی نیست.", 409);
+  ensure((action.spec.version === 27 || action.spec.version === 28) && progress && ["observing", "uncertain"].includes(action.state), "ACTION_CONFLICT", "دیتابیس منتظر بازخوانی نیست.", 409);
   const spec = action.spec, connection = store.getConnection(session.actorId, "liara")?.view;
   ensure(connection?.status === "connected" && connection.identityId === spec.accountId && connection.teamId === spec.scope.teamId &&
     connection.apps.some(row => row.name === spec.scope.app && row.id === spec.targetAppId), "DATABASE_TARGET_CHANGED", "حساب یا مقصد مشاهده تغییر کرده است.", 409);

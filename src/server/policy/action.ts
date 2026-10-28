@@ -46,7 +46,7 @@ export function fingerprint(value: unknown): string {
 
 export function parseActionSpec(value: unknown): ActionSpec {
   const input = object(value);
-  if (input.version === 27) return parseDatabaseProvisionSpec(input);
+  if ((input.version === 27 || input.version === 28)) return parseDatabaseProvisionSpec(input);
   if (input.version === 25) return parseDiskSpec(input);
   if (input.version === 26) {
     const { storage, ...rest } = input, base = parseActionSpec({ ...rest, version: 23 });
@@ -142,7 +142,7 @@ export function parseActionSpec(value: unknown): ActionSpec {
     "INVALID_INPUT",
     "restart آرگومان انتشار نمی‌پذیرد.",
   );
-  const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12 | 13 | 14 | 16 | 18 | 20 | 22 | 24 | 25 | 27}>, "scope" | "operation" | "sourceHash" | "args"> = {
+  const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12 | 13 | 14 | 16 | 18 | 20 | 22 | 24 | 25 | 27 | 28}>, "scope" | "operation" | "sourceHash" | "args"> = {
     scope: { teamId, app },
     operation: input.operation,
     sourceHash,

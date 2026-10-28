@@ -3,8 +3,9 @@ import { exactKeys, hash, identifier, integer, object, string } from "./validati
 import { providerObjectId } from "./provision.ts";
 import { ensure } from "../server/errors.ts";
 import { applicationSourcePath } from "./application-requirements.ts";
+import { environmentKey, isPublicClientEnvironmentKey } from "./environment.ts";
 
-export type DatabaseProvisionSpec = Readonly<{
+type LegacyDatabaseProvisionSpec = Readonly<{
   version: 27;
   operation: "create_database";
   scope: Scope;
@@ -21,6 +22,17 @@ export type DatabaseProvisionSpec = Readonly<{
   args: Readonly<{ port: null; planId: string }>;
   cost: Readonly<{ planHourlyToman: number; bundleHourlyToman: number; combinedTotal: "not_computed"; extras: "unknown"; expiresAt: number }>;
 }>;
+export type DatabaseProvisionSpec = LegacyDatabaseProvisionSpec | (Omit<LegacyDatabaseProvisionSpec, "version"> & Readonly<{ version: 28; bindingKeys: readonly string[] }>);
+export function isDatabaseProvisionSpec(value: Action["spec"]): value is DatabaseProvisionSpec { return value.version === 27 || value.version === 28; }
+export function parseDatabaseBindingKeys(value: unknown): readonly string[] {
+  ensure(Array.isArray(value) && value.length > 0 && value.length <= 4, "DATABASE_BINDING_KEYS_INVALID", "یک تا چهار نام ورودی اتصال لازم است.", 409);
+  const keys = value.map(environmentKey);
+  ensure(new Set(keys).size === keys.length && keys.every(key => !isPublicClientEnvironmentKey(key)), "DATABASE_BINDING_KEYS_INVALID", "نام اتصال باید یکتا و خصوصی باشد.", 409);
+  return [...keys].sort();
+}
+export function databaseBindingKeys(spec: DatabaseProvisionSpec): readonly string[] {
+  return spec.version === 28 ? spec.bindingKeys : [spec.database.type === "redis" ? "REDIS_URL" : "DATABASE_URL"];
+}
 export type DatabaseProvisionProgress = Readonly<{
   stage: "claimed" | "request_started" | "accepted" | "created";
   acceptedAt: number | null;
@@ -42,15 +54,15 @@ function amount(value: unknown): number {
 }
 export function parseDatabaseProvisionSpec(value: unknown): DatabaseProvisionSpec {
   const row = object(value), scope = object(row.scope), args = object(row.args), database = object(row.database), cost = object(row.cost);
-  exactKeys(row, ["version", "operation", "scope", "sourceHash", "artifactHash", "projectFlowId", "selectionHash", "accountId", "targetAppId", "consumerRoot", "requestKey", "agentRunId", "database", "args", "cost"]);
+  exactKeys(row, ["version", "operation", "scope", "sourceHash", "artifactHash", "projectFlowId", "selectionHash", "accountId", "targetAppId", "consumerRoot", "requestKey", "agentRunId", "database", "args", "cost", ...(row.version === 28 ? ["bindingKeys"] : [])]);
   exactKeys(scope, ["teamId", "app"]); exactKeys(args, ["port", "planId"]);
   exactKeys(database, ["hostname", "type", "version", "planId", "bundleId", "networkId", "publicNetwork"]);
   exactKeys(cost, ["planHourlyToman", "bundleHourlyToman", "combinedTotal", "extras", "expiresAt"]);
   const version = string(database.version, 64), planId = identifier(database.planId);
-  ensure(row.version === 27 && row.operation === "create_database" && args.port === null && args.planId === planId &&
+  ensure((row.version === 27 || row.version === 28) && row.operation === "create_database" && args.port === null && args.planId === planId &&
     database.publicNetwork === false && /^[A-Za-z0-9][A-Za-z0-9._+-]*$/.test(version) && cost.combinedTotal === "not_computed" && cost.extras === "unknown",
     "INVALID_DATABASE_PROPOSAL", "قرارداد ساخت دیتابیس خصوصی معتبر نیست.", 409);
-  return { version: 27, operation: "create_database", scope: { teamId: providerObjectId(scope.teamId), app: identifier(scope.app) },
+  return { ...(row.version === 28 ? { version: 28 as const, bindingKeys: parseDatabaseBindingKeys(row.bindingKeys) } : { version: 27 as const }), operation: "create_database", scope: { teamId: providerObjectId(scope.teamId), app: identifier(scope.app) },
     sourceHash: hash(row.sourceHash), artifactHash: hash(row.artifactHash), projectFlowId: uuid(row.projectFlowId), selectionHash: hash(row.selectionHash),
     accountId: providerObjectId(row.accountId), targetAppId: string(row.targetAppId, 100), consumerRoot: applicationSourcePath(row.consumerRoot, true), requestKey: uuid(row.requestKey), agentRunId: row.agentRunId === null ? null : uuid(row.agentRunId),
     database: { hostname: databaseHostname(database.hostname), type: identifier(database.type), version, planId, bundleId: identifier(database.bundleId),
@@ -75,5 +87,5 @@ export function parseDatabaseProvisionProgress(value: unknown): DatabaseProvisio
   return { stage, acceptedAt, databaseId, observation };
 }
 export function canReadDatabaseResult(action: Action): boolean {
-  return action.spec.version === 27 && !!action.database && (action.state === "observing" || action.state === "uncertain");
+  return isDatabaseProvisionSpec(action.spec) && !!action.database && (action.state === "observing" || action.state === "uncertain");
 }

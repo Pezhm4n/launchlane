@@ -9,6 +9,20 @@ import { Store } from "../../src/server/persistence/store.ts";
 import { migrations } from "../../src/server/persistence/migrations.ts";
 import { AgentRepository } from "../../src/server/agent/store.ts";
 
+test("bound database request index appends migration 20 without changing the first nineteen checksums or sessions", () => {
+  const root = mkdtempSync(join(tmpdir(), "launchlane-bound-database-migrate-")), path = join(root, "state.sqlite"), legacy = new DatabaseSync(path);
+  legacy.exec("CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY, checksum TEXT NOT NULL) STRICT");
+  for (const migration of migrations.filter(m => m.version <= 19)) { legacy.exec(migration.sql); legacy.prepare("INSERT INTO schema_migrations VALUES(?,?)").run(migration.version, createHash("sha256").update(migration.sql).digest("hex")); }
+  legacy.prepare("INSERT INTO sessions VALUES(?,?,?)").run("prior-database-session", "actor", Date.now() + 600000);
+  const before = legacy.prepare("SELECT * FROM schema_migrations ORDER BY version").all(); legacy.close(); const upgraded = new Store(path);
+  try {
+    assert.deepEqual(upgraded.db.prepare("SELECT * FROM schema_migrations WHERE version<=19 ORDER BY version").all(), before);
+    assert.equal(upgraded.sessionExists("prior-database-session", "actor", Date.now()), true);
+    assert.ok(upgraded.db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='database_bound_request_keys'").get());
+    assert.equal(upgraded.db.prepare("SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1").get()?.version, 20);
+  } finally { upgraded.close(); const target = resolve(root); assert.ok(target.startsWith(join(tmpdir(), "launchlane-bound-database-migrate-"))); rmSync(target, { recursive: true, force: true }); }
+});
+
 test("provision journal appends migration 9 without changing versions 1-8, sessions or stored agent context", () => {
   const root = mkdtempSync(join(tmpdir(), "launchlane-provision-migrate-")), path = join(root, "state.sqlite"), legacy = new DatabaseSync(path);
   legacy.exec("CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY, checksum TEXT NOT NULL) STRICT");

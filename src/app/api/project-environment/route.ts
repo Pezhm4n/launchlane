@@ -17,10 +17,12 @@ export async function GET(request: Request) {
     const id = string(params.get("run"), 36), { flow, target } = environmentContext(config, store, session.actorId, id);
     store.listActions(session.actorId);
     const row = store.db.prepare("SELECT id FROM actions WHERE actor_id=? AND json_extract(spec,'$.version')=9 AND json_extract(spec,'$.agentRunId')=? ORDER BY rowid DESC LIMIT 1").get(session.actorId, id);
+    const database = databaseEnvironmentOption(config, store, session.actorId, id);
+    let action = row ? store.getAction(String(row.id), session.actorId) : null;
+    if (database && action?.state === "succeeded" && !store.db.prepare("SELECT b.action_id FROM database_environment_bindings b JOIN actions a ON a.id=b.action_id WHERE b.database_action_id=? AND a.actor_id=? AND a.state='succeeded' LIMIT 1").get(database.actionId, session.actorId)) action = null;
     return reply({ names: flow.profile.envNames.filter(isApplicationEnvironmentKey), app: target.app,
       imported: importedEnvironmentReview(config, store, session.actorId, flow),
-      database: databaseEnvironmentOption(config, store, session.actorId, id),
-      action: row ? store.getAction(String(row.id), session.actorId) : null });
+      database, action });
   });
 }
 export async function POST(request: Request) {

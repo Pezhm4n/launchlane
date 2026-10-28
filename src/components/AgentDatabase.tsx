@@ -8,12 +8,12 @@ export function AgentDatabase({ action, waiting, disabled, resumable, onDecision
   onDecision: (decision: "approve" | "reject") => void; onObserve: () => void;
 }) {
   const [now, setNow] = useState(() => Date.now());
-  const deadline = Math.min(action.expiresAt, action.spec.version === 27 ? action.spec.cost.expiresAt : action.expiresAt);
+  const deadline = Math.min(action.expiresAt, (action.spec.version === 27 || action.spec.version === 28) ? action.spec.cost.expiresAt : action.expiresAt);
   useEffect(() => {
     const timer = window.setTimeout(() => setNow(Date.now()), Math.max(1, Math.min(deadline - Date.now() + 1, 2147483647)));
     return () => window.clearTimeout(timer);
   }, [deadline]);
-  if (action.spec.version !== 27) return null;
+  if ((action.spec.version !== 27 && action.spec.version !== 28)) return null;
   const spec = action.spec, expired = action.state === "expired" || deadline <= now,
     pending = waiting && (action.state === "awaiting_approval" || action.state === "expired"), verified = action.state === "succeeded",
     number = new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 8 });
@@ -31,11 +31,13 @@ export function AgentDatabase({ action, waiting, disabled, resumable, onDecision
     <dl className="profile-facts">
       <div><dt>برنامه مقصد</dt><dd><bdi>{spec.scope.app}</bdi></dd></div>
       <div><dt>نوع و نسخه</dt><dd><bdi>{spec.database.type} {spec.database.version}</bdi></dd></div>
+      {spec.version === 28 ? <div><dt>اتصال این دیتابیس در برنامه</dt><dd>{spec.bindingKeys.map(key => <bdi key={key}> {key} </bdi>)}</dd></div> : null}
       <div><dt>هزینهٔ پلن</dt><dd>{number.format(spec.cost.planHourlyToman)} تومان در ساعت</dd></div>
       <div><dt>هزینهٔ بستهٔ امکانات</dt><dd>{number.format(spec.cost.bundleHourlyToman)} تومان در ساعت</dd></div>
       <div><dt>دسترسی شبکه</dt><dd>خصوصی، در شبکهٔ همین مقصد</dd></div>
     </dl>
     <p>یک دیتابیس تازه و خالی ساخته می‌شود. اتصال امن به برنامه و اجرای تغییرات ساختار داده، مرحله‌های بعدی با تصمیم جدا هستند.</p>
+    {spec.version === 28 ? <p>کلیدهای اتصال فهرست‌شده به همین یک دیتابیس وصل می‌شوند؛ دیتابیس دیگر، پیشنهاد و تصمیم جدا دارد.</p> : null}
     <p className="hint">دو مؤلفهٔ قیمت از حساب خوانده شده‌اند؛ مبلغ نهایی محاسبه نشده است. مالیات، ترافیک و هزینه‌های دیگر نامشخص‌اند. پلن فعلی برنامه هم ادامه دارد.</p>
     <details><summary>مشخصات دیتابیس و اعتبار پیشنهاد</summary><dl className="profile-facts">
       <div><dt>بخش مصرف‌کننده</dt><dd><bdi>{spec.consumerRoot}</bdi></dd></div>

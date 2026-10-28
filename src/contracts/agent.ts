@@ -121,7 +121,7 @@ export function parseAgentView(value: unknown): AgentView {
   const network = row.network === null || row.network === undefined ? null : decodeAction(row.network);
   const disk = row.disk === null || row.disk === undefined ? null : decodeAction(row.disk);
   const database = row.database === null || row.database === undefined ? null : decodeAction(row.database);
-  ensure(!database || database.spec.version === 27 && database.spec.agentRunId === row.id, "INVALID_RESPONSE", "رسید دیتابیس متعلق به همین مأموریت نیست.");
+  ensure(!database || (database.spec.version === 27 || database.spec.version === 28) && database.spec.agentRunId === row.id, "INVALID_RESPONSE", "رسید دیتابیس متعلق به همین مأموریت نیست.");
   ensure(row.databaseContinued === undefined || typeof row.databaseContinued === "boolean", "INVALID_RESPONSE", "رسید ادامه دیتابیس معتبر نیست.");
   ensure(!disk || disk.spec.version === 25 && disk.spec.agentRunId === row.id, "INVALID_RESPONSE", "رسید فضای پایدار متعلق به همین مأموریت نیست.");
   const destinationRecommendation = row.destinationRecommendation === null || row.destinationRecommendation === undefined ? null : parseDestinationRecommendation(row.destinationRecommendation);

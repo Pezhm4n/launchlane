@@ -1,5 +1,13 @@
 # برنامه اجرایی Launchlane
 
+## A14 / AC17/22/23/24/32/34 — منابع دادهٔ نام‌دار در همان مأموریت؛ ۲۰۲۶-۱۰-۲۸
+
+پیشنهاد Agent از v28 استفاده می‌کند و `bindingKeys` را پیش از ساخت، از نیاز همان consumer/source به approval می‌بندد. اتصال امن دیگر به دو نام پیش‌فرض محدود نیست؛ هر منبع به کلیدهای مصوب خودش متصل می‌شود. رزرو اتمیک Store، کلید مصرف‌شده را به دیتابیس دوم نمی‌دهد و uncertainty تیم میان v27/v28 حفظ است. پس از ساخت و binding تأییدشده، همان مأموریت با همان budget می‌تواند منبع مستقل بعدی را پیشنهاد کند؛ اتصال اول هنگام merge دوم حفظ می‌شود. فرم وب، موفقیت تنظیمات منبع اول را به‌جای تنظیم منبع دوم نشان نمی‌دهد. v27 و migrationهای۱–۱۹ بازنویسی نشده‌اند؛ index مشترک فقط در migration20 افزوده است.
+
+[تصمیم](docs/decisions/0035-source-bound-managed-database-connections.md)، [شاهد و حدود](docs/evidence/managed-database-targets.md). اعتبارسنجی نهایی هر snapshot و failureها در شاهد ثبت می‌شوند. مدل/provider این آزمون‌ها مصنوعی‌اند؛ ساخت واقعی لیارا، migration تولیدی، data-plane، artifact قابل انتشار و ماندگاری release همچنان اقدام‌های بعدی هدف اصلی‌اند. مصرف تازهٔ مدل و تمدید allowance مجاز نشده و انجام نمی‌شود.
+
+snapshot نهایی `database-targets-r4` بر پایهٔ `d101e0f`، runtime/package SHA256 `0ba6f5d1f08a8e4b2c91ccaa2dafe9b3e30bf667aaf730cf3ddbeae6de1c7a3f`: domain787/787، HTTP48/48، guided54، کارت تاریخی v27 در۵عرض، وب/API واقعی با دو منبع/دو تصمیم env در۸چیدمان، typecheck و lint صفرerror/48warning/22info گذشتند. build ثابت Webpack از r2 پس از برابری byteهای runtime/package در r4 استفاده شد؛ دو اصلاح harness و failureهای قبلی جدا ثبت‌اند و full pass snapshotهای متفاوت ساخته نشده است. PostgreSQL/SQL این برش اجرا نشد و شاهد runner قبلی به data-plane زنده تبدیل نمی‌شود.
+
 ## A14 / AC17/19/22/24/26/32/34 — runner اصلی و چند دیتابیس؛ ۲۰۲۶-۱۰-۲۸
 
 مسیر مشترک `propose_project_build` اکنون `compatibilityDatabase.runnerScript/targets` می‌پذیرد؛ host فرمان و hookهای موجود source و hash واقعی را می‌بندد. runner اصلی، transaction و ledger خودش را حفظ می‌کند. یک تا چهار دیتابیس منطقی با role/URL ورودی جدا روی همان PostgreSQL موقت ساخته می‌شوند؛ معیار مستقل هر target، schema/ردیف ثابت اختیاری/نوشتن تازهٔ برنامه/حفظ داده بلافاصله پس از اجرای مجدد runner و سپس worker دوم را می‌سنجد. schema بدون seed، ایجاد ردیف از API و شناسه‌های quoted با حروف بزرگ نیز واقعاً آزموده‌اند. اجرای موفق runner با دادهٔ پاک‌شده دیگر نمی‌تواند با نوشتن worker دوم پنهان شود؛ این کنترل به v2 قدیمی هم اضافه شد. کارت، تصمیم، budget، job و رسید همان مسیر محصول‌اند، بدون SQL ابری یا engine تازه.

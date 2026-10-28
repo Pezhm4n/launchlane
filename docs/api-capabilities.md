@@ -1,5 +1,7 @@
 # قرارداد و وضعیت API لیارا
 
+افزودهٔ v28، ۲۰۲۶-۱۰-۲۸: [کلیدهای اتصال منبع](evidence/managed-database-targets.md) به قرارداد approval داخلی افزوده شدند؛ endpoint یا آرگومان DBaaS تازه‌ای فرض نشده است. همان create/ID-readback/private-detail و update-env موجود اجرا می‌شوند. bindingKey فقط ورودی برنامهٔ مصرف‌کننده است و برای provider به‌عنوان اختیار یا SQL ارسال نمی‌شود. catalog/قیمت تازه خوانده می‌شوند؛ هزینهٔ دو منبع بدون semantics معتبر جمع نمی‌شود و شاهد synthetic، live provisioning محسوب نمی‌شود.
+
 افزودهٔ runner داده، ۲۰۲۶-۱۰-۲۸: [اجرای migration اصلی و چند target موقت](evidence/project-migration-runners.md) در Docker محلی و registry مشترک انجام می‌شود. DBaaS endpoint تازه یا SQL/migration تولیدی اضافه نشده است؛ `operations.migrate=not_implemented` برای provider واقعی همچنان معتبر است. URLهای آزمون فقط برای roleهای محدود همان fixture هستند و credential حساب یا منبع واقعی وارد worker نمی‌شود.
 
 افزودهٔ ۲۰۲۶-۱۰-۲۸: SQL محدود در [آزمون migration موقت](evidence/postgres-migration-test.md) از PostgreSQL داخل worker محلی و قرارداد `propose_project_build` استفاده می‌کند؛ endpoint SQL یا migration تازه‌ای برای DBaaS فرض نشده است. `operations.migrate=not_implemented` برای منابع واقعی provider همچنان درست است. credential واقعی به این آزمون تزریق نمی‌شود و اختیار ساخت/binding ابری، اجرای SQL تولیدی را مجاز نمی‌کند.
