@@ -1,4 +1,4 @@
-import { isDeploymentSpec } from "../../contracts/deployment.ts";
+import { isDeploymentSpec, isWorkloadDeploymentSpec } from "../../contracts/deployment.ts";
 import { string } from "../../contracts/validation.ts";
 import type { Store } from "../persistence/store.ts";
 import { AppError } from "../errors.ts";
@@ -14,7 +14,7 @@ export function compareSelectedSource(store: Store, actorId: string, context: Ag
     selectedSourceHash: context.sourceHash, appId: target.appId, teamId: target.teamId, app: target.app,
     releaseId, observedAt, runtimeContent: "unverified" as const, workloadHealth: "unverified" as const };
   const unknown = (relationship: Relationship, reason: string) => ({ ...base, relationship, reason,
-    recordedProjectId: null, recordedSourceHash: null, recordedArtifactHash: null });
+    recordedProjectId: null, recordedSourceHash: null, recordedArtifactHash: null, recordedActionId: null });
   if (!releaseId) return unknown("unknown_current_release", "current_release_not_returned");
   const rows = store.db.prepare(`SELECT id FROM actions WHERE actor_id=? AND remote_id=?
     AND json_extract(spec,'$.operation')='deploy' AND json_extract(spec,'$.scope.teamId')=?
@@ -28,7 +28,7 @@ export function compareSelectedSource(store: Store, actorId: string, context: Ag
       !store.db.prepare("SELECT id FROM attempts WHERE id=? AND action_id=? AND remote_id=?").get(action.attemptId, action.id, releaseId))
       return unknown("unattributed_release", "accepted_source_and_release_receipt_missing");
     return { ...base, relationship: (action.spec.sourceHash === context.sourceHash ? "matching_recorded_source" : "different_recorded_source") as Relationship,
-      reason: "accepted_publication_record_only", recordedProjectId: action.spec.projectFlowId,
+      reason: "accepted_publication_record_only", recordedProjectId: action.spec.projectFlowId, recordedActionId: isWorkloadDeploymentSpec(action.spec) ? action.id : null,
       recordedSourceHash: action.spec.sourceHash, recordedArtifactHash: action.spec.artifactHash };
   } catch (error) {
     if (!(error instanceof AppError)) throw error;

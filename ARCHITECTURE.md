@@ -1,5 +1,7 @@
 # معماری Launchlane
 
+Publication route observation, 2026-10-29: existing read_workload delegates its optional publicationActionId/checks pair to one read-only application service, using the same accepted action/attempt, archive, provider/probe, budget and AgentRun event persistence. It reuses the nested JSON oracle and asset checker, adds no Store/schema/approval and leaves deployment journals unchanged. [ADR0046](docs/decisions/0046-publication-bound-route-observations.md).
+
 Pnpm workspace delta, 2026-10-28: ProjectBuildPlan8 is JSON in the existing CodeRepairJob/Store and same propose_project_build registry; no SQLite migration or second execution engine. Source-bound manifests/lock/importers choose the manager and compatible pinned Node image. A network-none worker serves only verified dependency bytes and checked official metadata through loopback for pnpm11 supply-chain policy. Compile-only mode has no private data, tests/start or artifact authority; runtime mode retains source commands and independent workload. Native npm publication rejects this source until a compatible compiled-component route exists. [ADR0045](docs/decisions/0045-source-bound-pnpm-workspaces.md).
 
 

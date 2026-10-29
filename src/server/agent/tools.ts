@@ -51,6 +51,8 @@ import { proposeRollback, readPublicationHistory } from "../application/rollback
 import type { ProjectFlow } from "../../contracts/project-flow.ts";
 import { proposeDatabase } from "../application/databases.ts";
 import { parseDatabaseBindingKeys } from "../../contracts/database-provision.ts";
+import { parsePublicationWorkloadRead } from "../../contracts/publication-workload.ts";
+import { readPublicationWorkload } from "../application/publication-workload.ts";
 
 export function privateValues(c: Config): string[] {
   return [c.liaraToken, c.modelKey, c.operatorToken, c.sessionSecret, ...c.projectSecretValues].filter(Boolean);
@@ -150,7 +152,7 @@ export const agentTools: readonly ToolDefinition[] = [
     function: {
       name: "read_releases",
       description:
-        "Read the latest ten releases of the selected application. READY is not a verified user outcome. Pagination is reported.",
+        "Read the latest ten releases and actual currentRelease of the selected application. READY is not a verified user outcome. Pagination is reported. When sourceComparison.recordedActionId is present, it identifies one accepted publication record and may be passed to read_workload with explicit API checks; it grants no write authority or running-byte proof.",
       parameters: { type: "object", additionalProperties: false, required: [], properties: {} },
     },
   },
@@ -176,9 +178,16 @@ export const agentTools: readonly ToolDefinition[] = [
   },
   { type: "function", argumentValidation: "application", function: {
     name: "read_workload",
-    description: "Read one current HTTP response from the selected application's approved HTTPS origin and the specified path. No query, arbitrary host, private address, redirect or write. Returns status, timestamp and a bounded untrusted body preview. Optionally set assets=true to also read up to twelve same-origin CSS/JS references from an HTML response; this proves asset presence, not JavaScript execution, routes or API behavior. This does not verify the deployed artifact or a complete user journey; one latency sample is not p95 or a capacity measurement.",
+    description: "Read a current HTTP response from the selected application's approved HTTPS origin and path. No query, arbitrary host, private address, redirect or write. Default: bounded untrusted body preview; assets=true also checks referenced CSS/JS presence, not execution. To check JSON routes for an exact accepted publication, supply BOTH publicationActionId from read_publications and checks (1..8 unique paths, status, nested field assertions). path must equal that publication's original page; the host retains its criterion, verifies the saved archive and fences the complete read with current/READY release and app identity. Read observations grant no publication approval, journal update, running-byte, browser, data-persistence or configuration proof. A single latency sample is not p95.",
     parameters: { type: "object", additionalProperties: false, required: ["path"],
-      properties: { path: { type: "string", maxLength: 200 }, assets: { type: "boolean" } } },
+      properties: { path: { type: "string", maxLength: 200 }, assets: { type: "boolean" }, publicationActionId: { type: "string", maxLength: 36 },
+        checks: { type: "array", minItems: 1, maxItems: 8, items: { type: "object", additionalProperties: false, required: ["path", "status", "assertions"], properties: {
+          path: { type: "string", maxLength: 200 }, status: { type: "integer", minimum: 200, maximum: 299 },
+          assertions: { type: "array", minItems: 1, maxItems: 16, items: { type: "object", additionalProperties: false, required: ["pointer", "equals"], properties: {
+            pointer: { type: "array", minItems: 1, maxItems: 8, items: { type: "string", maxLength: 80 } }, equals: { type: ["string", "number", "boolean", "null"] },
+          } } },
+        } } },
+      } },
   } },
   { type: "function", argumentValidation: "application", function: {
     name: "read_metrics",
@@ -453,6 +462,8 @@ export async function executeAgentTool(
   const fileRange = name === "read_project_file" ? projectFileReadRange(args) : null;
   const probePath = name === "read_workload" ? validateProbePath(args.path) : null,
     workloadAssets = name === "read_workload" && args.assets === true;
+  const publicationWorkload = name === "read_workload" && (args.publicationActionId !== undefined || args.checks !== undefined)
+    ? parsePublicationWorkloadRead({ publicationActionId: args.publicationActionId, checks: args.checks }) : null;
   ensure(name !== "read_workload" || args.assets === undefined || typeof args.assets === "boolean",
     "INVALID_INPUT", "درخواست خواندن فایل‌های صفحه معتبر نیست.");
   const logMinutes = name === "read_logs" ? (args.lookbackMinutes === undefined ? 5 : integer(args.lookbackMinutes, 1, 60)) : null;
@@ -828,6 +839,11 @@ export async function executeAgentTool(
   const scoped = connectedLiaraConfig(c.config, c.store, c.actorId, target.app),
     read = c.read ?? new LiaraReadClient(scoped),
     scope = { teamId: target.teamId, app: target.app };
+  if (publicationWorkload) {
+    ensure(probePath !== null, "PROBE_TARGET_DENIED", "مسیر بررسی معتبر نیست.", 403);
+    return readPublicationWorkload(c.config, c.store, c.actorId, { ...publicationWorkload, path: probePath, assets: workloadAssets }, c.budget, c.signal,
+      { read, ...(c.probe ? { probe: c.probe } : {}), checkContext: () => assertAgentContext(c.config, c.store, c.actorId, c.context) });
+  }
   // Every source is fenced by fresh internal identity. Both network reads share the run's budget.
   const project = await read.project(scope, c.budget, c.signal);
   ensure(project.id === target.appId, "SCOPE_DENIED", "هویت برنامه مقصد تغییر کرده است.", 403);

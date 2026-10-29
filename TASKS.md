@@ -1,5 +1,9 @@
 # برنامه اجرایی Launchlane
 
+## Publication-bound route observations — 2026-10-29 / path B
+
+AC24/27/28/31/32: extend the same read_workload/schema/application with an accepted publication ID and explicit JSON route expectations. Verify the saved archive and exact current/READY release before/after, retaining the original primary criterion. Persist a host notice without modifying publication approval/journal or data-path logic. [ADR0046](docs/decisions/0046-publication-bound-route-observations.md), [scope and checks](docs/evidence/publication-routes.md). Final worktree-local temp configuration passes domain803/HTTP48, lint/typecheck/build, route browser15layouts, actual web/pnpm worker5layouts, review6layouts, guided54states and actual container13/13. Public browser/data/worker effects and exact compiled component publication remain open.
+
 ## Pnpm workspace execution — 2026-10-28 / path B
 
 AC19/26/28/31/32: ProjectBuildPlan8 retains the source-pinned pnpm11.19.0, root lock, all importers and workspace links in the existing Agent/CodeRepairJob/container path. Root build can run before a destination; compile-only receipts make no test/start/data/artifact claim. A root start can run unchanged tests/start and the original response criterion. Native npm publication of pnpm source is blocked. [ADR0045](docs/decisions/0045-source-bound-pnpm-workspaces.md), [evidence and preserved failures](docs/evidence/pnpm-workspaces.md). The Factory feed raw intake has 56 unclassified source findings; no corpus compiler or ledger acceptance is claimed. Next: exact compiled component artifacts/publication and per-component workloads, consuming the data-path interface without changing its migration/credential logic.

@@ -47,6 +47,7 @@ test("comparison binds the accepted source/release/attempt to actor, account, te
     const before = JSON.stringify(f.store.db.prepare("SELECT * FROM actions").all()), attempts = JSON.stringify(f.store.db.prepare("SELECT * FROM attempts").all());
     const matched = compareSelectedSource(f.store, f.session.actorId, f.context, "recorded-release", 100);
     assert.equal(matched?.relationship, "matching_recorded_source");assert.equal(matched?.workloadHealth, "unverified");assert.equal(matched?.runtimeContent, "unverified");
+    assert.equal(matched?.recordedActionId, f.action.id);
     const different = compareSelectedSource(f.store, f.session.actorId, { ...f.context, sourceHash: "d".repeat(64) }, "recorded-release", 101);
     assert.equal(different?.relationship, "different_recorded_source");assert.equal(different?.recordedSourceHash, f.context.sourceHash);
     for (const target of [{ ...f.context.target, accountId: "foreign-account" }, { ...f.context.target, appId: "reused-name-new-id" }, { ...f.context.target, teamId: "e".repeat(24) }]) {
@@ -76,7 +77,7 @@ test("unclaimed, unaccepted, corrupt or conflicting stored attribution stays unk
     f.store.db.prepare("UPDATE actions SET hash=? WHERE id=?").run(f.action.hash, f.action.id);
     const duplicate = f.store.createAction(f.session.actorId, f.action.spec);
     f.store.db.prepare("UPDATE actions SET remote_id='recorded-release' WHERE id=?").run(duplicate.id);
-    assert.equal(compare()?.reason, "ambiguous_records");
+    assert.equal(compare()?.reason, "ambiguous_records"); assert.equal(compare()?.recordedActionId, null);
   } finally { f.close(); }
 });
 

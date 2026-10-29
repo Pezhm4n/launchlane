@@ -1,5 +1,7 @@
 # اصول طراحی Launchlane
 
+Publication route observation, 2026-10-29: the existing Agent step notice explains matched, mismatching or inconclusive observations in plain Persian. It states that current/READY release fences and route matches do not verify executable content, private configuration, data persistence or browser behavior. No new card, badge, layout or automatic publication success is added.
+
 ## Pnpm workspace review — 2026-10-28
 
 The existing publication review shows the exact pnpm/Node versions and original root command, with package/link detail behind disclosure. Compile-only review says which checks are included and that tests, service start, database and publication are unverified; it never displays a GET or start command for that phase. Existing theme, controls, keyboard decisions, two tabs and optional chat remain the shared interface. Success of this local phase does not display publication success.

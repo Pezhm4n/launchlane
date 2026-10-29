@@ -36,6 +36,7 @@ import { GoalModelClient, type ModelMessage, type ModelPort, type ToolDefinition
 import { addEvent, AgentRepository, type AgentRecord } from "./store.ts";
 import { requiredDestinationProposal } from "./proposal-progress.ts";
 import { sourceComparisonNotice } from "./source-comparison.ts";
+import { publicationWorkloadNotice } from "./workload-notice.ts";
 import {
   toolsForAgent,
   assertAgentContext,
@@ -882,7 +883,7 @@ export async function driveAgentRun(
         ...(sourceProfile?.fullstack ? [{ role: "system" as const, content: "The host detected a supported fullstack source. propose_project_build is available before an account/application exists so local preparation can produce the exact artifact a destination must bind, or independently test disposable data compatibility without creating an artifact. Read only missing source-grounded page/API inputs, then prepare that local review card. The existing encrypted source-input reference may be used; never invent values or place them in chat. The user must approve this scoped preparation before scripts run. It grants no destination, disk, environment or publication authority and is not a generic mission program. Do not ask the user to create an app first or publish an unprepared frontend. Continue from the same mission and its actual receipt after a successful approved job; a disposable compatibility receipt is not a selected or publishable artifact." }] : []),
         ...(sourceProfile?.fullstack ? [{ role: "system" as const, content: "A selected repaired artifact may already have a successful host-owned container build. inspect_project now returns selectedArtifactVerification after rechecking the exact archive, compiled output and stored execution receipt. If an older inspection lacks that field, refresh inspect_project once before saying that build/tests have not run or proposing a duplicate build. A verified local receipt covers only its original workload, API paths and requested tests; it does not verify cloud env, deployment or persistence. Reuse its exact artifact and unchanged criterion when valid. read_destination may supply suggestedNewAppName; the destination proposal service still revalidates current identity, price and network. Prepare the real review card instead of asking whether you may prepare it. No suggestion, local receipt or model message grants creation/publication consent." }] : []),
         ...(sourceProfile?.fullstack?.workerSqlite ? [{ role: "system" as const, content: "The inspected source has a single Worker/SQLite persistence requirement. After the exact compiled artifact passes and its private environment is verified for the selected destination, use propose_disk if inspect_project reports required storage. The host fixes the bounded capacity and obtains a separate decision. It neither mounts nor publishes yet. After the verified storage receipt continue propose_publication with the original page and API criteria. Configuration readback is not persistence after restart. Do not create another disk or ask the user to do this in Liara's console. Unsupported resource shapes remain implementation gaps; never omit them." }] : []),
-        { role: "system", content: investigationGuidance },
+        { role: "system", content: investigationGuidance + " For a requested multi-route check of a recorded publication, read_workload accepts publicationActionId and explicit nested JSON checks. Reuse the recorded primary page and its unchanged criterion; derive added API assertions from the user's intended behavior or actual source. The server fences current release identity and returns bounded observations. A matching route suite does not attest running bytes, configuration, browser execution or data persistence, and cannot mark the publication journal verified." },
         ...(run.mission ? [{ role: "system" as const, content: `The host owns this structured publication mission: ${JSON.stringify(run.mission)}. Its path and status 200 are mandatory. expectedText, when present, requires a text assertion with exactly that contains value. When absent, derive the assertion from actual source before proposing. Complete preparation, destination and publication from tool receipts. A failure may trigger scoped repair and republishing, never weakening the original page expectation.` }] : []),
         {
           role: "system",
@@ -1090,7 +1091,7 @@ export async function driveAgentRun(
         413,
       );
       run.messages.push({ role: "tool", tool_call_id: call.id, content: encoded });
-      const sourceNotice = name === "read_releases" ? sourceComparisonNotice(result, run.context) : null;
+      const sourceNotice = name === "read_releases" ? sourceComparisonNotice(result, run.context) : name === "read_workload" ? publicationWorkloadNotice(result, run.context) : null;
       addEvent(
         run,
         "tool",

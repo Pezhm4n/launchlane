@@ -1,5 +1,9 @@
 # شواهد اعتبارسنجی Launchlane
 
+Publication route observation, 2026-10-29: [the evidence](evidence/publication-routes.md) distinguishes real archive/Store/application/Agent and browser replay from the controlled synthetic provider/model/workload ports. Release fences and nested API matches do not mark a deployment verified or establish running-byte, browser or persistence acceptance.
+
+Final runtime e355426f: domain803/803, HTTP48/48, lint/typecheck/Webpack build, route browser15layouts, actual web-to-pnpm worker5layouts/replay409/reload, pnpm review6layouts/keyboard, guided54states and actual container13/13 passed with child TEMP/TMP inside the isolated managed worktree. Lint retains48warnings/24infos and no errors. No real model request, cloud write, production data operation or main-checkout mutation is part of this matrix.
+
 Pnpm workspace delta, 2026-10-28: [the evidence](evidence/pnpm-workspaces.md) records the isolated path-B snapshot, actual pinned pnpm/Node24 worker, synthetic controlled dependency metadata, original failure/skip and workload rejection, and the remaining native publication/corpus/data boundaries. No live model/provider/data mutation is included.
 
 
