@@ -1,5 +1,8 @@
 # شواهد اعتبارسنجی Launchlane
 
+Pnpm workspace delta, 2026-10-28: [the evidence](evidence/pnpm-workspaces.md) records the isolated path-B snapshot, actual pinned pnpm/Node24 worker, synthetic controlled dependency metadata, original failure/skip and workload rejection, and the remaining native publication/corpus/data boundaries. No live model/provider/data mutation is included.
+
+
 افزودهٔ ۲۰۲۶-۱۰-۲۸: [دیتابیس‌های نام‌دار و اتصال امن چندمنبعی](evidence/managed-database-targets.md) source snapshot، آزمون‌های قرارداد/مهاجرت/uncertainty، مسیر واقعی وب و API با دو تصمیم منبع و دو تصمیم env، و provider/model مصنوعی را جدا ثبت می‌کند. هیچ ساخت واقعی لیارا یا SQL تولیدی انجام نشده؛ شواهد migration موقت قبلی به live data-plane ارتقا داده نمی‌شوند.
 
 نتیجهٔ نهایی `database-targets-r4`: domain787، HTTP48، guided54، legacy v27 در۵عرض و مسیر واقعی وب/API دو منبع در۸چیدمان، typecheck/lint بدون error گذشتند. runtime/package دقیقاً برابر build Webpack ثابت r2 است؛ reuse و failureهای harness در شاهد مشخص‌اند. هر دو اتصال و مقدار قبلی در تنظیمات ادغام‌شده حفظ شدند؛ replay409 و reload بدون مصرف/write تازه ثبت شد. این نتایج، connectivity، migration یا ماندگاری دیتابیس واقعی را اثبات نمی‌کنند.

@@ -1,5 +1,12 @@
 # برنامه اجرایی Launchlane
 
+## Pnpm workspace execution — 2026-10-28 / path B
+
+AC19/26/28/31/32: ProjectBuildPlan8 retains the source-pinned pnpm11.19.0, root lock, all importers and workspace links in the existing Agent/CodeRepairJob/container path. Root build can run before a destination; compile-only receipts make no test/start/data/artifact claim. A root start can run unchanged tests/start and the original response criterion. Native npm publication of pnpm source is blocked. [ADR0045](docs/decisions/0045-source-bound-pnpm-workspaces.md), [evidence and preserved failures](docs/evidence/pnpm-workspaces.md). The Factory feed raw intake has 56 unclassified source findings; no corpus compiler or ledger acceptance is claimed. Next: exact compiled component artifacts/publication and per-component workloads, consuming the data-path interface without changing its migration/credential logic.
+
+Validation completed2026-10-29: r11 domain791/HTTP48; r12 focused5, lint/typecheck/Webpack build, actual web-to-worker5layouts/replay409/reload, review6layouts/keyboard, guided54states and actual container13/13. Snapshots and the preserved pre-container failure are recorded separately in the evidence; no live model/provider acceptance is inferred.
+
+
 ## A14 / AC17/22/23/24/32/34 — منابع دادهٔ نام‌دار در همان مأموریت؛ ۲۰۲۶-۱۰-۲۸
 
 پیشنهاد Agent از v28 استفاده می‌کند و `bindingKeys` را پیش از ساخت، از نیاز همان consumer/source به approval می‌بندد. اتصال امن دیگر به دو نام پیش‌فرض محدود نیست؛ هر منبع به کلیدهای مصوب خودش متصل می‌شود. رزرو اتمیک Store، کلید مصرف‌شده را به دیتابیس دوم نمی‌دهد و uncertainty تیم میان v27/v28 حفظ است. پس از ساخت و binding تأییدشده، همان مأموریت با همان budget می‌تواند منبع مستقل بعدی را پیشنهاد کند؛ اتصال اول هنگام merge دوم حفظ می‌شود. فرم وب، موفقیت تنظیمات منبع اول را به‌جای تنظیم منبع دوم نشان نمی‌دهد. v27 و migrationهای۱–۱۹ بازنویسی نشده‌اند؛ index مشترک فقط در migration20 افزوده است.

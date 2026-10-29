@@ -63,7 +63,7 @@ export function lockedTarballs(files: readonly SourceFile[]): LockedTarball[] {
 }
 
 export type TarballReader = (item: LockedTarball, signal: AbortSignal) => Promise<Buffer>;
-async function registryBytes(url: string, signal: AbortSignal, byteLimit: number, accept: string): Promise<Buffer> {
+export async function registryBytes(url: string, signal: AbortSignal, byteLimit: number, accept: string): Promise<Buffer> {
   try {
   const addresses = await abortable(() => lookup("registry.npmjs.org", { all: true, family: 4 }), signal);
   ensure(addresses.length > 0 && addresses.every(entry => isPublicAddress({ address: entry.address, family: 4 })),

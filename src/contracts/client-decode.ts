@@ -27,6 +27,7 @@ import { parseFrontendRuntime } from "./frontend-runtime.ts";
 import { parseDockerRuntime } from "./docker-runtime.ts";
 import { parseNativePlatformInspection } from "./liara-platform.ts";
 import { parseFullstackInspection, parseFullstackVerification } from "./fullstack.ts";
+import { parsePnpmWorkspace } from "./pnpm-workspace.ts";
 import { parseApplicationRequirements } from "./application-requirements.ts";
 import { parseSourceFixtureReviews } from "./source-fixture-review.ts";
 import { parseDiskBinding, parseDiskProgress, parseDiskSpec } from "./persistent-disk.ts";
@@ -324,6 +325,7 @@ export function decodeProfile(value: unknown): ProjectProfile {
     ...(raw.dockerRuntime === undefined ? {} : { dockerRuntime: parseDockerRuntime(raw.dockerRuntime) }),
     ...(raw.nativeInspection === undefined ? {} : { nativeInspection: parseNativePlatformInspection(raw.nativeInspection) }),
     ...(raw.fullstack === undefined ? {} : { fullstack: parseFullstackInspection(raw.fullstack) }),
+    ...(raw.pnpmWorkspace === undefined ? {} : { pnpmWorkspace: parsePnpmWorkspace(raw.pnpmWorkspace) }),
     ...(raw.applicationRequirements === undefined ? {} : { applicationRequirements: parseApplicationRequirements(raw.applicationRequirements) }),
     ...(raw.sourceFixtureReviews === undefined ? {} : { sourceFixtureReviews: parseSourceFixtureReviews(raw.sourceFixtureReviews) }),
     port: raw.port === null ? null : integer(raw.port, 1, 65535),

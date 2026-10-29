@@ -15,6 +15,7 @@ import { AgentNetwork } from "./AgentNetwork.tsx";
 import { AgentDisk } from "./AgentDisk.tsx";
 import { AgentDatabase } from "./AgentDatabase.tsx";
 import { MigrationTestReview } from "./MigrationTestReview.tsx";
+import { PnpmBuildReview, pnpmBuildCommand } from "./PnpmBuildReview.tsx";
 import { RichText } from "./RichText.tsx";
 import { FloatingAssistant } from "./FloatingAssistant.tsx";
 import { ProjectEnvironment } from "./ProjectEnvironment.tsx";
@@ -904,9 +905,10 @@ export function AgentPanel({
             onLockChanged={setEnvironmentLocked} onExpired={onExpired} onContinue={() => void resumePublication()} /> : null}
           {run.repair ? (
             <section className="agent-repair" aria-labelledby="repair-title">
-              <h3 id="repair-title">{run.repair.validationOnly ? "بررسی ساخت و اجرای پروژه" : "اصلاح نسخه جدا از پروژه"}</h3>
+              <h3 id="repair-title">{run.repair.validationOnly ? run.repair.build?.version === 8 && run.repair.build.phase === "compile" ? "بررسی ساخت بسته‌های پروژه" : "بررسی ساخت و اجرای پروژه" : "اصلاح نسخه جدا از پروژه"}</h3>
               <BuildFailureNote job={run.repair} />
               <MigrationTestReview job={run.repair} />
+              {run.repair.build?.version === 8 ? <PnpmBuildReview build={run.repair.build} /> : null}
               <details>
                 <summary>جزئیات اصلاح و رسید آزمون</summary>
                 <p>{run.repair.goal}</p>
@@ -918,8 +920,8 @@ export function AgentPanel({
                     </li>
                   ))}
                 </ul>
-                <p className="hint">{run.repair.validationOnly ? run.repair.build?.version === 1 && run.repair.build.install === "none" ? "وابستگی اعلام‌شده‌ای وجود ندارد؛ فرمان ساخت و اجرا و پاسخ مورد انتظار بررسی می‌شوند:" : "نصب قفل‌شده، فرمان ساخت و اجرای موجود و پاسخ مورد انتظار بررسی می‌شوند:" : "همین معیار موجود، پیش و پس از اصلاح اجرا می‌شود:"}</p>
-                <code dir="ltr">{run.repair.build?.version === 2 ? `pip install --no-index --require-hashes; compileall; unittest ${run.repair.testFiles.join(" ")}; start: ${run.repair.build.startCommand}; GET ${run.repair.build.workload.path}` : run.repair.build ? `${run.repair.build.install === "none" ? "no dependencies to install" : "npm ci --offline"}${run.repair.build.buildCommand ? `; build: ${run.repair.build.buildCommand}` : ""}${run.repair.build.testCommand ? `; test: ${run.repair.build.testCommand}` : ""}; start: ${run.repair.build.startCommand}; GET ${run.repair.build.workload.path}` : `node --test -- ${run.repair.testFiles.join(" ")}`}</code>
+                <p className="hint">{run.repair.validationOnly ? run.repair.build?.version === 8 && run.repair.build.phase === "compile" ? "نصب با lock ریشه و فرمان ساخت اصلی بررسی می‌شوند:" : run.repair.build?.version === 1 && run.repair.build.install === "none" ? "وابستگی اعلام‌شده‌ای وجود ندارد؛ فرمان ساخت و اجرا و پاسخ مورد انتظار بررسی می‌شوند:" : "نصب قفل‌شده، فرمان ساخت و اجرای موجود و پاسخ مورد انتظار بررسی می‌شوند:" : "همین معیار موجود، پیش و پس از اصلاح اجرا می‌شود:"}</p>
+                <code dir="ltr">{run.repair.build?.version === 8 ? pnpmBuildCommand(run.repair.build) : run.repair.build?.version === 2 ? `pip install --no-index --require-hashes; compileall; unittest ${run.repair.testFiles.join(" ")}; start: ${run.repair.build.startCommand}; GET ${run.repair.build.workload.path}` : run.repair.build ? `${run.repair.build.install === "none" ? "no dependencies to install" : "npm ci --offline"}${run.repair.build.buildCommand ? `; build: ${run.repair.build.buildCommand}` : ""}${run.repair.build.testCommand ? `; test: ${run.repair.build.testCommand}` : ""}; start: ${run.repair.build.startCommand}; GET ${run.repair.build.workload.path}` : `node --test -- ${run.repair.testFiles.join(" ")}`}</code>
                 <p className="hint">
                   {run.repair.execution === "container" ? "آزمون در container محدود، بدون شبکه و بدون دسترسی نوشتن به پوشه اصلی اجرا می‌شود." : "فرمان در نسخه جدا با دسترسی محدود Node اجرا می‌شود. این روش شبکه جدا یا sandbox سیستم‌عامل نیست."} پوشه اصلی تغییر نمی‌کند.
                 </p>
@@ -937,7 +939,7 @@ export function AgentPanel({
               {run.state === "needs_approval" && run.repair.state === "proposed" && run.authority?.state !== "proposed" ? (
                 <>
                   <p>
-                    این تصمیم فقط {run.repair.validationOnly ? "نصب و بررسی ساخت و اجرای نسخه جدا" : "اصلاح محلی و اجرای معیار بالا"} را مجاز می‌کند. انتشار نیاز به تصمیم
+                    این تصمیم فقط {run.repair.validationOnly ? run.repair.build?.version === 8 && run.repair.build.phase === "compile" ? "نصب و ساخت بسته‌ها در نسخه جدا" : "نصب و بررسی ساخت و اجرای نسخه جدا" : "اصلاح محلی و اجرای معیار بالا"} را مجاز می‌کند. انتشار نیاز به تصمیم
                     جدا دارد.
                   </p>
                   {run.repair.build?.environment?.keys.length ? <p className="note">اجازهٔ استفاده از اطلاعات امن این کلیدها در ساخت، آزمون و اجرای نسخه جدا نیز در همین تصمیم است: {run.repair.build.environment.keys.map(key => <bdi key={key}> {key} </bdi>)}. مقدارها نمایش داده نمی‌شوند.</p> : null}
@@ -975,7 +977,7 @@ export function AgentPanel({
                     </dd>
                   </div> : null}
                   <div>
-                    <dt>{run.repair.validationOnly ? "ساخت و پاسخ برنامه" : "آزمون پس از اصلاح"}</dt>
+                    <dt>{run.repair.validationOnly ? run.repair.build?.version === 8 && run.repair.build.phase === "compile" ? "ساخت بسته‌های پروژه" : "ساخت و پاسخ برنامه" : "آزمون پس از اصلاح"}</dt>
                     <dd>
                       {run.repair.afterTest
                         ? run.repair.afterTest.passed

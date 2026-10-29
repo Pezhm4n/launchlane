@@ -19,6 +19,7 @@ import { sourceIgnore, ignoreFileMaxBytes, type SourceIgnoreFile } from "../../c
 import { inspectNativePlatform } from "./native-platform.ts";
 import { parseDockerRuntime } from "../../contracts/docker-runtime.ts";
 import { inspectFullstack } from "./fullstack.ts";
+import { inspectPnpmWorkspace } from "./pnpm.ts";
 import { inspectApplicationRequirements } from "./application-requirements.ts";
 import { separateApplicationRequirements } from "../policy/application-scope.ts";
 import { configuredFixtureReviews, containsKnownSourceValue } from "../policy/source-fixture-review.ts";
@@ -255,6 +256,7 @@ async function scanProject(
   const applicationRequirements = inspectApplicationRequirements(files);
   const separateExecution = separateApplicationRequirements({ applicationRequirements }).length > 0;
   const fullstack = inspectFullstack(pkg, liara, files, [...envNames].sort());
+  const pnpmWorkspace = !fullstack && liara.platform === "docker" ? undefined : inspectPnpmWorkspace(files);
   for (const key of fullstack?.workerSqlite?.requiredEnvironmentKeys ?? []) envNames.add(key);
   const nativeInspection = inspectNativePlatform(files, liara);
   const dockerDescriptor = nativeInspection.state === "detected" && nativeInspection.descriptor.platform === "docker" ? nativeInspection.descriptor : null;
@@ -271,8 +273,11 @@ async function scanProject(
   if (staticSite) validateStaticFiles(files, manifest.map(file => file.path));
   const next = !dockerRuntime && !nativeExecutionRequired && !separateExecution && typeof object(pkg.dependencies ?? {}).next === "string" && typeof scripts.start === "string" && /^next start(?:\s|$)/.test(scripts.start) && liara.platform !== "node";
   const nextConfig = object(liara.next ?? {});
-  const frontend = dockerRuntime || fullstack || nativeExecutionRequired || separateExecution ? undefined : frontendRuntime(pkg, liara, files);
-  const nodeRuntime = resolveNodeRuntime(pkg.engines, frontend ? { version: "20" } : next ? { version: nextConfig.nodeVersion } : liara.node);
+  const frontend = pnpmWorkspace || dockerRuntime || fullstack || nativeExecutionRequired || separateExecution ? undefined : frontendRuntime(pkg, liara, files);
+  const resolvedNodeRuntime = resolveNodeRuntime(pkg.engines, frontend ? { version: "20" } : next ? { version: nextConfig.nodeVersion } : liara.node);
+  const nodeRuntime = pnpmWorkspace ? { ...resolvedNodeRuntime, version: pnpmWorkspace.nodeVersion,
+    source: object(liara.node ?? {}).version === undefined ? "package.json" as const : "liara.json" as const,
+    detail: `نسخهٔ Node ${pnpmWorkspace.nodeVersion} از قید مشترک بسته‌ها و pnpm انتخاب شد؛ نسخهٔ محیط انتشار هنوز تأیید نشده است.` } : resolvedNodeRuntime;
   const nextRuntime = next && nodeRuntime.version ? parseNextRuntime({ kind: "next", version: nodeRuntime.version, mirror: object(liara.next ?? {}).mirror ?? true }) : undefined;
   if (
     typeof liara.port === "number" &&
@@ -299,6 +304,7 @@ async function scanProject(
   if (nativeExecutionRequired) missing.push("بخش سرور بومی شناسایی شده است؛ ساخت، منابع و معیار واقعی آن هنوز به executor متصل نشده‌اند. انتشار فرانت این بخش را کامل نمی‌کند.");
   if (fullstack?.requiresPreparation) missing.push("این پروژه فرانت و API مستقل دارد؛ فرمان شروع و ساخت کامل باید در نسخهٔ جدا آماده و آزموده شوند. تنظیم Docker موجود ممکن است فقط یک بخش را منتشر کند.");
   if (hasWorkspaces) missing.push("این پوشه چند بسته را مدیریت می‌کند؛ زیرپوشه همان برنامه قابل انتشار را انتخاب کنید.");
+  if (pnpmWorkspace && !safeScript(scripts.start)) missing.push("ساخت بسته‌های workspace از ریشه قابل بررسی است؛ انتشار کامل به اجرای مستقل بخش‌ها و اتصال منابع نیاز دارد.");
   if (next && !manifest.some(file => /^(?:src\/)?(?:app\/(?:\([^/]+\)\/)*page|pages\/index)\.[cm]?[jt]sx?$/.test(file.path))) missing.push("صفحهٔ اصلی Next در پوشهٔ انتخاب‌شده پیدا نشد؛ ریشهٔ همان برنامه را بررسی کنید.");
   if (next && !build) missing.push("فرمان ساخت Next در پروژه موجود نیست؛ پروژه پیش از انتشار به آماده‌سازی نیاز دارد.");
   if (!staticSite && !packageJson && !python && !dockerRuntime) missing.push("روش اجرای قابل انتشار هنوز مشخص نیست؛ شواهد پلتفرم را بررسی کنید.");
@@ -315,6 +321,7 @@ async function scanProject(
     ...(dockerRuntime ? { dockerRuntime } : staticSite ? { staticRuntime } : pythonRuntime ? { pythonRuntime } : { nodeRuntime }),
     ...(nativeInspection.state !== "not_applicable" ? { nativeInspection } : {}),
     ...(fullstack ? { fullstack } : {}),
+    ...(pnpmWorkspace ? { pnpmWorkspace } : {}),
     applicationRequirements,
     ...(usedFixtureReviews.length ? { sourceFixtureReviews: usedFixtureReviews } : {}),
     ...(nextRuntime ? { nextRuntime } : {}),

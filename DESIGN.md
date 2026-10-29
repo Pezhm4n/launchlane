@@ -1,5 +1,10 @@
 # اصول طراحی Launchlane
 
+## Pnpm workspace review — 2026-10-28
+
+The existing publication review shows the exact pnpm/Node versions and original root command, with package/link detail behind disclosure. Compile-only review says which checks are included and that tests, service start, database and publication are unverified; it never displays a GET or start command for that phase. Existing theme, controls, keyboard decisions, two tabs and optional chat remain the shared interface. Success of this local phase does not display publication success.
+
+
 ## تصویر تعاملی مسیر پروژه؛ ۲۰۲۶-۱۰-۲۸
 
 طرح ایزومتریک موجودِ پروژه تا لیارا با همان رنگ‌ها و تایپوگرافی، یک کنترل نمایشیِ مستقل می‌شود: نشانگر عمق ملایم می‌دهد، هاور لایه‌های سورس را باز و ابر را روشن می‌کند و کلیک/Enter/Space پالس نور را از سورس به ابر می‌فرستد. راهنمای کوتاه روی خود تصویر است؛ replay فقط SVG را تغییر می‌دهد و هیچ model/job/publication یا پیشرفت واقعی تولید نمی‌کند. فوکوس روی دکمهٔ بومی حفظ می‌شود، کلیک سریع انیمیشن را از ابتدا پخش می‌کند و حالت کاهش حرکت فقط بازخورد ثابت دارد؛ ماتریس‌های ایزومتریک حفظ می‌شوند. حرکت نشانگر با requestAnimationFrame و CSS variable انجام می‌شود و باعث render مداوم React نیست. اندازه و breakpoint تصویر موجود و دو تب/چت اختیاری تغییر نمی‌کنند.

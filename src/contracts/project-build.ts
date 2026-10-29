@@ -7,6 +7,7 @@ import { parseFrontendRuntime, type FrontendRuntime } from "./frontend-runtime.t
 import { parseDockerBuildPlan, type DockerBuildPlan } from "./docker-build.ts";
 import { fullstackTestCommand, parseFullstackApiChecks, parseFullstackPreparation, type FullstackPreparation, type FullstackApiCheck } from "./fullstack.ts";
 import { parseDisposableTestDatabase, type DisposableTestDatabase } from "./test-database.ts";
+import { parsePnpmWorkspace, type PnpmWorkspace } from "./pnpm-workspace.ts";
 
 export const projectBuildImage = "node:22.23.3-bookworm-slim@sha256:3ed98443660ff48413b5af19ecefce3b9d50845a901a43420d47cc63a9fddbe9";
 export const node24BuildImage = "node:24.18.0-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d";
@@ -39,7 +40,11 @@ export type FullstackBuildPlan = Omit<NodeBuildPlan, "version" | "nodeVersion" |
   fullstack: FullstackPreparation; apiChecks: readonly FullstackApiCheck[]; install?: never;
   testDatabase?: DisposableTestDatabase;
 }>;
-export type ProjectBuildPlan = NodeBuildPlan | PythonBuildPlan | Node24BuildPlan | Node20BuildPlan | FrontendBuildPlan | DockerBuildPlan | FullstackBuildPlan;
+export type PnpmBuildPlan = Omit<NodeBuildPlan, "version" | "nodeVersion" | "image" | "install"> & Readonly<{
+  version: 8; nodeVersion: "22" | "24"; image: typeof projectBuildImage | typeof node24BuildImage;
+  workspace: PnpmWorkspace; phase: "compile" | "runtime"; install?: never;
+}>;
+export type ProjectBuildPlan = NodeBuildPlan | PythonBuildPlan | Node24BuildPlan | Node20BuildPlan | FrontendBuildPlan | DockerBuildPlan | FullstackBuildPlan | PnpmBuildPlan;
 export function nodeBuildRuntime(version: unknown) {
   ensure(version === "20" || version === "22" || version === "24", "BUILD_RUNTIME_UNSUPPORTED", "محیط ساخت سازگار با نسخهٔ پروژه در این نصب آماده نیست؛ اجرای ناسازگار روی رایانه انجام نشد.", 409);
   return version === "20" ? { version: 4, nodeVersion: "20", image: node20BuildImage } as const : version === "24" ? { version: 3, nodeVersion: "24", image: node24BuildImage } as const
@@ -49,6 +54,16 @@ export function parseProjectBuildPlan<V extends ProjectBuildPlan["version"]>(val
 export function parseProjectBuildPlan(value: unknown): ProjectBuildPlan;
 export function parseProjectBuildPlan(value: unknown): ProjectBuildPlan {
   const row = object(value);
+  if (row.version === 8) {
+    const { workspace, phase, ...rest } = row, parsed = parsePnpmWorkspace(workspace);
+    ensure(row.install === undefined && (phase === "compile" || phase === "runtime") && row.nodeVersion === parsed.nodeVersion && row.image === (parsed.nodeVersion === "22" ? projectBuildImage : node24BuildImage),
+      "PNPM_BUILD_CHANGED", "برنامهٔ pnpm باید به نسخهٔ دقیق workspace و image سازگار متصل باشد.", 409);
+    const base = parseProjectBuildPlan({ ...rest, version: 1, nodeVersion: "22", image: projectBuildImage });
+    const { install: _install, ...fields } = base;
+    ensure(phase !== "compile" || base.startCommand === "pnpm-workspace-compile" && base.buildCommand !== null && base.testCommand === null && !base.environment && !base.sourceEnvironment,
+      "PNPM_COMPILE_SCOPE", "ساخت مستقل اجزا مجوز تست داده، شروع برنامه، تنظیمات خصوصی یا انتشار نیست.", 409);
+    return { ...fields, version: 8, workspace: parsed, phase, nodeVersion: parsed.nodeVersion, image: parsed.nodeVersion === "22" ? projectBuildImage : node24BuildImage };
+  }
   if (row.version === 6) return parseDockerBuildPlan(row);
   if (row.version === 7) {
     const { fullstack, apiChecks, testDatabase, ...rest } = row, preparation = parseFullstackPreparation(fullstack);

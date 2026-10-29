@@ -15,6 +15,8 @@ import type { EnvironmentReference } from "../../contracts/environment.ts";
 import { fullstackPreparation, fullstackTarballs } from "./fullstack-preparation.ts";
 import { fullstackTestCommand } from "../../contracts/fullstack.ts";
 import { validateTestDatabaseSource } from "./test-database.ts";
+import { inspectPnpmWorkspace } from "../workspace/pnpm.ts";
+import { pnpmTarballs } from "./pnpm-source.ts";
 
 export function requiresProjectBuild(files: readonly SourceFile[]): boolean {
   if (files.some(file => file.path === "Dockerfile")) return true;
@@ -43,11 +45,21 @@ export function dependencyFreeNode(files: readonly SourceFile[]): boolean {
 }
 export function validateBuildRepairPaths(paths: readonly string[]) {
   ensure(paths.every(path => !/(?:^|\/)(?:tests?|specs?|__tests__|__mocks__|cypress|e2e)(?:\/|$)|\.(?:test|spec|cy)\.[cm]?[jt]sx?$/i.test(path) &&
-    !/(?:^|\/)(?:test_[^/]+\.py|[^/]+_test\.py|requirements[^/]*\.txt|pyproject\.toml|setup\.py|setup\.cfg|liara\.json|package(?:-lock)?\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb?|tsconfig(?:\.[^/]+)?\.json|(?:vitest|jest|playwright|cypress|eslint)\.config\.[^/]+|\.eslintrc[^/]*|biome\.jsonc?)$/i.test(path)),
+    !/(?:^|\/)(?:test_[^/]+\.py|[^/]+_test\.py|requirements[^/]*\.txt|pyproject\.toml|setup\.py|setup\.cfg|liara\.json|package(?:-lock)?\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-(?:lock|workspace)\.yaml|\.pnpmfile\.[cm]?js|bun\.lockb?|tsconfig(?:\.[^/]+)?\.json|(?:vitest|jest|playwright|cypress|eslint)\.config\.[^/]+|\.eslintrc[^/]*|biome\.jsonc?)$/i.test(path)),
     "BUILD_ORACLE_CHANGED", "تست، تنظیمات سنجش یا dependency در این قرارداد تغییر نمی‌کند؛ محدوده مستقل لازم است.", 403);
 }
 export function validateBuildPlan(files: readonly SourceFile[], profile: ProjectProfile, value: ProjectBuildPlan): ProjectBuildPlan {
   const plan = parseProjectBuildPlan(value);
+  if (plan.version === 8) {
+    ensure(fingerprint(inspectPnpmWorkspace(files)) === fingerprint(plan.workspace) && fingerprint(profile.pnpmWorkspace) === fingerprint(plan.workspace),
+      "PNPM_BUILD_CHANGED", "برنامهٔ workspace با source فعلی برابر نیست.", 409);
+    const pkg = plan.workspace.packages[0];
+    ensure(pkg && plan.nodeVersion === profile.nodeRuntime?.version && plan.buildCommand === pkg.build &&
+      (plan.phase === "compile" ? plan.testCommand === null && plan.startCommand === "pnpm-workspace-compile" : plan.testCommand === pkg.test && plan.startCommand === pkg.start && plan.port === profile.port),
+      "PNPM_BUILD_CHANGED", "فرمان‌های pnpm باید همان فرمان اصلی source باشند.", 409);
+    pnpmTarballs(files); return plan;
+  }
+  ensure(!profile.pnpmWorkspace, "PNPM_BUILD_REQUIRED", "پروژهٔ pnpm باید با lock و package manager اصلی خودش ساخته شود؛ npm جایگزین نیست.", 409);
   if (plan.version === 7) {
     if (plan.testDatabase) validateTestDatabaseSource(files,profile,plan.testDatabase);
     ensure(fingerprint(fullstackPreparation(files, profile)) === fingerprint(plan.fullstack) && fullstackTestCommand(plan.fullstack) === plan.testCommand,

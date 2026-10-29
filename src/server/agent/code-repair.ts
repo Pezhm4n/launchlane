@@ -37,6 +37,7 @@ import { persistBuildOutput, readBuildOutput } from "./build-output-store.ts";
 import { withSandboxCapacity } from "./sandbox-capacity.ts";
 import { runDockerBuild } from "./docker-container.ts";
 import { fullstackTarballs, prepareFullstackFiles } from "./fullstack-preparation.ts";
+import { pnpmTarballs, writePnpmRegistryManifest, type PnpmMetadataReader } from "./pnpm-source.ts";
 import { assembleFullstackArtifact } from "./fullstack-artifact.ts";
 import { withPostgresFixture } from "./postgres-fixture.ts";
 import { runPostgresMigrationTest } from "./postgres-migration-test.ts";
@@ -301,12 +302,14 @@ export class CodeRepairAdapter {
   readonly model: ModelPort;
   readonly tarballReader: TarballReader | undefined;
   readonly sandbox: Pick<NodeBuildDependencies,"command"|"endpoint">;
-  constructor(config: Config, store: Store, model: ModelPort = new GoalModelClient(config), tarballReader?: TarballReader, sandbox: Pick<NodeBuildDependencies,"command"|"endpoint"> = {}) {
+  readonly pnpmMetadataReader: PnpmMetadataReader | undefined;
+  constructor(config: Config, store: Store, model: ModelPort = new GoalModelClient(config), tarballReader?: TarballReader, sandbox: Pick<NodeBuildDependencies,"command"|"endpoint"> = {}, pnpmMetadataReader?: PnpmMetadataReader) {
     this.config = config;
     this.store = store;
     this.model = model;
     this.tarballReader = tarballReader;
     this.sandbox=sandbox;
+    this.pnpmMetadataReader=pnpmMetadataReader;
   }
   private secrets(actor: string): string[] {
     return [...new Set([...privateValues(this.config), ...projectSecretValues(this.store, this.config.sessionSecret, actor)])];
@@ -329,17 +332,20 @@ export class CodeRepairAdapter {
       "رسید اصلاح معتبر نیست.",
       503,
     );
+    const parsedJob = parseCodeRepairJob({ ...job, state: row.state });
     return {
       actorId: actor,
       workspace: string(record.workspace, 4096),
       localWorkConsent: hash(record.localWorkConsent),
       usage: {
         modelCalls: integer(usage.modelCalls, 0, 8),
-        toolCalls: integer(usage.toolCalls, 0, job.build === undefined ? 12 : 512),
+        // Pnpm records include checked package metadata reads. Actual execution
+        // remains bounded by the parent's persisted limits (maximum 4096).
+        toolCalls: integer(usage.toolCalls, 0, parsedJob.build === undefined ? 12 : parsedJob.build.version === 8 ? 4096 : 512),
         tokens: usage.tokens === null ? null : integer(usage.tokens, 0, 1000000),
         unknownModelCalls: integer(usage.unknownModelCalls, 0, 8),
       },
-      job: parseCodeRepairJob({ ...job, state: row.state }),
+      job: parsedJob,
     };
   }
   status(actor: string, id: string): CodeRepairJob {
@@ -446,7 +452,7 @@ export class CodeRepairAdapter {
         signal,
         secrets: this.secrets(actor),
       });
-    if (input.execution === "container") ensure(input.build?.version === 7 && input.preparation?.version === 2 || flow.profile.nodeRuntime?.version === "22" || flow.profile.nodeRuntime?.version === "24" && (input.build?.version === 3 || input.build?.version === 7) || flow.profile.nodeRuntime?.version === "20" && (input.build?.version === 4 || input.build?.version === 5) || flow.profile.runtime === "python" && input.build?.version === 2 || flow.profile.runtime === "docker" && input.build?.version === 6, "SANDBOX_RUNTIME_UNAVAILABLE", "محیط ایزولهٔ سازگار با این پروژه آماده نیست؛ کد روی رایانه اجرا نمی‌شود.", 409);
+    if (input.execution === "container") ensure(input.build?.version === 7 && input.preparation?.version === 2 || flow.profile.nodeRuntime?.version === "22" || flow.profile.nodeRuntime?.version === "24" && (input.build?.version === 3 || input.build?.version === 7 || input.build?.version === 8) || flow.profile.nodeRuntime?.version === "20" && (input.build?.version === 4 || input.build?.version === 5) || flow.profile.runtime === "python" && input.build?.version === 2 || flow.profile.runtime === "docker" && input.build?.version === 6, "SANDBOX_RUNTIME_UNAVAILABLE", "محیط ایزولهٔ سازگار با این پروژه آماده نیست؛ کد روی رایانه اجرا نمی‌شود.", 409);
     ensure(
       captured.profile.sourceHash === input.expectedSourceHash,
       "PROJECT_CHANGED",
@@ -653,8 +659,9 @@ export class CodeRepairAdapter {
             await reusePythonWheels(pythonRequirements(base.files), join(this.config.stateDir, "repair-tarballs", parent.id), tarballs, bounded);
           } else await downloadPythonWheels(pythonRequirements(base.files), tarballs, bounded, () => budget.take("tool", bounded));
         }
-        else if (build.version !== 6) await downloadLockedTarballs(build.version === 7 ? fullstackTarballs(base.files, build.fullstack) : build.install === "none" ? [] : lockedTarballs(base.files), tarballs, bounded, () => budget.take("tool", bounded), this.tarballReader,
+        else if (build.version !== 6) await downloadLockedTarballs(build.version === 8 ? pnpmTarballs(base.files) : build.version === 7 ? fullstackTarballs(base.files, build.fullstack) : build.install === "none" ? [] : lockedTarballs(base.files), tarballs, bounded, () => budget.take("tool", bounded), this.tarballReader,
           { root: join(this.config.stateDir, "npm-cache"), ...(this.config.npmContentCache ? { operatorContentRoot: this.config.npmContentCache } : {}) });
+        if (build.version === 8) await writePnpmRegistryManifest(base.files, tarballs, bounded, () => budget.take("tool", bounded), this.pnpmMetadataReader);
         });
       }
       const tests = async (keepOutput = false): Promise<RepairTestReceipt> => {
@@ -721,7 +728,7 @@ export class CodeRepairAdapter {
             checkParent();
             outputReceipt = await persistBuildOutput(this.config.stateDir, result.buildOutput, { sourceHash: after.profile.sourceHash, planHash: fingerprint(record.job.build) });
           }
-          return { command: build.version === 7 && build.testDatabase?.version === 3 ? `npm run ${build.testDatabase.runner.script} in two fresh workers; independent per-database schema/seed and replay checks; original build/API/tests in two fresh app workers; independent write/persistence checks` : build.version === 7 && build.testDatabase?.version === 2 ? "psql reviewed SQL; independent schema/seed checks; original build/API/tests in two fresh workers; checksum replay; independent write/persistence checks" : build.version === 6 ? `isolated Docker build; independent GET ${build.workload.path}` : build.version === 2 ? `pip install --no-index --require-hashes; compileall; unittest ${record.job.testFiles.join(" ")}; ${build.startCommand}; GET ${build.workload.path}` : `${build.install === "none" ? "no dependencies to install" : "npm ci --offline"}${build.buildCommand ? " && npm run build" : ""}${build.testCommand ? " && npm test" : ""} && ${build.version === 5 ? `host serve ${build.frontend.outputDirectory}; verify local JS/CSS` : "npm start"}; GET ${build.workload.path}`,
+          return { command: build.version === 8 ? `pnpm@${build.workspace.manager.version} install --frozen-lockfile from verified isolated registry; original build${build.phase === "compile" ? "; compile only (no tests/start/publication)" : "; original test/start; GET " + build.workload.path}` : build.version === 7 && build.testDatabase?.version === 3 ? `npm run ${build.testDatabase.runner.script} in two fresh workers; independent per-database schema/seed and replay checks; original build/API/tests in two fresh app workers; independent write/persistence checks` : build.version === 7 && build.testDatabase?.version === 2 ? "psql reviewed SQL; independent schema/seed checks; original build/API/tests in two fresh workers; checksum replay; independent write/persistence checks" : build.version === 6 ? `isolated Docker build; independent GET ${build.workload.path}` : build.version === 2 ? `pip install --no-index --require-hashes; compileall; unittest ${record.job.testFiles.join(" ")}; ${build.startCommand}; GET ${build.workload.path}` : `${build.install === "none" ? "no dependencies to install" : "npm ci --offline"}${build.buildCommand ? " && npm run build" : ""}${build.testCommand ? " && npm test" : ""} && ${build.version === 5 ? `host serve ${build.frontend.outputDirectory}; verify local JS/CSS` : "npm start"}; GET ${build.workload.path}`,
             exitCode: result.exitCode, signal: result.signal, durationMs: Date.now() - started, output: redact(result.output, [...this.secrets(actor), ...environment.map(row => row.value).filter(value => value.length >= 4)]),
             passed: result.exitCode === 0 && !bounded.aborted && !result.signal, ...(outputReceipt ? { buildOutput: outputReceipt } : {}), ...(result.databaseMigration ? { databaseMigration: result.databaseMigration } : {}), ...(result.databaseRunner ? { databaseRunner: result.databaseRunner } : {}) };
         }
@@ -743,6 +750,7 @@ export class CodeRepairAdapter {
         await readBuildOutput(this.config.stateDir, receipt, { sourceHash, planHash: fingerprint(record.job.build) });
       };
       const publicationArtifact = async (sourceHash: string) => {
+        if(record.job.build?.version===8 && record.job.build.phase==="compile")return null;
         if(record.job.build?.version===7 && record.job.build.testDatabase)return null;
         if (record.job.build?.version === 7) {
           const receipt = record.job.afterTest?.buildOutput;
@@ -766,7 +774,8 @@ export class CodeRepairAdapter {
           "PROJECT_CHANGED", "source هنگام بررسی build تغییر کرد؛ رسید به نسخه تازه تعمیم داده نمی‌شود.", 409);
         await verifyOutput(verified.profile.sourceHash);
         record.job.artifact = await publicationArtifact(verified.profile.sourceHash);
-        record.job.state = "succeeded"; record.job.message = record.job.build?.version===7 && record.job.build.testDatabase
+        record.job.state = "succeeded"; record.job.message = record.job.build?.version===8 && record.job.build.phase==="compile"
+          ? "ساخت بسته‌های workspace با lock اصلی گذشت؛ تست، اجرا، داده و انتشار هنوز تأیید نشده‌اند." : record.job.build?.version===7 && record.job.build.testDatabase
           ? "آزمون سازگاری با دیتابیس موقت و دادهٔ ساختگی گذشت؛ خروجی مجوز انتشار یا تغییر نسخهٔ اصلی نیست."
           : record.job.build && record.job.build.version !== 2 && record.job.build.version !== 6 && record.job.build.install === "none" ? "ساخت و پاسخ مصوب برنامهٔ بدون وابستگی در نسخه جدا گذشتند؛ نصب لازم نبود و انتشار هنوز اجرا نشده است." : "ساخت و پاسخ مصوب در نسخه جدا گذشتند؛ انتشار هنوز اجرا نشده است.";
       }

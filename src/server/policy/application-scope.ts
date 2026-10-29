@@ -9,6 +9,7 @@ export function separateApplicationRequirements(profile: Pick<ProjectProfile, "a
 }
 /** A frontend artifact must not silently discharge the obligations of another runtime. */
 export function assertApplicationPublicationScope(profile: ProjectProfile): void {
+  ensure(!profile.pnpmWorkspace, "PNPM_PUBLICATION_ROUTE_REQUIRED", "ساخت pnpm در محیط ایزوله معتبر است؛ انتشار بومی npm جایگزین آن نیست. مسیر انتشار سازگار با همان workspace لازم است.", 409);
   const inspection = profile.applicationRequirements;
   if (!inspection) return; // Historical snapshots acquire no invented resource evidence.
   ensure(inspection.sourceHash === profile.sourceHash, "APPLICATION_SOURCE_CHANGED", "نیازهای برنامه متعلق به همین نسخهٔ source نیستند.", 409);

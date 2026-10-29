@@ -111,6 +111,12 @@ globalThis.fetch = async (input, init) => {
     if (last.role === "user") return reply("propose_project_build", migrationBuildInput);
     throw Error("Unexpected migration worker fixture transition");
   }
+  if (first.includes('نشانه الزامی صفحه: "Workspace lifecycle"')) {
+    if (body.messages.some(message => message.role === "user" && message.content.startsWith("Host workspace compile receipt")))
+      return final("reply", null, "ساخت بسته‌ها با lock اصلی بررسی شد؛ تست، شروع سرویس، داده و انتشار هنوز تأیید نشده‌اند.");
+    if (last.role === "user") return reply("propose_project_build", { path: "/", status: 200, assertion: { kind: "text", contains: "Workspace lifecycle" } });
+    throw Error("Unexpected pnpm workspace worker fixture transition");
+  }
   if (first.includes('نشانه الزامی صفحه: "Runner lifecycle"')) {
     if (body.messages.some(message => message.role === "user" && message.content.startsWith("Host disposable compatibility receipt")))
       return final("reply", null, "runner پروژه و داده در دو دیتابیس موقت بررسی شدند؛ منابع واقعی و انتشار تأیید نشده‌اند.");

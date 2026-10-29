@@ -27,7 +27,7 @@ The corpus is an adversarial sample for this ladder. Passing one application doe
 | Eyewear | Next frontend + FastAPI + PostgreSQL/Redis + Celery worker/beat | Complete multi-process/resource plan and execution; private source findings require proper handling |
 | Foodino | Frontend + Supabase Auth/RLS/RPC | Preserve the actual external service contract and safe configuration; generic PostgreSQL is not an automatic replacement |
 | Data Agent | Python pyproject/Docker + SQLite/DuckDB + reports and model service | Exact 19 test fixtures are owner-reviewed; after shared syntax corrections eight other source findings, locked preparation and the actual Python/Docker packaging path remain open |
-| Factory feed | Vite/Nest + pnpm + PostgreSQL inventory ledger | Supported package-manager build, approved database/migration binding and original business invariants |
+| Factory feed | Vite/Nest + pnpm + PostgreSQL inventory ledger | Pnpm11 workspace worker is implemented with independent fixtures; this corpus raw intake still stops on56 unclassified source findings. Exact Vite/Nest compilation/component artifacts, database/migration binding and original ledger invariants remain unverified. [Bounded evidence](evidence/pnpm-workspaces.md) |
 | Zarinpal challenge | Next application and runtime corpus | Exact native artifact publication has operator-controlled live evidence; this is not fresh acceptance of the complete hosted Agent path |
 | Liara challenge | Next + model/Redis and runtime corpus | Complete dependent services, source intake and real application/Agent acceptance |
 | Arvancloud challenge | WordPress/PHP + MariaDB + persistent uploads and schedules | PHP/WordPress build/start, approved resources and complete plugin/business path |

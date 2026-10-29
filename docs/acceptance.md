@@ -1,5 +1,8 @@
 # معیارهای پذیرش محصول
 
+Pnpm workspace delta, 2026-10-29 (AC19/26/28/31/32): the shared proposal/decision/job path now executes the original root lock and package manager in isolation. Seven worker scenarios distinguish compile-only, full root runtime, original test failure, wrong workload, release-age rejection, skipped tests and changed test source. Actual directory upload/mission/HTTP decision/worker/reload/replay and responsive review are exercised with synthetic model transport. This is bounded local evidence, not acceptance of Factory feed, compiled component publication, database effects or all runtime families. [Evidence](evidence/pnpm-workspaces.md).
+
+
 افزودهٔ AC17/22/23/24/32/34، ۲۰۲۶-۱۰-۲۸: [اتصال منبع به کلید source](evidence/managed-database-targets.md) approval v28، رزرو بدون هم‌پوشانی، انتقال credential خصوصی به env v9 و ادامهٔ همان مأموریت برای چند منبع را اضافه می‌کند. source/consumer/کلید در host بررسی می‌شوند؛ binding کلید اشتباه یا جابه‌جایی پیوندهای دو منبع، publication را مجاز نمی‌کند. v27 تاریخی و budgetها حفظ‌اند. این برش، پذیرش کامل برنامهٔ چندمرحله‌ای AC23 یا SQL/migration/connectivity/persistence زنده نیست.
 
 افزودهٔ AC17/19/22/24/26/32/34، ۲۰۲۶-۱۰-۲۸: [runnerهای اصلی و دو target واقعیِ موقت](evidence/project-migration-runners.md) در همان مسیر فرم مأموریت→کارت تصمیم→HTTP→worker→رسید بررسی شدند. script/hook موجود از source و role/DB از host می‌آیند؛ SQL اصلی و oracle اصلی بازنویسی نمی‌شوند. schema-only و quoted identifier، نوشتن تازه در هر دیتابیس، حفظ داده پیش از worker دوم و رد runner موفقِ مخرب، با PostgreSQL/Node واقعی گذشتند. مدل مصنوعی است؛ ساخت/اتصال منابع واقعی، production migration، restart دیتابیس، artifact قابل انتشار و پذیرش تمام خانواده‌ها همچنان باز هستند. این پذیرش محلی، جای انتشار کامل را نمی‌گیرد.

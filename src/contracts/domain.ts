@@ -18,6 +18,7 @@ export type ProjectProfile = Readonly<{
   dockerRuntime?: import("./docker-runtime.ts").DockerRuntime;
   nativeInspection?: import("./liara-platform.ts").NativePlatformInspection;
   fullstack?: import("./fullstack.ts").FullstackInspection;
+  pnpmWorkspace?: import("./pnpm-workspace.ts").PnpmWorkspace;
   applicationRequirements?: import("./application-requirements.ts").ApplicationRequirementsInspection;
   sourceFixtureReviews?: readonly import("./source-fixture-review.ts").SourceFixtureReviewEvidence[];
   port: number | null;
