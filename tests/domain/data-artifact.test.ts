@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { object } from "../../src/contracts/validation.ts";
+import { object, string } from "../../src/contracts/validation.ts";
+import { parseFullstackVerification } from "../../src/contracts/fullstack.ts";
+import { requiresProductionDataVerification } from "../../src/server/application/fullstack-verification.ts";
 import { parseCodeRepairJob } from "../../src/contracts/code-repair.ts";
 import { parseDisposableTestDatabase } from "../../src/contracts/test-database.ts";
 import { executeAgentTool, currentAgentContext } from "../../src/server/agent/tools.ts";
@@ -43,6 +45,14 @@ test("artifact preparation is a distinct explicit approval with unchanged source
     assert.equal(parseCodeRepairJob(completed).publication?.planHash, output.planHash);
     for (const changed of [{ ...publication, planHash: artifactProof.planHash }, { ...publication, testedSourceHash: "f".repeat(64) }, { ...publication, outputArtifactHash: "f".repeat(64) }])
       assert.throws(() => parseCodeRepairJob({ ...completed, publication: changed }), code("MIGRATION_RUNNER_RECEIPT_INVALID"));
+    const stored = f.store.db.prepare("SELECT data_json FROM code_repair_jobs WHERE id=?").get(prepared.id); assert.ok(stored);
+    const record = object(JSON.parse(string(stored.data_json, 1024 * 1024)));
+    f.store.db.prepare("UPDATE code_repair_jobs SET state='succeeded',data_json=? WHERE id=?").run(JSON.stringify({ ...record, job: completed }), prepared.id);
+    const verification = parseFullstackVerification({ ...publication, buildJobId: prepared.id, outputDirectory: prepared.build.fullstack.outputDirectory, apiChecks: prepared.build.apiChecks });
+    assert.equal(requiresProductionDataVerification(f.store, f.session.actorId, verification), true);
+    assert.throws(() => requiresProductionDataVerification(f.store, "another-actor", verification), code("FULLSTACK_BUILD_REQUIRED"));
+    for (const changed of [{ ...verification, planHash: "f".repeat(64) }, { ...verification, testedSourceHash: "f".repeat(64) }, { ...verification, outputArtifactHash: "f".repeat(64) }])
+      assert.throws(() => requiresProductionDataVerification(f.store, f.session.actorId, changed), code("FULLSTACK_BUILD_REQUIRED"));
     const previous = parseCodeRepairJob({ ...legacy, state: "succeeded", postgresFixtureSourceHash: f.flow.profile.sourceHash,
       afterTest: { command: "synthetic original-runner receipt", exitCode: 0, signal: null, durationMs: 1, passed: true, output: "synthetic", databaseRunner: proof } });
     const promoted = parseCodeRepairJob(object(await executeAgentTool("propose_project_build", { ...input, compatibilityDatabase: { ...input.compatibilityDatabase, prepareArtifact: true } }, { ...context, buildJob: previous })).repairProposal);

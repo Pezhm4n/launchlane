@@ -3,6 +3,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { decodeAction } from "../../contracts/client-decode.ts";
 import { canReadDeploymentResult, isWorkloadDeploymentSpec } from "../../contracts/deployment.ts";
 import { executeDeployment, observeDeployment } from "../application/deployment.ts";
+import { requiresProductionDataVerification } from "../application/fullstack-verification.ts";
 import { executeDestination, observeDestination } from "../application/provision.ts";
 import { canReadDestinationResult, isProvisionSpec } from "../../contracts/provision.ts";
 import { canReadNetworkResult } from "../../contracts/network.ts";
@@ -761,11 +762,13 @@ export async function driveAgentRun(
         await delay(dependencies.pollDelayMs ?? Math.min((poll + 1) * 5000, 20_000), undefined, { signal });
       }
       if (run.publication.state === "succeeded") {
-        run.state = "completed";
+        const spec = run.publication.spec, dataPending = (spec.version === 23 || spec.version === 26) && requiresProductionDataVerification(store, session.actorId, spec.verification);
+        run.state = dataPending ? "partially_completed" : "completed";
         run.effect = "remote_changes_verified";
-        run.nextAction = null;
+        run.nextAction = dataPending ? "reply" : null;
         run.question = null;
-        addEvent(run, "assistant", "همان نسخه تأییدشده منتشر شد و پاسخ مورد انتظار همان صفحه بررسی شد. نتیجه و نشانی سایت در کارت انتشار آمده است.");
+        addEvent(run, "assistant", dataPending ? "همان بسته منتشر شد و صفحه و API بررسی شدند؛ migration و دادهٔ واقعی مقصد هنوز مستقل بررسی نشده‌اند و انتشار کامل تأیید نیست. آزمون دیتابیس موقت جای این مرحله را نمی‌گیرد."
+          : "همان نسخه تأییدشده منتشر شد و پاسخ مورد انتظار همان صفحه بررسی شد. نتیجه و نشانی سایت در کارت انتشار آمده است.");
         persist();
         return;
       }

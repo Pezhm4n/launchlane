@@ -1,5 +1,7 @@
 # شواهد اعتبارسنجی Launchlane
 
+ادامهٔ ۲۰۲۶-۱۰-۲۹: [پایان‌بندی انتشار وابسته به داده](evidence/data-tested-artifact.md#publication-outcome-follow-up) جدا از snapshot آماده‌سازی ثبت می‌شود. حتی release/API موفق، proof موقت داده را به صحت مقصد ارتقا نمی‌دهد؛ تغییر در host/application موجود است و هیچ production SQL یا مدل تازه اجرا نشده است.
+
 افزودهٔ ۲۰۲۶-۱۰-۲۹: [artifact آزموده‌شده با داده](evidence/data-tested-artifact.md) snapshot و اجرای مستقل قرارداد/worker/وب را ثبت می‌کند. حالت v4 از همان runner و oracle مستقل به archive دقیق می‌رسد؛ binding خصوصی منابع واقعی، از proof دادهٔ موقت جداست. نتیجهٔ نهایی فقط پس از فرمان‌های ثبت‌شدهٔ همان snapshot اعلام می‌شود؛ مدل/provider مصنوعی به شاهد live ارتقا داده نمی‌شوند و مصرف تازهٔ مدل مجاز نیست.
 
 افزودهٔ ۲۰۲۶-۱۰-۲۸: [شاهد انتخاب دیتابیس موجود](evidence/existing-managed-database.md) قرارداد v29، revalidation، انتخاب بدون create، اتصال خصوصی با تصمیم جدا، بازیابی همان identity/purpose و رد proof نامرتبط را ثبت می‌کند. snapshot و فرمان‌های تازه جدا از passهای تاریخی‌اند. مدل/provider این برش مصنوعی‌اند؛ credential واقعی، SQL تولیدی، adoption واقعی، rollout یا مصرف تازهٔ مدل ادعا نمی‌شود.

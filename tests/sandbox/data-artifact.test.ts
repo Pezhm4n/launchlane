@@ -13,6 +13,7 @@ import { localFullstackVerification, fullstackVerification } from "../../src/ser
 import { readArtifact } from "../../src/server/workspace/archive.ts";
 import { AppError } from "../../src/server/errors.ts";
 import { bindDataArtifactResources } from "../helpers/data-artifact-bindings.ts";
+import { publishDataArtifact } from "../helpers/data-artifact-publication.ts";
 
 // Original runner, independent SQL/data observation, compiled frontend and original API tests are real.
 // The model is synthetic. No production resource, SQL, model credit or cloud publication is used.
@@ -49,6 +50,8 @@ for (const leak of [false, true]) test(`data preparation ${leak ? "rejects tempo
       const bound = await bindDataArtifactResources(f);
       assert.equal((await fullstackVerification(f.store, f.config.stateDir, f.session.actorId, selected, bound.config.sessionSecret)).outputArtifactHash, evidence.verification.outputArtifactHash);
       assert.equal(bound.actions.length, 2); assert.equal(f.store.db.prepare("SELECT count(*) n FROM actions").get()?.n, 4);
+      await publishDataArtifact(f, bound.config, selected, result.repair, bound.values);
+      assert.equal(f.store.db.prepare("SELECT count(*) n FROM actions").get()?.n, 5);
     }
     assert.ok((await readFile(join(f.project, "migrate.cjs"))).equals(original)); assert.ok((await readFile(join(f.project, "oracle.test.cjs"))).equals(oracle));
   } finally { f.close(); }

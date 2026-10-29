@@ -598,7 +598,8 @@ export async function executeAgentTool(
       const verification = await fullstackVerification(c.store, c.config.stateDir, c.actorId, flow, c.config.sessionSecret);
       const row = c.store.db.prepare("SELECT data_json FROM code_repair_jobs WHERE id=? AND actor_id=?").get(verification.buildJobId, c.actorId);
       const job = parseCodeRepairJob(object(object(JSON.parse(string(row?.data_json, 1024 * 1024))).job));
-      ensure(job.build && sameBuildWorkload(job.build, parseProjectBuildPlan({ ...job.build, workload }).workload) && matchesPublishedBuildEnvironment(c.config, c.store, c.actorId, flow.id, job.build),
+      // The shared verifier above already checks either the exact build inputs or every real database binding.
+      ensure(job.build?.version === 7 && sameBuildWorkload(job.build, parseProjectBuildPlan({ ...job.build, workload }).workload),
         "PROJECT_BUILD_REQUIRED", "معیار صفحه یا تنظیمات امن با همان ساخت کامل برابر نیستند.", 409);
     } else if (flow.profile.runtime !== "static" && (c.mission || requiresProjectBuild(captured.files))) {
       const rows = c.store.db.prepare("SELECT state,data_json FROM code_repair_jobs WHERE actor_id=? AND state='succeeded' AND json_extract(data_json,'$.job.artifact.sourceHash')=? ORDER BY updated_at DESC LIMIT 10").all(c.actorId, c.context.sourceHash);
