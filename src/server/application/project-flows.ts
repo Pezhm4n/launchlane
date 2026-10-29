@@ -81,7 +81,7 @@ export async function prepareProjectFlow(
       const row=store.db.prepare("SELECT data_json,state FROM code_repair_jobs WHERE actor_id=? AND id=?").get(actorId,selection.jobId);
       ensure(row,"REPAIR_NOT_FOUND","نسخه اصلاح‌شده در دسترس نیست.",404);
       const record=object(JSON.parse(string(row.data_json,512*1024))),job=parseCodeRepairJob({...object(record.job),state:row.state});
-      ensure(!(job.build?.version===7 && job.build.testDatabase),"COMPATIBILITY_ARTIFACT_NOT_PUBLISHABLE","نسخهٔ آزمون ساختگی قابل انتخاب برای انتشار نیست.",409);
+      ensure(!(job.build?.version===7 && job.build.testDatabase && job.build.testDatabase.version !== 4),"COMPATIBILITY_ARTIFACT_NOT_PUBLISHABLE","نسخهٔ آزمون ساختگی قابل انتخاب برای انتشار نیست.",409);
       ensure(job.state==="succeeded"&&job.artifact?.archiveHash===selection.artifactHash,"REPAIR_UNVERIFIED","فقط اصلاحی که آزمون و بسته معتبر دارد قابل انتخاب است.",409);
       if (job.publication) {
         ensure(job.build?.version === 7 && job.afterTest?.passed && job.afterTest.buildOutput?.artifactHash === job.publication.outputArtifactHash,

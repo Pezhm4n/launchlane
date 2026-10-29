@@ -257,6 +257,12 @@ test("callback errors are sanitized and cannot bypass teardown", async () => {
   const h = harness(); await assert.rejects(withPostgresFixture(setup(h), async () => { h.markUsed(); throw Error("private callback detail"); }),
     error => code("POSTGRES_FIXTURE_CALLBACK_FAILED")(error) && !String(error).includes("private callback detail")); assert.equal(h.removed(), true);
 });
+
+test("host output validation keeps its typed failure after confirmed fixture teardown", async () => {
+  const h = harness();
+  await assert.rejects(withPostgresFixture(setup(h), async () => { h.markUsed(); throw new AppError("BUILD_OUTPUT_SENSITIVE", "Output rejected by host", 409); }), code("BUILD_OUTPUT_SENSITIVE"));
+  assert.equal(h.removed(), true);
+});
 test("an uncertain start is not retried and the service cannot be used", async () => {
   const h = harness({ startFail: true }); await assert.rejects(withPostgresFixture(setup(h), async () => h.markUsed()), code("POSTGRES_FIXTURE_UNCERTAIN"));
   assert.equal(h.events.filter(event => event === "start").length, 1); assert.equal(h.removed(), true); assert.equal(h.uses(), false);

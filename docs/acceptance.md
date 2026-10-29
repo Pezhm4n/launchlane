@@ -1,5 +1,7 @@
 # معیارهای پذیرش محصول
 
+افزودهٔ AC17/19/22/24/26/32/34، ۲۰۲۶-۱۰-۲۹: [آماده‌سازی artifact پس از proof داده](evidence/data-tested-artifact.md) حالت صریح v4 را به runner موجود اضافه می‌کند؛ تصمیم، اجرای تازه و همان oracle مستقل لازم‌اند. artifact دقیق در مسیر انتشار انتخاب می‌شود، اما publication بدون binding خصوصی همهٔ منابع مستقل رد می‌شود. v1–v3 تاریخی مجوز artifact نمی‌گیرند. این برش، migration تولیدی، صحت دادهٔ موجود، اتصال SQL مقصد، persistence provider یا تمام۱۴خانواده را نمی‌پذیرد؛ AC23/28/34 همچنان کامل نیستند.
+
 افزودهٔ A14/AC17/22/23/24/32/34، ۲۰۲۶-۱۰-۲۸: [انتخاب دیتابیس موجود](evidence/existing-managed-database.md) با شناسهٔ دقیق، source purpose و شبکه/نسخهٔ بازخوانی‌شده در approval v29 پیاده شد؛ انتخاب منبع create یا SQL نمی‌فرستد و «ساخته‌شده» گزارش نمی‌شود. اتصال credential همچنان به تصمیم جداگانهٔ env v9 و readback نیاز دارد. تغییر منبع و proof صرفاً inventory، پذیرش نمی‌گیرند؛ بازتنظیم همان منبع با purpose یکسان امکان‌پذیر است. این capability مشترک، پذیرش live adoption، migration، سازگاری داده، connectivity یا persistence نیست و AC23/34 کامل اعلام نمی‌شوند.
 
 افزودهٔ AC17/22/23/24/32/34، ۲۰۲۶-۱۰-۲۸: [اتصال منبع به کلید source](evidence/managed-database-targets.md) approval v28، رزرو بدون هم‌پوشانی، انتقال credential خصوصی به env v9 و ادامهٔ همان مأموریت برای چند منبع را اضافه می‌کند. source/consumer/کلید در host بررسی می‌شوند؛ binding کلید اشتباه یا جابه‌جایی پیوندهای دو منبع، publication را مجاز نمی‌کند. v27 تاریخی و budgetها حفظ‌اند. این برش، پذیرش کامل برنامهٔ چندمرحله‌ای AC23 یا SQL/migration/connectivity/persistence زنده نیست.

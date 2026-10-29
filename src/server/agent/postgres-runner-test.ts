@@ -39,7 +39,7 @@ function retained(before: Observed, after: Observed, code: string): void {
   ensure(fingerprint(before) === fingerprint(after), code, "همان داده در تمام دیتابیس‌های مصوب حفظ نشد؛ خروجی موفق runner شاهد این اثر نیست.", 409);
 }
 export async function runPostgresRunnerTest<T extends CommandResult>(options: {
-  files: readonly SourceFile[]; plan: Extract<DisposableTestDatabase, { version: 3 }>; fixture: PostgresFixtureBinding; sql: PostgresFixtureSql; signal: AbortSignal;
+  files: readonly SourceFile[]; plan: Extract<DisposableTestDatabase, { version: 3 | 4 }>; fixture: PostgresFixtureBinding; sql: PostgresFixtureSql; signal: AbortSignal;
   run: (phase: "runner" | "application") => Promise<T>; take: () => void;
 }): Promise<T & { databaseRunner?: PostgresRunnerTestReceipt }> {
   const { plan, fixture, sql, signal, take } = options;

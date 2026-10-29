@@ -41,6 +41,7 @@ import { assembleFullstackArtifact } from "./fullstack-artifact.ts";
 import { withPostgresFixture } from "./postgres-fixture.ts";
 import { runPostgresMigrationTest } from "./postgres-migration-test.ts";
 import { runPostgresRunnerTest } from "./postgres-runner-test.ts";
+import { isRunnerTestDatabase, preparesDatabaseArtifact } from "../../contracts/test-database.ts";
 import { operatorDockerEndpoint } from "./docker-engine.ts";
 
 const patchTool: ToolDefinition = {
@@ -660,7 +661,7 @@ export class CodeRepairAdapter {
       const tests = async (keepOutput = false): Promise<RepairTestReceipt> => {
         if (record.job.build) {
           const compatibility = record.job.build.version===7 && record.job.build.testDatabase!==undefined;
-          const frontendSource = (record.job.build.version === 5 || record.job.build.version === 7) && keepOutput && !compatibility ? await captureProject(record.workspace, ".", { signal: bounded, secrets: this.secrets(actor) }) : null;
+          const frontendSource = (record.job.build.version === 5 || record.job.build.version === 7) && keepOutput && (!compatibility || record.job.build.version === 7 && preparesDatabaseArtifact(record.job.build.testDatabase)) ? await captureProject(record.workspace, ".", { signal: bounded, secrets: this.secrets(actor) }) : null;
           const environment = compatibility ? [] : buildEnvironmentValues(this.config, this.store, actor, record.job.projectId, record.job.build.environment, buildSourceEnvironment(record.job.build)),
             infrastructure = [record.job.build.environment ? connectedLiaraConfig(this.config, this.store, actor).liaraToken : this.config.liaraToken, this.config.modelKey, this.config.operatorToken, this.config.sessionSecret].filter(Boolean);
           ensure(environment.every(row => infrastructure.every(secret => !row.value.includes(secret))), "ENV_INFRASTRUCTURE_CREDENTIAL", "کلید زیرساخت وارد worker نمی‌شود.", 409);
@@ -688,12 +689,12 @@ export class CodeRepairAdapter {
                 try {
                   if (build.testDatabase.version !== 1) budget.take("tool", testSignal);
                   const result=await withPostgresFixture({jobId:record.job.id,sourceHash:source.profile.sourceHash,signal:testSignal,command,endpoint, migration: build.testDatabase.version !== 1,
-                    ...(build.testDatabase.version === 3 ? { targets: build.testDatabase.targets.map(target => target.id) } : {}),
+                    ...(isRunnerTestDatabase(build.testDatabase) ? { targets: build.testDatabase.targets.map(target => target.id) } : {}),
                     onCreated:containerId=>{record.job.postgresFixtureId=containerId;onCreated(containerId);}},
                     async(fixture,fixtureSignal,sql)=>{
                       const run = (phase?: "runner" | "application") => runContainerBuild(record.workspace,tarballs,build,fixtureSignal,onCreated,[],
                         {command,endpoint,fixture,expectedJobId:record.job.id,expectedSourceHash:source.profile.sourceHash, ...(phase === "runner" ? { runnerPhase: true } : {})});
-                      if (build.testDatabase?.version === 3) return runPostgresRunnerTest({ files: source.files, plan: build.testDatabase, fixture, sql, signal: fixtureSignal, take: () => budget.take("tool", fixtureSignal), run });
+                      if (isRunnerTestDatabase(build.testDatabase)) return runPostgresRunnerTest({ files: source.files, plan: build.testDatabase, fixture, sql, signal: fixtureSignal, take: () => budget.take("tool", fixtureSignal), run });
                       return build.testDatabase?.version === 2 ? runPostgresMigrationTest({ files: source.files, plan: build.testDatabase.migration, fixture, sql, signal: fixtureSignal,
                         take: () => budget.take("tool", fixtureSignal), run: () => { budget.take("tool", fixtureSignal); return run(); } }) : run();
                     });
@@ -710,7 +711,7 @@ export class CodeRepairAdapter {
           if (build.version === 7 && build.testDatabase?.version === 2 && result.exitCode === 0 && !result.signal) ensure(result.databaseMigration &&
             result.databaseMigration.sourceHash === record.job.postgresFixtureSourceHash && result.databaseMigration.planHash === fingerprint(build.testDatabase.migration) &&
             fingerprint(result.databaseMigration.files) === fingerprint(build.testDatabase.migration.files), "MIGRATION_RECEIPT_INVALID", "build موفق، بدون رسید مستقل migration و داده پذیرفته نمی‌شود.", 409);
-          if (build.version === 7 && build.testDatabase?.version === 3 && result.exitCode === 0 && !result.signal) ensure(result.databaseRunner &&
+          if (build.version === 7 && isRunnerTestDatabase(build.testDatabase) && result.exitCode === 0 && !result.signal) ensure(result.databaseRunner &&
             result.databaseRunner.sourceHash === record.job.postgresFixtureSourceHash && result.databaseRunner.planHash === fingerprint(build.testDatabase), "MIGRATION_RUNNER_RECEIPT_INVALID", "runner موفق بدون رسید مستقل تمام دیتابیس‌ها پذیرفته نمی‌شود.", 409);
           if (build.version === 6) record.job.builtImage = result.image;
           let outputReceipt: RepairTestReceipt["buildOutput"];
@@ -721,7 +722,7 @@ export class CodeRepairAdapter {
             checkParent();
             outputReceipt = await persistBuildOutput(this.config.stateDir, result.buildOutput, { sourceHash: after.profile.sourceHash, planHash: fingerprint(record.job.build) });
           }
-          return { command: build.version === 7 && build.testDatabase?.version === 3 ? `npm run ${build.testDatabase.runner.script} in two fresh workers; independent per-database schema/seed and replay checks; original build/API/tests in two fresh app workers; independent write/persistence checks` : build.version === 7 && build.testDatabase?.version === 2 ? "psql reviewed SQL; independent schema/seed checks; original build/API/tests in two fresh workers; checksum replay; independent write/persistence checks" : build.version === 6 ? `isolated Docker build; independent GET ${build.workload.path}` : build.version === 2 ? `pip install --no-index --require-hashes; compileall; unittest ${record.job.testFiles.join(" ")}; ${build.startCommand}; GET ${build.workload.path}` : `${build.install === "none" ? "no dependencies to install" : "npm ci --offline"}${build.buildCommand ? " && npm run build" : ""}${build.testCommand ? " && npm test" : ""} && ${build.version === 5 ? `host serve ${build.frontend.outputDirectory}; verify local JS/CSS` : "npm start"}; GET ${build.workload.path}`,
+          return { command: build.version === 7 && isRunnerTestDatabase(build.testDatabase) ? `npm run ${build.testDatabase.runner.script} in two fresh workers; independent per-database schema/seed and replay checks; original build/API/tests in two fresh app workers; independent write/persistence checks` : build.version === 7 && build.testDatabase?.version === 2 ? "psql reviewed SQL; independent schema/seed checks; original build/API/tests in two fresh workers; checksum replay; independent write/persistence checks" : build.version === 6 ? `isolated Docker build; independent GET ${build.workload.path}` : build.version === 2 ? `pip install --no-index --require-hashes; compileall; unittest ${record.job.testFiles.join(" ")}; ${build.startCommand}; GET ${build.workload.path}` : `${build.install === "none" ? "no dependencies to install" : "npm ci --offline"}${build.buildCommand ? " && npm run build" : ""}${build.testCommand ? " && npm test" : ""} && ${build.version === 5 ? `host serve ${build.frontend.outputDirectory}; verify local JS/CSS` : "npm start"}; GET ${build.workload.path}`,
             exitCode: result.exitCode, signal: result.signal, durationMs: Date.now() - started, output: redact(result.output, [...this.secrets(actor), ...environment.map(row => row.value).filter(value => value.length >= 4)]),
             passed: result.exitCode === 0 && !bounded.aborted && !result.signal, ...(outputReceipt ? { buildOutput: outputReceipt } : {}), ...(result.databaseMigration ? { databaseMigration: result.databaseMigration } : {}), ...(result.databaseRunner ? { databaseRunner: result.databaseRunner } : {}) };
         }
@@ -736,19 +737,20 @@ export class CodeRepairAdapter {
         return record.job.execution === "container" ? withSandboxCapacity(bounded, run) : run();
       };
       const verifyOutput = async (sourceHash: string) => {
-        if(record.job.build?.version===7 && record.job.build.testDatabase)return;
+        if(record.job.build?.version===7 && record.job.build.testDatabase && !preparesDatabaseArtifact(record.job.build.testDatabase))return;
         if (record.job.build?.version !== 5 && record.job.build?.version !== 7) return;
         const receipt = record.job.afterTest?.buildOutput;
         ensure(receipt, "BUILD_OUTPUT_UNAVAILABLE", "خروجی پایدار همان ساخت تأییدشده موجود نیست.", 409);
         await readBuildOutput(this.config.stateDir, receipt, { sourceHash, planHash: fingerprint(record.job.build) });
       };
       const publicationArtifact = async (sourceHash: string) => {
-        if(record.job.build?.version===7 && record.job.build.testDatabase)return null;
+        if(record.job.build?.version===7 && record.job.build.testDatabase && !preparesDatabaseArtifact(record.job.build.testDatabase))return null;
         if (record.job.build?.version === 7) {
           const receipt = record.job.afterTest?.buildOutput;
           ensure(receipt, "BUILD_OUTPUT_UNAVAILABLE", "خروجی ساخت کامل موجود نیست.", 409);
           const assembled = await assembleFullstackArtifact({ store: this.store, stateDir: this.config.stateDir, actorId: actor,
-            workspace: record.workspace, sourceHash, plan: record.job.build, receipt, signal: bounded, secrets: this.secrets(actor) });
+            workspace: record.workspace, sourceHash, plan: record.job.build, receipt, signal: bounded, secrets: this.secrets(actor),
+            ...(record.job.afterTest?.databaseRunner ? { databaseRunner: record.job.afterTest.databaseRunner } : {}) });
           record.job.publication = assembled.publication;
           record.job.changedPaths = [...new Set([...record.job.changedPaths, ...assembled.changedPaths])];
           ensure(!bounded.aborted, "CANCELLED", "ساخت بستهٔ نهایی متوقف شد.", 409);
@@ -766,7 +768,7 @@ export class CodeRepairAdapter {
           "PROJECT_CHANGED", "source هنگام بررسی build تغییر کرد؛ رسید به نسخه تازه تعمیم داده نمی‌شود.", 409);
         await verifyOutput(verified.profile.sourceHash);
         record.job.artifact = await publicationArtifact(verified.profile.sourceHash);
-        record.job.state = "succeeded"; record.job.message = record.job.build?.version===7 && record.job.build.testDatabase
+        record.job.state = "succeeded"; record.job.message = record.job.build?.version===7 && record.job.build.testDatabase && !preparesDatabaseArtifact(record.job.build.testDatabase)
           ? "آزمون سازگاری با دیتابیس موقت و دادهٔ ساختگی گذشت؛ خروجی مجوز انتشار یا تغییر نسخهٔ اصلی نیست."
           : record.job.build && record.job.build.version !== 2 && record.job.build.version !== 6 && record.job.build.install === "none" ? "ساخت و پاسخ مصوب برنامهٔ بدون وابستگی در نسخه جدا گذشتند؛ نصب لازم نبود و انتشار هنوز اجرا نشده است." : "ساخت و پاسخ مصوب در نسخه جدا گذشتند؛ انتشار هنوز اجرا نشده است.";
       }
@@ -792,7 +794,7 @@ export class CodeRepairAdapter {
         ensure(latest?.profile.sourceHash === record.job.baseRevision && latest.status !== "stale" && latest.status !== "unavailable", "PROJECT_CHANGED", "نسخهٔ اصلی هنگام ساخت تغییر کرده است.", 409);
         await verifyOutput(verified.profile.sourceHash);
         record.job.artifact = await publicationArtifact(verified.profile.sourceHash);
-        record.job.state = "succeeded"; record.job.message = record.job.build?.version===7 && record.job.build.testDatabase
+        record.job.state = "succeeded"; record.job.message = record.job.build?.version===7 && record.job.build.testDatabase && !preparesDatabaseArtifact(record.job.build.testDatabase)
           ? "آزمون سازگاری با دیتابیس موقت و دادهٔ ساختگی گذشت؛ خروجی مجوز انتشار یا تغییر نسخهٔ اصلی نیست."
           : "ساخت و بررسی مستقل فرانت و API در نسخهٔ جدا گذشت؛ انتشار عمومی و پایداری داده هنوز تأیید نشده‌اند.";
       }

@@ -119,7 +119,7 @@ test("existing build tool accepts only source-proven names and host-binds dispos
   const f = await fixture(); try {
     const definition = toolsForAgent(f.config, "build").find(tool => tool.function.name === "propose_project_build"); assert.ok(definition);
     const schema = object(object(definition.function.parameters.properties).compatibilityDatabase);
-    assert.deepEqual(Object.keys(object(schema.properties)).sort(), ["environmentKeys", "migration", "requiredRelations", "runnerScript", "targets"]);
+    assert.deepEqual(Object.keys(object(schema.properties)).sort(), ["environmentKeys", "migration", "prepareArtifact", "requiredRelations", "runnerScript", "targets"]);
     for (const bad of [
       { ...compatibilityDatabase, image: "postgres:latest" }, { ...compatibilityDatabase, url: fixtureValue },
       { ...compatibilityDatabase, purpose: "production" }, { ...compatibilityDatabase, environmentKeys: ["VITE_DATABASE_URL"] },

@@ -1,5 +1,7 @@
 # اتصال به Launchlane از MCP
 
+افزودهٔ v4 داده، ۲۰۲۶-۱۰-۲۹: `propose_project_build` در شکل runner، `prepareArtifact:true` را برای تصمیم تازهٔ آماده‌سازی می‌پذیرد. همان registry/job پس از proof مستقل داده، بستهٔ compiled دقیق را انتخاب می‌کند؛ v1–v3 همچنان فقط compatibility هستند. publication به binding خصوصی تمام منابع مستقل نیاز دارد؛ این گزینه ابزار SQL تولیدی یا اختیار approve ایجاد نمی‌کند. [شاهد](evidence/data-tested-artifact.md) اجرای تازه از میزبان MCP واقعی نیست.
+
 افزودهٔ v29، ۲۰۲۶-۱۰-۲۸: `propose_database_attachment {consumerRoot,bindingKeys,databaseId}` در همان registry و اجرای Agent وب/MCP قرار دارد. host، هویت و شبکهٔ خصوصی منبع موجود را بررسی و پیشنهاد انتخاب انسانی ایجاد می‌کند؛ این ابزار مجوز ساخت، credential عمومی یا SQL نمی‌دهد. `configure_env` به همان فرم خصوصی و تصمیم جداگانه وصل است. [شواهد](evidence/existing-managed-database.md) شامل اجرای تازه از میزبان MCP واقعی نیست.
 
 افزودهٔ منابع نام‌دار، ۲۰۲۶-۱۰-۲۸: `propose_database` مشترک به `consumerRoot/bindingKeys/type/version/planId/bundleId` نیاز دارد. host، کلیدهای خصوصی همان source را در v28 و تصمیم ساخت می‌بندد؛ هر پیشنهاد یک منبع است و چند کلیدِ یک پیشنهاد صریحاً alias همان منبع‌اند. پس از binding خصوصیِ تأییدشده، همان mission می‌تواند منبع مستقل بعدی را با تصمیم تازه پیشنهاد کند. v27 و journal/uncertainty قبلی حفظ‌اند؛ ابزار عمومی credential، approve یا SQL افزوده نشده است. [شواهد مشترک](evidence/managed-database-targets.md) جای آزمون تازه از میزبان MCP واقعی را نمی‌گیرد.

@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { exactKeys, object, string } from "../../contracts/validation.ts";
 import { AppError, ensure } from "../errors.ts";
+import { dockerEndpointHost, type LocalDockerEndpoint } from "./docker-engine.ts";
 import {
   BUILD_OUTPUT_MAX_BYTES, BUILD_OUTPUT_MAX_FILE_BYTES, BUILD_OUTPUT_MAX_FILES,
   validateBuildOutput, type ValidatedBuildOutput,
@@ -94,9 +95,9 @@ for(const [target,before] of directories){const after=fs.lstatSync(target,{bigin
 process.stdout.write(JSON.stringify({version:1,manifest:{version:1,files},contents}));
 }catch(error){process.stderr.write(['BUILD_OUTPUT_LIMIT','BUILD_OUTPUT_TYPE_DENIED','BUILD_OUTPUT_PATH_DENIED','BUILD_OUTPUT_CHANGED'].includes(error.exportCode)?error.exportCode:'BUILD_OUTPUT_EXPORT_FAILED');process.exitCode=73}`;
 
-function readContainerOutput(id: string, directory: string, signal: AbortSignal): Promise<Buffer> {
+function readContainerOutput(id: string, directory: string, signal: AbortSignal, endpoint?: LocalDockerEndpoint): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const child = spawn("docker", ["exec", "--env", "NODE_OPTIONS=", "--env", "NODE_PATH=", "--env", "LD_PRELOAD=", "--env", "LD_LIBRARY_PATH=",
+    const child = spawn("docker", [...(endpoint ? ["--host", dockerEndpointHost(endpoint)] : []), "exec", "--env", "NODE_OPTIONS=", "--env", "NODE_PATH=", "--env", "LD_PRELOAD=", "--env", "LD_LIBRARY_PATH=",
       id, "/usr/local/bin/node", "--no-addons", "--disable-proto=throw", "-e", exportProgram, "--", directory],
       { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
     const stdout: Buffer[] = [], stderr: Buffer[] = []; let outputBytes = 0, errorBytes = 0, limited = false, timedOut = false;
@@ -128,14 +129,14 @@ function readContainerOutput(id: string, directory: string, signal: AbortSignal)
 
 /** Caller owns the live container and its cleanup; this read neither stops it nor mounts host storage. */
 export async function exportBuildOutput(containerId: string, outputDirectory: string, signal: AbortSignal,
-  optionalPrivateValues: readonly string[] = []): Promise<ValidatedBuildOutput> {
+  optionalPrivateValues: readonly string[] = [], endpoint?: LocalDockerEndpoint): Promise<ValidatedBuildOutput> {
   ensure(typeof containerId === "string" && /^[a-f0-9]{64}$/.test(containerId), "SANDBOX_ID_DENIED", "شناسهٔ کامل محیط ساخت برای دریافت خروجی لازم است.", 403);
   ensure(typeof outputDirectory === "string" && outputDirectory.length <= 240 && outputDirectory.split("/").length <= 10 &&
     outputDirectory.split("/").every(part => /^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$/.test(part) && part !== "." && part !== ".."),
     "BUILD_OUTPUT_PATH_DENIED", "پوشهٔ خروجی باید مسیری نسبی و محدود در همان پروژه باشد.", 403);
   ensure(!signal.aborted, "CANCELLED", "دریافت خروجی ساخت متوقف شد.", 409);
   const secrets = privateBytes(optionalPrivateValues); for (const secret of secrets) secret.fill(0);
-  const wire = await readContainerOutput(containerId, outputDirectory, signal);
+  const wire = await readContainerOutput(containerId, outputDirectory, signal, endpoint);
   ensure(!signal.aborted, "CANCELLED", "دریافت خروجی ساخت متوقف شد.", 409);
   return decodeBuildOutputExport(wire, optionalPrivateValues);
 }

@@ -7,7 +7,8 @@ import { environmentProjectIds, openEnvironmentInput, projectEnvironmentValues }
 import { databaseBindingKeys, isDatabaseResourceSpec } from "../../contracts/database-provision.ts";
 
 /** Creating a resource cannot discharge its source requirement while the app still uses unrelated configuration. */
-export function assertDatabaseEnvironmentBinding(store: Store, secret: string, actor: string, flow: ProjectFlow, reference: EnvironmentReference | null): void {
+export function assertDatabaseEnvironmentBinding(store: Store, secret: string, actor: string, flow: ProjectFlow, reference: EnvironmentReference | null,
+  testedPostgresKeys: readonly (readonly string[])[] = []): void {
   const projects = environmentProjectIds(store, actor, flow.id), connection = store.getConnection(actor, "liara")?.view,
     app = connection?.apps.find(row => row.name === connection.selectedApp);
   if (!connection || !app) return; // Destination authorization is enforced separately by the caller.
@@ -19,7 +20,8 @@ export function assertDatabaseEnvironmentBinding(store: Store, secret: string, a
     const spec = database.spec;
     if ((spec.version !== 27 && spec.version !== 28 && spec.version !== 29) || !projects.has(spec.projectFlowId)) continue;
     const kind = spec.database.type === "postgres" ? "postgresql" : spec.database.type === "mysql" ? "mysql" : "redis";
-    if (!flow.profile.applicationRequirements?.requirements.some(need => need.need === "required" && need.consumerRoot === spec.consumerRoot && need.kind === kind)) continue;
+    const tested = spec.consumerRoot === "." && spec.database.type === "postgres" && testedPostgresKeys.some(keys => JSON.stringify(keys) === JSON.stringify(databaseBindingKeys(spec)));
+    if (!tested && !flow.profile.applicationRequirements?.requirements.some(need => need.need === "required" && need.consumerRoot === spec.consumerRoot && need.kind === kind)) continue;
     // A fresh credential binding may supersede the old one only for the identical verified resource and purpose.
     const aliases = resources.filter(other => isDatabaseResourceSpec(other.spec) && other.database?.databaseId && other.database.databaseId === database.database?.databaseId &&
       other.database.observation?.outcome === "identity_verified" && other.spec.consumerRoot === spec.consumerRoot && other.spec.database.type === spec.database.type &&

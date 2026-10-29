@@ -7,6 +7,7 @@ import { parseProjectBuildPlan, type ProjectBuildPlan } from "./project-build.ts
 import { parseBuildOutputReceipt, type BuildOutputReceipt } from "./build-output.ts";
 import { parsePostgresMigrationTestReceipt, type PostgresMigrationTestReceipt } from "./postgres-migration-test.ts";
 import { parsePostgresRunnerTestReceipt, type PostgresRunnerTestReceipt } from "./postgres-runner-test.ts";
+import { isRunnerTestDatabase, preparesDatabaseArtifact } from "./test-database.ts";
 export type RepairTestReceipt = {
   command: string;
   exitCode: number | null;
@@ -157,12 +158,14 @@ export function parseCodeRepairJob(value: unknown): CodeRepairJob {
       job.artifact === null && job.publication === undefined && job.afterTest.buildOutput === undefined,
       "MIGRATION_RECEIPT_INVALID", "موفقیت آزمون migration به رسید مستقل همان source، فایل‌ها و معیارها نیاز دارد؛ خروجی قابل انتشار نمی‌سازد.", 409);
   }
-  if (job.build?.version === 7 && job.build.testDatabase?.version === 3 && (job.state === "succeeded" || job.afterTest?.passed)) {
+  if (job.build?.version === 7 && isRunnerTestDatabase(job.build.testDatabase) && (job.state === "succeeded" || job.afterTest?.passed)) {
     const plan = job.build.testDatabase, proof = job.afterTest?.databaseRunner;
     ensure(job.afterTest?.passed && proof && proof.sourceHash === job.postgresFixtureSourceHash && proof.runnerHash === plan.runner.sha256 &&
       JSON.stringify(proof.targets) === JSON.stringify(plan.targets.map(target => ({ id: target.id, columnChecks: target.oracle.columns.length, rowChecks: target.oracle.rows.length, persistenceChecks: target.oracle.persistence.length }))) &&
-      job.artifact === null && job.publication === undefined && job.afterTest.buildOutput === undefined && job.afterTest.databaseMigration === undefined,
-      "MIGRATION_RUNNER_RECEIPT_INVALID", "موفقیت runner به سنجش مستقل همه دیتابیس‌های همان source نیاز دارد و artifact انتشار نمی‌سازد.", 409);
+      (preparesDatabaseArtifact(plan) ? job.afterTest.buildOutput?.sourceHash === proof.sourceHash &&
+        (job.state !== "succeeded" || job.artifact !== null && job.publication?.planHash === job.afterTest.buildOutput.planHash && job.publication.testedSourceHash === proof.sourceHash && job.publication.outputArtifactHash === job.afterTest.buildOutput.artifactHash)
+        : job.artifact === null && job.publication === undefined && job.afterTest.buildOutput === undefined) && job.afterTest.databaseMigration === undefined,
+      "MIGRATION_RUNNER_RECEIPT_INVALID", "موفقیت runner و بستهٔ آماده باید به سنجش مستقل تمام دیتابیس‌های همان source متصل باشند.", 409);
   }
   return job;
 }

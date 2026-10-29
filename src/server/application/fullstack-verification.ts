@@ -8,6 +8,8 @@ import type { Store } from "../persistence/store.ts";
 import { readBuildOutput } from "../agent/build-output-store.ts";
 import { readArtifact } from "../workspace/archive.ts";
 import { matchesPublishedBuildEnvironment } from "../environment/build.ts";
+import { preparesDatabaseArtifact } from "../../contracts/test-database.ts";
+import { assertPreparedDatabaseBindings } from "../environment/prepared-database.ts";
 
 /** Local immutable build evidence is separate from a cloud environment decision. */
 export async function localFullstackVerification(store: Store, stateDir: string, actor: string, flow: ProjectFlow) {
@@ -16,8 +18,10 @@ export async function localFullstackVerification(store: Store, stateDir: string,
   const row = store.db.prepare("SELECT state,data_json FROM code_repair_jobs WHERE id=? AND actor_id=? AND state='succeeded'").get(flow.selection.jobId, actor);
   ensure(row, "FULLSTACK_BUILD_REQUIRED", "رسید ساخت کامل این نسخه موجود نیست.", 409);
   const job = parseCodeRepairJob({ ...object(object(JSON.parse(string(row.data_json, 1024 * 1024))).job), state: row.state });
-  ensure(!(job.build?.version===7 && job.build.testDatabase),"COMPATIBILITY_ARTIFACT_NOT_PUBLISHABLE","آزمون ساختگی جای بررسی نسخهٔ قابل انتشار با منابع واقعی را نمی‌گیرد.",409);
+  ensure(!(job.build?.version===7 && job.build.testDatabase && !preparesDatabaseArtifact(job.build.testDatabase)),"COMPATIBILITY_ARTIFACT_NOT_PUBLISHABLE","آزمون ساختگی جای بررسی نسخهٔ قابل انتشار با منابع واقعی را نمی‌گیرد.",409);
   const binding = job.publication, receipt = job.afterTest?.buildOutput;
+  if (job.build?.version === 7 && job.build.testDatabase?.version === 4) ensure(job.afterTest?.databaseRunner?.planHash === fingerprint(job.build.testDatabase) &&
+    job.afterTest.databaseRunner.sourceHash === binding?.testedSourceHash, "MIGRATION_RUNNER_RECEIPT_INVALID", "رسید دادهٔ انتخاب‌شده به برنامه و source همین بسته تعلق ندارد.", 409);
   ensure(job.build?.version === 7 && binding && receipt && job.afterTest?.passed && job.afterTest.exitCode === 0 && !job.afterTest.signal && job.execution === "container" && job.containerIds?.length &&
     job.artifact?.archiveHash === flow.artifact.archiveHash && job.artifact.sourceHash === flow.profile.sourceHash && binding.planHash === fingerprint(job.build) &&
     receipt.sourceHash === binding.testedSourceHash && receipt.planHash === binding.planHash && receipt.artifactHash === binding.outputArtifactHash &&
@@ -32,7 +36,8 @@ export async function localFullstackVerification(store: Store, stateDir: string,
 
 export async function fullstackVerification(store: Store, stateDir: string, actor: string, flow: ProjectFlow, secret: string): Promise<FullstackVerification> {
   const evidence = await localFullstackVerification(store, stateDir, actor, flow);
-  ensure(matchesPublishedBuildEnvironment({ sessionSecret: secret }, store, actor, flow.id, evidence.build),
+  if (evidence.build.testDatabase?.version === 4) assertPreparedDatabaseBindings(store, secret, actor, flow, evidence.build.testDatabase);
+  else ensure(matchesPublishedBuildEnvironment({ sessionSecret: secret }, store, actor, flow.id, evidence.build),
     "FULLSTACK_BUILD_REQUIRED", "بستهٔ نهایی باید به همان فرانت ساخته‌شده، API، نسخه Node و معیارهای مصوب متصل باشد.", 409);
   return evidence.verification;
 }

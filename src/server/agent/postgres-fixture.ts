@@ -202,7 +202,7 @@ GRANT SELECT,INSERT ON public._launchlane_migrations TO launchlane_migration_app
       callbackUncertain = error instanceof AppError && /(?:UNCERTAIN|CLEANUP_UNCONFIRMED)/.test(error.code);
     });
     try { outcome = { ok: true, value: await abortable(() => callback, bounded) }; }
-    catch (error) { if (bounded.aborted) throw new AppError("CANCELLED", "آزمون دیتابیس متوقف شد؛ نتیجهٔ موفق ثبت نشد.", 409); if (error instanceof AppError && error.code.startsWith("MIGRATION_")) throw error; throw new AppError("POSTGRES_FIXTURE_CALLBACK_FAILED", "آزمون برنامه در دیتابیس ساختگی موفق نبود.", 409); }
+    catch (error) { if (bounded.aborted) throw new AppError("CANCELLED", "آزمون دیتابیس متوقف شد؛ نتیجهٔ موفق ثبت نشد.", 409); if (error instanceof AppError && /^(?:MIGRATION_|BUILD_OUTPUT_)/.test(error.code)) throw error; throw new AppError("POSTGRES_FIXTURE_CALLBACK_FAILED", "آزمون برنامه در دیتابیس ساختگی موفق نبود.", 409); }
   } catch (error) {
     outcome = { ok: false, error: error instanceof AppError ? error : new AppError(options.signal.aborted || bounded.aborted ? "CANCELLED" : createStarted ? "POSTGRES_FIXTURE_UNCERTAIN" : "POSTGRES_FIXTURE_UNAVAILABLE",
       "اجرای دیتابیس ساختگی کامل نشد؛ جزئیات خصوصی نمایش داده نشد و ایجاد دوباره انجام نشد.", 503) };

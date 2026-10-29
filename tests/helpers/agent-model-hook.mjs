@@ -112,6 +112,12 @@ globalThis.fetch = async (input, init) => {
     throw Error("Unexpected migration worker fixture transition");
   }
   if (first.includes('نشانه الزامی صفحه: "Runner lifecycle"')) {
+    if (process.env.LAUNCHLANE_TEST_DATA_ARTIFACT_BROWSER === "true") {
+      if (body.messages.some(message => message.role === "user" && message.content.startsWith("Host local preparation receipt")))
+        return final("reply", null, "بستهٔ آزموده‌شده انتخاب شد؛ اتصال، migration و دادهٔ مقصد هنوز تأیید نشده‌اند.");
+      if (last.role === "user") { const input = await runnerBuildInput(); return reply("propose_project_build", { ...input, compatibilityDatabase: { ...input.compatibilityDatabase, prepareArtifact: true } }); }
+      throw Error("Unexpected data artifact fixture transition");
+    }
     if (body.messages.some(message => message.role === "user" && message.content.startsWith("Host disposable compatibility receipt")))
       return final("reply", null, "runner پروژه و داده در دو دیتابیس موقت بررسی شدند؛ منابع واقعی و انتشار تأیید نشده‌اند.");
     if (last.role === "user") return reply("propose_project_build", await runnerBuildInput());

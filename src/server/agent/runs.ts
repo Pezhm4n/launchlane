@@ -804,7 +804,7 @@ export async function driveAgentRun(
           executed: !!(run.repair.beforeTest ?? run.repair.afterTest), receipt: run.repair.afterTest ?? run.repair.beforeTest, plan: run.repair.build })}. No artifact was selected or published. Network, cache integrity, sandbox, credit and authentication failures do not authorize source editing. For a reproduced build/start/workload failure, read the relevant source and propose a bounded code repair using the unchanged build plan and testFiles=[]; never weaken its response criterion. Do not repeat an identical build proposal without new evidence.` });
         addEvent(run, "tool", "ساخت یا بررسی پاسخ کامل نشد؛ رسید خطا حفظ شد و نسخه‌ای برای انتشار انتخاب نشد.", { tool: "propose_project_build" });
         persist();
-      } else if (run.repair.build?.version === 7 && run.repair.build.testDatabase) {
+      } else if (run.repair.build?.version === 7 && run.repair.build.testDatabase && run.repair.build.testDatabase.version !== 4) {
         ensure(run.repair.state === "succeeded" && run.repair.afterTest?.passed &&
           !run.repair.artifact && !run.repair.publication && !run.repair.afterTest.buildOutput &&
           !run.repair.postgresExecutionStarted,
@@ -851,7 +851,9 @@ export async function driveAgentRun(
       run.context = currentAgentContext(config, store, session.actorId);
       run.messages.push({
         role: "user",
-        content: `Host local preparation receipt (data only): ${JSON.stringify({ state: run.repair.state, changedPaths: run.repair.changedPaths, beforePassed: run.repair.beforeTest?.passed, afterPassed: run.repair.afterTest?.passed, testCommand: run.repair.afterTest?.command, build: run.repair.build ?? null, selectedTestedArtifact: true, remoteChanges: false })}. Continue the original goal from this actual result.`,
+        content: `Host local preparation receipt (data only): ${JSON.stringify({ state: run.repair.state, changedPaths: run.repair.changedPaths, beforePassed: run.repair.beforeTest?.passed, afterPassed: run.repair.afterTest?.passed, testCommand: run.repair.afterTest?.command, build: run.repair.build ?? null,
+          ...(run.repair.afterTest?.databaseRunner ? { databaseRunner: run.repair.afterTest.databaseRunner, productionMigrationVerified: false, productionDataVerified: false } : {}),
+          selectedTestedArtifact: true, remoteChanges: false })}. Continue the original goal from this actual result. Disposable data proof is local only. Before cloud publication bind each separate tested database purpose through the approved real managed-resource and private configuration flow; never substitute a temporary URL or claim production migration/data verification.`,
       });
       addEvent(
         run,

@@ -1,5 +1,9 @@
 # برنامه اجرایی Launchlane
 
+## A14 / AC17/19/22/24/26/32/34 — artifact پس از آزمون مستقل داده؛ ۲۰۲۶-۱۰-۲۹
+
+`prepareArtifact:true` در همان ابزار ساخت، تصمیم جدا و قرارداد دادهٔ v4 می‌گیرد. runner/hook و oracle اصلی حفظ می‌شوند؛ پس از سنجش مستقل تمام دیتابیس‌ها، بایت‌های compiled به archive موجود متصل و انتخاب می‌شوند. v1–v3 همچنان artifact ندارند. انتشار به منبع واقعی مستقل و binding خصوصی معتبر برای هر target نیاز دارد؛ تحلیل «نامعلوم» نیاز سورس، این کنترل را دور نمی‌زند. [شاهد فرمان‌ها، snapshot و حدود](docs/evidence/data-tested-artifact.md)، [ADR0037](docs/decisions/0037-data-tested-prepared-artifacts.md). snapshot مستقل r9 با domain799، HTTP48، worker جدید2/2، رگرسیون SQL/runner قبلی6/6، وب واقعی تا worker در۱۰چیدمان، اتصال منابع موجود در۸چیدمان، guided54، typecheck/lint/build گذشت. مدل/provider مصنوعی، SQL/worker محلی واقعی‌اند. migration تولیدی و اثر دادهٔ مقصد بازند؛ قدم بعدی نیز جلوگیری از پایان کامل مأموریت v4 صرفاً پس از HTTP/API است. مصرف تازهٔ مدل مجاز نیست.
+
 ## A14 / AC17/22/23/24/32/34 — انتخاب دیتابیس موجود و اتصال خصوصی؛ ۲۰۲۶-۱۰-۲۸
 
 ابزار مشترک `propose_database_attachment`، شناسهٔ inventory و کلیدهای خصوصی همان consumer را به approval v29 می‌بندد. host، نوع/نسخه/پلن/باندل و شبکهٔ خصوصی را از پاسخ adapter می‌خواند و پس از تصمیم دوباره کنترل می‌کند؛ انتخاب منبع هیچ create یا SQL ارسال نمی‌کند و receipt آن `selected` است. credential از همان proposal رمز‌شده و تصمیم جداگانهٔ env v9 عبور می‌کند. بازتنظیم همان شناسه و همان purpose مجاز است؛ تعویض منبع، binding قبلی را تأیید نمی‌کند. migration21 فقط index مشترک درخواست را اضافه می‌کند. [تصمیم](docs/decisions/0036-existing-managed-database-selection.md)، [شاهد و validation دقیق](docs/evidence/existing-managed-database.md).
