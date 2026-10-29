@@ -4,6 +4,8 @@
 
 ## تنظیم نصب
 
+بررسی مستقیم PostgreSQL به‌صورت پیش‌فرض خاموش است. فقط اگر سرور Launchlane مسیر خصوصی کنترل‌شده به شبکهٔ همان دیتابیس‌های تأییدشده دارد، مدیر نصب می‌تواند `LAUNCHLANE_ENABLE_DATABASE_DATA_READS=true` و آرایهٔ JSON در `LAUNCHLANE_DATABASE_READ_NETWORKS` را تعیین کند. هر عضو باید دقیقاً `accountId`، `teamId` و `networkId` معتبر داشته باشد؛ آرایهٔ خالی یا حساب/تیم/شبکهٔ دیگر، پیش از دریافت credential سرویس یا اتصال SQL رد می‌شود. این تنظیم در UI قابل تغییر نیست و شبکهٔ عمومی، control-panel یا SQL نوشتن را فعال نمی‌کند. [قرارداد و حدود](decisions/0038-independent-postgres-data-observation.md). اتصال plain خصوصی، اعتماد به مسیر خصوصی نصب است؛ TLS لیارا تأیید نشده و خودکار فرض نمی‌شود.
+
 Node 24.15+ از خانوادهٔ 24 و dependencyهای lockfile لازم‌اند. پس از `npm ci` و `npm run build`، در تنظیمات امن سرور تعیین کنید:
 
 ```dotenv

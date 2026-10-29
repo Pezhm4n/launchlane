@@ -1,5 +1,7 @@
 # وضعیت پلتفرم‌ها و مسیر انتشار
 
+افزودهٔ بررسی داده، ۲۰۲۶-۱۰-۲۹: در مسیر فعلی Node fullstack/v4، معیارهای همان بسته و منابع خصوصی مصوب می‌توانند با درایور مستقل PostgreSQL فقط‌خواندنی بررسی شوند. [شاهد](evidence/postgres-data-observation.md) شامل SQL و دو مقصد موقت واقعی با provider/model مصنوعی است؛ مشاهدهٔ زندهٔ PostgreSQL لیارا، اجرای migration مقصد، نوشتن برنامه، restart persistence یا پذیرش خانواده‌های دیگر از آن نتیجه نمی‌شود. این محدودهٔ integration فعلی است؛ هدف تمام۱۴خانواده تغییر نکرده است.
+
 افزودهٔ runner داده، ۲۰۲۶-۱۰-۲۸: مسیر موجود Node fullstack با root `pg` و npm lock v3، script migration اصلی و hookهای source را روی چند target منطقی موقت اجرا می‌کند؛ transaction/ledger/SQL پروژه حفظ می‌شوند. [شاهد](evidence/project-migration-runners.md) شامل seeded/schema-only، quoted identifier، API و خواندن مستقل داده است. این adapter، CLI غایب یا driver تازه نمی‌سازد و پذیرش pnpm workspace، Python/framework-native، resourceهای مستقل provider یا باقی۱۴خانواده از آن نتیجه نمی‌شود.
 
 افزودهٔ آزمون داده، ۲۰۲۶-۱۰-۲۸: build7 موجود Node fullstack با npm lock می‌تواند plain SQL همین source را در PostgreSQL موقت اجرا و اثر schema/seed و نوشتن API را مستقل بسنجد؛ مقدار تازه باید پس از اجرای worker دوم حفظ شود. [شاهد](evidence/postgres-migration-test.md) به یک خانوادهٔ runtime یا provider production پذیرش عمومی نمی‌دهد. migrationهای framework، restart خود دیتابیس، چند component/resource و باقی۱۴خانواده همچنان هدف‌اند.

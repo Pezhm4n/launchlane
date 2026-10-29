@@ -1,5 +1,7 @@
 # معماری Launchlane
 
+بررسی مستقل داده از همان application وب/Agent/MCP عبور می‌کند: ID انتشار → provenance و archive ساخت v4 → منابع و binding خصوصی v9 → readback نسخه/شبکه/env → درایور فقط‌خواندنی PostgreSQL → شاهد عمومی و digest خصوصی در Store موجود. query یا URL مدل اجرا نمی‌شود. migration22 صرفاً receipt خواندن را اضافه می‌کند؛ engine/approval/worker موازی ندارد. [ADR0038](docs/decisions/0038-independent-postgres-data-observation.md) حدود شبکه، dependency و اعتبار شاهد را مشخص می‌کند.
+
 نتیجهٔ مأموریت دادهٔ v4، پس از موفقیت publication نیز در میزبان محدود می‌ماند: application رسید همان actor/job/provenance را بازخوانی می‌کند و Agent، اثر release/HTTP/API را از نبود proof مستقل دادهٔ مقصد جدا ثبت می‌کند. مدل نتیجهٔ کامل یا production receipt نمی‌سازد؛ قرارداد اکشن و journal تاریخی تغییر نکرده‌اند. [شاهد](docs/evidence/data-tested-artifact.md#publication-outcome-follow-up).
 
 آماده‌سازی داده در ۲۰۲۶-۱۰-۲۹: حالت صریح DisposableTestDatabase v4، همان CodeRepairJob/runner/oracle مستقل را به exporter و immutable fullstack archive موجود وصل می‌کند؛ v1–v3 تاریخی بدون artifact می‌مانند. hash برنامهٔ داده، برنامهٔ build، خروجی compiled و archive مستقل کنترل می‌شوند. انتخاب محلی برای برنامه‌ریزی مقصد مجاز است؛ publication در application موجود به binding خصوصی تمام targetهای مستقلِ واقعی نیاز دارد، حتی با inference نامعلوم سورس. engine، Store یا migration جدیدی ساخته نمی‌شود و اختیار SQL تولیدی افزوده نشده است. [ADR0037](docs/decisions/0037-data-tested-prepared-artifacts.md).

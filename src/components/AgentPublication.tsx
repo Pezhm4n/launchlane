@@ -1,6 +1,7 @@
 import type { Action } from "../contracts/domain.ts";
 import { canReadDeploymentResult, isWorkloadDeploymentSpec } from "../contracts/deployment.ts";
 import { useState } from "react";
+import { DatabaseDataCheck } from "./DatabaseDataCheck.tsx";
 
 function expectedValue(value: string | number | boolean | null) {
   return value === null ? "null" : String(value);
@@ -12,12 +13,14 @@ export function AgentPublication({
   disabled,
   onDecision,
   onObserve,
+  csrf,
 }: {
   action: Action;
   waiting: boolean;
   disabled: boolean;
   onDecision: (decision: "approve" | "reject") => void;
   onObserve: () => void;
+  csrf: string;
 }) {
   const [copy, setCopy] = useState<{ url: string; state: "copying" | "copied" | "failed" } | null>(null);
   if (!isWorkloadDeploymentSpec(action.spec)) return null;
@@ -218,6 +221,7 @@ export function AgentPublication({
           ادامه بررسی نتیجه انتشار
         </button>
       ) : null}
+      {verified && spec.version === 23 ? <DatabaseDataCheck key={action.id} actionId={action.id} csrf={csrf} disabled={disabled} /> : null}
     </section>
   );
 }

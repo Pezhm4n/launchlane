@@ -14,6 +14,9 @@ import { readArtifact } from "../../src/server/workspace/archive.ts";
 import { AppError } from "../../src/server/errors.ts";
 import { bindDataArtifactResources } from "../helpers/data-artifact-bindings.ts";
 import { publishDataArtifact } from "../helpers/data-artifact-publication.ts";
+import { checkDataArtifact } from "../helpers/data-artifact-observation.ts";
+import { createPostgresObserverFixture } from "../helpers/postgres-observer-fixture.ts";
+import { PostgresObserver } from "../../src/server/liara/postgres-observer.ts";
 
 // Original runner, independent SQL/data observation, compiled frontend and original API tests are real.
 // The model is synthetic. No production resource, SQL, model credit or cloud publication is used.
@@ -38,7 +41,7 @@ for (const leak of [false, true]) test(`data preparation ${leak ? "rejects tempo
     const diagnostic = JSON.stringify({ state: result.state, error: result.errorCode, job: result.repair.state, code: result.repair.errorCode, output: result.repair.afterTest?.output, message: result.repair.message, events: result.events.slice(-3) });
     assert.equal(result.state, "partially_completed", diagnostic); assert.equal(result.publication, null); assert.equal(result.effect, "no_remote_changes");
     assert.equal(f.store.db.prepare("SELECT count(*) n FROM actions").get()?.n, 0);
-    if (leak) { assert.equal(result.repair.state, "failed"); assert.equal(result.repair.errorCode, "BUILD_OUTPUT_SENSITIVE"); assert.equal(result.repair.artifact, null); assert.equal(result.repair.publication, undefined); }
+    if (leak) { assert.equal(result.repair.state, "failed", diagnostic); assert.equal(result.repair.errorCode, "BUILD_OUTPUT_SENSITIVE", diagnostic); assert.equal(result.repair.artifact, null); assert.equal(result.repair.publication, undefined); }
     else {
       assert.equal(result.repair.state, "succeeded"); assert.ok(result.repair.artifact && result.repair.publication && result.repair.afterTest?.buildOutput && result.repair.afterTest.databaseRunner);
       const selected = f.store.getProjectFlow(f.session.actorId); assert.ok(selected?.selection.kind === "repair"); assert.equal(selected.artifact?.archiveHash, result.repair.artifact.archiveHash);
@@ -47,11 +50,23 @@ for (const leak of [false, true]) test(`data preparation ${leak ? "rejects tempo
       const bytes = await readArtifact(f.config.stateDir, f.store.getArtifact(f.session.actorId, result.repair.artifact.archiveHash)); assert.equal(createHash("sha256").update(bytes).digest("hex"), result.repair.artifact.archiveHash);
       await assert.rejects(fullstackVerification(f.store, f.config.stateDir, f.session.actorId, selected, f.config.sessionSecret), error => error instanceof AppError && error.code === "DATABASE_BINDING_REQUIRED");
       assert.equal(result.repair.afterTest.databaseRunner.production, false); assert.equal(result.repair.containerIds?.length, 5);
-      const bound = await bindDataArtifactResources(f);
-      assert.equal((await fullstackVerification(f.store, f.config.stateDir, f.session.actorId, selected, bound.config.sessionSecret)).outputArtifactHash, evidence.verification.outputArtifactHash);
-      assert.equal(bound.actions.length, 2); assert.equal(f.store.db.prepare("SELECT count(*) n FROM actions").get()?.n, 4);
-      await publishDataArtifact(f, bound.config, selected, result.repair, bound.values);
-      assert.equal(f.store.db.prepare("SELECT count(*) n FROM actions").get()?.n, 5);
+      const databases: Awaited<ReturnType<typeof createPostgresObserverFixture>>[] = [];
+      try {
+        for (const [i, id] of ["e".repeat(24), "f".repeat(24)].entries()) {
+          const database = await createPostgresObserverFixture(`synthetic-private-${id}`); databases.push(database);
+          const sql = await readFile(join(f.project, "001_entries.sql"), "utf8"), checksum = createHash("sha256").update(sql).digest("hex");
+          await database.sql(`${sql}\nCREATE TABLE public.schema_migrations(version text PRIMARY KEY,checksum text NOT NULL);
+            INSERT INTO public.schema_migrations VALUES('001_entries.sql','${checksum}');
+            INSERT INTO public.entries(id,label,note) VALUES(7,'${i ? "profile datum" : "identity datum"}','${randomUUID()}');`);
+        }
+        const bound = await bindDataArtifactResources(f, false, databases.map(database => database.port));
+        assert.equal((await fullstackVerification(f.store, f.config.stateDir, f.session.actorId, selected, bound.config.sessionSecret)).outputArtifactHash, evidence.verification.outputArtifactHash);
+        assert.equal(bound.actions.length, 2); assert.equal(f.store.db.prepare("SELECT count(*) n FROM actions").get()?.n, 4);
+        const published = await publishDataArtifact(f, bound.config, selected, result.repair, bound.values), first = databases[0]; assert.ok(first);
+        const observer = new PostgresObserver({ resolve: async () => [{ address: first.address, family: 4 }] });
+        await checkDataArtifact(f, bound, published, observer, async () => { await first.sql(`UPDATE public.entries SET note='${randomUUID()}' WHERE id=7;`); });
+        assert.equal(f.store.db.prepare("SELECT count(*) n FROM actions").get()?.n, 5);
+      } finally { for (const database of databases.reverse()) await database.close(); }
     }
     assert.ok((await readFile(join(f.project, "migrate.cjs"))).equals(original)); assert.ok((await readFile(join(f.project, "oracle.test.cjs"))).equals(oracle));
   } finally { f.close(); }

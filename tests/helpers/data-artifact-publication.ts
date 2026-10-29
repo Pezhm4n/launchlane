@@ -67,4 +67,5 @@ export async function publishDataArtifact(f: Awaited<ReturnType<typeof runnerFix
   assert.equal(writes, 2); assert.equal(modelCalls, 1);
   const recovered = new AgentRepository(f.store).get(f.session.actorId, run.id); assert.ok(recovered);
   assert.equal(recovered.state, "partially_completed"); assert.deepEqual(recovered.usage, result.usage); assert.deepEqual(recovered.limits, result.limits);
+  return { config, action: result.publication, read, environment, runId: run.id };
 }

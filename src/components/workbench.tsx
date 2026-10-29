@@ -12,6 +12,7 @@ import {
 } from "../contracts/project-flow.ts";
 import { object } from "../contracts/validation.ts";
 import { api, ClientError } from "./api.ts";
+import { DatabaseDataCheck } from "./DatabaseDataCheck.tsx";
 import { WorkspaceIntro } from "./WorkspaceIntro.tsx";
 import { WorkspaceGlyph } from "./WorkspaceGlyph.tsx";
 import { FolderIcon, FolderPicker } from "./FolderPicker.tsx";
@@ -328,6 +329,7 @@ function Proposal({
           ) : null}
         </div>
       ) : null}
+      {state === "succeeded" && action.spec.version === 23 ? <DatabaseDataCheck key={action.id} actionId={action.id} csrf={workspace.session.csrfToken} disabled={busy || expired} /> : null}
       <details className="technical-details">
         <summary>جزئیات برای بررسی تخصصی</summary>
         <p>

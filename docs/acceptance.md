@@ -1,5 +1,7 @@
 # معیارهای پذیرش محصول
 
+افزودهٔ AC24/26/32/34، ۲۰۲۶-۱۰-۲۹: [بررسی مستقل PostgreSQL همان انتشار](evidence/postgres-data-observation.md) اتصال، schema و معیارهای دادهٔ بستهٔ آزموده‌شده را از host فقط‌خواندنی می‌سنجد؛ readback منبع/env/release و محدودهٔ خصوصیِ سرور شرط ثبت شاهد است. snapshot نهایی r8 با domain820، HTTP49، UI داده10/guided54، type/lint/build و3case واقعی Docker/SQL گذشت. شکست و اجرای دوبارهٔ runtime روی همان بایت‌ها جدا ثبت‌اند. migration یا نوشتن برنامه یا ماندگاری پس از restart پذیرفته نمی‌شود و mission v4 همچنان partial است. شواهد synthetic، Docker واقعی و provider read زنده تفکیک شده‌اند.
+
 افزودهٔ AC24/26/32/34، ۲۰۲۶-۱۰-۲۹: پایان‌بندی میزبان برای artifact دادهٔ v4، حتی پس از release/HTTP/API موفق، partial می‌ماند. receipt محلی و provenance انتشار باید همان actor/job/source/build/output باشند؛ این بررسی، receipt دادهٔ مقصد نمی‌سازد. [شاهد مستقل](evidence/data-tested-artifact.md#publication-outcome-follow-up). اجرای migration و دادهٔ واقعی مقصد همچنان برای پذیرش کامل لازم‌اند.
 
 افزودهٔ AC17/19/22/24/26/32/34، ۲۰۲۶-۱۰-۲۹: [آماده‌سازی artifact پس از proof داده](evidence/data-tested-artifact.md) حالت صریح v4 را به runner موجود اضافه می‌کند؛ تصمیم، اجرای تازه و همان oracle مستقل لازم‌اند. artifact دقیق در مسیر انتشار انتخاب می‌شود، اما publication بدون binding خصوصی همهٔ منابع مستقل رد می‌شود. v1–v3 تاریخی مجوز artifact نمی‌گیرند. این برش، migration تولیدی، صحت دادهٔ موجود، اتصال SQL مقصد، persistence provider یا تمام۱۴خانواده را نمی‌پذیرد؛ AC23/28/34 همچنان کامل نیستند.

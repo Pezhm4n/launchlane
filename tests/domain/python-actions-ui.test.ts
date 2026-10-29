@@ -1,33 +1,14 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 import { test } from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { transpileModule, ModuleKind, JsxEmit } from "typescript";
+import { componentUrl } from "../helpers/react-component.ts";
 import type { Action, ActionSpec } from "../../src/contracts/domain.ts";
 import type { AgentPublication } from "../../src/components/AgentPublication.tsx";
 import type { AgentDestination } from "../../src/components/AgentDestination.tsx";
 import { parseActionSpec } from "../../src/server/policy/action.ts";
 
-// Node does not parse TSX/CSS imports; compile the trusted component graph, preserving the same render assertions.
-async function componentUrl(path: string): Promise<string> {
-  const absolute = resolve(path), source = await readFile(absolute, "utf8");
-  if (absolute.endsWith(".module.css")) {
-    const classes = Object.fromEntries([...source.matchAll(/\.([A-Za-z][A-Za-z0-9_-]*)/g)].map(match => [match[1], match[1]]));
-    return `data:text/javascript;base64,${Buffer.from(`export default ${JSON.stringify(classes)}`).toString("base64")}`;
-  }
-  let code = transpileModule(source, { compilerOptions: { module: ModuleKind.ESNext, jsx: JsxEmit.ReactJSX } }).outputText;
-  for (const match of [...code.matchAll(/from ["']([^"']+)["']/g)]) {
-    const specifier = match[1]; assert.ok(specifier);
-    const target = specifier.startsWith(".") ? resolve(dirname(absolute), specifier) : null;
-    const url = target ? /\.(?:tsx|module\.css)$/.test(target) ? await componentUrl(target) : pathToFileURL(target).href : import.meta.resolve(specifier);
-    code = code.replace(match[0], `from ${JSON.stringify(url)}`);
-  }
-  return `data:text/javascript;base64,${Buffer.from(code).toString("base64")}`;
-}
 async function component(path: string): Promise<Record<string, unknown>> { return import(await componentUrl(path)); }
 const runtime = { kind: "python", version: "3.12", command: ["python3", "main.py"] } as const;
 const common = { scope: { teamId: "a".repeat(24), app: "python-ui-test" }, sourceHash: "1".repeat(64), artifactHash: "2".repeat(64),
@@ -45,7 +26,7 @@ test("Python, native Next and historical Node publication decisions render their
     const spec = parseActionSpec({ ...common, version, operation: "deploy", targetAppId: "c".repeat(24), args: { port: version === 19 ? 80 : 8000, planId: "starter" },
       nodeVersion: version === 11 ? null : version === 19 ? "20" : "22", ...(version === 11 ? { runtime, environment: null } : version === 19 ? { runtime: { kind: "react", builder: "vite", nodeVersion: "20", outputDirectory: "build", mirror: false }, environment: null } : version === 17 ? { runtime: { kind: "next", version: "22", mirror: false }, environment: null } : version === 10 ? { environment: { actionId: randomUUID(), fingerprint: "6".repeat(64), keys: [] } } : {}),
       workload: { origin: "https://python-ui-test.liara.run", path: "/", status: 200, assertion: { kind: "text", contains: "ready" } } });
-    const value = action(spec), props = { action: value, waiting: true, disabled: false, onDecision: () => {}, onObserve: () => {} };
+    const value = action(spec), props = { action: value, csrf: "synthetic-csrf", waiting: true, disabled: false, onDecision: () => {}, onObserve: () => {} };
     const pending = renderToStaticMarkup(createElement(Publication, props));
     assert.match(pending, /تأیید و انتشار این نسخه/); assert.match(pending, /رد انتشار/);
     assert.ok(pending.includes(version === 11 ? ">Python<" : version === 19 ? ">React / Node<" : version === 17 ? ">Next.js / Node<" : ">Node<")); assert.ok(pending.includes(version === 11 ? ">3.12<" : version === 19 ? ">20<" : ">22<"));

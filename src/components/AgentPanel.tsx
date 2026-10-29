@@ -1013,7 +1013,7 @@ export function AgentPanel({
           {run.disk && !run.diskContinued ? <AgentDisk key={run.disk.id} action={run.disk} waiting={run.state === "needs_approval"}
             disabled={disabled || busy || active || !sameProject} resumable={run.disk.state === "succeeded" && !run.diskContinued}
             onDecision={decision => void diskRequest(decision)} onObserve={() => void diskRequest()} /> : null}
-          {run.publication ? <AgentPublication action={run.publication} waiting={run.state === "needs_approval"}
+          {run.publication ? <AgentPublication action={run.publication} csrf={csrf} waiting={run.state === "needs_approval"}
             disabled={disabled || busy || active || !sameProject}
             onDecision={(decision) => void publicationRequest(decision)}
             onObserve={() => void publicationRequest()} /> : null}

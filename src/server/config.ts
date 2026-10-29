@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import { hasControl } from "../contracts/validation.ts";
+import { exactKeys, hasControl, object, string } from "../contracts/validation.ts";
 import { AppError, ensure } from "./errors.ts";
 import { parseProbeOrigins } from "./policy/probe-target.ts";
 
@@ -56,6 +56,23 @@ function fixedUrl(raw: string | undefined, expected: string): string {
     503,
   );
   return expected;
+}
+
+function databaseReadNetworks(raw: string | undefined) {
+  if (!raw) return [];
+  try {
+    ensure(Buffer.byteLength(raw) <= 16384, "CONFIG_INVALID", "فهرست مسیرهای خصوصی بیش از سقف مجاز است.", 503);
+    const value: unknown = JSON.parse(raw);
+    ensure(Array.isArray(value) && value.length <= 64, "CONFIG_INVALID", "فهرست شبکه‌های خواندن داده معتبر نیست.", 503);
+    const rows = value.map(value => {
+      const row = object(value); exactKeys(row, ["accountId", "teamId", "networkId"]);
+      const result = { accountId: string(row.accountId, 24), teamId: string(row.teamId, 24), networkId: string(row.networkId, 24) };
+      ensure(Object.values(result).every(id => /^[a-f0-9]{24}$/.test(id)), "CONFIG_INVALID", "شناسهٔ حساب، تیم یا شبکهٔ خواندن داده معتبر نیست.", 503);
+      return result;
+    });
+    ensure(new Set(rows.map(row => JSON.stringify(row))).size === rows.length, "CONFIG_INVALID", "شبکهٔ خواندن داده تکراری است.", 503);
+    return rows;
+  } catch { throw new AppError("CONFIG_INVALID", "محدودهٔ شبکه‌های خصوصی خواندن داده معتبر نیست.", 503); }
 }
 
 export function readConfig(env: Environment = process.env) {
@@ -148,6 +165,8 @@ export function readConfig(env: Environment = process.env) {
     enableMutations: flag(env, "LAUNCHLANE_ENABLE_MUTATIONS"),
     enableLiveModel: flag(env, "LAUNCHLANE_ENABLE_LIVE_MODEL"),
     enableLiveLiara: flag(env, "LAUNCHLANE_ENABLE_LIVE_LIARA"),
+    enableDatabaseDataReads: flag(env, "LAUNCHLANE_ENABLE_DATABASE_DATA_READS"),
+    databaseReadNetworks: databaseReadNetworks(env.LAUNCHLANE_DATABASE_READ_NETWORKS),
     enableLocalRepair: flag(env, "LAUNCHLANE_ENABLE_LOCAL_REPAIR"),
     maxModelCalls: limit(env, "LAUNCHLANE_MAX_MODEL_CALLS", 8, 1, 8),
     maxToolCalls: limit(env, "LAUNCHLANE_MAX_TOOL_CALLS", 12, 1, 12),

@@ -51,6 +51,9 @@ import type { ProjectFlow } from "../../contracts/project-flow.ts";
 import { proposeDatabase, proposeDatabaseAttachment } from "../application/databases.ts";
 import { parseDatabaseBindingKeys } from "../../contracts/database-provision.ts";
 import type { LiaraDatabaseCredentialsClient } from "../liara/database-credentials.ts";
+import { observeDatabaseData } from "../application/database-data.ts";
+import { dataObservationId } from "../../contracts/database-data.ts";
+import type { PostgresObserver } from "../liara/postgres-observer.ts";
 
 export function privateValues(c: Config): string[] {
   return [c.liaraToken, c.modelKey, c.operatorToken, c.sessionSecret, ...c.projectSecretValues].filter(Boolean);
@@ -217,10 +220,11 @@ const repairTool: ToolDefinition = {
 function registeredTools(config: Config): readonly ToolDefinition[] {
   return [...agentTools, ...(config.enableLocalRepair ? [repairTool, preparationTool, buildTool] : []),
     ...(config.enableLiveLiara ? catalogTools : []),
+    ...(config.enableLiveLiara && config.enableDatabaseDataReads ? [databaseDataTool] : []),
     ...(config.enableMutations && config.enableLiveLiara ? [publicationTool, destinationTool, networkTool, diskTool, rollbackTool, databaseTool, databaseAttachmentTool] : [])];
 }
 export function toolsForConversation(config: Config): readonly ToolDefinition[] {
-  return [...agentTools, ...(config.enableLiveLiara ? catalogTools : [])];
+  return [...agentTools, ...(config.enableLiveLiara ? catalogTools : []), ...(config.enableLiveLiara && config.enableDatabaseDataReads ? [databaseDataTool] : [])];
 }
 export function toolsForAgent(config: Config, preparation: "native" | "build" | "fullstack" = "native", hasTarget = true, publicationProgram = false, persistentStorage = false, managedDatabase = false): readonly ToolDefinition[] {
   // Offer the applicable preparation path without two competing tools for the same task.
@@ -228,6 +232,7 @@ export function toolsForAgent(config: Config, preparation: "native" | "build" | 
   return registeredTools(config).filter(tool => tool.function.name !== omitted && tool.function.name !== (hasTarget ? "propose_network" : "read_metrics") &&
     (tool.function.name !== "propose_rollback" || hasTarget && !publicationProgram && !persistentStorage) &&
     (tool.function.name !== "read_publications" || hasTarget && !publicationProgram) &&
+    (tool.function.name !== "read_database_data" || hasTarget) &&
     (tool.function.name !== "propose_disk" || hasTarget && persistentStorage) &&
     (!["propose_database", "propose_database_attachment"].includes(tool.function.name) || hasTarget && managedDatabase) &&
     (!managedDatabase || !["read_publications", "propose_rollback", "read_metrics"].includes(tool.function.name)) &&
@@ -265,6 +270,13 @@ const catalogTools: readonly ToolDefinition[] = [
       properties: { planId: { type: "string", maxLength: 63 }, bundleId: { type: "string", maxLength: 63 } } },
   } },
 ];
+const databaseDataTool: ToolDefinition = { type: "function", function: {
+  name: "read_database_data",
+  description: "Independently read PostgreSQL connectivity, schema and selected fixed rows/cells for one exact succeeded publication prepared with a v4 data-tested artifact. Supply actionId from this app's publication receipt and optionally a prior data observation baselineId for the SAME publication/binding. Host derives all SQL, resources and private connection keys from the original tested plan and approved resource/env receipts, rechecks current release/account/network/env before and after, opens fresh READ ONLY sessions and saves a sanitized observation. No SQL, URL, table, role or credential arguments accepted. Values and private comparison digests never returned. Comparison only reports whether selected cells match two reads; it proves no migration execution, app write, restart or durable-provider persistence. No cloud or data writes. Needs the installation's explicit private-network data-read capability; never enable public network or substitute an Inspector endpoint.",
+  parameters: { type: "object", additionalProperties: false, required: ["actionId"], properties: {
+    actionId: { type: "string", pattern: "^[a-f0-9-]{36}$", maxLength: 36 }, baselineId: { type: "string", pattern: "^[a-f0-9-]{36}$", maxLength: 36 },
+  } },
+} };
 const destinationTool: ToolDefinition = { type: "function", function: {
   name: "propose_destination",
   description: "Propose a native Node, Python, Next, React, Vue, Angular, Docker or plain Static destination matching the selected inspected project; the host selects the platform from source, never from a model guess. Supply a unique app name, an available plan/bundle from the actual catalog and an existing team network from read_networks. User approval is mandatory before any create. Creation does not publish, resize, set env or prove workload health. For publication with no app, propose this step instead of sending the user to select a nonexistent app. Capacity is unmeasured. Only Iran-region plans and existing networks are implemented.",
@@ -388,6 +400,7 @@ export const toolLabels: Readonly<Record<string, string>> = {
   quote_resource_plan: "بررسی هزینه پایه و گزینه‌های پلن",
   read_networks: "بررسی شبکه‌های موجود همین حساب",
   read_database_resources: "بررسی مشخصات و قیمت دیتابیس‌های همین حساب",
+  read_database_data: "سنجش مستقل اتصال و دادهٔ دیتابیس‌های همان انتشار",
   propose_destination: "آماده‌کردن مقصد تازه و هزینه پایه آن",
   propose_network: "آماده‌کردن تصمیم ساخت شبکه موردنیاز",
   propose_disk: "آماده‌کردن فضای پایدار موردنیاز همین نسخه",
@@ -411,6 +424,7 @@ export type AgentToolContext = {
   account?: LiaraAccountClient;
   database?: LiaraDatabaseReadClient;
   databaseCredentials?: LiaraDatabaseCredentialsClient;
+  postgresObserver?: PostgresObserver;
   probe?: WorkloadProbe;
   mission?: PublicationMission | null;
   publicationExpectation?: WorkloadContract;
@@ -470,6 +484,15 @@ export async function executeAgentTool(
   const buildReleaseId = name === "read_build_logs" ? providerObjectId(args.releaseId) : null,
     buildSince = name === "read_build_logs" && args.since !== undefined ? string(args.since, 64) : null;
   ensure(buildSince === null || explicitIsoTime(buildSince) !== null, "INVALID_INPUT", "زمان آغاز گزارش ساخت باید تاریخ معتبر باشد.");
+  if (name === "read_database_data") {
+    ensure(c.context.target && c.context.projectId, "DATABASE_CONTEXT_REQUIRED", "پروژه و مقصد همین انتشار را انتخاب کنید.", 409);
+    const result = await observeDatabaseData(c.config, c.store, c.actorId, dataObservationId(args.actionId),
+      args.baselineId === undefined ? null : dataObservationId(args.baselineId), c.signal, { budget: c.budget,
+        ...(c.read ? { read: c.read } : {}), ...(c.database ? { database: c.database } : {}), ...(c.databaseCredentials ? { credentials: c.databaseCredentials } : {}),
+        ...(c.account ? { account: c.account } : {}), ...(c.environment ? { environment: c.environment } : {}), ...(c.postgresObserver ? { observer: c.postgresObserver } : {}) });
+    assertAgentContext(c.config, c.store, c.actorId, c.context);
+    return result;
+  }
   if (name === "read_database_resources") {
     ensure(c.context.account, "LIARA_AUTH_REQUIRED", "ابتدا حساب مقصد را متصل کنید.", 409);
     const view = string(args.view, 24);

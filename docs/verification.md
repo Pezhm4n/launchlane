@@ -1,5 +1,7 @@
 # شواهد اعتبارسنجی Launchlane
 
+ادامهٔ ۲۰۲۶-۱۰-۲۹: [بررسی مستقل PostgreSQL همان انتشار](evidence/postgres-data-observation.md) نشست واقعی درایور و Docker را از provider/model مصنوعی و خواندن metadata زنده جدا ثبت می‌کند. snapshot r8 با domain820/820، HTTP49/49، UI داده10/guided54، typecheck، lint صفرerror/48warning/22info، Webpack و3case واقعی Docker/SQL گذشت. runtime پس از cache کامل روی همان snapshot تکرار و قبول شد؛ اجرای لغوشده/شکست‌های قبلی در شاهد باقی‌اند. schema و خواندن داده، اجرای migration یا نوشتن برنامه یا restart persistence نیستند. هیچ pass از revision قدیمی به این نتیجه منتقل نشده است.
+
 ادامهٔ ۲۰۲۶-۱۰-۲۹: [پایان‌بندی انتشار وابسته به داده](evidence/data-tested-artifact.md#publication-outcome-follow-up) جدا از snapshot آماده‌سازی ثبت می‌شود. حتی release/API موفق، proof موقت داده را به صحت مقصد ارتقا نمی‌دهد؛ تغییر در host/application موجود است و هیچ production SQL یا مدل تازه اجرا نشده است.
 
 افزودهٔ ۲۰۲۶-۱۰-۲۹: [artifact آزموده‌شده با داده](evidence/data-tested-artifact.md) snapshot و اجرای مستقل قرارداد/worker/وب را ثبت می‌کند. حالت v4 از همان runner و oracle مستقل به archive دقیق می‌رسد؛ binding خصوصی منابع واقعی، از proof دادهٔ موقت جداست. نتیجهٔ نهایی فقط پس از فرمان‌های ثبت‌شدهٔ همان snapshot اعلام می‌شود؛ مدل/provider مصنوعی به شاهد live ارتقا داده نمی‌شوند و مصرف تازهٔ مدل مجاز نیست.

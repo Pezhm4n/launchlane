@@ -1,5 +1,7 @@
 # اتصال به Launchlane از MCP
 
+افزودهٔ ۲۰۲۶-۱۰-۲۹: registry مشترک، هنگام فعال‌بودن gate خواندن داده، ابزار `read_database_data {actionId,baselineId?}` را عرضه می‌کند. host تنها oracle بستهٔ آزموده‌شده و اتصال خصوصی مصوب را می‌پذیرد؛ SQL/URL/credential ورودی ابزار نیستند. همان مسیر وب نتیجهٔ مستقل و محدود را ذخیره می‌کند. [شاهد و حدود](evidence/postgres-data-observation.md) شامل پذیرش زنده از میزبان MCP واقعی یا migration تولیدی نیست.
+
 افزودهٔ v4 داده، ۲۰۲۶-۱۰-۲۹: `propose_project_build` در شکل runner، `prepareArtifact:true` را برای تصمیم تازهٔ آماده‌سازی می‌پذیرد. همان registry/job پس از proof مستقل داده، بستهٔ compiled دقیق را انتخاب می‌کند؛ v1–v3 همچنان فقط compatibility هستند. publication به binding خصوصی تمام منابع مستقل نیاز دارد؛ این گزینه ابزار SQL تولیدی یا اختیار approve ایجاد نمی‌کند. [شاهد](evidence/data-tested-artifact.md) اجرای تازه از میزبان MCP واقعی نیست.
 
 افزودهٔ v29، ۲۰۲۶-۱۰-۲۸: `propose_database_attachment {consumerRoot,bindingKeys,databaseId}` در همان registry و اجرای Agent وب/MCP قرار دارد. host، هویت و شبکهٔ خصوصی منبع موجود را بررسی و پیشنهاد انتخاب انسانی ایجاد می‌کند؛ این ابزار مجوز ساخت، credential عمومی یا SQL نمی‌دهد. `configure_env` به همان فرم خصوصی و تصمیم جداگانه وصل است. [شواهد](evidence/existing-managed-database.md) شامل اجرای تازه از میزبان MCP واقعی نیست.

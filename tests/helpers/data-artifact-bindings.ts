@@ -15,7 +15,7 @@ import { executeEnvironment, observeEnvironment } from "../../src/server/applica
 import type { ModelPort } from "../../src/server/agent/model.ts";
 
 /** Real application/approval/Store transitions; only integration transports and goal model are synthetic. */
-export async function bindDataArtifactResources(f: Awaited<ReturnType<typeof runnerFixture>>, collapse = false) {
+export async function bindDataArtifactResources(f: Awaited<ReturnType<typeof runnerFixture>>, collapse = false, ports: readonly number[] = []) {
   const team = "a".repeat(24), accountId = "b".repeat(24), appId = "c".repeat(24), network = "d".repeat(24), app = "prepared-data-consumer";
   const config = { ...f.config, teamId: team, apps: [app], enableLiveLiara: true, enableMutations: true, liaraToken: "synthetic-prepared-database-key" };
   f.store.saveConnection(f.session.actorId, { source: "token", ciphertext: sealCredential(config.liaraToken, config.sessionSecret, f.session.actorId, "liara"), view: {
@@ -30,7 +30,7 @@ export async function bindDataArtifactResources(f: Awaited<ReturnType<typeof run
     ? Response.json({ project: { _id: appId, project_id: app, type: "node", planID: "app-small", bundlePlanID: "basic", network: { _id: network }, readOnlyRootFilesystem: true } })
     : Response.json({ networks: [{ _id: network, name: "fixture" }] }));
   const credentials = new LiaraDatabaseCredentialsClient(config, async url => { const resource = resources.find(row => new URL(url).pathname.endsWith(row._id)); assert.ok(resource);
-    return Response.json({ database: { id: resource._id, hostname: resource.hostname, type: "postgres", version: "16.4", planID: "small", publicNetwork: false, network: { _id: network }, metaData: { privateNetwork: true }, username: "postgres", root_password: `synthetic-private-${resource._id}`, dbName: "postgres", internalPort: 5432 } }); });
+    return Response.json({ database: { id: resource._id, hostname: resource.hostname, type: "postgres", version: "16.4", planID: "small", publicNetwork: false, network: { _id: network }, metaData: { privateNetwork: true }, username: "postgres", root_password: `synthetic-private-${resource._id}`, dbName: "postgres", internalPort: ports[resources.indexOf(resource)] ?? 5432 } }); });
   let values: { key: string; value: string }[] = [];
   const environment = new LiaraEnvironmentClient(config, async (_url, init) => { if (init.method === "POST") { values = JSON.parse(String(init.body)).variables; return Response.json({}); }
     return Response.json({ project: { _id: appId, project_id: app, type: "node", planID: "app-small", envs: values } }); });
@@ -56,5 +56,5 @@ export async function bindDataArtifactResources(f: Awaited<ReturnType<typeof run
     await executeEnvironment(config, f.store, f.session, binding.id, AbortSignal.timeout(10000), { client: environment });
     await observeEnvironment(config, f.store, f.session, binding.id, AbortSignal.timeout(10000), { client: environment });
   }
-  return { config, actions, values };
+  return { config, actions, values, read, account, credentials, environment };
 }
