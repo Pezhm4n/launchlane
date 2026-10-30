@@ -6,6 +6,15 @@
 
 ## آماده‌سازی مستندات مخزن؛ ۲۰۲۶-۱۰-۳۰
 
+پیگیری CI پایهٔ `37cd6af`: اجرای GitHub نشان داد suite HTTP به Chromium نیاز دارد،
+اما workflow نصب آن را پس از همان suite قرار داده بود. نصب به پس از `npm ci` منتقل
+شد. روی Windows/Node24.18.0، build ایزولهٔ موجود با۵۵۱فایل اجرایی/test/config و
+dependencyهای دقیق candidate تطبیق داده شد؛ نصب مرورگر و سپس HTTP49/49 در33.619s
+و guided54 در320/360/390/768/1280 گذشتند. مدل/provider مصنوعی، مرورگر/سرور واقعی و
+cloud write صفر بودند. lint صفرerror/48warning/22info، YAML و تقدم نصب بر دو suite
+و checker دو README گذشتند. نتیجهٔ Ubuntu از workflow همان commit بررسی می‌شود؛
+pass محلی به نتیجهٔ Linux تعمیم داده نمی‌شود. هیچ تستی skip یا ضعیف نشد.
+
 روی پایهٔ `32bb2aa` و تغییرات مستندات/metadata: checker دو README صفرerror/warning؛
 لینک‌های محلی سالم؛۵YAML parse و event/permission/SHAهای action با manifest رسمی
 تطبیق داده شدند. رندر واقعی Mermaid12.2.0 و Markdown محلی با Chromium در۸ترکیب

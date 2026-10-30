@@ -11,6 +11,8 @@ projects. Publishing the repository grants no provider/model execution authority
   [contributing](../CONTRIBUTING.md), [security reporting](../SECURITY.md), and
   [community conduct](../CODE_OF_CONDUCT.md).
 - Issue forms, PR template, read-only-token CI, and Dependabot configuration.
+  Routine npm/Actions version PRs are paused with `open-pull-requests-limit: 0`;
+  security alerts/updates have separate GitHub controls and are not disabled here.
 - Committed exclusions for runtime state, local access files, disposable output,
   dependencies, environment secrets, and private key files. Internal prompts and
   personal research remain under local Git excludes.

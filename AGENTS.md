@@ -56,7 +56,7 @@ Run from the repository root with Node **24.15+ within 24.x** and npm. Dependenc
 | Production run | `npm start` | Requires successful build; binds loopback |
 | Bootstrap smoke | `npm test` | Requires the running dev/production server; loopback only |
 | Domain regressions | `npm run test:domain` | Node native test runner; temporary SQLite/filesystem and synthetic transports; no server/provider required |
-| HTTP boundary | `npm run test:http` | Requires a successful build; starts an isolated production server with synthetic scope and empty provider keys |
+| HTTP boundary | `npm run test:http` | Requires build, Playwright Chromium and OpenSSL; includes an actual HTTPS/MCP browser flow and starts isolated servers with synthetic scope/empty provider keys. On Linux install with `npx playwright install --with-deps chromium` first |
 | Container worker | `npm run test:sandbox` | Docker Linux engine, pinned Node22/Python3.12/PostgreSQL16 images; direct PostgreSQL observer also needs an RFC1918 host interface; project-build cases need public npm reads or an explicit cache; actual tools, synthetic patch model |
 | Source SQL and data effect | `node --test tests/sandbox/postgres-migration.test.ts` | Cached pinned PostgreSQL16 and Node22 images, local Linux Docker; actual SQL, locked npm/Vite build, original API tests and independent data readback across two app workers; synthetic model, no cloud credential/write |
 | Original data runners | `node --test --test-concurrency=1 tests/sandbox/postgres-runner.test.ts` | Same cached images/local Docker; actual seeded and schema-only two-target runners, four fresh workers, independent data/replay proof, destructive replay rejection and read-only observer; synthetic model, no cloud credential/write |

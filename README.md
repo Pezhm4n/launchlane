@@ -94,12 +94,13 @@ npm run lint
 npm run typecheck
 npm run test:domain
 npm run build -- --webpack
+npx playwright install chromium
 npm run test:http
 ```
 
 </div>
 
-آزمون HTTP سرور موقت خود را می‌سازد. آزمون‌های مرورگر و Docker پیش‌نیاز جدا دارند؛ `npm test` فقط smoke و نیازمند سرور در حال اجراست. [راهنمای مشارکت](CONTRIBUTING.md)، [فهرست مستندات](docs/README.md)، [معماری](ARCHITECTURE.md) و [معیارهای پذیرش](docs/acceptance.md) مسیر بعدی‌اند. اشکال و پیشنهاد را پس از انتشار مخزن در Issues با شواهد بدون اطلاعات خصوصی ثبت کنید؛ برای موارد حساس [SECURITY.md](SECURITY.md) را ببینید.
+آزمون HTTP سرور موقت خود را می‌سازد و برای مسیر HTTPS/MCP به Chromium و OpenSSL نیاز دارد؛ روی Linux پیش از آن `npx playwright install --with-deps chromium` را اجرا کنید. آزمون‌های مرورگر و Docker پیش‌نیاز جدا دارند؛ `npm test` فقط smoke و نیازمند سرور در حال اجراست. [راهنمای مشارکت](CONTRIBUTING.md)، [فهرست مستندات](docs/README.md)، [معماری](ARCHITECTURE.md) و [معیارهای پذیرش](docs/acceptance.md) مسیر بعدی‌اند. اشکال و پیشنهاد را پس از انتشار مخزن در Issues با شواهد بدون اطلاعات خصوصی ثبت کنید؛ برای موارد حساس [SECURITY.md](SECURITY.md) را ببینید.
 
 ## مجوز
 

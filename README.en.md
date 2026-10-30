@@ -120,10 +120,11 @@ npm run lint
 npm run typecheck
 npm run test:domain
 npm run build -- --webpack
+npx playwright install chromium
 npm run test:http
 ```
 
-HTTP tests start their own temporary server. Browser and Docker checks have separate
+HTTP tests start their own temporary server and need Chromium and OpenSSL for the HTTPS/MCP flow. On Linux, run `npx playwright install --with-deps chromium` first. Browser and Docker checks have separate
 prerequisites; `npm test` is only a smoke check and requires a running server.
 Continue with [contributing](CONTRIBUTING.md), the [documentation index](docs/README.md),
 [architecture](ARCHITECTURE.md), and [acceptance criteria](docs/acceptance.md).

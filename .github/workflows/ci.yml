@@ -32,10 +32,11 @@ jobs:
           node-version: 24.18.0
           cache: npm
       - run: npm ci
+      # The HTTP suite also launches Chromium for the hosted MCP grant flow.
+      - run: npx playwright install --with-deps chromium
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test:domain
       - run: npm run build -- --webpack
       - run: npm run test:http
-      - run: npx playwright install --with-deps chromium
       - run: node scripts/test-guided-browser.mjs

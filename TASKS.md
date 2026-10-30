@@ -1,5 +1,19 @@
 # برنامه اجرایی Launchlane
 
+## AC15 — پیش‌نیاز مرورگر در CI و توقف PRهای معمول نسخه‌ها؛ ۲۰۲۶-۱۰-۳۰
+
+علت شکست CI پایهٔ `37cd6af`، نصب Chromium پس از `test:http` بود؛ خود suite در مسیر
+HTTPS/MCP مرورگر واقعی اجرا می‌کند. fail دوم، شکست گروه والد همان تست بود، نه خطای
+مستقل. نصب `--with-deps chromium` به بعد از `npm ci` و پیش از تست‌ها منتقل شد؛ تست،
+oracle و timeout تغییر نکردند. راهنماهای هر دو زبان و مشارکت/AGENTS پیش‌نیاز مرورگر
+و OpenSSL را صریح می‌کنند. طبق درخواست مالک، PRهای معمول npm/Actions با limit صفر
+متوقف و پنج PR باز Dependabot بدون merge بسته شدند؛ هشدارها/تنظیم امنیتی تغییر نکردند.
+روی Windows/Node24.18.0 و build جداگانه با تطبیق۵۵۱فایل runtime/test/config و ورودی
+dependency فعلی، نصب Chromium، HTTP49/49 و guided54 در پنج عرض گذشت؛ transport مدل و
+provider مصنوعی بود. lint صفرerror/48warning/22info، YAML/ترتیب مراحل و checker دو
+README گذشت. نتیجهٔ Linux باید از Actions همان SHA خوانده شود؛ این بررسی محلی جای
+آن نیست. هیچ dependency، state تولیدی، مجوز یا بودجهٔ مدل تغییر نکرد.
+
 ## AC15/16 — آماده‌سازی مخزن عمومی و README دو‌زبانه؛ ۲۰۲۶-۱۰-۳۰
 
 بر پایهٔ `32bb2aa`، README فارسی بازنویسی و نسخهٔ هم‌سطح انگلیسی اضافه شد؛ نشان موجود،

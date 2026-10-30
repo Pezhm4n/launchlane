@@ -7,8 +7,8 @@ before changing execution, approval, persistence, or provider behavior.
 ## Development
 
 Use Node.js **24.15+ within 24.x** and npm with the committed lockfile. Current
-local validation uses Node 24.18.0 on Windows/PowerShell. Linux CI is configured
-separately; its first hosted result is pending until the workflow runs.
+local validation uses Node 24.18.0 on Windows/PowerShell. Linux CI runs separately;
+inspect the Actions result for the exact commit rather than inferring it from local tests.
 
 ```sh
 npm ci
@@ -28,10 +28,14 @@ npm run lint
 npm run typecheck
 npm run test:domain
 npm run build -- --webpack
+npx playwright install chromium
 npm run test:http
 ```
 
-HTTP tests start their own disposable server after the build. `npm test` is a
+HTTP tests start their own disposable server after the build and include a real
+Chromium HTTPS/MCP flow. Install Chromium before running them; on Linux use
+`npx playwright install --with-deps chromium` to include system libraries. The HTTPS
+fixture also needs OpenSSL. `npm test` is a
 different bootstrap smoke check and needs a running local server. `npm run check`
 includes that smoke check; it is not a server-free CI entry point.
 
