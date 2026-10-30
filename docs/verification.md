@@ -6,6 +6,16 @@
 
 ## آماده‌سازی مستندات مخزن؛ ۲۰۲۶-۱۰-۳۰
 
+پیگیری کنترل عامل: [Actions پایهٔ624c401](https://github.com/Pezhm4n/launchlane/actions/runs/41012078637)
+باز هم در consent ساخت عرض320 شکست خورد؛ سایر مراحل پیشین موفق بودند. کنترل بومی
+بدون محدودیت عرض در تست مستقل متن200٪، عرض515px در parent258px گرفت. پس از محدودکردن
+عرض و ارث‌بری فونت، snapshot `mobile-agent-r2` روی Windows/Node24.18.0 با build،
+typecheck، lint صفرerror/48warning/22info، guided55 در پنج عرض با axe و HTTP49/49
+گذشت؛ تصویر320 با متن بزرگ بررسی شد. oracleهای قبلی حفظ‌اند و failure فقط tag/id/class
+و مختصات حداکثر12عنصر را ثبت می‌کند، نه متن/مقدار. build محلیِ قطع‌شده نتیجه محسوب نشد؛
+اجرای نهایی مستقل است. آماده‌سازی Docker/Linux پیش از app test به403 منطقه‌ای دانلود
+مرورگر رسید و شاهد محصول نیست. نتیجهٔ Linux از Actions همان commit خوانده می‌شود.
+
 پیگیری responsive: [اجرای Linux پایهٔ b2c17fa](https://github.com/Pezhm4n/launchlane/actions/runs/41010431767)
 domain820/820، build و HTTP49/49 را گذراند ولی در کارت تأیید ساختِ دارای env دچار
 overflow شد. نام محیطی بلند، همین نقص ذاتیِ اندازهٔ grid/متن بدون شکست را روی Windows

@@ -1906,6 +1906,12 @@ dialog[open]::backdrop {
 .agent-repair > p:not(.hint) {
   color: var(--color-ink);
 }
+.agent-repair select {
+  font: inherit;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  min-inline-size: 0;
+}
 .publication-steps {
   display: flex;
   flex-wrap: wrap;
