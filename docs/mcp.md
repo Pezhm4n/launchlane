@@ -57,22 +57,22 @@ Codex، در config TOML موجود:
 ```toml
 [mcp_servers.launchlane]
 command = "node"
-args = ["I:/Computer/dev/starcoach/launchlane/scripts/mcp-stdio.mjs"]
+args = ["/absolute/path/to/launchlane/scripts/mcp-stdio.mjs"]
 [mcp_servers.launchlane.env]
-LAUNCHLANE_MCP_ACCESS_FILE = "I:/Computer/dev/starcoach/launchlane/.local/mcp-access.json"
+LAUNCHLANE_MCP_ACCESS_FILE = "/absolute/path/to/launchlane/.local/mcp-access.json"
 LAUNCHLANE_MCP_ORIGIN = "http://127.0.0.1:3000"
 ```
 
 Claude Code، entry در `mcpServers` پیکربندی موردنظر:
 
 ```json
-{"mcpServers":{"launchlane":{"type":"stdio","command":"node","args":["I:/Computer/dev/starcoach/launchlane/scripts/mcp-stdio.mjs"],"env":{"LAUNCHLANE_MCP_ACCESS_FILE":"I:/Computer/dev/starcoach/launchlane/.local/mcp-access.json","LAUNCHLANE_MCP_ORIGIN":"http://127.0.0.1:3000"}}}}
+{"mcpServers":{"launchlane":{"type":"stdio","command":"node","args":["/absolute/path/to/launchlane/scripts/mcp-stdio.mjs"],"env":{"LAUNCHLANE_MCP_ACCESS_FILE":"/absolute/path/to/launchlane/.local/mcp-access.json","LAUNCHLANE_MCP_ORIGIN":"http://127.0.0.1:3000"}}}}
 ```
 
 OpenCode، entry در `mcp` پیکربندی موجود:
 
 ```json
-{"mcp":{"launchlane":{"type":"local","command":["node","I:/Computer/dev/starcoach/launchlane/scripts/mcp-stdio.mjs"],"environment":{"LAUNCHLANE_MCP_ACCESS_FILE":"I:/Computer/dev/starcoach/launchlane/.local/mcp-access.json","LAUNCHLANE_MCP_ORIGIN":"http://127.0.0.1:3000"},"enabled":true,"timeout":150000}}}
+{"mcp":{"launchlane":{"type":"local","command":["node","/absolute/path/to/launchlane/scripts/mcp-stdio.mjs"],"environment":{"LAUNCHLANE_MCP_ACCESS_FILE":"/absolute/path/to/launchlane/.local/mcp-access.json","LAUNCHLANE_MCP_ORIGIN":"http://127.0.0.1:3000"},"enabled":true,"timeout":150000}}}
 ```
 
 شکل configها با [مستند Codex](https://learn.chatgpt.com/docs/extend/mcp?surface=cli)، [مستند Claude Code](https://code.claude.com/docs/en/mcp) و [مستند OpenCode](https://opencode.ai/docs/mcp-servers/) تطبیق داده شده است؛ اجرای زنده دو میزبان آخر هنوز UNCONFIRMED است. برای Codex، CLI0.163.0-alpha.11.2 و app-server واقعی با snippet تولیدشده آزموده شدند. استفاده مستقیم HTTP/HTTPS در `/api/mcp` نیز SDK-tested است؛ header احراز هویت آن bearer همین token محدود است. stdio توصیهٔ این نصب است تا token در config میزبان کپی نشود.

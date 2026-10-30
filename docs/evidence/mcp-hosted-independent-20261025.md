@@ -13,7 +13,7 @@
 
 ## هویت نسخهٔ سنجیده‌شده
 
-نسخهٔ plain export مستقل در `C:/Users/Ariike.ir/.codex/tmp/launchlane-mcp-20261025-b4ca5fd3` ساخته شد؛ branch یا Git worktree نیست. `.env.local`، state، ledger، آرشیوهای خصوصی و Git وارد snapshot نشدند. وابستگی‌های نصب‌شده کپی شدند؛ دانلود یا تغییر lockfile انجام نشد.
+نسخهٔ plain export مستقل در `<private-isolated-export>` ساخته شد؛ branch یا Git worktree نیست. `.env.local`، state، ledger، آرشیوهای خصوصی و Git وارد snapshot نشدند. وابستگی‌های نصب‌شده کپی شدند؛ دانلود یا تغییر lockfile انجام نشد.
 
 Build ID نهایی `s_u4vkof8dQ1eNBPH0-e4` است. hashهای SHA-256 دوازده فایل کد/آزمون این برش در نسخهٔ آزمون و working tree یکسان‌اند؛ digest فهرست `path:hash` برابر `6dacc6db69984f11a59b7a8a727c459b45f6916e6419fec1e66808979fcb1ad8` است. manifest و logهای موفق و ناموفق در مسیر خصوصی `.local/mcp-20261025/` نگه‌داری شدند؛ دادهٔ credential در Git نیست.
 

@@ -1,0 +1,27 @@
+name: Bug report
+description: Report a reproducible problem with sanitized evidence.
+body:
+  - type: markdown
+    attributes:
+      value: "English and فارسی are welcome. Never include secrets, private source, or raw account data. Use SECURITY.md for sensitive reports."
+  - type: input
+    id: revision
+    attributes:
+      label: Revision and environment
+      description: Commit, OS, Node version, and browser or runtime involved.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Use a minimal public example. State whether providers were real or synthetic.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Expected and observed behavior
+      description: Include sanitized error codes and relevant scope without credentials or private identifiers.
+    validations:
+      required: true

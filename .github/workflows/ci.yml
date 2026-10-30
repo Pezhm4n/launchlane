@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      LAUNCHLANE_ENABLE_MUTATIONS: 'false'
+      LAUNCHLANE_ENABLE_LIVE_MODEL: 'false'
+      LAUNCHLANE_ENABLE_LIVE_LIARA: 'false'
+      LAUNCHLANE_ENABLE_DATABASE_DATA_READS: 'false'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 24.18.0
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test:domain
+      - run: npm run build -- --webpack
+      - run: npm run test:http
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/test-guided-browser.mjs

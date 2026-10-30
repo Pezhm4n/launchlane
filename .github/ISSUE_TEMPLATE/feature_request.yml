@@ -1,0 +1,21 @@
+name: Feature request
+description: Describe a user need and a verifiable outcome.
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: User problem
+      description: What project or workflow is blocked? Avoid private source and credentials.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired result and acceptance
+      description: What observable behavior would resolve it? Mention runtime, components, resources, and meaningful checks when relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives or constraints

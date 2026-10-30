@@ -1,5 +1,12 @@
 # معیارهای پذیرش محصول
 
+افزودهٔ AC15/16، ۲۰۲۶-۱۰-۳۰: ورودی فارسی/انگلیسی مخزن، setup و gateهای نمونه، notices،
+فایل‌های مشارکت/امنیت و CI بدون credential آماده شدند. ساختار و لینک‌ها، preview
+محلی۸حالت، Mermaid، YAML و setup موقت سنجیده شدند؛ این preview، رندر خود GitHub نیست.
+CI میزبان تا push و اجرای واقعی تأیید نشده است؛ [چک‌لیست انتشار](publishing.md)
+سند فونتِ تأییدشدهٔ مالک و تنظیمات حساب را باز نگه می‌دارد. این برش مستندات، پذیرش
+runtime، امنیت جامع، محصول کامل یا انتشار زندهٔ تازه نیست.
+
 افزودهٔ AC24/26/32/34، ۲۰۲۶-۱۰-۲۹: [بررسی مستقل PostgreSQL همان انتشار](evidence/postgres-data-observation.md) اتصال، schema و معیارهای دادهٔ بستهٔ آزموده‌شده را از host فقط‌خواندنی می‌سنجد؛ readback منبع/env/release و محدودهٔ خصوصیِ سرور شرط ثبت شاهد است. snapshot نهایی r8 با domain820، HTTP49، UI داده10/guided54، type/lint/build و3case واقعی Docker/SQL گذشت. شکست و اجرای دوبارهٔ runtime روی همان بایت‌ها جدا ثبت‌اند. migration یا نوشتن برنامه یا ماندگاری پس از restart پذیرفته نمی‌شود و mission v4 همچنان partial است. شواهد synthetic، Docker واقعی و provider read زنده تفکیک شده‌اند.
 
 افزودهٔ AC24/26/32/34، ۲۰۲۶-۱۰-۲۹: پایان‌بندی میزبان برای artifact دادهٔ v4، حتی پس از release/HTTP/API موفق، partial می‌ماند. receipt محلی و provenance انتشار باید همان actor/job/source/build/output باشند؛ این بررسی، receipt دادهٔ مقصد نمی‌سازد. [شاهد مستقل](evidence/data-tested-artifact.md#publication-outcome-follow-up). اجرای migration و دادهٔ واقعی مقصد همچنان برای پذیرش کامل لازم‌اند.
