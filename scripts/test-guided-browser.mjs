@@ -35,7 +35,7 @@ async function modelRequests() {
 async function layout(width, name, height = 844) {
   await page.setViewportSize({ width, height });
   await page.evaluate(async () => { await document.fonts.ready; window.scrollTo(0, 0); });
-  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${name}: overflow`);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${name}: overflow at ${width}px`);
   const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
   assert.deepEqual(axe.violations.map(item => ({ id: item.id, nodes: item.nodes.map(node => node.target) })), [], name);
   results.push({ width, height, name, axeViolations: 0, overflow: false });
@@ -159,7 +159,7 @@ try {
   await writeFile(join(server.workspace, "environment-service/package.json"), JSON.stringify({ name: "environment-service", version: "1.0.0", type: "module", engines: { node: "22.x" }, scripts: { build: "node build.mjs", start: "node server.mjs" } }));
   await writeFile(join(server.workspace, "environment-service/package-lock.json"), JSON.stringify({ name: "environment-service", version: "1.0.0", lockfileVersion: 3, packages: { "": { name: "environment-service", version: "1.0.0", engines: { node: "22.x" } } } }));
   await writeFile(join(server.workspace, "environment-service/build.mjs"), "console.log('build fixture');");
-  await writeFile(join(server.workspace, "environment-service/server.mjs"), "import http from 'node:http'; const ready=process.env.SERVICE_ACCESS; const publicApi=process.env.NEXT_PUBLIC_WEB_API; http.createServer((_req,res)=>res.end(ready?'ready':'missing')).listen(3000);");
+  await writeFile(join(server.workspace, "environment-service/server.mjs"), "import http from 'node:http'; const ready=process.env.SERVICE_ACCESS; const publicApi=process.env.NEXT_PUBLIC_WEB_API; const synchronizationApi=process.env.NEXT_PUBLIC_ACCOUNT_SYNCHRONIZATION_SERVICE_API; http.createServer((_req,res)=>res.end(ready?'ready':'missing')).listen(3000);");
   const envFlow = await page.evaluate(async () => {
     const workspace = await (await fetch("/api/workspace")).json();
     const response = await fetch("/api/project-flows", { method: "POST", headers: { "content-type": "application/json", "x-csrf-token": workspace.session.csrfToken }, body: JSON.stringify({ operation: "prepare", selection: { kind: "local", directory: "environment-service" } }) });
@@ -183,6 +183,8 @@ try {
   async function fillPublicEnvironment() {
     await envPanel.getByLabel("NEXT_PUBLIC_WEB_API", { exact: true }).fill("https://public.example.test");
     await envPanel.getByRole("checkbox", { name: "عمومی بودن NEXT_PUBLIC_WEB_API", exact: true }).check();
+    await envPanel.getByLabel("NEXT_PUBLIC_ACCOUNT_SYNCHRONIZATION_SERVICE_API", { exact: true }).fill("https://sync.example.test");
+    await envPanel.getByRole("checkbox", { name: "عمومی بودن NEXT_PUBLIC_ACCOUNT_SYNCHRONIZATION_SERVICE_API", exact: true }).check();
   }
   await envPanel.getByLabel("NEXT_PUBLIC_WEB_API", { exact: true }).fill("https://public.example.test");
   assert.equal(await envPanel.getByRole("button", { name: "مرور تغییر اطلاعات برنامه", exact: true }).isDisabled(), true);
@@ -233,7 +235,9 @@ try {
   envState.repairDecision = { sessionId: store.db.prepare("SELECT id FROM sessions WHERE actor_id=?").get(actor).id, expiresAt: Date.now() + 600000, consumed: false }; repo.save(actor, envState);
   await page.reload(); await journey.getByRole("button", { name: "تأیید ساخت و بررسی برنامه", exact: true }).waitFor();
   await journey.getByText(/اجازهٔ استفاده از اطلاعات امن این کلیدها/).waitFor();
+  assert.deepEqual((await journey.locator(".agent-repair .note bdi").allTextContents()).map(key => key.trim()).sort(), ["NEXT_PUBLIC_ACCOUNT_SYNCHRONIZATION_SERVICE_API", "NEXT_PUBLIC_WEB_API", "SERVICE_ACCESS"]);
   for (const width of [320, 360, 390, 768, 1280]) await layout(width, "environment-bound-build-consent");
+  await page.setViewportSize({ width: 320, height: 844 }); await page.screenshot({ path: join(output, "environment-build-decision-320.png"), fullPage: true });
   await page.setViewportSize({ width: 360, height: 844 }); await page.evaluate(() => scrollTo(0, 0)); await page.screenshot({ path: join(output, "environment-build-decision-360.png"), fullPage: true });
   await journey.getByRole("button", { name: "رد آماده‌سازی", exact: true }).click();
   await journey.locator(".badge").filter({ hasText: "منتظر پاسخ شما" }).waitFor(); assert.deepEqual(repo.get(actor, envRun.id).repair.containerIds, []);

@@ -6,6 +6,15 @@
 
 ## آماده‌سازی مستندات مخزن؛ ۲۰۲۶-۱۰-۳۰
 
+پیگیری responsive: [اجرای Linux پایهٔ b2c17fa](https://github.com/Pezhm4n/launchlane/actions/runs/41010431767)
+domain820/820، build و HTTP49/49 را گذراند ولی در کارت تأیید ساختِ دارای env دچار
+overflow شد. نام محیطی بلند، همین نقص ذاتیِ اندازهٔ grid/متن بدون شکست را روی Windows
+بازتولید کرد. پس از اصلاح CSS و تقویت fixture با حفظ نام‌های کوتاه قبلی، snapshot
+`mobile-env-r1` بر پایهٔ b2c17fa، build/typecheck/lint بدون error، guided54 با axe و
+overflow در320/360/390/768/1280 و HTTP49/49 را گذراند. تصاویر واقعی320 مرور تنظیمات
+و رضایت ساخت بررسی شدند؛ مدل/provider مصنوعی‌اند. این نتیجهٔ محلی جای نتیجهٔ اجرای
+Actions همان commit را نمی‌گیرد؛ منطق approval، داده و ابزارها تغییر نکرد.
+
 پیگیری CI پایهٔ `37cd6af`: اجرای GitHub نشان داد suite HTTP به Chromium نیاز دارد،
 اما workflow نصب آن را پس از همان suite قرار داده بود. نصب به پس از `npm ci` منتقل
 شد. روی Windows/Node24.18.0، build ایزولهٔ موجود با۵۵۱فایل اجرایی/test/config و

@@ -1,5 +1,19 @@
 # برنامه اجرایی Launchlane
 
+## AC15/22/24 — شکست واقعی Linux در کارت کلیدهای محیطی؛ ۲۰۲۶-۱۰-۳۰
+
+اجرای واقعی Actions روی `b2c17fa`، domain820، build و HTTP49 را گذراند؛ guided در
+`environment-bound-build-consent` به overflow رسید. fixture با نام بلندِ معتبر این
+نقص را روی Windows نیز در مرور امن تنظیمات بازتولید کرد: ستون حدود397.7px در viewport320.
+ستون grid این فرم به `minmax(0,1fr)` محدود و شکستن خط نام‌ها/هشدارها فعال شد؛ نام یا
+مقدار/authority عوض یا پنهان نشده است. regression، کلیدهای قبلی را نگه می‌دارد و یک
+کلید عمومی بلند اضافه می‌کند؛ oracle overflow/axe و timeout قبلی حفظ‌اند و فهرست
+کامل کلیدهای تصمیم کنترل می‌شود. candidate مستقل `mobile-env-r1` بر پایهٔ `b2c17fa`
+با build/typecheck/lint صفرerror/48warning/22info، guided54 در پنج عرض و HTTP49/49
+گذشت؛ screenshot320 مرور/تصمیم نیز دیده شد. مدل/provider مصنوعی و مرورگر/سرور واقعی
+هستند. نتیجهٔ Linux باید از Actions همان commit خوانده شود؛ تغییر runtime/backend،
+هزینهٔ مدل، SQL یا عملیات لیارا در این برش نیست.
+
 ## AC15 — پیش‌نیاز مرورگر در CI و توقف PRهای معمول نسخه‌ها؛ ۲۰۲۶-۱۰-۳۰
 
 علت شکست CI پایهٔ `37cd6af`، نصب Chromium پس از `test:http` بود؛ خود suite در مسیر

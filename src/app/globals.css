@@ -749,6 +749,7 @@ dd {
   border-radius: var(--radius-sm);
 }
 .note {
+  overflow-wrap: anywhere;
   background: var(--color-warning-soft);
   color: var(--color-warning);
   border-radius: var(--radius-md);
