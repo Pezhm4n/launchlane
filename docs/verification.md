@@ -1,5 +1,12 @@
 # شواهد اعتبارسنجی Launchlane
 
+## همگامی فوکوس در CI؛ ۲۰۲۶-۱۱-۰۱
+
+[اجرای05eea02](https://github.com/Pezhm4n/launchlane/actions/runs/41317995225) در آخرین
+runner روی assertion فوریِ focus شکست خورد؛ مراحل قبلی موفق بودند. تست به وضعیت
+واقعی بازگشت focus همگام شد؛ app و timeout و assertion ثابت‌اند. lint فایل و سه
+responsive47 محلی با app/build همان r5 گذشتند؛ [تفکیک شواهد](evidence/responsive-ui.md#linux-synchronization-follow-up).
+
 ## پیگیری تم مشترک؛ ۲۰۲۶-۱۱-۰۱
 
 [توکن‌های رابط](evidence/responsive-ui.md#shared-theme-follow-up): r5 روی runtime

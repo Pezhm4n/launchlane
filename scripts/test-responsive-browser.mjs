@@ -110,6 +110,9 @@ try {
     await viewport(320, 540); await keyboard(`${item.name}-keyboard`, 16, true);
     await page.keyboard.press("Escape");
     await page.getByRole("dialog", { name: item.title, exact: true }).waitFor({ state: "detached" });
+    // React unmount and the host's scheduled focus restoration are distinct.
+    // Wait for the actual target, preserving the assertion and default timeout.
+    await page.waitForFunction(node => node === document.activeElement, await page.getByRole("button", { name: item.trigger, exact: true }).elementHandle());
     assert.equal(await page.getByRole("button", { name: item.trigger, exact: true }).evaluate(node => node === document.activeElement), true, `${item.name}: return focus`);
   }
   // The mobile account menu and desktop header lead to the same cancellable

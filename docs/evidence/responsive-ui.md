@@ -122,3 +122,19 @@ All 561 executable/test/config/fixture/workflow inputs matched the frozen r5
 snapshot. Its LF-normalized fingerprint is `867b70d5f337ccaafb49d7d116dd9229e2d8d9c08e1cff81b0c72909921dd069`.
 Before/after desktop/mobile/200%/short-window screenshots were visually inspected.
 The final GitHub workflow checks the pushed revision independently.
+
+## Linux synchronization follow-up
+
+[Actions 41317995225](https://github.com/Pezhm4n/launchlane/actions/runs/41317995225)
+on `05eea02` passed lint/typecheck, domain820, build, HTTP49 and the first thirteen
+core browser runners. The new responsive runner failed its immediate library
+return-focus assertion. `Workbench` intentionally schedules that focus in
+`requestAnimationFrame`; modal removal alone does not establish focus completion.
+
+The harness now waits for the exact trigger to become `document.activeElement`,
+then retains its original assertion and default timeout. No application code,
+target, accessibility rule or timeout changed. Local r6 reused the byte-identical
+r5 application/build inputs and compiled output; only this test harness differs.
+Changed-file lint and three consecutive 47-state responsive runs passed with no
+failures or actual model/provider work. This is not a fresh local build or repeat
+of domain/HTTP. The next pushed revision receives the full Linux workflow again.
