@@ -44,13 +44,18 @@ await context.route("**/*", route => {
 const page = await context.newPage(); page.on("pageerror", error => errors.push(error.message));
 const chat = page.getByRole("dialog", { name: "دستیار هوشمند", exact: true }), input = chat.getByRole("textbox"), transcript = chat.getByRole("log");
 const send = chat.getByRole("button", { name: "ارسال درخواست", exact: true });
+async function waitForAssistantViewport() {
+  await page.waitForFunction(() => {
+    const panel = document.querySelector(".assistant-float");
+    return panel?.open && panel.matches(":modal") === (innerWidth < 768) &&
+      Math.abs(parseFloat(getComputedStyle(panel).getPropertyValue("--assistant-viewport")) - visualViewport.height) < 1 &&
+      (innerWidth >= 768 || Math.abs(panel.getBoundingClientRect().height - visualViewport.height) < 2);
+  });
+}
 async function audit(name, { width = 375, height = 667, zoom = false, keyboard = null } = {}) {
   await page.setViewportSize({ width, height });
   await page.evaluate(async ({ zoom, keyboard }) => { document.documentElement.style.fontSize = zoom ? "200%" : ""; window.chatTestViewport(keyboard); await document.fonts.ready; }, { zoom, keyboard });
-  await page.waitForFunction(() => {
-    const panel = document.querySelector(".assistant-float");
-    return Math.abs(parseFloat(getComputedStyle(panel).getPropertyValue("--assistant-viewport")) - visualViewport.height) < 1 && (innerWidth >= 768 || Math.abs(panel.getBoundingClientRect().height - visualViewport.height) < 2);
-  });
+  await waitForAssistantViewport();
   const geometry = await chat.evaluate(node => {
     const rect = element => { const b = element.getBoundingClientRect(); return { x: b.x, y: b.y, width: b.width, height: b.height, right: b.right, bottom: b.bottom }; };
     const log = node.querySelector('[role="log"]'), field = node.querySelector("textarea"), form = node.querySelector("form"), button = node.querySelector('button[type="submit"]'), text = node.querySelector(".agent-answer .rich-text");
@@ -107,6 +112,7 @@ try {
   await input.fill("");
   await chat.getByRole("button", { name: "کپی پاسخ", exact: true }).first().click(); assert.equal((await page.evaluate(() => navigator.clipboard.readText())).replaceAll("\r\n", "\n"), answer);
   await page.setViewportSize({ width: 1440, height: 800 });
+  await waitForAssistantViewport();
   await chat.getByRole("button", { name: "بزرگ‌کردن گفتگو", exact: true }).waitFor();
   const separation = await page.evaluate(() => ({ panel: document.querySelector(".assistant-float").getBoundingClientRect().right, content: document.querySelector(".app-main").getBoundingClientRect().left }));
   assert.ok(separation.content >= separation.panel, JSON.stringify(separation));
@@ -127,6 +133,7 @@ try {
   await page.mouse.move(1400, 740); await page.mouse.wheel(0, 450); await page.waitForFunction(() => scrollY > 0);
   await page.locator("main").evaluate((node, value) => { node.style.minHeight = value; scrollTo(0, 0); }, priorMinHeight);
   await page.setViewportSize({ width: 375, height: 667 });
+  await waitForAssistantViewport();
   await chat.getByRole("button", { name: "گفت‌وگوی تازه", exact: true }).click(); run = null; failOnce = true;
   await input.fill("آزمون خطا و تلاش مجدد"); await send.click(); await chat.getByRole("alert").waitFor();
   const failedKey = registrations.at(-1).requestKey;

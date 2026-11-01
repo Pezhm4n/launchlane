@@ -1,5 +1,12 @@
 # شواهد اعتبارسنجی Launchlane
 
+## آماده‌بودن دیالوگ پس از تغییر عرض؛ ۲۰۲۶-۱۱-۰۱
+
+[اجرای19a4388](https://github.com/Pezhm4n/launchlane/actions/runs/41319062935) در assertion
+حالت چت پس از resize شکست خورد. probe آماده‌بودن mode و viewport را انتظار می‌کشد؛
+assertion و timeout ثابت‌اند. r7 روی app/build همان r5، lint دو فایل، سه chat13 و
+responsive47 را گذراند؛ اعضای۱۴runner ثابت‌اند و دو probe مرتبط ابتدا اجرا می‌شوند.
+
 ## همگامی فوکوس در CI؛ ۲۰۲۶-۱۱-۰۱
 
 [اجرای05eea02](https://github.com/Pezhm4n/launchlane/actions/runs/41317995225) در آخرین

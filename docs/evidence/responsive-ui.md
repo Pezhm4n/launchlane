@@ -138,3 +138,14 @@ r5 application/build inputs and compiled output; only this test harness differs.
 Changed-file lint and three consecutive 47-state responsive runs passed with no
 failures or actual model/provider work. This is not a fresh local build or repeat
 of domain/HTTP. The next pushed revision receives the full Linux workflow again.
+
+A subsequent [Linux run on 19a4388](https://github.com/Pezhm4n/launchlane/actions/runs/41319062935)
+passed domain820/HTTP49/build and ten core browser runners, then exposed the same
+readiness class in the chat probe: the desktop CSS expand control was visible
+before the media-query handler had changed the native mobile modal to non-modal.
+Chat audits and explicit breakpoint changes now wait for both the actual dialog
+mode and visual-viewport geometry. The original mode assertions remain intact.
+Local r7 passed changed-file lint, three chat13 runs and responsive47 using the
+unchanged r5 compiled application. Only harnesses and core-command order change;
+the fourteen suite members, assertions and timeouts are retained. Responsive/chat
+now run first so a new readiness failure is reported earlier in the core suite.

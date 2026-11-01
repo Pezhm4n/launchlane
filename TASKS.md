@@ -1,5 +1,14 @@
 # برنامه اجرایی Launchlane
 
+## AC15/24 — همگامی حالت native دیالوگ هنگام resize؛ ۲۰۲۶-۱۱-۰۱
+
+Actions نسخهٔ19a4388 پس از domain820/HTTP49/build و۱۰runner، در assertion فوری حالت
+چت پس از resize شکست خورد. آماده‌شدن CSS با پایان handler حالت modal یکی نیست.
+probe اکنون حالت native و هندسهٔ visual viewport را انتظار می‌کشد؛ assertion/timeout
+و کد محصول ثابت‌اند. r7 با app/build همان r5، lint دو فایل، سه chat13 و responsive47
+را گذراند. اعضای۱۴تایی core ثابت‌اند؛ responsive/chat برای بازخورد زودتر ابتدا هستند.
+CI کامل روی commit جدید پیگیری می‌شود؛ این برش build/domain تازهٔ محلی ندارد.
+
 ## AC15/24 — همگامی تست بازگشت focus روی Linux؛ ۲۰۲۶-۱۱-۰۱
 
 Actions نسخهٔ05eea02، domain820/HTTP49/build و۱۳runner اصلی را گذراند، اما تست جدید
