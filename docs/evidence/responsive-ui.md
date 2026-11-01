@@ -84,9 +84,9 @@ pass. The original 295 source files of the baseline snapshot were separately
 matched against `15f2912` before comparison. Model/provider transports were
 synthetic, browser/server actual, model spending and real cloud writes zero.
 
-A visual follow-up found five referenced but undeclared theme variables. Their
-shared declaration and focused rendering regression are the next bounded slice;
-this first matrix does not claim those surfaces are already corrected.
+The shared-token follow-up below is a later candidate with its own focused checks.
+The 27-runner/domain/HTTP matrix above belongs to `259fe85`; it is not relabeled
+as a newly repeated full matrix for the token patch.
 Private logs, source hashes and before/after screenshots live under
 `.local/ui-responsive-20261101/`; disposable states and archives are not committed.
 
@@ -96,3 +96,29 @@ The normal `test:browser` command includes it, and CI now runs the whole core
 browser command instead of only the guided suite. Chromium is installed before
 HTTP/browser execution. Real mobile devices and browser engines other than
 Chromium remain outside this evidence.
+
+## Shared-theme follow-up
+
+The five missing variables were `--color-field-hover`, `--radius-full`,
+`--radius-xl`, `--shadow-sm` and `--shadow-surface`. Undefined variables invalidated
+their entire declarations: the project summary lost its rounded corners and the
+selected plan lost its composed shadow/ring. All five now live in the existing
+theme, using its palette and related tokens. No second theme or dependency exists.
+
+`test:responsive` checks that every direct CSS variable reference has a declaration
+or explicit fallback, then checks the actual computed project radius/shadow. The
+plan test verifies the selected surface and actual hover background change. The
+static check is a declaration contract; it does not prove every possible selector
+cascade or browser engine. Actual Chromium rendering remains necessary.
+
+Candidate `candidate-r5` carries the `259fe85` runtime plus this token patch. On
+Windows/Node24.18.0 and the same pinned dependencies it passed lint (0 errors,
+48 warnings, 22 infos), typecheck and production Webpack build, then responsive47,
+plans14, chat13, guided57 and hosted sign-in10. These five affected suites were
+rerun on r5; domain/HTTP and the other browser suites were not repeated locally
+for this CSS-only follow-up. No real model/provider calls were made.
+
+All 561 executable/test/config/fixture/workflow inputs matched the frozen r5
+snapshot. Its LF-normalized fingerprint is `867b70d5f337ccaafb49d7d116dd9229e2d8d9c08e1cff81b0c72909921dd069`.
+Before/after desktop/mobile/200%/short-window screenshots were visually inspected.
+The final GitHub workflow checks the pushed revision independently.

@@ -1,5 +1,13 @@
 # شواهد اعتبارسنجی Launchlane
 
+## پیگیری تم مشترک؛ ۲۰۲۶-۱۱-۰۱
+
+[توکن‌های رابط](evidence/responsive-ui.md#shared-theme-follow-up): r5 روی runtime
+259fe85 با پنج تعریف CSS و guard ارجاع‌ها/سطح محاسبه‌شده/hover واقعی، typecheck/build،
+lint صفرerror/48warning/22info و responsive47/plans14/chat13/guided57/login10 را
+گذرانده است. ماتریس کامل r4 زیر به این revision تعمیم داده نمی‌شود. هزینهٔ مدل و
+عملیات واقعی provider صفر؛ نتیجهٔ Linux به workflow همان HEAD متصل خواهد شد.
+
 ## پایداری رابط و responsive؛ ۲۰۲۶-۱۱-۰۱
 
 [شاهد این برش](evidence/responsive-ui.md): candidate مستقل r4 بر پایهٔ15f2912،

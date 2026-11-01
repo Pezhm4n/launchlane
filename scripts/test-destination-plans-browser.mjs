@@ -48,6 +48,12 @@ try {
   if (!baseline) {
     const starter = card.locator("label").filter({ has: page.getByRole("radio", { name: /^starter/ }) });
     await starter.getByText("حدود ۱۳ هزار تومن", { exact: true }).waitFor();
+    assert.notEqual(await starter.evaluate(node => getComputedStyle(node).boxShadow), "none", "Selected plan has its declared focus/selection surface");
+    const alternative = card.locator("label").filter({ has: page.getByRole("radio", { name: /^growth/ }) });
+    const resting = await alternative.evaluate(node => getComputedStyle(node).backgroundColor);
+    await alternative.hover();
+    await page.waitForFunction(({ resting }) => [...document.querySelectorAll("label")].some(node => node.matches(":hover") && node.querySelector('input[aria-label^="growth"]') && getComputedStyle(node).backgroundColor !== resting), { resting });
+    await page.mouse.move(0, 0);
     await starter.getByText("حدود ۳۸۹ هزار تومن", { exact: true }).waitFor();
     assert.doesNotMatch(await starter.getByText("حدود پانصد و چهل تومن", { exact: true }).evaluate(node => getComputedStyle(node).fontFamily), /Consolas|monospace/i);
     await card.getByText("مبلغ دقیق پلن‌ها", { exact: true }).click();

@@ -1,10 +1,18 @@
 import assert from "node:assert/strict";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { chromium } from "playwright";
 import AxeBuilder from "@axe-core/playwright";
 import { startTestServer } from "./test-server.mjs";
 import { reviewProject } from "./browser-project.mjs";
+
+// Every CSS reference needs a declaration or an explicit fallback. Runtime
+// variables with fallbacks remain valid; selectors/contrast are checked in Chromium.
+const styleFiles = (await readdir("src", { recursive: true })).filter(path => path.endsWith(".css"));
+const styles = await Promise.all(styleFiles.map(async path => ({ path, source: (await readFile(join("src", path), "utf8")).replace(/\/\*[\s\S]*?\*\//g, "") })));
+const declarations = new Set(styles.flatMap(row => [...row.source.matchAll(/(--[\w-]+)\s*:/g)].map(match => match[1])));
+const unresolved = styles.flatMap(row => [...row.source.matchAll(/var\(\s*(--[\w-]+)\s*\)/g)].filter(match => !declarations.has(match[1])).map(match => ({ path: row.path, token: match[1] })));
+assert.deepEqual(unresolved, [], "CSS variables must have declarations or explicit fallbacks");
 
 const server = await startTestServer(), browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ locale: "fa-IR", reducedMotion: "reduce" });
@@ -30,12 +38,15 @@ async function scan(name, width, { height = 740, zoom = false, modal = false } =
   await page.evaluate(() => scrollTo(0, 0));
   const geometry = await page.evaluate(() => {
     const rect = node => { const r = node.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height }; };
-    const dialog = document.querySelector("dialog:modal");
+    const dialog = document.querySelector("dialog:modal"), project = document.querySelector(".project-summary");
+    const projectStyle = project ? getComputedStyle(project) : null;
     return { pageWidth: document.documentElement.scrollWidth, viewport: innerWidth,
+      projectStyle: projectStyle ? { radius: parseFloat(projectStyle.borderTopLeftRadius), shadow: projectStyle.boxShadow } : null,
       header: rect(document.querySelector(".app-top")), dialog: dialog ? { ...rect(dialog), overflow: dialog.scrollWidth > dialog.clientWidth + 1 } : null };
   });
   const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
   const issues = axe.violations.map(row => ({ id: row.id, targets: row.nodes.map(node => node.target) }));
+  if (name === "selected" && (!geometry.projectStyle || geometry.projectStyle.radius <= 0 || geometry.projectStyle.shadow === "none")) issues.push({ id: "project-surface-tokens" });
   if (geometry.pageWidth > geometry.viewport + 1) issues.push({ id: "page-overflow" });
   if (!modal && !zoom && width < 768 && geometry.header.height > 64) issues.push({ id: "header-wrap" });
   if (modal && (!geometry.dialog || geometry.dialog.top < -1 || geometry.dialog.bottom > height + 1 || geometry.dialog.overflow)) issues.push({ id: "dialog-bounds" });
