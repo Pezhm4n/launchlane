@@ -121,10 +121,11 @@ try {
   }); assert.ok(centered < 1, `Expanded conversation center differs by ${centered}px`);
   await page.screenshot({ path: join(output, "expanded-desktop.png") });
   await page.locator(".brand").focus(); assert.equal(await page.locator(".brand").evaluate(node => node === document.activeElement), true);
+  await chat.getByRole("button", { name: "بزرگ‌کردن گفتگو", exact: true }).waitFor();
+  assert.equal(await chat.getAttribute("data-expanded"), "false", "Returning to the workspace clears the expanded overlay without trapping desktop focus");
   const priorMinHeight = await page.locator("main").evaluate(node => { const value = node.style.minHeight; node.style.minHeight = "1800px"; return value; });
   await page.mouse.move(1400, 740); await page.mouse.wheel(0, 450); await page.waitForFunction(() => scrollY > 0);
   await page.locator("main").evaluate((node, value) => { node.style.minHeight = value; scrollTo(0, 0); }, priorMinHeight);
-  await chat.getByRole("button", { name: "کوچک‌کردن گفتگو", exact: true }).click();
   await page.setViewportSize({ width: 375, height: 667 });
   await chat.getByRole("button", { name: "گفت‌وگوی تازه", exact: true }).click(); run = null; failOnce = true;
   await input.fill("آزمون خطا و تلاش مجدد"); await send.click(); await chat.getByRole("alert").waitFor();

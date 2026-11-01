@@ -30,7 +30,7 @@ async function layout(width, label) {
     assert.ok(shell.hostWidth >= shell.contentWidth - 48, JSON.stringify(shell));
     assert.equal(shell.horizontalOverflow, false);
     for (const button of await dialog.getByRole("button", { name: /^(گفت‌وگو و راهنمایی|پیگیری انتشار و انتخاب پلن)$/ }).all())
-      assert.ok((await button.boundingBox()).height <= 120, "Mode controls must remain compact above the scrollable publication");
+      { const bounds = await button.boundingBox(); assert.ok(bounds.height >= 44 && bounds.height <= 120, "Mode controls remain touchable and compact above the scrollable publication"); }
   }
   const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
   assert.deepEqual(axe.violations.map(item => ({ id: item.id, nodes: item.nodes.map(node => node.target) })), [], label);
@@ -148,4 +148,8 @@ try {
   assert.deepEqual(errors, []); assert.deepEqual(external, []);
   await writeFile(join(output, "results.json"), JSON.stringify({ baseline, results, errors, external, providerWrites: 0, modelCalls: 0 }, null, 2));
   console.log(JSON.stringify({ states: results.length, output, baseline, providerWrites: 0, modelCalls: 0 }));
-} finally { fixture?.store.close(); await context.close(); await browser.close(); await server.close(); }
+} finally {
+  // Finish polling interceptors before closing their response context/store.
+  await page.unrouteAll({ behavior: "wait" });
+  await context.close(); await browser.close(); fixture?.store.close(); await server.close();
+}

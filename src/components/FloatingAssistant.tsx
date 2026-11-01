@@ -36,6 +36,15 @@ export function FloatingAssistant({ children, blocked, projectName, onOpenChange
     return () => media.removeEventListener("change", show);
   }, [open, blocked]);
   useEffect(() => {
+    if (!open || !expanded || blocked) return;
+    const returnToWorkspace = (event: FocusEvent) => {
+      const node = panel.current;
+      if (node?.open && !node.matches(":modal") && event.target instanceof Node && !node.contains(event.target)) setExpanded(false);
+    };
+    document.addEventListener("focusin", returnToWorkspace);
+    return () => document.removeEventListener("focusin", returnToWorkspace);
+  }, [open, expanded, blocked]);
+  useEffect(() => {
     const viewport = window.visualViewport;
     const resize = () => {
       panel.current?.style.setProperty("--assistant-viewport", `${viewport?.height ?? window.innerHeight}px`);

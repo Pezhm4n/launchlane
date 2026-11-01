@@ -243,6 +243,7 @@ try {
   assert.deepEqual((await journey.locator(".agent-repair .note bdi").allTextContents()).map(key => key.trim()).sort(), ["NEXT_PUBLIC_ACCOUNT_SYNCHRONIZATION_SERVICE_API", "NEXT_PUBLIC_WEB_API", "SERVICE_ACCESS"]);
   for (const width of [320, 360, 390, 768, 1280]) await layout(width, "environment-bound-build-consent");
   const codingAgentChoice = journey.getByLabel("اصلاح خطا با", { exact: true });
+  assert.ok((await codingAgentChoice.boundingBox()).height >= 44, "Agent selector has a full touch target");
   await codingAgentChoice.evaluate(node => { node.style.fontSize = "200%"; });
   await layout(320, "environment-build-agent-choice-large-text");
   await page.screenshot({ path: join(output, "environment-agent-choice-large-text-320.png"), fullPage: true });
@@ -269,6 +270,14 @@ try {
   assert.equal(await agentChoice.getByRole("button", { name: "بررسی برنامهٔ انتشار و اصلاح خودکار", exact: true }).isDisabled(), true);
   assert.equal(await program.getByRole("button", { name: "تأیید برنامه و شروع انتشار", exact: true }).isDisabled(), true);
   for (const width of [320, 360, 390, 768, 1280]) await layout(width, "external-agent-explicit-cost-consent");
+  const consentGeometry = await agentChoice.getByRole("checkbox").evaluateAll(nodes => nodes.map(node => ({ checkbox: node.getBoundingClientRect().width, label: node.closest("label").getBoundingClientRect().width, height: node.closest("label").getBoundingClientRect().height })));
+  assert.ok(consentGeometry.every(size => size.height >= 44 && size.checkbox < size.label / 2), "Consent uses a full clickable label and a compact checkbox");
+  await layout(320, "external-agent-consent-mobile");
+  await page.screenshot({ path: join(output, "external-agent-consent-320.png"), fullPage: true });
+  await page.evaluate(() => document.documentElement.style.fontSize = "200%");
+  await layout(320, "external-agent-consent-text-200");
+  await page.screenshot({ path: join(output, "external-agent-consent-200-320.png"), fullPage: true });
+  await page.evaluate(() => document.documentElement.style.fontSize = "");
   assert.equal(posts.length, beforeAgentDraft); assert.equal(await modelRequests(), modelBeforeAgentDraft);
   await agentChoice.getByRole("checkbox", { name: /مصرف اشتراک Codex با قیمت نامعلوم/ }).check();
   await agentChoice.getByRole("button", { name: "بررسی برنامهٔ انتشار و اصلاح خودکار", exact: true }).focus();

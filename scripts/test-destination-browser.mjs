@@ -41,7 +41,11 @@ try {
   const card = page.locator(".destination-card");
   await card.getByRole("heading", { name: "ساخت مقصد تازه", exact: true }).waitFor();
   await card.getByRole("button", { name: "تأیید هزینه و ساخت مقصد", exact: true }).waitFor();
-  assert.match(await card.textContent(), /تومان در ساعت/);
+  await card.getByText("برای هر ساعت", { exact: true }).first().waitFor();
+  await card.getByText("حدود پانصد و چهل تومن", { exact: true }).waitFor();
+  await card.getByText("مبلغ دقیق پلن‌ها", { exact: true }).click();
+  // Independent fixture: starter=500 + basic=40 toman/hour; 24/720 continuous hours.
+  await card.getByText("هر ساعت: ۵۴۰ تومان؛ ۲۴ ساعت: ۱۲٬۹۶۰ تومان؛ ۳۰ روز: ۳۸۸٬۸۰۰ تومان", { exact: true }).waitFor();
   assert.match(await card.textContent(), /هنوز اندازه‌گیری نشده/);
   for (const width of [360, 768, 1280]) await layout(width, "creation-proposal");
   await page.reload();

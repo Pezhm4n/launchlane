@@ -31,6 +31,13 @@ try {
   await mkdir(output, { recursive: true }); await page.goto(server.origin);
   await page.getByRole("heading", { name: "ورود با حساب لیارا", exact: true }).waitFor();
   for (const width of [280, 320, 390, 768, 1280]) await layout(width, "login");
+  await page.evaluate(() => document.documentElement.style.fontSize = "200%");
+  await layout(320, "login-text-200");
+  await page.evaluate(() => document.documentElement.style.fontSize = "");
+  await page.setViewportSize({ width: 320, height: 540 });
+  const reveal = page.getByRole("button", { name: "نمایش رمز عبور", exact: true });
+  const revealBounds = await reveal.boundingBox();
+  assert.ok(revealBounds.width >= 44 && revealBounds.height >= 44, "Password visibility has a full touch target");
   assert.equal(await page.getByText("کلید ورود محلی", { exact: true }).count(), 0); assert.equal((await page.content()).includes("operator-access.txt"), false);
   const pass = page.getByLabel("رمز عبور", { exact: true }); await pass.fill("visible-password-fixture");
   await page.getByRole("button", { name: "نمایش رمز عبور", exact: true }).click(); assert.equal(await pass.getAttribute("type"), "text");
@@ -52,7 +59,18 @@ try {
   await folder.getByRole("button", { name: "بررسی این پروژه", exact: true }).click(); await folder.waitFor({ state: "detached" });
   const aliceProject = await page.evaluate(async () => (await (await fetch("/api/project-flows")).json()).flow.id);
   await page.reload(); assert.equal(await page.evaluate(async () => (await (await fetch("/api/project-flows")).json()).flow.id), aliceProject);
-  await layout(1280, "signed-in-project"); await signOut();
+  await layout(1280, "signed-in-project");
+  await page.getByRole("button", { name: "خروج", exact: true }).click();
+  const signOutDialog = page.getByRole("dialog", { name: "خروج از میز کار", exact: true });
+  await signOutDialog.getByText("برای ادامه، دوباره با حساب لیارای خود وارد شوید.", { exact: true }).waitFor();
+  assert.doesNotMatch(await signOutDialog.textContent(), /کلید دسترسی محلی|روی این رایانه/);
+  await layout(280, "hosted-signout");
+  await signOutDialog.getByRole("button", { name: "انصراف", exact: true }).click();
+  await signOutDialog.waitFor({ state: "detached" });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.getByRole("button", { name: "خروج", exact: true }).click();
+  await signOutDialog.getByRole("button", { name: "بله، خارج شو", exact: true }).click();
+  await page.getByRole("heading", { name: "ورود با حساب لیارا", exact: true }).waitFor();
   await credentials("bob@example.test"); await page.getByRole("button", { name: "فضای باب", exact: true }).click();
   await page.getByRole("heading", { name: "کجا منتشر می‌کنید؟", exact: true }).waitFor({ state: "detached" });
   const isolation = await page.evaluate(async id => ({ current: (await (await fetch("/api/project-flows")).json()).flow, forbidden: (await fetch(`/api/project-flows?id=${id}`)).status,
