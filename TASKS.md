@@ -1,5 +1,11 @@
 # برنامه اجرایی Launchlane
 
+## Vue SFC compiler and explicit output — 2026-11-02
+
+AC19/24/26/28: close the Vite `--outDir=` source-selection defect in the shared Agent component path; preserve the frozen root build and original tests. Add actual locked Vue/plugin compiler, source-test/compiler failures, exact archive selection, Agent publication proposal and fresh Docker/Chromium reactivity/route/reload. [Evidence and limits](docs/evidence/vue-compiled-component.md). This is a controlled Vue component acceptance step; full14-family, raw corpus, native cloud and data remain executable obligations.
+
+Final runtime `f5d9b1e0`: Vue3/3, focused domain8/8, full domain811/811, HTTP48/48, actual React compiler/browser regression, lint/typecheck/build and shared web publication10layouts/replay/reload passed. Model/provider are synthetic; worker/compiler/archive Docker/Chromium are actual. The missing-mount failure and intermediate prereceipt failures are retained; no timeout or oracle was weakened.
+
 ## Compiled pnpm component publication — 2026-10-29
 
 AC19/24/26/28/31/32: ProjectBuildPlan9 exports the actual compiled member/static output and installed production dependency closure after the unchanged frozen root build and original selected tests. Actor/job/source/plan/output/archive/fixed recipe gates feed the existing selection, Docker22 destination and ActionSpec40 publication/journal. Independent primary/proof/API/static-hash observations keep release/app/env fences. Successful components remain partial whole-workspace missions. No SQL, database binding, SQLite migration, production dependency or actual model/cloud write is added. [ADR0047](docs/decisions/0047-exact-compiled-pnpm-components.md), [checks and preserved failures](docs/evidence/pnpm-components.md).

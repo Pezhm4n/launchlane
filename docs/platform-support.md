@@ -1,5 +1,7 @@
 # وضعیت پلتفرم‌ها و مسیر انتشار
 
+Vue delta, 2026-11-02: [controlled SFC compiler/artifact acceptance](evidence/vue-compiled-component.md) exercises the same plan9/ActionSpec40 path, actual Vue plugin/compiler, original tests and fresh archive Docker/Chromium reactivity/routing. The Vite equals-form output flag is now source-bound correctly; ambiguous output fails typed. This advances local Vue acceptance; native Liara, raw corpus, data and complete-family acceptance remain open.
+
 Compiled pnpm delta, 2026-10-29: Node/static browser members can use a source-derived plan9 and a pinned Docker envelope with no destination reinstall/rebuild. This is a scoped component route, retaining original tests and remaining runtime/data obligations. Controlled Vite/React execution and fixture/provider evidence are kept separate in [the ledger](evidence/pnpm-components.md). Native-family table statuses and complete fourteen-family acceptance are unchanged without their actual acceptance evidence.
 
 

@@ -16,7 +16,10 @@ export function sourcePnpmComponent(files: readonly SourceFile[], workspace: Pnp
     outputDirectory = frontend.builder === "vite" ? "dist" : frontend.outputDirectory; argv = [];
     const configs = localFiles.filter(file => /^vite\.config\.[cm]?[jt]s$/.test(file.path));
     for (const config of configs) { const text = config.content.toString(); if (/\boutDir\s*:/.test(text)) { const match = /\boutDir\s*:\s*['"]([A-Za-z0-9_./-]+)['"]/.exec(text); ensure(match?.[1], "COMPONENT_OUTPUT_UNSUPPORTED", "outDir باید از تنظیمات واقعی قابل تعیین باشد.", 409); outputDirectory = match[1]; } }
-    const flag = /(?:^|\s)--outDir\s+([A-Za-z0-9_./-]+)(?:\s|$)/.exec(member.build ?? ""); if (flag?.[1]) outputDirectory = flag[1];
+    const command = member.build ?? "", flags = [...command.matchAll(/(?:^|\s)--outDir(?:=|\s+)([^\s]+)/g)];
+    ensure(!command.includes("--outDir") || flags.length === 1 && [...command.matchAll(/--outDir\b/g)].length === 1 && /^[A-Za-z0-9_./-]+$/.test(flags[0]?.[1] ?? ""),
+      "COMPONENT_OUTPUT_UNSUPPORTED", "مسیر خروجی Vite باید یک مقدار صریح و یکتا در فرمان اصلی باشد.", 409);
+    if (flags[0]?.[1]) outputDirectory = flags[0][1];
   } else {
     const start = typeof scripts.start === "string" ? /^node ([A-Za-z0-9_./-]+\.[cm]?js)$/.exec(scripts.start) : null;
     ensure(start?.[1], "COMPONENT_START_UNSUPPORTED", "فرمان start مستقیم Node روی خروجی compiled باید در source موجود باشد.", 409);

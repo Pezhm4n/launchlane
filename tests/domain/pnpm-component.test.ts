@@ -29,6 +29,20 @@ import { validateProjectAction } from "../../src/server/application/project-flow
 import { LiaraAccountClient } from "../../src/server/liara/catalog.ts";
 import { nodeBuildRuntime, parseProjectBuildPlan } from "../../src/contracts/project-build.ts";
 
+test("Vite component output accepts the original equals flag and rejects ambiguous or missing values", async () => {
+  const paths = ["package.json", "pnpm-workspace.yaml", "pnpm-lock.yaml", "apps/web/package.json"];
+  const fixture = await Promise.all(paths.map(async path => ({ path, content: await readFile(join("tests/fixtures/pnpm-vue-component", path)) })));
+  const filesFor = (build: string) => fixture.map(file => file.path !== "apps/web/package.json" ? file : { ...file, content: Buffer.from(JSON.stringify({ ...JSON.parse(file.content.toString()), scripts: { build } })) });
+  for (const build of ["vite build --outDir=public-build", "vite build --outDir public-build"]) {
+    const files = filesFor(build), workspace = inspectPnpmWorkspace(files); assert.ok(workspace);
+    assert.equal(sourcePnpmComponent(files, workspace, "apps/web").outputDirectory, "public-build");
+  }
+  for (const build of ["vite build --outDir", "vite build --outDir=", "vite build --outDir=a --outDir=b", "vite build --outDir=public-build --outDir"]) {
+    const files = filesFor(build), workspace = inspectPnpmWorkspace(files); assert.ok(workspace);
+    assert.throws(() => sourcePnpmComponent(files, workspace, "apps/web"), { code: "COMPONENT_OUTPUT_UNSUPPORTED" });
+  }
+});
+
 test("component destination creation rechecks local bytes before cloud env can exist; publication still requires matching env", async () => {
   const f = await componentFixture(true); try {
     const app = "component-destination", teamId = "a".repeat(24), accountId = "b".repeat(24), networkId = "c".repeat(24), config = { ...f.config, teamId, apps: [app], liaraToken: "synthetic-destination-only", enableMutations: true, enableLiveLiara: true };
