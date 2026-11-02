@@ -1,3 +1,4 @@
+import { assertIndependentBuildWorkload } from "../policy/build-workload.ts";
 import type { ProjectProfile } from "../../contracts/domain.ts";
 import { parseProjectBuildPlan, type ProjectBuildPlan } from "../../contracts/project-build.ts";
 import { object } from "../../contracts/validation.ts";
@@ -20,7 +21,7 @@ import { pnpmTarballs } from "./pnpm-source.ts";
 import { sourcePnpmComponent } from "./pnpm-component.ts";
 
 export function requiresProjectBuild(files: readonly SourceFile[]): boolean {
-  if (files.some(file => file.path === "Dockerfile")) return true;
+  if (files.some(file => file.path === "Dockerfile" || file.path === "composer.json")) return true;
   if (files.some(file => file.path.endsWith(".py")) && !files.some(file => file.path === "package.json")) return true;
   const file = files.find(file => file.path === "package.json");
   if (!file) return false;
@@ -51,6 +52,8 @@ export function validateBuildRepairPaths(paths: readonly string[]) {
 }
 export function validateBuildPlan(files: readonly SourceFile[], profile: ProjectProfile, value: ProjectBuildPlan): ProjectBuildPlan {
   const plan = parseProjectBuildPlan(value);
+  assertIndependentBuildWorkload(plan);
+  if (plan.version === 12) { ensure(profile.runtime === "php" && profile.sourceHash === plan.sourceHash && fingerprint(profile.phpRuntime) === fingerprint(plan.runtime) && profile.start === "launchlane-php" && profile.port === plan.port, "PHP_BUILD_CHANGED", "برنامه PHP با source و runtime برابر نیست.", 409); return plan; }
   if (plan.version === 11) {
     ensure(profile.runtime === "go" && profile.sourceHash === plan.sourceHash && fingerprint(profile.goRuntime) === fingerprint(plan.runtime) && profile.start === "launchlane-go" && profile.port === plan.runtime.port,
       "GO_BUILD_CHANGED", "برنامهٔ Go به source، بسته و پورت همین نسخه متصل نیست.", 409); return plan;

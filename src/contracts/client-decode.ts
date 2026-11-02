@@ -1,3 +1,4 @@
+import { parsePhpRuntime, parsePhpVerification } from "./php-runtime.ts";
 import { parseFrameworkPythonRuntime } from "./framework-python.ts";
 import { parseGoRuntime, parseExecutableVerification } from "./go-runtime.ts";
 import { parseComponentVerification } from "./pnpm-component.ts";
@@ -90,6 +91,11 @@ export function decodeAction(value: unknown): Action {
   if (spec.version === 42) {
     const parsed = parseProvisionSpec(spec), { runtime: _runtime, ...rest } = spec;
     return { ...decodeAction({ ...raw, spec: { ...rest, version: 8, nodeVersion: "22" } }), spec: parsed };
+  }
+  if (spec.version === 44) {
+    const { verification, ...rest } = spec, base = decodeAction({ ...raw, spec: { ...rest, version: 21 } });
+    ensure(base.spec.version === 21, "INVALID_RESPONSE", "انتشار PHP معتبر نیست.");
+    return { ...base, spec: { ...base.spec, version: 44, verification: parsePhpVerification(verification) } };
   }
   if (spec.version === 43) {
     const { verification, ...rest } = spec, base = decodeAction({ ...raw, spec: { ...rest, version: 21 } });
@@ -305,7 +311,7 @@ export function decodeWorkspace(value: unknown): WorkspaceView {
 export function decodeProfile(value: unknown): ProjectProfile {
   const raw = object(object(value).profile);
   ensure(
-    raw.runtime === "node" || raw.runtime === "python" || raw.runtime === "go" || raw.runtime === "static" || raw.runtime === "docker" || raw.runtime === "unknown",
+    raw.runtime === "node" || raw.runtime === "python" || raw.runtime === "go" || raw.runtime === "php" || raw.runtime === "static" || raw.runtime === "docker" || raw.runtime === "unknown",
     "INVALID_RESPONSE",
     "runtime پاسخ معتبر نیست.",
   );
@@ -325,6 +331,8 @@ export function decodeProfile(value: unknown): ProjectProfile {
       raw.nextRuntime === undefined && raw.frontendRuntime === undefined && raw.port === runtime.port && raw.start === "liara-docker" && raw.build === null,
       "INVALID_RESPONSE", "مشخصات Docker باید به همان Dockerfile، پورت و فرمان داخل image متصل باشند.");
   } else ensure(raw.dockerRuntime === undefined, "INVALID_RESPONSE", "runtime Docker با نوع پروژه برابر نیست.");
+  if (raw.runtime === "php") { const runtime = parsePhpRuntime(raw.phpRuntime); ensure(raw.port === runtime.port && raw.start === "launchlane-php" && raw.nodeVersion === null && raw.nodeRuntime === undefined && raw.pythonRuntime === undefined, "INVALID_RESPONSE", "مشخصات PHP برابر نیست."); }
+  else ensure(raw.phpRuntime === undefined, "INVALID_RESPONSE", "runtime PHP با پروژه برابر نیست.");
   if (raw.runtime === "go") { const runtime = parseGoRuntime(raw.goRuntime); ensure(raw.port === runtime.port && raw.start === "launchlane-go" && raw.nodeVersion === null && raw.nodeRuntime === undefined && raw.pythonRuntime === undefined, "INVALID_RESPONSE", "مشخصات Go برابر نیست."); }
   else ensure(raw.goRuntime === undefined, "INVALID_RESPONSE", "runtime Go با پروژه برابر نیست.");
   if (raw.nextRuntime !== undefined) {
@@ -350,6 +358,8 @@ export function decodeProfile(value: unknown): ProjectProfile {
     ...(raw.nativeInspection === undefined ? {} : { nativeInspection: parseNativePlatformInspection(raw.nativeInspection) }),
     ...(raw.fullstack === undefined ? {} : { fullstack: parseFullstackInspection(raw.fullstack) }),
     ...(raw.pnpmComponent === undefined ? {} : { pnpmComponent: parseComponentVerification(raw.pnpmComponent) }),
+    ...(raw.phpRuntime === undefined ? {} : { phpRuntime: parsePhpRuntime(raw.phpRuntime) }),
+    ...(raw.installedPhp === undefined ? {} : { installedPhp: parsePhpVerification(raw.installedPhp) }),
     ...(raw.goRuntime === undefined ? {} : { goRuntime: parseGoRuntime(raw.goRuntime) }),
     ...(raw.compiledExecutable === undefined ? {} : { compiledExecutable: parseExecutableVerification(raw.compiledExecutable) }),
     ...(raw.pnpmWorkspace === undefined ? {} : { pnpmWorkspace: parsePnpmWorkspace(raw.pnpmWorkspace) }),

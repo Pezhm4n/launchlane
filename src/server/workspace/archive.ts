@@ -219,6 +219,7 @@ export async function createSourceArchive(input: {
   signal?: AbortSignal;
   componentOutput?: Buffer;
   executableOutput?: Buffer;
+  phpOutput?: Buffer;
   compiledOutput?: ValidatedBuildOutput;
 }): Promise<{ artifact: SourceArtifact; bytes: Buffer }> {
   cancelled(input.signal);
@@ -231,7 +232,7 @@ export async function createSourceArchive(input: {
     409,
   );
   ensure(
-    files.length > 0 && (profile.runtime === "node" || profile.runtime === "python" || profile.runtime === "go" || profile.runtime === "static" || profile.runtime === "docker") && profile.start,
+    files.length > 0 && (profile.runtime === "node" || profile.runtime === "python" || profile.runtime === "go" || profile.runtime === "php" || profile.runtime === "static" || profile.runtime === "docker") && profile.start,
     "PROJECT_INCOMPLETE",
     "پروژه به package.json و دستور start نیاز دارد.",
     409,
@@ -262,6 +263,10 @@ export async function createSourceArchive(input: {
     ensure(profile.runtime === "docker" && profile.compiledExecutable && !files.some(file => file.path === ".launchlane-executable.gz") && digest(input.executableOutput) === profile.compiledExecutable.outputArtifactHash,
       "BUILD_OUTPUT_BINDING_CHANGED", "بستهٔ executable با گواه همان worker برابر نیست.", 409);
     packaged = [...packaged, { path: ".launchlane-executable.gz", content: input.executableOutput }];
+  }
+  if (input.phpOutput) {
+    ensure(profile.runtime === "docker" && profile.installedPhp && !files.some(file => file.path === ".launchlane-php.gz") && digest(input.phpOutput) === profile.installedPhp.outputArtifactHash, "BUILD_OUTPUT_BINDING_CHANGED", "بستهٔ نصب PHP با رسید برابر نیست.", 409);
+    packaged = [...packaged, { path: ".launchlane-php.gz", content: input.phpOutput }];
   }
   const bytes = await encode(packaged, input.signal);
   const artifact: SourceArtifact = {

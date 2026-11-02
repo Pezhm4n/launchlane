@@ -1,0 +1,23 @@
+{
+  "name": "launchlane-fixture/php-orders",
+  "description": "Public controlled PHP installation and runtime fixture",
+  "license": "MIT",
+  "type": "project",
+  "require": {
+    "php": "^8.3",
+    "psr/log": "3.0.2"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^11.5"
+  },
+  "autoload": {
+    "psr-4": {
+      "Invoice\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "InvoiceTests\\": "tests/"
+    }
+  }
+}

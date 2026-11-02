@@ -1,3 +1,4 @@
+import { assertIndependentBuildWorkload } from "./build-workload.ts";
 import { createHash } from "node:crypto";
 import type { ProjectFlow } from "../../contracts/project-flow.ts";
 import { parseCodeRepairJob } from "../../contracts/code-repair.ts";
@@ -29,5 +30,6 @@ export function assertComponentJob(store: Store, actor: string, flow: ProjectFlo
   ensure(flow.profile.port === job.build.port && flow.profile.dockerRuntime.dockerfile === ".launchlane-component.Dockerfile" &&
     Object.entries(expected).every(([path, content]) => flow.profile.manifest.some(file => file.path === path && file.sha256 === digest(content))),
     "COMPONENT_RUNTIME_CHANGED", "host یا Dockerfile generated با نسخهٔ آزموده‌شده برابر نیست.", 409);
+  assertIndependentBuildWorkload(job.build);
   return { verification, build: job.build, receipt };
 }

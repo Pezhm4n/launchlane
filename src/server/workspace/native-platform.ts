@@ -274,7 +274,7 @@ export function inspectNativePlatform(files: readonly SourceFile[], liaraValue?:
           const path = localPath(source.replace(/\/+$/, ""), entry);
           // Opaque compiled bytes are injected by createSourceArchive, outside source inspection.
           // This declaration grants no authority: application/Store verify the successful job and payload.
-          if (!(compiledComponentContext && entry === ".launchlane-component.Dockerfile" && path === ".launchlane-component.gz") && !index.has(path) && ![...index.keys()].some(file => file.startsWith(`${path}/`))) reject("NATIVE_DOCKER_CONTEXT_MISSING", "یکی از ورودی‌های Dockerfile در بستهٔ source وجود ندارد؛ بستهٔ ناقص آمادهٔ ساخت نیست.", [entry]);
+          if (!(compiledComponentContext && (entry === ".launchlane-component.Dockerfile" && path === ".launchlane-component.gz" || entry === ".launchlane-php.Dockerfile" && path === ".launchlane-php.gz")) && !index.has(path) && ![...index.keys()].some(file => file.startsWith(`${path}/`))) reject("NATIVE_DOCKER_CONTEXT_MISSING", "یکی از ورودی‌های Dockerfile در بستهٔ source وجود ندارد؛ بستهٔ ناقص آمادهٔ ساخت نیست.", [entry]);
         }
       }
       const exposed = lines.slice(finalStage + 1).filter(line => /^EXPOSE\s+/i.test(line)).flatMap(line => line.replace(/\s+#.*$/, "").replace(/^EXPOSE\s+/i, "").split(/\s+/));

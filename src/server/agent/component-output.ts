@@ -10,10 +10,11 @@ export type ComponentOutput = Readonly<{ version: 1; sourceHash: string; planHas
 const digest = (value: Uint8Array) => createHash("sha256").update(value).digest("hex");
 export function componentPath(value: unknown): string {
   const path = string(value, 512);
+  const codeLeaf = /\.(?:[cm]?[jt]sx?|py|php|go|rb|cs|fs|vb|java|rs|c|cpp|h|hpp|vue|svelte|astro)$/i.test(path);
   ensure(!path.startsWith("/") && !hasControl(path) && !/[\\:]/.test(path) && path.normalize("NFKC") === path && path.split("/").length <= 32 &&
     path.split("/").every(part => part && part !== "." && part !== ".." && part.trim() === part && !part.endsWith(".") && !/^(?:CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9])(?:\.|$)/i.test(part) &&
       !/^(?:\.env(?:\..*)?|\.git|\.npmrc|\.netrc|\.ssh|\.aws|id_rsa|id_ed25519)$/i.test(part) &&
-      !(/(?:credential|password|secret|access[-_]?token|api[-_]?key)/i.test(part) && !/\.(?:[cm]?[jt]sx?|py|php|go|rb|cs|fs|vb|java|rs|c|cpp|h|hpp|vue|svelte|astro)$/i.test(part))),
+      !(/(?:credential|password|secret|access[-_]?token|api[-_]?key)/i.test(part) && !codeLeaf)),
     "COMPONENT_OUTPUT_PATH", "مسیر خصوصی، بیرونی یا نام جایگزین در خروجی component مجاز نیست.", 409);
   return path;
 }

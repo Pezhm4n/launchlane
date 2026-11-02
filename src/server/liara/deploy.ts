@@ -23,7 +23,7 @@ import {
   type Transport,
 } from "../providers/http.ts";
 
-export type DeploySpec = Extract<ActionSpec, { version: 5 | 7 | 10 | 11 | 15 | 17 | 19 | 21 | 23 | 26 | 40 | 41 | 43 }>;
+export type DeploySpec = Extract<ActionSpec, { version: 5 | 7 | 10 | 11 | 15 | 17 | 19 | 21 | 23 | 26 | 40 | 41 | 43 | 44 }>;
 export class LiaraDeployClient {
   readonly config: Config;
   readonly send: Transport;
@@ -40,8 +40,8 @@ export class LiaraDeployClient {
     budget: RunBudget,
     signal: AbortSignal,
   ): Promise<string> {
-    ensure(spec.version === 5 || spec.version === 7 || spec.version === 10 || (spec.version === 11 || spec.version === 41) || spec.version === 15 || spec.version === 17 || spec.version === 19 || (spec.version === 21 || spec.version === 40 || spec.version === 43) || (spec.version === 23 || spec.version === 26), "DEPLOYMENT_PROPOSAL_REQUIRED", "پیشنهاد تازه با نسخه اجرا مشخص لازم است.", 409);
-    if ((spec.version === 21 || spec.version === 40 || spec.version === 43)) ensure(parseDockerRuntime(spec.runtime).port === spec.args.port && spec.nodeVersion === null, "DOCKER_RUNTIME_CHANGED", "پورت Docker با نسخهٔ مصوب برابر نیست.", 409);
+    ensure(spec.version === 5 || spec.version === 7 || spec.version === 10 || (spec.version === 11 || spec.version === 41) || spec.version === 15 || spec.version === 17 || spec.version === 19 || (spec.version === 21 || spec.version === 40 || spec.version === 43 || spec.version === 44) || (spec.version === 23 || spec.version === 26), "DEPLOYMENT_PROPOSAL_REQUIRED", "پیشنهاد تازه با نسخه اجرا مشخص لازم است.", 409);
+    if ((spec.version === 21 || spec.version === 40 || spec.version === 43 || spec.version === 44)) ensure(parseDockerRuntime(spec.runtime).port === spec.args.port && spec.nodeVersion === null, "DOCKER_RUNTIME_CHANGED", "پورت Docker با نسخهٔ مصوب برابر نیست.", 409);
     else if (spec.version === 15) parseStaticRuntime(spec.runtime);
     else if (spec.version === 19) ensure(parseFrontendRuntime(spec.runtime).nodeVersion === spec.nodeVersion, "FRONTEND_RUNTIME_CHANGED", "محیط انتشار رابط تغییر کرده است.", 409);
     else if (spec.version === 17) ensure(parseNextRuntime(spec.runtime).version === spec.nodeVersion, "NEXT_RUNTIME_CHANGED", "نسخهٔ Next تغییر کرده است.", 409);
@@ -155,8 +155,8 @@ export class LiaraDeployClient {
         sourceID: sourceId,
         port: spec.args.port,
         type: actionPlatform(spec),
-        platformConfig: spec.version === 41 ? spec.runtime.kind === "flask" ? { pythonVersion: spec.runtime.version, mirror: false, appModule: spec.runtime.module } : { pythonVersion: spec.runtime.version, mirror: false, collectStatic: false, compileMessages: false, modifySettings: false } : spec.version === 15 || (spec.version === 21 || spec.version === 40 || spec.version === 43) ? {} : spec.version === 19 ? { mirror: spec.runtime.mirror } : spec.version === 17 ? { nodeVersion: spec.nodeVersion, mirror: spec.runtime.mirror } : { version: spec.version === 11 ? parsePythonRuntime(spec.runtime).version : parseNodeVersion(spec.nodeVersion) },
-        ...((spec.version === 21 || spec.version === 40 || spec.version === 43) ? { build: { dockerfile: spec.runtime.dockerfile } } : {}),
+        platformConfig: spec.version === 41 ? spec.runtime.kind === "flask" ? { pythonVersion: spec.runtime.version, mirror: false, appModule: spec.runtime.module } : { pythonVersion: spec.runtime.version, mirror: false, collectStatic: false, compileMessages: false, modifySettings: false } : spec.version === 15 || (spec.version === 21 || spec.version === 40 || spec.version === 43 || spec.version === 44) ? {} : spec.version === 19 ? { mirror: spec.runtime.mirror } : spec.version === 17 ? { nodeVersion: spec.nodeVersion, mirror: spec.runtime.mirror } : { version: spec.version === 11 ? parsePythonRuntime(spec.runtime).version : parseNodeVersion(spec.nodeVersion) },
+        ...((spec.version === 21 || spec.version === 40 || spec.version === 43 || spec.version === 44) ? { build: { dockerfile: spec.runtime.dockerfile } } : {}),
         ...(spec.version === 11 ? { args: [spec.runtime.command.join(" ")] } : {}),
         ...(spec.version === 26 ? { disks: [{ name: spec.storage.name, mountTo: spec.storage.mountTo }] } : {}),
       }),

@@ -1,3 +1,4 @@
+import { localPhpVerification } from "./php-verification.ts";
 import { localExecutableVerification } from "./executable-verification.ts";
 import { localComponentVerification } from "./component-verification.ts";
 import { assertFrameworkBuild } from "../policy/framework-python.ts";
@@ -86,6 +87,7 @@ export async function proposeDestination(config: Config, store: Store, actor: st
     "PROJECT_INCOMPLETE", "روش اجرای این پروژه هنوز آمادهٔ انتشار نیست؛ نتیجهٔ بررسی فایل‌ها و آماده‌سازی را ببینید.", 409);
   assertApplicationPublicationScope(flow.profile);
   if (flow.profile.pythonRuntime && flow.profile.pythonRuntime.kind !== "python") assertFrameworkBuild(store, actor, flow);
+  if (flow.profile.installedPhp) await localPhpVerification(store, config.stateDir, actor, flow);
   if (flow.profile.compiledExecutable) await localExecutableVerification(store, config.stateDir, actor, flow);
   if (flow.profile.pnpmComponent) await localComponentVerification(store, config.stateDir, actor, flow);
   const budget = dependencies.budget ?? new RunBudget(scoped), client = dependencies.read ?? new LiaraAccountClient(scoped, connection.identityId),

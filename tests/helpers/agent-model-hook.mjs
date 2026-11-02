@@ -1,3 +1,4 @@
+import { publicPhpFixture } from "./php-fixture-cache.mjs";
 // Loaded only into the disposable production test server, never imported by application code.
 import { appendFileSync, existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
@@ -53,6 +54,10 @@ globalThis.fetch = async (input, init) => {
   const url = new URL(
     typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
   );
+  if (process.env.LAUNCHLANE_PHP_FIXTURE === "true" && (init?.method ?? "GET") === "GET" && !init?.body) {
+    const cached = publicPhpFixture(url); if (cached) return new Response(cached);
+    if (url.protocol === "https:" && ["getcomposer.org", "security.debian.org", "api.github.com", "codeload.github.com"].includes(url.hostname)) return nativeFetch(input, init);
+  }
   if (process.env.LAUNCHLANE_GO_FIXTURE === "true" && (init?.method ?? "GET") === "GET" && !init?.body) {
     const cached = publicGoFixture(url); if (cached) return new Response(cached);
     if (url.protocol === "https:" && ["dl.google.com", "mirrors.aliyun.com", "proxy.golang.org", "goproxy.cn", "storage.googleapis.com"].includes(url.hostname)) return nativeFetch(input, init);
@@ -125,6 +130,11 @@ globalThis.fetch = async (input, init) => {
       return final("reply", null, "runner اصلی و WSGI همین نسخه بررسی شدند؛ انتشار و داده هنوز تأیید نشده‌اند.");
     if (last.role === "user") return reply("propose_project_build", { path: "/orders", status: 200, assertion: { kind: "text", contains: "73}" } });
     throw Error("Unexpected framework worker fixture transition");
+  }
+  if (process.env.LAUNCHLANE_PHP_FIXTURE === "true") {
+    if (last.role === "user" && last.content.startsWith("Host local preparation receipt")) return final("reply", null, "Composer و تست‌های اصلی و Apache همین artifact بررسی شدند؛ انتشار و داده هنوز تأیید نشده‌اند.");
+    if (last.role === "user") return reply("propose_project_build", { path: "/api/orders", status: 200, assertion: { kind: "text", contains: '"total":73' } });
+    throw Error("Unexpected PHP worker fixture transition");
   }
   if (process.env.LAUNCHLANE_GO_FIXTURE === "true") {
     if (last.role === "user" && last.content.startsWith("Host local preparation receipt"))

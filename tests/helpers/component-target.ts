@@ -4,7 +4,7 @@ import { docker } from "../../src/server/agent/container.ts";
 
 /** Local target from the actual approved archive; no provider or source checkout is executed. */
 export async function componentTarget(bytes: Buffer, port = 8080, dockerfile = ".launchlane-component.Dockerfile") {
-  assert.ok([".launchlane-component.Dockerfile", ".launchlane-executable.Dockerfile"].includes(dockerfile));
+  assert.ok([".launchlane-component.Dockerfile", ".launchlane-executable.Dockerfile", ".launchlane-php.Dockerfile"].includes(dockerfile));
   const name = `launchlane-component-${randomUUID()}`, label = `ir.launchlane.component-test=${name}`;
   let id: string | undefined, imageBuilt = false;
   const cleanup = async () => {

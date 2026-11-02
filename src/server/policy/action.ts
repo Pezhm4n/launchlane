@@ -1,3 +1,4 @@
+import { parsePhpVerification } from "../../contracts/php-runtime.ts";
 import { parseFrameworkPythonRuntime } from "../../contracts/framework-python.ts";
 import { parseExecutableVerification } from "../../contracts/go-runtime.ts";
 import { parseComponentVerification } from "../../contracts/pnpm-component.ts";
@@ -62,6 +63,11 @@ export function parseActionSpec(value: unknown): ActionSpec {
     return { ...base, version: 41, runtime };
   }
   if (input.version === 42) return parseProvisionSpec(input);
+  if (input.version === 44) {
+    const { verification, ...rest } = input, base = parseActionSpec({ ...rest, version: 21 });
+    ensure(base.version === 21, "PHP_BUILD_REQUIRED", "انتشار PHP به قرارداد Docker نیاز دارد.", 409);
+    return { ...base, version: 44, verification: parsePhpVerification(verification) };
+  }
   if (input.version === 43) {
     const { verification, ...rest } = input, base = parseActionSpec({ ...rest, version: 21 });
     ensure(base.version === 21, "EXECUTABLE_BUILD_REQUIRED", "انتشار executable به قرارداد Docker نیاز دارد.", 409);

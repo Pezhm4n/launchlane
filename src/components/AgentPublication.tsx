@@ -156,9 +156,9 @@ export function AgentPublication({
         <summary>اطلاعات فنی نسخه</summary>
         <dl className="profile-facts">
           <div>
-            <dt>{spec.version === 15 ? "نوع انتشار" : (spec.version === 21 || spec.version === 40 || spec.version === 43) ? "Docker" : spec.version === 19 ? `${{ react: "React", vue: "Vue", angular: "Angular" }[spec.runtime.kind]} / Node` : spec.version === 17 ? "Next.js / Node" : spec.version === 41 ? `${spec.runtime.kind} / Python` : spec.version === 11 ? "Python" : "Node"}</dt>
+            <dt>{spec.version === 15 ? "نوع انتشار" : (spec.version === 21 || spec.version === 40 || spec.version === 43 || spec.version === 44) ? "Docker" : spec.version === 19 ? `${{ react: "React", vue: "Vue", angular: "Angular" }[spec.runtime.kind]} / Node` : spec.version === 17 ? "Next.js / Node" : spec.version === 41 ? `${spec.runtime.kind} / Python` : spec.version === 11 ? "Python" : "Node"}</dt>
             <dd>
-              <code dir="ltr" className="ltr-code"><bdo dir="ltr">{spec.version === 15 ? "Static · Nginx لیارا" : (spec.version === 21 || spec.version === 40 || spec.version === 43) ? spec.runtime.dockerfile : (spec.version === 11 || spec.version === 41) ? spec.runtime.version : spec.nodeVersion}</bdo></code>
+              <code dir="ltr" className="ltr-code"><bdo dir="ltr">{spec.version === 15 ? "Static · Nginx لیارا" : (spec.version === 21 || spec.version === 40 || spec.version === 43 || spec.version === 44) ? spec.runtime.dockerfile : (spec.version === 11 || spec.version === 41) ? spec.runtime.version : spec.nodeVersion}</bdo></code>
             </dd>
           </div>
           <div>

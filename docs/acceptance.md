@@ -1,5 +1,7 @@
 # معیارهای پذیرش محصول
 
+PHP/Laravel, 2026-11-02 (AC19/24/26/28/31/32): actual locked install/original tests/fresh Apache/exact installed archive and Agent/web publication44 passed locally with synthetic cloud/model transports. [Evidence](evidence/php-installed-runtime.md); fourteen sandbox cases do not mean fourteen-family acceptance.
+
 Go, 2026-11-02 (AC19/24/26/28/31/32): original module/tests, exact compiled archive, fresh runtime and existing Agent/web publication43 have actual local worker/browser evidence with synthetic cloud/model transports. [Scope](evidence/go-compiled-runtime.md); this is partial family acceptance, with live/full14/data boundaries open.
 
 Flask/Django, 2026-11-02 (AC19/24/26/28/31/32): original framework runners, production WSGI, tested source artifact and native41/42 decisions now use the shared Agent/web path, including build before a target. Actual worker/web evidence is separate from synthetic native provider contracts. [Short evidence](evidence/framework-python.md); full14, raw corpus, data and live acceptance remain open.

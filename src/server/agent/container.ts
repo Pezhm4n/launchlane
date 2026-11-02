@@ -228,7 +228,7 @@ export async function runContainerBuild(workspace: string, tarballs: string, val
   ensure(!options.runnerPhase || plan.version === 7 && plan.testDatabase?.version === 3, "MIGRATION_RUNNER_INVALID", "مرحلهٔ runner فقط برای طرح مستقل داده مجاز است.", 409);
   const raw = options.command ?? docker, host = options.endpoint ? dockerEndpointHost(options.endpoint) : null;
   const command: typeof docker = host ? (args,parent,maxBytes,input) => abortable(()=>raw(["--host",host,...args],parent,maxBytes,input),parent) : raw;
-  ensure(plan.version !== 2 && plan.version !== 10 && plan.version !== 11 && plan.version !== 6, "BUILD_RUNTIME_UNSUPPORTED", "این runner فقط برای Node است.", 409);
+  ensure(plan.version !== 2 && plan.version !== 10 && plan.version !== 11 && plan.version !== 12 && plan.version !== 6, "BUILD_RUNTIME_UNSUPPORTED", "این runner فقط برای Node است.", 409);
   ensure(values.every(row => isApplicationEnvironmentKey(row.key)), "ENV_SCOPE_DENIED", "تنظیمات runner از اطلاعات پروژه جداست.", 409);
   ensure(values.map(row => row.key).sort().join("\0") === [...(plan.sourceEnvironment?.keys ?? plan.environment?.keys ?? [])].sort().join("\0"), "ENV_REFERENCE_CHANGED", "ورودی محیط build با تصمیم برابر نیست.", 409);
   ensure(!workspace.includes(",") && !tarballs.includes(","), "SANDBOX_PATH_DENIED", "مسیر ورودی build معتبر نیست.", 403);

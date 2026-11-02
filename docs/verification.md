@@ -1,5 +1,7 @@
 # شواهد اعتبارسنجی Launchlane
 
+PHP/Laravel, 2026-11-02: final runtime326cec88 passed lint/typecheck/build, domain829/829, HTTP48/48, sandbox14/14, both actual web-worker/archive/publication/replay/reload flows (20layouts), Go/pnpm publication regressions and guided54states. [Exact scope/failures](evidence/php-installed-runtime.md); models/providers are synthetic, with zero real model/cloud writes and no live/full14/data acceptance.
+
 Go, 2026-11-02: policy/worker `05b1ccab` passed domain822/822, HTTP48/48, Go worker10/10, pnpm publication10layouts/guided54states. Final reader-only delta `c2927004` passed lint/typecheck/build, focused6/6 and actual Go web/archive-Docker publication10layouts/replay/reload; fresh public tool download remains unavailable, separate from exact public-cache execution. [Exact source, checks, failures and limits](evidence/go-compiled-runtime.md); model/provider are synthetic and live Liara remains unavailable.
 
 Flask/Django, 2026-11-02: final worker `3c4707ec` passed lint/typecheck/build, focused6/6, HTTP48/48, actual Python workers15/15 including legacy/counterfeit regressions, and both actual web-to-worker/archive/replay409/reload flows. Pre-guard policy `c0c4dd2e` passed full domain817/817, review12layouts and guided54states. [Exact scope](evidence/framework-python.md); model/provider transports are synthetic, cloud writes zero, live/full14/data acceptance open.

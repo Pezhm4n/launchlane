@@ -1,5 +1,7 @@
 # وضعیت پلتفرم‌ها و مسیر انتشار
 
+PHP/Laravel delta, 2026-11-02: [actual Composer/PHPUnit/Apache and installed-artifact publication](evidence/php-installed-runtime.md) add an executor for explicitly configured PHP8.3/Composer projects and a real Laravel12 API. Native cloud, Composerless/WordPress, general versions/config, frontend/worker/data and full-family acceptance remain open.
+
 Go delta, 2026-11-02: [actual module/compiler/tests/fresh binary/Docker/browser](evidence/go-compiled-runtime.md) replace the missing executor for one explicitly configured pure-Go1.25 executable. Existing Docker publication43 preserves compiled bytes; native Go rebuilding, cgo/workspaces and complete family acceptance remain open.
 
 Flask/Django delta, 2026-11-02: [real local WSGI/runners and native contracts](evidence/framework-python.md) replace the missing executor for explicitly configured Python3.12 projects. Native payloads are synthetic-tested; live/corpus/data acceptance is open. Other-family statuses are unchanged.

@@ -1,3 +1,4 @@
+import { assertIndependentBuildWorkload } from "./build-workload.ts";
 import { createHash } from "node:crypto";
 import type { ProjectFlow } from "../../contracts/project-flow.ts";
 import { parseCodeRepairJob } from "../../contracts/code-repair.ts";
@@ -25,5 +26,6 @@ export function assertExecutableJob(store: Store, actor: string, flow: ProjectFl
     ".launchlane-executable.json": `${JSON.stringify({ version: 1, verification, port: job.build.port })}\n` };
   ensure(flow.profile.port === job.build.port && flow.profile.dockerRuntime.dockerfile === ".launchlane-executable.Dockerfile" && Object.entries(expected).every(([path, content]) => flow.profile.manifest.some(file => file.path === path && file.sha256 === createHash("sha256").update(content).digest("hex"))),
     "EXECUTABLE_RUNTIME_CHANGED", "recipe یا proxy نسخهٔ compiled تغییر کرده است.", 409);
+  assertIndependentBuildWorkload(job.build);
   return { verification, build: job.build, receipt };
 }

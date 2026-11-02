@@ -1,3 +1,4 @@
+import { validateBuildPlan } from "../../src/server/agent/build-policy.ts";
 import assert from "node:assert/strict";
 import { test, before, after } from "node:test";
 import { readFile, writeFile } from "node:fs/promises";
@@ -49,6 +50,7 @@ test("Go source, env and module identities stay literal, bounded and non-shell",
     assert.deepEqual(decodeProfile({ profile: f.original.profile }).goRuntime, f.original.profile.goRuntime);
     const alternate = parseProjectBuildPlan({ ...f.build, runtime: { ...f.build.runtime, port: 8080 }, port: 8081 }); assert.equal(alternate.port, 8081);
     assert.throws(() => parseProjectBuildPlan({ ...f.build, testCommand: "true" }), { code: "GO_BUILD_CHANGED" });
+    assert.throws(() => validateBuildPlan([], f.original.profile, parseProjectBuildPlan({ ...f.build, workload: { ...f.build.workload, path: "/./launchlane-build-proof.json" } })), { code: "BUILD_WORKLOAD_RESERVED" });
     assert.throws(() => parseProjectBuildPlan({ ...f.build, runtime: { ...f.build.runtime, packagePath: ".; echo injected" } }));
     const names = toolsForAgent({ ...f.config, enableLocalRepair: true }, "compiled", false, true).map(tool => tool.function.name); assert.equal(names.includes("propose_project_build"), true); assert.equal(names.includes("propose_publication"), false);
     assert.throws(() => assertExecutableJob(f.store, "foreign", f.selected), { code: "EXECUTABLE_BUILD_REQUIRED" });

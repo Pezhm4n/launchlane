@@ -1,3 +1,4 @@
+import { parsePhpBuild, type PhpBuildPlan } from "./php-build.ts";
 import { parseFrameworkPythonRuntime, type FrameworkPythonRuntime } from "./framework-python.ts";
 import { parseGoBuild, type GoBuildPlan } from "./go-build.ts";
 import { parseWorkloadContract, type WorkloadContract } from "./deployment.ts";
@@ -49,7 +50,7 @@ export type PnpmBuildPlan = Omit<NodeBuildPlan, "version" | "nodeVersion" | "ima
 }>;
 export type PnpmComponentBuildPlan = Omit<PnpmBuildPlan, "version" | "phase"> & Readonly<{ version: 9; sourceHash: string; component: PnpmComponent; apiChecks: readonly FullstackApiCheck[] }>;
 export type FrameworkPythonBuildPlan = Omit<PythonBuildPlan, "version" | "runtime"> & Readonly<{ version: 10; runtime: FrameworkPythonRuntime }>;
-export type ProjectBuildPlan = GoBuildPlan | FrameworkPythonBuildPlan | NodeBuildPlan | PythonBuildPlan | Node24BuildPlan | Node20BuildPlan | FrontendBuildPlan | DockerBuildPlan | FullstackBuildPlan | PnpmBuildPlan | PnpmComponentBuildPlan;
+export type ProjectBuildPlan = PhpBuildPlan | GoBuildPlan | FrameworkPythonBuildPlan | NodeBuildPlan | PythonBuildPlan | Node24BuildPlan | Node20BuildPlan | FrontendBuildPlan | DockerBuildPlan | FullstackBuildPlan | PnpmBuildPlan | PnpmComponentBuildPlan;
 export function nodeBuildRuntime(version: unknown) {
   ensure(version === "20" || version === "22" || version === "24", "BUILD_RUNTIME_UNSUPPORTED", "محیط ساخت سازگار با نسخهٔ پروژه در این نصب آماده نیست؛ اجرای ناسازگار روی رایانه انجام نشد.", 409);
   return version === "20" ? { version: 4, nodeVersion: "20", image: node20BuildImage } as const : version === "24" ? { version: 3, nodeVersion: "24", image: node24BuildImage } as const
@@ -59,6 +60,7 @@ export function parseProjectBuildPlan<V extends ProjectBuildPlan["version"]>(val
 export function parseProjectBuildPlan(value: unknown): ProjectBuildPlan;
 export function parseProjectBuildPlan(value: unknown): ProjectBuildPlan {
   const row = object(value);
+  if (row.version === 12) return parsePhpBuild(row);
   if (row.version === 11) return parseGoBuild(row, projectBuildImage);
   if (row.version === 10) {
     const runtime = parseFrameworkPythonRuntime(row.runtime), base = parseProjectBuildPlan({ ...row, version: 2, runtime: { kind: "python", version: "3.12", command: ["python3", "main.py"] }, startCommand: "python3 main.py", testCommand: null });

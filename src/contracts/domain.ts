@@ -7,7 +7,7 @@ export type ManifestEntry = Readonly<{
 }>;
 export type ProjectProfile = Readonly<{
   directory: string;
-  runtime: "node" | "python" | "go" | "static" | "docker" | "unknown";
+  runtime: "node" | "python" | "go" | "php" | "static" | "docker" | "unknown";
   nodeVersion: string | null;
   // Historical profiles predate runtime selection; fresh inspection always supplies it.
   nodeRuntime?: import("./node-runtime.ts").NodeRuntime;
@@ -17,6 +17,8 @@ export type ProjectProfile = Readonly<{
   frontendRuntime?: import("./frontend-runtime.ts").FrontendRuntime;
   dockerRuntime?: import("./docker-runtime.ts").DockerRuntime;
   goRuntime?: import("./go-runtime.ts").GoRuntime;
+  phpRuntime?: import("./php-runtime.ts").PhpRuntime;
+  installedPhp?: import("./php-runtime.ts").PhpVerification;
   compiledExecutable?: import("./go-runtime.ts").ExecutableVerification;
   nativeInspection?: import("./liara-platform.ts").NativePlatformInspection;
   fullstack?: import("./fullstack.ts").FullstackInspection;
@@ -177,6 +179,12 @@ export type ActionSpec = (ActionInputs &
         selectionHash: string; accountId: string; targetAppId: string; workload: import("./deployment.ts").WorkloadContract;
         nodeVersion: null; runtime: import("./docker-runtime.ts").DockerRuntime;
         environment: import("./environment.ts").EnvironmentReference | null; verification: import("./pnpm-component.ts").ComponentVerification;
+      }>
+    | Readonly<{
+        version: 44; operation: "deploy"; sourceHash: string; artifactHash: string; projectFlowId: string;
+        selectionHash: string; accountId: string; targetAppId: string; workload: import("./deployment.ts").WorkloadContract;
+        nodeVersion: null; runtime: import("./docker-runtime.ts").DockerRuntime;
+        environment: import("./environment.ts").EnvironmentReference | null; verification: import("./php-runtime.ts").PhpVerification;
       }>
     | Readonly<{
         version: 43; operation: "deploy"; sourceHash: string; artifactHash: string; projectFlowId: string;

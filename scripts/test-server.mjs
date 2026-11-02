@@ -7,7 +7,9 @@ import { setTimeout as pause } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import { freeHttpTestPort } from "../tests/helpers/http-port.ts";
 
-export async function startTestServer({ browserHost = "127.0.0.1", publicOrigin = "", agentFixture = false, environmentFixture = false, activationFixture = false, destinationFixture = false, databaseFixture = false, workspaceConfigured = true, authFixture = false, staticFixture = false, componentFixture = false, frameworkFixture = false, goFixture = false, goPublicationFixture = false } = {}) {
+export async function startTestServer({ browserHost = "127.0.0.1", publicOrigin = "", agentFixture = false, environmentFixture = false, activationFixture = false, destinationFixture = false, databaseFixture = false, workspaceConfigured = true, authFixture = false, staticFixture = false, componentFixture = false, frameworkFixture = false, goFixture = false, goPublicationFixture = false, phpFixture = false, phpPublicationFixture = false } = {}) {
+  if (phpPublicationFixture && (!componentFixture || goFixture || goPublicationFixture || phpFixture || frameworkFixture)) throw new Error("PHP publication requires its isolated component hook");
+  if (phpFixture && (!agentFixture || goFixture || goPublicationFixture || frameworkFixture || environmentFixture || activationFixture || destinationFixture || databaseFixture || authFixture || staticFixture || componentFixture)) throw new Error("PHP fixture requires its isolated agent hook");
   if (goPublicationFixture && (!componentFixture || goFixture || frameworkFixture)) throw new Error("Go publication requires the component transport hook");
   if (goFixture && (!agentFixture || frameworkFixture || environmentFixture || activationFixture || destinationFixture || databaseFixture || authFixture || staticFixture || componentFixture)) throw new Error("Go fixture requires its isolated agent hook");
   if (frameworkFixture && (!agentFixture || environmentFixture || destinationFixture || databaseFixture || authFixture || staticFixture || componentFixture)) throw new Error("Framework fixture requires its isolated agent hook");
@@ -57,6 +59,9 @@ export async function startTestServer({ browserHost = "127.0.0.1", publicOrigin 
     MODEL_ID: "",
     NODE_OPTIONS: "",
     LAUNCHLANE_FRAMEWORK_FIXTURE: frameworkFixture ? "true" : "false",
+    LAUNCHLANE_PHP_FIXTURE: phpFixture ? "true" : "false",
+    LAUNCHLANE_PHP_PUBLICATION_FIXTURE: phpPublicationFixture ? "true" : "false",
+    LAUNCHLANE_PHP_FIXTURE_PHAR: (phpFixture || phpPublicationFixture) && process.env.LAUNCHLANE_TEST_COMPOSER_PHAR ? resolve(process.env.LAUNCHLANE_TEST_COMPOSER_PHAR) : "",
     LAUNCHLANE_GO_FIXTURE: goFixture ? "true" : "false",
     LAUNCHLANE_GO_FIXTURE_ARCHIVE: (goFixture || goPublicationFixture) && process.env.LAUNCHLANE_TEST_GO_TOOLCHAIN ? resolve(process.env.LAUNCHLANE_TEST_GO_TOOLCHAIN) : "",
     LAUNCHLANE_GO_PUBLICATION_FIXTURE: goPublicationFixture ? "true" : "false",
