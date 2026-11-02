@@ -27,9 +27,9 @@ function pnpmRegistryEntries(files: readonly SourceFile[], allPlatforms: boolean
 }
 export function pnpmTarballs(files: readonly SourceFile[]): LockedTarball[] { return pnpmRegistryEntries(files, false); }
 export const pnpmMetadataByteLimit = 64 * 1024 * 1024;
-export type PnpmMetadataReader = (name: string, signal: AbortSignal, remainingBytes?: number) => Promise<Buffer>;
-export const pnpmRegistryMetadata: PnpmMetadataReader = (name, signal, remainingBytes = pnpmMetadataByteLimit) =>
-  registryBytes(`https://registry.npmjs.org/${encodeURIComponent(name)}`, signal, Math.min(remainingBytes, pnpmMetadataByteLimit), "application/json", true);
+export type PnpmMetadataReader = (name: string, signal: AbortSignal, remainingBytes?: number, onBytes?: (bytes: number) => void) => Promise<Buffer>;
+export const pnpmRegistryMetadata: PnpmMetadataReader = (name, signal, remainingBytes = pnpmMetadataByteLimit, onBytes) =>
+  registryBytes(`https://registry.npmjs.org/${encodeURIComponent(name)}`, signal, Math.min(remainingBytes, pnpmMetadataByteLimit), "application/json", true, onBytes);
 export async function writePnpmRegistryManifest(files: readonly SourceFile[], directory: string, signal: AbortSignal, beforeRead: () => void,
   readMetadata: PnpmMetadataReader = pnpmRegistryMetadata): Promise<void> {
   const items = pnpmRegistryEntries(files, true);
@@ -45,12 +45,18 @@ export async function writePnpmRegistryManifest(files: readonly SourceFile[], di
     ensure(name && /^(?:@[a-z0-9_.-]+\/)?[a-z0-9_.-]+$/.test(name), "PNPM_METADATA_INVALID", "نام registry باید همان نام قفل‌شده باشد.", 409);
     groups.set(name, [...(groups.get(name) ?? []), item]);
   }
-  const metadata: { path: string; value: unknown }[] = []; let total = 0, decodedTotal = 0, retainedTotal = 0;
-  for (const [name, entries] of groups) {
+  const metadata: { path: string; value: unknown }[] = [], pending = [...groups], controller = new AbortController(), bounded = AbortSignal.any([signal, controller.signal]);
+  let total = 0, decodedTotal = 0, retainedTotal = 0, next = 0, failure: unknown;
+  async function collect(name: string, entries: LockedTarball[]) {
     const remaining = pnpmMetadataByteLimit - total;
     ensure(remaining > 0, "PNPM_METADATA_LIMIT", "مشخصات registry از سقف این اجرا بیشتر است.", 413);
-    beforeRead(); const deadline = AbortSignal.any([signal, AbortSignal.timeout(90000)]), bytes = await abortable(() => readMetadata(name, deadline, remaining), deadline);
-    total += bytes.length; ensure(bytes.length <= remaining, "PNPM_METADATA_LIMIT", "مشخصات registry از سقف این اجرا بیشتر است.", 413);
+    let streamed = 0;
+    const charge = (bytes: number) => { ensure(Number.isSafeInteger(bytes) && bytes > 0 && total + bytes <= pnpmMetadataByteLimit, "PNPM_METADATA_LIMIT", "مشخصات registry از سقف این اجرا بیشتر است.", 413); total += bytes; streamed += bytes; };
+    beforeRead(); const deadline = AbortSignal.any([bounded, AbortSignal.timeout(90000)]), bytes = await abortable(() => readMetadata(name, deadline, remaining, charge), deadline);
+    // Injected buffered readers retain the same aggregate quota. Native reads charge
+    // each chunk before retaining it, so four in-flight reads cannot multiply it.
+    if (!streamed && bytes.length) charge(bytes.length);
+    ensure(streamed === bytes.length && bytes.length <= remaining, "PNPM_METADATA_LIMIT", "شمارش بایت‌های registry با پاسخ برابر نیست.", 413);
     let decoded: Buffer;
     try { decoded = bytes[0] === 0x1f && bytes[1] === 0x8b ? gunzipSync(bytes, { maxOutputLength: pnpmMetadataByteLimit }) : bytes; }
     catch { throw new AppError("PNPM_METADATA_LIMIT", "پاسخ فشردهٔ registry معتبر و محدود نیست.", 413); }
@@ -78,5 +84,9 @@ export async function writePnpmRegistryManifest(files: readonly SourceFile[], di
     ensure(retainedTotal <= pnpmMetadataByteLimit, "PNPM_METADATA_LIMIT", "مشخصات لازم برای worker از سقف نگهداری بیشتر است.", 413);
     metadata.push({ path: `/${name}`, value: selected });
   }
-  await writeFile(join(directory, "pnpm-metadata.json"), JSON.stringify(metadata), { flag: "wx", mode: 0o600 });
+  const worker = async () => { while (next < pending.length && !bounded.aborted) { const item = pending[next++]; if (item) await collect(...item); } };
+  await Promise.allSettled(Array.from({ length: Math.min(4, pending.length) }, () => worker().catch(error => { if (!controller.signal.aborted) { failure = error; controller.abort(); } throw error; })));
+  if (failure !== undefined) throw failure;
+  ensure(!signal.aborted, "CANCELLED", "خواندن metadata متوقف شد.", 409);
+  await writeFile(join(directory, "pnpm-metadata.json"), JSON.stringify(metadata.sort((a, b) => a.path.localeCompare(b.path, "en"))), { flag: "wx", mode: 0o600 });
 }

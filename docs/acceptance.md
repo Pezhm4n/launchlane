@@ -1,5 +1,7 @@
 # معیارهای پذیرش محصول
 
+Angular delta, 2026-11-02: actual AOT/original tests/compiled artifact/Agent/web/Docker/Chromium now pass the existing component route; runtime1826b0a5 passed domain834, HTTP48 and positive/negative/regression/browser gates. [Evidence and remaining boundaries](evidence/angular-compiled-component.md). This does not grant full-family or all14 production acceptance.
+
 PHP/Laravel, 2026-11-02 (AC19/24/26/28/31/32): actual locked install/original tests/fresh Apache/exact installed archive and Agent/web publication44 passed locally with synthetic cloud/model transports. [Evidence](evidence/php-installed-runtime.md); fourteen sandbox cases do not mean fourteen-family acceptance.
 
 Go, 2026-11-02 (AC19/24/26/28/31/32): original module/tests, exact compiled archive, fresh runtime and existing Agent/web publication43 have actual local worker/browser evidence with synthetic cloud/model transports. [Scope](evidence/go-compiled-runtime.md); this is partial family acceptance, with live/full14/data boundaries open.

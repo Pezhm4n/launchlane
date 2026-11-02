@@ -27,6 +27,12 @@ test("locked build accepts public integrity-bound Linux packages and deduplicate
     "node_modules/windows": { os: ["win32"], resolved: "file:never-read" }, "node_modules/arm": { cpu: ["arm64"] } }));
   assert.equal(list.length, 1); assert.equal(list[0]?.integrity, integrity);
 });
+
+test("npm and pnpm scalar libc metadata keeps the Linux glibc selection and rejects malformed constraints", () => {
+  for (const libc of ["glibc", ["glibc"], ["!musl"], "any"]) assert.equal(lockedTarballs(files({ "node_modules/fixture": { ...entry, libc } })).length, 1);
+  for (const libc of ["musl", "!glibc", ["musl"], ["!glibc"]]) assert.equal(lockedTarballs(files({ "node_modules/fixture": { ...entry, libc } })).length, 0);
+  for (const changes of [{ libc: {} }, { libc: 5 }, { os: "linux" }, { cpu: "x64" }]) assert.throws(() => lockedTarballs(files({ "node_modules/fixture": { ...entry, ...changes } })), { code: "BUILD_LOCK_INVALID" });
+});
 test("foreign registries, credentials, redirects, links, incompatible integrity and old lockfiles are denied", () => {
   for (const resolved of ["http://registry.npmjs.org/a.tgz", "https://evil.test/a.tgz", "https://user:password@registry.npmjs.org/a.tgz", entry.resolved + "?token=value", "file:../local"]) {
     assert.throws(() => lockedTarballs(files({ "node_modules/fixture": { ...entry, resolved } })), { code: "BUILD_REGISTRY_DENIED" });

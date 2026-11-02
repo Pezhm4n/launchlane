@@ -1,5 +1,7 @@
 # برنامه اجرایی Launchlane
 
+Angular, 2026-11-02 (AC19/24/26/28/31/32): source CLI project/config/output now selects the actual AOT artifact through existing plan9/publication40. Runtime1826b0a5 passed domain834/HTTP48, Angular3 and pnpm/React8 sandbox cases, both actual web publications/replay/reload and guided54. [Short evidence](docs/evidence/angular-compiled-component.md); native/live, SSR/topology/data and complete14 stay open.
+
 PHP/Laravel, 2026-11-02 (AC19/24/26/28/31/32): plan12 retains Composer lock/hooks/PHPUnit and exact production vendor, verifies fresh Apache, then reuses Docker22/publication44 from Agent/web. Runtime326cec88 passed domain829/HTTP48/sandbox14 plus both actual web flows/publications and Go/pnpm/guided regressions. [Short evidence and limits](docs/evidence/php-installed-runtime.md); full14, raw corpus, frontend/worker/data and live acceptance remain open.
 
 Go, 2026-11-02 (AC19/24/26/28/31/32): plan11 compiles the original locked module/tests and verifies the exact binary in a fresh worker; receipt3/archive/Docker22/publication43 reuse Agent/web approvals and journals. [Execution evidence](docs/evidence/go-compiled-runtime.md). Workspaces/cgo/independent workers, data, native cloud and complete14 remain open.

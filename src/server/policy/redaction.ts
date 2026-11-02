@@ -1,4 +1,5 @@
 import semver from "semver";
+import { parseDocument } from "yaml";
 import { fixtureCredentialLabel, maskNonCredentialSyntax, unitCredentialVector } from "./source-expressions.ts";
 
 const sensitiveAssignment =
@@ -98,6 +99,28 @@ export function containsCredential(value: string, secrets: readonly string[] = [
 
 export function containsSourceCredential(value: string, secrets: readonly string[] = [], path = ""): boolean {
   if (knownSecretPatterns(secrets).some(pattern => pattern.test(value))) return true;
+  if (/(?:^|\/)pnpm-lock\.yaml$/.test(path) && Buffer.byteLength(value) <= 4 * 1024 * 1024) {
+    // A snapshot dependency such as @inquirer/password: 5.2.5 is package metadata.
+    // Normalize only semver dependency values in the known lock structure; private
+    // values, URLs, custom fields and installed secrets keep the ordinary scan.
+    try {
+      const doc = parseDocument(value, { schema: "core", uniqueKeys: true, merge: false });
+      if (doc.errors.length) throw Error("invalid lock");
+      const parsed: unknown = doc.toJS({ maxAliasCount: 0 });
+      if (parsed && typeof parsed === "object" && "lockfileVersion" in parsed && (parsed.lockfileVersion === "9.0" || parsed.lockfileVersion === 9) &&
+        "snapshots" in parsed && parsed.snapshots && typeof parsed.snapshots === "object" && !Array.isArray(parsed.snapshots)) {
+        for (const entry of Object.values(parsed.snapshots)) {
+          if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
+          for (const [field, dependencies] of Object.entries(entry)) {
+            if (!["dependencies", "optionalDependencies"].includes(field) || !dependencies || typeof dependencies !== "object" || Array.isArray(dependencies)) continue;
+            for (const [name, version] of Object.entries(dependencies)) if (/^(?:@[a-z0-9_.-]+\/)?[a-z0-9_.-]+$/.test(name) && typeof version === "string" && version.length <= 160 && semver.validRange(version) !== null)
+              Object.defineProperty(dependencies, name, { value: null, enumerable: true, configurable: true, writable: true });
+          }
+        }
+        const normalized = JSON.stringify(parsed); return scrub(normalized, secrets, sourceSensitiveAssignment, true) !== normalized;
+      }
+    } catch { /* Invalid or aliased locks retain conservative scanning. */ }
+  }
   if (path.endsWith(".sql")) {
     const normalized = value.replace(/^\s*--[^\r\n]*$/gm, line => line.replace(/postgres(?:ql)?:\/\/[A-Za-z_]\w{0,63}:(?:YOUR_)?PASS(?:WORD)?@(?:YOUR_)?HOST(?:NAME)?:PORT\/(?:YOUR_)?(?:DB|DBNAME|DATABASE)(?:\?sslmode=(?:require|verify-full|disable))?/gi, url => url.replace("://", "//")));
     return scrub(normalized, secrets, sourceSensitiveAssignment, true) !== normalized;

@@ -22,6 +22,7 @@ import { AgentRepository } from "../../src/server/agent/store.ts";
 import { agentFixture } from "../helpers/agent-fixture.ts";
 import { pnpmFixtureFiles } from "../helpers/pnpm-fixture.ts";
 import { pnpmTarballs, writePnpmRegistryManifest, pnpmMetadataByteLimit } from "../../src/server/agent/pnpm-source.ts";
+import { AppError } from "../../src/server/errors.ts";
 import { inspectPnpmWorkspace } from "../../src/server/workspace/pnpm.ts";
 import { sourcePnpmComponent } from "../../src/server/agent/pnpm-component.ts";
 import { proposeDestination } from "../../src/server/application/provision.ts";
@@ -100,6 +101,36 @@ test("full registry history uses one unchanged aggregate budget; frozen worker r
     const bomb = join(f.directory, "compressed-limit"); await mkdir(bomb); await writeFile(join(bomb, "manifest.json"), JSON.stringify(items.map(item => ({ file: item.file }))));
     const compressedOversize = gzipSync(Buffer.alloc(pnpmMetadataByteLimit + 1, 120)); assert.ok(compressedOversize.length < 1024 * 1024);
     await assert.rejects(writePnpmRegistryManifest(fixture.files, bomb, AbortSignal.timeout(5000), () => {}, async () => compressedOversize), { code: "PNPM_METADATA_LIMIT" });
+  } finally { f.close(); }
+});
+
+test("four bounded metadata readers share streaming bytes and preserve the first failure without writing a partial manifest", async () => {
+  const f = await agentFixture(); try {
+    const packages = Object.fromEntries(["one", "two", "three", "four"].map(name => [`${name}@1.0.0`, { resolution: { integrity: `sha512-${createHash("sha512").update(name).digest("base64")}` } }]));
+    const files = [{ path: "pnpm-lock.yaml", content: Buffer.from(JSON.stringify({ lockfileVersion: "9.0", packages })) }], items = pnpmTarballs(files);
+    const directory = async (name: string) => { const root = join(f.directory, name); await mkdir(root); await writeFile(join(root, "manifest.json"), JSON.stringify(items.map(item => ({ file: item.file })))); return root; };
+    let active = 0, peak = 0, reads = 0, release = () => {}; const gate = new Promise<void>(resolve => { release = resolve; });
+    const root = await directory("parallel");
+    await writePnpmRegistryManifest(files, root, AbortSignal.timeout(5000), () => { reads++; }, async (name, _signal, _remaining, onBytes) => {
+      active++; peak = Math.max(peak, active); if (active === 4) release(); await gate;
+      const item = items.find(item => item.url.includes(`/${name}/-/`)); assert.ok(item);
+      const bytes = Buffer.from(JSON.stringify({ name, time: { "1.0.0": "2020-01-01T00:00:00.000Z" }, versions: { "1.0.0": { name, version: "1.0.0", dist: { tarball: item.url, integrity: item.integrity } } } }));
+      onBytes?.(bytes.length); active--; return bytes;
+    });
+    assert.equal(peak, 4); assert.equal(reads, 4); assert.equal(active, 0);
+    assert.deepEqual(JSON.parse(await readFile(join(root, "pnpm-metadata.json"), "utf8")).map((row: { path: string }) => row.path), ["/four", "/one", "/three", "/two"]);
+    const failed = await directory("first-failure"); let starts = 0;
+    await assert.rejects(writePnpmRegistryManifest(files, failed, AbortSignal.timeout(5000), () => {}, async () => {
+      if (starts++ === 0) throw new AppError("ORIGINAL_METADATA_FAILURE", "synthetic");
+      return new Promise(() => {});
+    }), { code: "ORIGINAL_METADATA_FAILURE" });
+    assert.equal(starts, 4); await assert.rejects(readFile(join(failed, "pnpm-metadata.json")), { code: "ENOENT" });
+    const limited = await directory("stream-limit"); let charged = 0;
+    await assert.rejects(writePnpmRegistryManifest(files, limited, AbortSignal.timeout(5000), () => {}, async (_name, _signal, _remaining, onBytes) => {
+      assert.ok(onBytes); for (let index = 0; index < 5; index++) { onBytes(16 * 1024 * 1024); charged += 16 * 1024 * 1024; }
+      return Buffer.alloc(0);
+    }), { code: "PNPM_METADATA_LIMIT" });
+    assert.equal(charged, pnpmMetadataByteLimit); await assert.rejects(readFile(join(limited, "pnpm-metadata.json")), { code: "ENOENT" });
   } finally { f.close(); }
 });
 

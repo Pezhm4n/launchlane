@@ -7,7 +7,8 @@ import { setTimeout as pause } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import { freeHttpTestPort } from "../tests/helpers/http-port.ts";
 
-export async function startTestServer({ browserHost = "127.0.0.1", publicOrigin = "", agentFixture = false, environmentFixture = false, activationFixture = false, destinationFixture = false, databaseFixture = false, workspaceConfigured = true, authFixture = false, staticFixture = false, componentFixture = false, frameworkFixture = false, goFixture = false, goPublicationFixture = false, phpFixture = false, phpPublicationFixture = false } = {}) {
+export async function startTestServer({ browserHost = "127.0.0.1", publicOrigin = "", agentFixture = false, environmentFixture = false, activationFixture = false, destinationFixture = false, databaseFixture = false, workspaceConfigured = true, authFixture = false, staticFixture = false, componentFixture = false, frameworkFixture = false, goFixture = false, goPublicationFixture = false, phpFixture = false, phpPublicationFixture = false, angularComponentFixture = false } = {}) {
+  if (angularComponentFixture && (!componentFixture || goFixture || goPublicationFixture || phpFixture || phpPublicationFixture || frameworkFixture)) throw new Error("Angular publication requires its isolated component hook");
   if (phpPublicationFixture && (!componentFixture || goFixture || goPublicationFixture || phpFixture || frameworkFixture)) throw new Error("PHP publication requires its isolated component hook");
   if (phpFixture && (!agentFixture || goFixture || goPublicationFixture || frameworkFixture || environmentFixture || activationFixture || destinationFixture || databaseFixture || authFixture || staticFixture || componentFixture)) throw new Error("PHP fixture requires its isolated agent hook");
   if (goPublicationFixture && (!componentFixture || goFixture || frameworkFixture)) throw new Error("Go publication requires the component transport hook");
@@ -80,6 +81,7 @@ export async function startTestServer({ browserHost = "127.0.0.1", publicOrigin 
     ...(authFixture ? { LAUNCHLANE_AUTH_MODE: "liara", NODE_OPTIONS: `--import=${pathToFileURL(resolve("tests/helpers/liara-auth-hook.mjs")).href}` } : {}),
     ...(componentFixture ? { LAUNCHLANE_ENABLE_MUTATIONS: "true", LAUNCHLANE_ENABLE_LIVE_MODEL: "true", LAUNCHLANE_ENABLE_LOCAL_REPAIR: "true", LAUNCHLANE_ENABLE_LIVE_LIARA: "true",
       MODEL_ID: "gpt-6-luna", MODEL_API_KEY: "synthetic-component-test-only", LAUNCHLANE_AGENT_FIXTURE_LOG: join(directory,"model.jsonl"), NODE_OPTIONS: `--import=${pathToFileURL(resolve("tests/helpers/component-publication-hook.mjs")).href}` } : {}),
+    ...(angularComponentFixture ? { LAUNCHLANE_ANGULAR_COMPONENT_FIXTURE: "true" } : {}),
     ...(staticFixture ? { LAUNCHLANE_ENABLE_MUTATIONS: "true", LAUNCHLANE_ENABLE_LIVE_MODEL: "true", LAUNCHLANE_ENABLE_LIVE_LIARA: "true",
       MODEL_ID: "gpt-6-luna", MODEL_API_KEY: "synthetic-static-fixture-key", NODE_OPTIONS: `--import=${pathToFileURL(resolve("tests/helpers/static-publication-hook.mjs")).href}` } : {}),
   };

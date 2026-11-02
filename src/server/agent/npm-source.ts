@@ -15,8 +15,9 @@ export type LockedTarball = { url: string; integrity: string; algorithm: "sha512
 export const dependencyByteLimit = 384 * 1024 * 1024;
 const tarballByteLimit = 64 * 1024 * 1024;
 
-function compatible(value: unknown, platform: string): boolean {
+function compatible(value: unknown, platform: string, scalar = false): boolean {
   if (value === undefined) return true;
+  if (scalar && typeof value === "string") value = [value];
   ensure(Array.isArray(value) && value.every(item => typeof item === "string"), "BUILD_LOCK_INVALID", "محدودیت سکوی dependency معتبر نیست.");
   const entries: string[] = value;
   return !entries.includes(`!${platform}`) && (!entries.some(item => !item.startsWith("!")) || entries.includes(platform) || entries.includes("any"));
@@ -34,7 +35,7 @@ export function lockedTarballs(files: readonly SourceFile[]): LockedTarball[] {
     const row = object(value);
     ensure(path.startsWith("node_modules/") && !path.split("/").some(part => part === "." || part === "..") && row.link !== true,
       "BUILD_LOCK_UNSUPPORTED", "dependency محلی، workspace یا پیوندی در این قرارداد نصب نمی‌شود.", 409);
-    if (!compatible(row.os, "linux") || !compatible(row.cpu, "x64") || !compatible(row.libc, "glibc")) continue;
+    if (!compatible(row.os, "linux") || !compatible(row.cpu, "x64") || !compatible(row.libc, "glibc", true)) continue;
     if (row.inBundle === true && row.resolved === undefined) continue;
     const url = new URL(string(row.resolved, 2048));
     ensure(url.origin === "https://registry.npmjs.org" && !url.username && !url.password && !url.search && !url.hash && url.pathname.endsWith(".tgz"),
@@ -63,7 +64,7 @@ export function lockedTarballs(files: readonly SourceFile[]): LockedTarball[] {
 }
 
 export type TarballReader = (item: LockedTarball, signal: AbortSignal) => Promise<Buffer>;
-export async function registryBytes(url: string, signal: AbortSignal, byteLimit: number, accept: string, compressedMetadata = false): Promise<Buffer> {
+export async function registryBytes(url: string, signal: AbortSignal, byteLimit: number, accept: string, compressedMetadata = false, onBytes?: (bytes: number) => void): Promise<Buffer> {
   try {
   const addresses = await abortable(() => lookup("registry.npmjs.org", { all: true, family: 4 }), signal);
   ensure(addresses.length > 0 && addresses.every(entry => isPublicAddress({ address: entry.address, family: 4 })),
@@ -83,6 +84,7 @@ export async function registryBytes(url: string, signal: AbortSignal, byteLimit:
       response.on("data", (part: Buffer) => {
         bytes += part.length;
         if (bytes > byteLimit) { response.destroy(new AppError("BUILD_DEPENDENCY_LIMIT", "حجم پاسخ registry از سقف مجاز بیشتر است.", 413)); return; }
+        try { onBytes?.(part.length); } catch (error) { response.destroy(error instanceof Error ? error : new Error("registry byte accounting failed")); return; }
         chunks.push(part);
       });
       response.once("error", reject);
@@ -108,7 +110,7 @@ function metadataCompatible(item: LockedTarball, bytes: Buffer): boolean {
   const dist = object(row.dist);
   ensure(row.name === item.platformMetadata?.name && row.version === item.platformMetadata?.version && dist.tarball === item.url && dist.integrity === item.integrity,
     "BUILD_METADATA_CHANGED", "مشخصات registry با نام، نسخه، نشانی و integrity همان lockfile برابر نیست.", 409);
-  return compatible(row.os, "linux") && compatible(row.cpu, "x64") && compatible(row.libc, "glibc");
+  return compatible(row.os, "linux") && compatible(row.cpu, "x64") && compatible(row.libc, "glibc", true);
 }
 
 export async function downloadLockedTarballs(items: readonly LockedTarball[], directory: string, signal: AbortSignal,

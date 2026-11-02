@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "cli": { "analytics": false, "cache": { "enabled": false } },
+  "projects": {
+    "portal": {
+      "projectType": "application", "root": "", "sourceRoot": "src",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:application", "defaultConfiguration": "production",
+          "options": { "browser": "src/main.ts", "index": "src/index.html", "tsConfig": "tsconfig.json", "styles": ["src/styles.css"], "outputPath": "dist/base" },
+          "configurations": {
+            "production": { "outputPath": "dist/production" },
+            "staging": { "outputPath": { "base": "dist/staging", "browser": "client" }, "optimization": true, "sourceMap": false, "outputHashing": "all" }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,1 @@
+{"name":"compiled-angular-workspace","private":true,"packageManager":"pnpm@11.19.0","engines":{"node":"24.x"},"scripts":{"build":"pnpm -r build"}}
