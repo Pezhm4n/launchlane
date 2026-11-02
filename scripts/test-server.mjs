@@ -7,7 +7,8 @@ import { setTimeout as pause } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import { freeHttpTestPort } from "../tests/helpers/http-port.ts";
 
-export async function startTestServer({ browserHost = "127.0.0.1", publicOrigin = "", agentFixture = false, environmentFixture = false, activationFixture = false, destinationFixture = false, databaseFixture = false, workspaceConfigured = true, authFixture = false, staticFixture = false, componentFixture = false } = {}) {
+export async function startTestServer({ browserHost = "127.0.0.1", publicOrigin = "", agentFixture = false, environmentFixture = false, activationFixture = false, destinationFixture = false, databaseFixture = false, workspaceConfigured = true, authFixture = false, staticFixture = false, componentFixture = false, frameworkFixture = false } = {}) {
+  if (frameworkFixture && (!agentFixture || environmentFixture || destinationFixture || databaseFixture || authFixture || staticFixture || componentFixture)) throw new Error("Framework fixture requires its isolated agent hook");
   if (componentFixture && (agentFixture || environmentFixture || destinationFixture || databaseFixture || authFixture || staticFixture)) throw new Error("Component fixture requires its own network-denying hook");
   if (environmentFixture && !agentFixture) throw new Error("Environment fixture requires the network-denying test hook");
   if (activationFixture && !environmentFixture) throw new Error("Activation fixture requires the environment fixture");
@@ -53,6 +54,7 @@ export async function startTestServer({ browserHost = "127.0.0.1", publicOrigin 
     MODEL_API_KEY: "",
     MODEL_ID: "",
     NODE_OPTIONS: "",
+    LAUNCHLANE_FRAMEWORK_FIXTURE: frameworkFixture ? "true" : "false",
     ...(agentFixture?{
       LAUNCHLANE_ENABLE_LIVE_MODEL:"true",LAUNCHLANE_ENABLE_LOCAL_REPAIR:"true",
       MODEL_ID:"gpt-6-luna",MODEL_API_KEY:"synthetic-model-key-for-isolated-test-only",

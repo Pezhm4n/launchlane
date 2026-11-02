@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { parseProjectBuildPlan, pythonBuildImage, type PythonBuildPlan } from "../../contracts/project-build.ts";
+import { parseProjectBuildPlan, pythonBuildImage, type PythonBuildPlan, type FrameworkPythonBuildPlan } from "../../contracts/project-build.ts";
 import { environmentVariables, isApplicationEnvironmentKey, type EnvironmentVariable } from "../../contracts/environment.ts";
 import { ensure } from "../errors.ts";
 import { docker, containerState, resolveCreatedContainer, type CommandResult } from "./container.ts";
@@ -64,17 +64,32 @@ try:
  subprocess.run(['/usr/local/bin/python3','-m','compileall','-q','.'],env=env,check=True,timeout=15)
  stage='test'
  progress()
- if tests:
+ if plan["version"]==10:
+  checked=subprocess.run(plan["testCommand"].split(" "),env=env,capture_output=True,text=True,timeout=30)
+  report=checked.stdout+checked.stderr
+  if len(report)>1048576: raise RuntimeError("framework test output limit")
+  print(report,flush=True)
+  count=re.search(r"Ran ([0-9]+) tests?",report)
+  if checked.returncode!=0 or not count or int(count.group(1))<1 or re.search(r"skipped[= :]|[.]\.\. skipped",report,re.I): raise RuntimeError("original framework tests did not pass completely")
+ elif tests:
   os.environ.clear();os.environ.update(env);sys.path[:0]=['/work/site','/work/project']
   suite=unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromName(path[:-3].replace('/','.')) for path in tests)
   result=unittest.TextTestRunner(verbosity=2).run(suite)
   if result.testsRun<1 or not result.wasSuccessful() or result.skipped: raise RuntimeError('unchanged acceptance tests did not pass')
  stage='workload'
  progress()
+ if plan['version']==10:
+  for pid in os.listdir('/proc'):
+   if not pid.isdigit() or int(pid)==os.getpid(): continue
+   try:
+    with open('/proc/'+pid+'/stat') as status: state=status.read().rsplit(') ',1)[1].split()[0]
+   except FileNotFoundError: continue
+   if state!='Z': raise RuntimeError('unexpected background process before production start')
  child=subprocess.Popen(plan['runtime']['command'],env=env,stdin=subprocess.DEVNULL)
  try:
   deadline=time.monotonic()+20; matched=False
   while time.monotonic()<deadline:
+   if plan['version']==10 and child.poll() is not None: raise RuntimeError('production WSGI process exited before workload verification')
    try:
     with urllib.request.urlopen('http://127.0.0.1:'+str(plan['port'])+plan['workload']['path'],timeout=1) as response:
      data=response.read(65537)
@@ -87,6 +102,7 @@ try:
    time.sleep(.25)
   if not matched: raise RuntimeError('original workload expectation not met')
   verify_assets(plan['workload']['path'],content_type,data)
+  if plan['version']==10 and child.poll() is not None: raise RuntimeError('production WSGI process exited during workload verification')
  finally:
   child.terminate()
   try: child.wait(timeout=3)
@@ -98,10 +114,10 @@ except Exception as error:
  os._exit({'cache':74,'install':71,'build':72,'test':76,'workload':73}.get(stage,75))
 `;
 
-export async function runPythonBuild(workspace: string, wheels: string, value: PythonBuildPlan, testFiles: readonly string[],
+export async function runPythonBuild(workspace: string, wheels: string, value: PythonBuildPlan | FrameworkPythonBuildPlan, testFiles: readonly string[],
   signal: AbortSignal, onCreated?: (id: string) => void, environment: readonly EnvironmentVariable[] = []): Promise<CommandResult & { containerId: string; image: string }> {
   const plan = parseProjectBuildPlan(value), values = environmentVariables(environment);
-  ensure(plan.version === 2, "BUILD_RUNTIME_UNSUPPORTED", "برنامه اجرای Python معتبر نیست.", 409);
+  ensure(plan.version === 2 || plan.version === 10, "BUILD_RUNTIME_UNSUPPORTED", "برنامه اجرای Python معتبر نیست.", 409);
   ensure(values.every(row => isApplicationEnvironmentKey(row.key)) && values.map(row => row.key).sort().join("\0") === [...(plan.sourceEnvironment?.keys ?? plan.environment?.keys ?? [])].sort().join("\0"),
     "ENV_REFERENCE_CHANGED", "اطلاعات اجرای Python با تصمیم برابر نیست.", 409);
   ensure(!workspace.includes(",") && !wheels.includes(","), "SANDBOX_PATH_DENIED", "مسیر ورودی محیط ایزوله معتبر نیست.", 403);

@@ -1,3 +1,4 @@
+import { parseFrameworkPythonRuntime, type FrameworkPythonRuntime } from "./framework-python.ts";
 import { parseWorkloadContract, type WorkloadContract } from "./deployment.ts";
 import { exactKeys, integer, object, text } from "./validation.ts";
 import { ensure } from "../server/errors.ts";
@@ -46,7 +47,8 @@ export type PnpmBuildPlan = Omit<NodeBuildPlan, "version" | "nodeVersion" | "ima
   workspace: PnpmWorkspace; phase: "compile" | "runtime"; install?: never;
 }>;
 export type PnpmComponentBuildPlan = Omit<PnpmBuildPlan, "version" | "phase"> & Readonly<{ version: 9; sourceHash: string; component: PnpmComponent; apiChecks: readonly FullstackApiCheck[] }>;
-export type ProjectBuildPlan = NodeBuildPlan | PythonBuildPlan | Node24BuildPlan | Node20BuildPlan | FrontendBuildPlan | DockerBuildPlan | FullstackBuildPlan | PnpmBuildPlan | PnpmComponentBuildPlan;
+export type FrameworkPythonBuildPlan = Omit<PythonBuildPlan, "version" | "runtime"> & Readonly<{ version: 10; runtime: FrameworkPythonRuntime }>;
+export type ProjectBuildPlan = FrameworkPythonBuildPlan | NodeBuildPlan | PythonBuildPlan | Node24BuildPlan | Node20BuildPlan | FrontendBuildPlan | DockerBuildPlan | FullstackBuildPlan | PnpmBuildPlan | PnpmComponentBuildPlan;
 export function nodeBuildRuntime(version: unknown) {
   ensure(version === "20" || version === "22" || version === "24", "BUILD_RUNTIME_UNSUPPORTED", "محیط ساخت سازگار با نسخهٔ پروژه در این نصب آماده نیست؛ اجرای ناسازگار روی رایانه انجام نشد.", 409);
   return version === "20" ? { version: 4, nodeVersion: "20", image: node20BuildImage } as const : version === "24" ? { version: 3, nodeVersion: "24", image: node24BuildImage } as const
@@ -56,6 +58,13 @@ export function parseProjectBuildPlan<V extends ProjectBuildPlan["version"]>(val
 export function parseProjectBuildPlan(value: unknown): ProjectBuildPlan;
 export function parseProjectBuildPlan(value: unknown): ProjectBuildPlan {
   const row = object(value);
+  if (row.version === 10) {
+    const runtime = parseFrameworkPythonRuntime(row.runtime), base = parseProjectBuildPlan({ ...row, version: 2, runtime: { kind: "python", version: "3.12", command: ["python3", "main.py"] }, startCommand: "python3 main.py", testCommand: null });
+    const testCommand = runtime.kind === "django" ? "python3 manage.py test" : "python3 -m unittest discover";
+    ensure(row.testCommand === testCommand, "FRAMEWORK_TEST_CHANGED", "runner اصلی framework باید حفظ شود.", 409);
+    ensure(row.port === runtime.port && row.startCommand === runtime.command.join(" "), "FRAMEWORK_START_CHANGED", "پورت و فرمان framework تغییر کرده‌اند.", 409);
+    return { ...base, version: 10, runtime, testCommand, startCommand: runtime.command.join(" ") };
+  }
   if (row.version === 9) {
     const { sourceHash, component, apiChecks, ...rest } = row, parsed = parsePnpmComponent(component), base = parseProjectBuildPlan({ ...rest, version: 8, phase: "runtime" });
     ensure(row.phase === undefined && typeof sourceHash === "string" && /^[a-f0-9]{64}$/.test(sourceHash) && Array.isArray(apiChecks) && (parsed.kind !== "node" || apiChecks.length > 0) &&

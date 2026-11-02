@@ -1,3 +1,4 @@
+import { frameworkPythonRuntime } from "./framework-python.ts";
 import { parseComponentVerification } from "../../contracts/pnpm-component.ts";
 import { createHash } from "node:crypto";
 import { constants, type Dirent } from "node:fs";
@@ -267,8 +268,9 @@ async function scanProject(
   // A package's Dockerfile may only build its API; it does not supersede an entire Node application implicitly.
   const dockerRuntime = !fullstack && dockerDescriptor && dockerEntry && dockerDescriptor.port && (liara.platform === "docker" || !packageJson)
     ? parseDockerRuntime({ kind: "docker", contextRoot: ".", dockerfile: dockerEntry.path, dockerfileHash: dockerEntry.sha256, port: dockerDescriptor.port }) : undefined;
-  const nativeExecutionRequired = nativeInspection.state === "detected" && nativeInspection.descriptor.platform !== "docker" ||
-    nativeInspection.state === "unsupported" && (nativeInspection.platform !== "docker" || liara.platform === "docker");
+  const frameworkPython = frameworkPythonRuntime(files, nativeInspection, liara);
+  const nativeExecutionRequired = !frameworkPython && (nativeInspection.state === "detected" && nativeInspection.descriptor.platform !== "docker" ||
+    nativeInspection.state === "unsupported" && (nativeInspection.platform !== "docker" || liara.platform === "docker"));
   const scripts = pkg.scripts === undefined ? {} : object(pkg.scripts);
   const staticSite = !packageJson && manifest.some(file => file.path === "index.html") &&
     !manifest.some(file => /\.(?:py|php|csproj|fsproj|go|rb|java)$|^(?:Dockerfile|composer\.json|Gemfile)$/i.test(file.path)) &&
@@ -297,8 +299,8 @@ async function scanProject(
   // as the single Node workload supported by this deployment path; require an explicit leaf.
   const hasWorkspaces = pkg.workspaces !== undefined;
   const python = !packageJson && manifest.some(file => file.path.endsWith(".py"));
-  const pythonRuntime = python ? parsePythonRuntime({ kind: "python", version: object(liara.python ?? {}).version ?? "3.12",
-    command: Array.isArray(liara.args) && liara.args.length === 1 && typeof liara.args[0] === "string" ? liara.args[0].trim().split(/\s+/) : ["python3", "main.py"] }) : undefined;
+  const pythonRuntime = frameworkPython ?? (python ? parsePythonRuntime({ kind: "python", version: object(liara.python ?? {}).version ?? "3.12",
+    command: Array.isArray(liara.args) && liara.args.length === 1 && typeof liara.args[0] === "string" ? liara.args[0].trim().split(/\s+/) : ["python3", "main.py"] }) : undefined);
   const start = nativeExecutionRequired ? null : dockerRuntime ? "liara-docker" : staticSite ? "liara-static" : frontend ? "liara-frontend" : pythonRuntime ? (pythonRuntime.command[1] === "-m" || manifest.some(file => file.path === pythonRuntime.command[1]) ? pythonStart(pythonRuntime) : null) : hasWorkspaces ? null : safeScript(scripts.start),
     build = dockerRuntime ? null : safeScript(scripts.build);
   const missing: string[] = [];

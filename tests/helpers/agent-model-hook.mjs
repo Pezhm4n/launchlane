@@ -52,6 +52,10 @@ globalThis.fetch = async (input, init) => {
   const url = new URL(
     typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
   );
+  // Public dependency reads only; the project still runs network-none. All provider writes remain denied.
+  if (process.env.LAUNCHLANE_FRAMEWORK_FIXTURE === "true" && url.protocol === "https:" &&
+      ["pypi.org", "files.pythonhosted.org"].includes(url.hostname) && (init?.method ?? "GET") === "GET" && !init?.body)
+    return nativeFetch(input, init);
   if (process.env.LAUNCHLANE_DESTINATION_FIXTURE === "true" && url.origin === "https://api.liara.ir") {
     if (init?.method !== "GET") throw new Error("Destination plan fixture forbids every provider write");
     if (url.pathname === "/v1/me") return Response.json({ user: { _id: "b".repeat(24) }, team: { _id: "a".repeat(24), balance: 10000 }, plans: {
@@ -110,6 +114,12 @@ globalThis.fetch = async (input, init) => {
       return final("reply", null, "migration و نوشتن و حفظ داده در دیتابیس موقت بررسی شدند؛ انتشار و دیتابیس واقعی تأیید نشده‌اند.");
     if (last.role === "user") return reply("propose_project_build", migrationBuildInput);
     throw Error("Unexpected migration worker fixture transition");
+  }
+  if (process.env.LAUNCHLANE_FRAMEWORK_FIXTURE === "true") {
+    if (last.role === "user" && last.content.startsWith("Host local preparation receipt"))
+      return final("reply", null, "runner اصلی و WSGI همین نسخه بررسی شدند؛ انتشار و داده هنوز تأیید نشده‌اند.");
+    if (last.role === "user") return reply("propose_project_build", { path: "/orders", status: 200, assertion: { kind: "text", contains: "73}" } });
+    throw Error("Unexpected framework worker fixture transition");
   }
   if (first.includes('نشانه الزامی صفحه: "Workspace lifecycle"')) {
     if (body.messages.some(message => message.role === "user" && message.content.startsWith("Host workspace compile receipt")))

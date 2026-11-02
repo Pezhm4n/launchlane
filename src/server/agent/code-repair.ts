@@ -454,7 +454,7 @@ export class CodeRepairAdapter {
         signal,
         secrets: this.secrets(actor),
       });
-    if (input.execution === "container") ensure(input.build?.version === 7 && input.preparation?.version === 2 || flow.profile.nodeRuntime?.version === "22" || flow.profile.nodeRuntime?.version === "24" && (input.build?.version === 3 || input.build?.version === 7 || (input.build?.version === 8 || input.build?.version === 9)) || flow.profile.nodeRuntime?.version === "20" && (input.build?.version === 4 || input.build?.version === 5) || flow.profile.runtime === "python" && input.build?.version === 2 || flow.profile.runtime === "docker" && input.build?.version === 6, "SANDBOX_RUNTIME_UNAVAILABLE", "محیط ایزولهٔ سازگار با این پروژه آماده نیست؛ کد روی رایانه اجرا نمی‌شود.", 409);
+    if (input.execution === "container") ensure(input.build?.version === 7 && input.preparation?.version === 2 || flow.profile.nodeRuntime?.version === "22" || flow.profile.nodeRuntime?.version === "24" && (input.build?.version === 3 || input.build?.version === 7 || (input.build?.version === 8 || input.build?.version === 9)) || flow.profile.nodeRuntime?.version === "20" && (input.build?.version === 4 || input.build?.version === 5) || flow.profile.runtime === "python" && (input.build?.version === 2 || input.build?.version === 10) || flow.profile.runtime === "docker" && input.build?.version === 6, "SANDBOX_RUNTIME_UNAVAILABLE", "محیط ایزولهٔ سازگار با این پروژه آماده نیست؛ کد روی رایانه اجرا نمی‌شود.", 409);
     ensure(
       captured.profile.sourceHash === input.expectedSourceHash,
       "PROJECT_CHANGED",
@@ -466,6 +466,7 @@ export class CodeRepairAdapter {
     const build = input.build ? validateBuildPlan(captured.files, captured.profile, input.build) : undefined;
     ensure(!(build?.version===7 && build.testDatabase) || input.validationOnly || input.preparation?.version===2,
       "TEST_DATABASE_REPAIR_DENIED","این برش فقط آزمون سازگاری یا آماده‌سازی قطعی است؛ اصلاح مدل و انتشار را مجاز نمی‌کند.",409);
+    ensure(build?.version !== 10 || input.validationOnly === true, "FRAMEWORK_REPAIR_UNSUPPORTED", "این مسیر فعلاً runner اصلی را بدون ویرایش source اجرا می‌کند.", 409);
     ensure(build?.version !== 9 || input.validationOnly === true, "COMPONENT_REPAIR_UNSUPPORTED", "ساخت component در این برش source را تغییر نمی‌دهد.", 409);
     if (build) ensure(!containsSourceCredential(JSON.stringify({ workload: build.workload, ...((build.version === 7 || build.version === 9) ? { apiChecks: build.apiChecks } : {}) }),
       [...this.secrets(actor), ...projectSecretValues(this.store, this.config.sessionSecret, actor)]), "SENSITIVE_INPUT", "معیار بررسی نباید شامل مقدار محرمانه باشد.", 409);
@@ -491,14 +492,14 @@ export class CodeRepairAdapter {
       );
     ensure(
       input.testFiles.every(
-        (path) => (build?.version === 2 ? /(?:^|\/)test_[A-Za-z0-9_]+\.py$/.test(path) : /\.(?:test|spec)\.[cm]?js$/.test(path)) && !input.allowedPaths.includes(path),
+        (path) => ((build?.version === 2 || build?.version === 10) ? /(?:^|\/)test_[A-Za-z0-9_]+\.py$/.test(path) : /\.(?:test|spec)\.[cm]?js$/.test(path)) && !input.allowedPaths.includes(path),
       ),
       "REPAIR_TEST_DENIED",
       "آزمون پذیرش باید فایل موجود و خارج محدوده تغییر باشد.",
       403,
     );
     const pkg = captured.files.find((file) => file.path === "package.json");
-    ensure(pkg || build?.version === 2 || build?.version === 6, "REPAIR_TEST_DENIED", "فرمان آزمون پروژه مشخص نیست.", 409);
+    ensure(pkg || (build?.version === 2 || build?.version === 10) || build?.version === 6, "REPAIR_TEST_DENIED", "فرمان آزمون پروژه مشخص نیست.", 409);
     const scripts = pkg ? object(object(JSON.parse(pkg.content.toString("utf8"))).scripts) : {};
     if (!build) ensure(
       scripts.test === "node --test" || scripts.test === `node --test ${input.testFiles.join(" ")}`,
@@ -652,10 +653,10 @@ export class CodeRepairAdapter {
         checkParent();
         if (!(build.version === 7 && build.testDatabase)) buildEnvironmentValues(this.config, this.store, actor, record.job.projectId, build.environment, buildSourceEnvironment(build));
         validateBuildPlan(base.files, base.profile, build);
-        if (build.version === 2) {
+        if ((build.version === 2 || build.version === 10)) {
           const selection = this.store.getProjectFlow(actor, record.job.projectId)?.selection,
             parent = selection?.kind === "repair" ? this.record(actor, selection.jobId).job : null;
-          if (selection?.kind === "repair" && parent?.state === "succeeded" && parent.build?.version === 2 &&
+          if (selection?.kind === "repair" && parent?.state === "succeeded" && (parent.build?.version === 2 || parent.build?.version === 10) &&
             parent.artifact?.archiveHash === selection.artifactHash && parent.artifact.sourceHash === record.job.baseRevision) {
             // Only the selected exact parent artifact can provide a cache; every byte and lock is revalidated.
             budget.take("tool", bounded);
@@ -713,7 +714,7 @@ export class CodeRepairAdapter {
                   throw error;
                 }
               }
-              return build.version === 2
+              return (build.version === 2 || build.version === 10)
                 ? await runPythonBuild(record.workspace, tarballs, build, record.job.testFiles, testSignal, onCreated, environment)
                 : await runContainerBuild(record.workspace, tarballs, build, testSignal, onCreated, environment);
             });
@@ -735,7 +736,7 @@ export class CodeRepairAdapter {
             checkParent();
             outputReceipt = await persistBuildOutput(this.config.stateDir, result.buildOutput, { sourceHash: after.profile.sourceHash, planHash: fingerprint(record.job.build) });
           }
-          return { command: build.version === 9 ? `pnpm@${build.workspace.manager.version} frozen install; original root build; ${build.component.testCommand ? "original component tests" : "no component test declared"}; exact compiled closure start; GET ${build.workload.path}; independent API checks (component only)` : build.version === 8 ? `pnpm@${build.workspace.manager.version} install --frozen-lockfile from verified isolated registry; original build${build.phase === "compile" ? "; compile only (no tests/start/publication)" : "; original test/start; GET " + build.workload.path}` : build.version === 7 && build.testDatabase?.version === 3 ? `npm run ${build.testDatabase.runner.script} in two fresh workers; independent per-database schema/seed and replay checks; original build/API/tests in two fresh app workers; independent write/persistence checks` : build.version === 7 && build.testDatabase?.version === 2 ? "psql reviewed SQL; independent schema/seed checks; original build/API/tests in two fresh workers; checksum replay; independent write/persistence checks" : build.version === 6 ? `isolated Docker build; independent GET ${build.workload.path}` : build.version === 2 ? `pip install --no-index --require-hashes; compileall; unittest ${record.job.testFiles.join(" ")}; ${build.startCommand}; GET ${build.workload.path}` : `${build.install === "none" ? "no dependencies to install" : "npm ci --offline"}${build.buildCommand ? " && npm run build" : ""}${build.testCommand ? " && npm test" : ""} && ${build.version === 5 ? `host serve ${build.frontend.outputDirectory}; verify local JS/CSS` : "npm start"}; GET ${build.workload.path}`,
+          return { command: build.version === 9 ? `pnpm@${build.workspace.manager.version} frozen install; original root build; ${build.component.testCommand ? "original component tests" : "no component test declared"}; exact compiled closure start; GET ${build.workload.path}; independent API checks (component only)` : build.version === 8 ? `pnpm@${build.workspace.manager.version} install --frozen-lockfile from verified isolated registry; original build${build.phase === "compile" ? "; compile only (no tests/start/publication)" : "; original test/start; GET " + build.workload.path}` : build.version === 7 && build.testDatabase?.version === 3 ? `npm run ${build.testDatabase.runner.script} in two fresh workers; independent per-database schema/seed and replay checks; original build/API/tests in two fresh app workers; independent write/persistence checks` : build.version === 7 && build.testDatabase?.version === 2 ? "psql reviewed SQL; independent schema/seed checks; original build/API/tests in two fresh workers; checksum replay; independent write/persistence checks" : build.version === 6 ? `isolated Docker build; independent GET ${build.workload.path}` : (build.version === 2 || build.version === 10) ? `pip install --no-index --require-hashes; compileall; unittest ${record.job.testFiles.join(" ")}; ${build.startCommand}; GET ${build.workload.path}` : `${build.install === "none" ? "no dependencies to install" : "npm ci --offline"}${build.buildCommand ? " && npm run build" : ""}${build.testCommand ? " && npm test" : ""} && ${build.version === 5 ? `host serve ${build.frontend.outputDirectory}; verify local JS/CSS` : "npm start"}; GET ${build.workload.path}`,
             exitCode: result.exitCode, signal: result.signal, durationMs: Date.now() - started, output: redact(result.output, [...this.secrets(actor), ...environment.map(row => row.value).filter(value => value.length >= 4)]),
             passed: result.exitCode === 0 && !bounded.aborted && !result.signal, ...(outputReceipt ? { buildOutput: outputReceipt } : {}), ...(result.databaseMigration ? { databaseMigration: result.databaseMigration } : {}), ...(result.databaseRunner ? { databaseRunner: result.databaseRunner } : {}) };
         }
@@ -795,7 +796,7 @@ export class CodeRepairAdapter {
         record.job.state = "succeeded"; record.job.message = record.job.build?.version===8 && record.job.build.phase==="compile"
           ? "ساخت بسته‌های workspace با lock اصلی گذشت؛ تست، اجرا، داده و انتشار هنوز تأیید نشده‌اند." : record.job.build?.version===7 && record.job.build.testDatabase
           ? "آزمون سازگاری با دیتابیس موقت و دادهٔ ساختگی گذشت؛ خروجی مجوز انتشار یا تغییر نسخهٔ اصلی نیست."
-          : record.job.build && record.job.build.version !== 2 && record.job.build.version !== 6 && record.job.build.install === "none" ? "ساخت و پاسخ مصوب برنامهٔ بدون وابستگی در نسخه جدا گذشتند؛ نصب لازم نبود و انتشار هنوز اجرا نشده است." : "ساخت و پاسخ مصوب در نسخه جدا گذشتند؛ انتشار هنوز اجرا نشده است.";
+          : record.job.build && record.job.build.version !== 2 && record.job.build.version !== 10 && record.job.build.version !== 6 && record.job.build.install === "none" ? "ساخت و پاسخ مصوب برنامهٔ بدون وابستگی در نسخه جدا گذشتند؛ نصب لازم نبود و انتشار هنوز اجرا نشده است." : "ساخت و پاسخ مصوب در نسخه جدا گذشتند؛ انتشار هنوز اجرا نشده است.";
       }
       if (record.job.preparation?.version === 2) {
         const prepared = prepareFullstackFiles(base.files, base.profile, record.job.preparation);
@@ -961,7 +962,7 @@ export class CodeRepairAdapter {
       const beforePackage = base.files.find((file) => file.path === "package.json"),
         afterPackage = patched.files.find((file) => file.path === "package.json");
       if (record.job.preparation) validatePreparationPatch(base.files, patched.files, record.job.preparation);
-      else ensure(record.job.build?.version === 2 ? !beforePackage && !afterPackage : beforePackage && afterPackage && beforePackage.content.equals(afterPackage.content),
+      else ensure((record.job.build?.version === 2 || record.job.build?.version === 10) ? !beforePackage && !afterPackage : beforePackage && afterPackage && beforePackage.content.equals(afterPackage.content),
         "REPAIR_COMMAND_CHANGED", "تغییر فرمان‌ها یا وابستگی‌ها در این قرارداد مجاز نیست.", 409);
       record.job.changedPaths = [...replacements.keys()];
       record.job.diff = record.job.changedPaths

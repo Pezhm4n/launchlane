@@ -114,12 +114,12 @@ export function assertMissionJobExecution(store: Store, actor: string, sessionId
 }
 export function assertMissionPublication(store: Store, actor: string, sessionId: string, authority: MissionAuthority, action: Action): void {
   const plan = assertMissionAuthority(store, actor, sessionId, authority), spec = action.spec;
-  ensure((spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 17 || spec.version === 19 || spec.version === 21) && spec.sourceHash && spec.operation === "deploy" &&
+  ensure((spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 41 || spec.version === 17 || spec.version === 19 || spec.version === 21) && spec.sourceHash && spec.operation === "deploy" &&
     spec.scope.teamId === plan.target.teamId && spec.scope.app === plan.target.app && spec.accountId === plan.target.accountId && spec.targetAppId === plan.target.appId &&
     spec.args.planId === plan.target.planId && spec.args.port === plan.build.port &&
     (spec.version !== 19 || plan.build.version === 5 && fingerprint(spec.runtime) === fingerprint(plan.build.frontend)) &&
-    (spec.version === 21 ? plan.build.version === 6 && fingerprint(spec.runtime) === fingerprint(plan.build.runtime) : spec.version === 11 ? plan.build.version === 2 && fingerprint(spec.runtime) === fingerprint(plan.build.runtime) : plan.build.version !== 2 && plan.build.version !== 6 && spec.nodeVersion === plan.build.nodeVersion) &&
-    fingerprint(spec.version === 10 || spec.version === 11 || spec.version === 17 || spec.version === 19 || spec.version === 21 ? spec.environment : null) === fingerprint(plan.build.environment ?? null) &&
+    (spec.version === 21 ? plan.build.version === 6 && fingerprint(spec.runtime) === fingerprint(plan.build.runtime) : spec.version === 41 ? plan.build.version === 10 && fingerprint(spec.runtime) === fingerprint(plan.build.runtime) : spec.version === 11 ? plan.build.version === 2 && fingerprint(spec.runtime) === fingerprint(plan.build.runtime) : plan.build.version !== 2 && plan.build.version !== 10 && plan.build.version !== 6 && spec.nodeVersion === plan.build.nodeVersion) &&
+    fingerprint(spec.version === 10 || spec.version === 11 || spec.version === 41 || spec.version === 17 || spec.version === 19 || spec.version === 21 ? spec.environment : null) === fingerprint(plan.build.environment ?? null) &&
     fingerprint(spec.workload) === fingerprint({ ...plan.build.workload, origin: plan.target.origin }),
     "PLAN_PUBLICATION_SCOPE", "مقصد، هزینه، نسخه اجرا، تنظیمات یا معیار سلامت از برنامه مصوب خارج است.", 409);
   assertArtifactLineage(store, actor, authority, spec.sourceHash, spec.artifactHash);

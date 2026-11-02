@@ -1,4 +1,5 @@
 import { localComponentVerification } from "./component-verification.ts";
+import { assertFrameworkBuild } from "../policy/framework-python.ts";
 import type { Action, Session } from "../../contracts/domain.ts";
 import type { ProvisionSpec, ProvisionObservation, ProvisionReadback } from "../../contracts/provision.ts";
 import { identifier } from "../../contracts/validation.ts";
@@ -29,7 +30,7 @@ export function recommendDestination(flow: ProjectFlow, catalog: PaaSCatalog, se
   const current = selected && available.find(offer => offer.planId === selected.planId && offer.bundleId === selected.bundleId);
   if (current && !choices.some(offer => offer.planId === current.planId && offer.bundleId === current.bundleId)) choices.push(current);
   ensure(choices[0], "PLAN_UNAVAILABLE", "پلن با قیمت مشخص در حساب موجود نیست؛ قیمت نامعلوم پیشنهاد هزینه نمی‌شود.", 409);
-  const runtime = flow.profile.frontendRuntime ? flow.profile.frontendRuntime.kind : flow.profile.nextRuntime ? `Next.js / Node ${flow.profile.nextRuntime.version}` : flow.profile.runtime === "docker" ? "برنامهٔ Docker" : flow.profile.runtime === "static" ? "سایت ایستا" : flow.profile.runtime === "python" ? `Python ${flow.profile.pythonRuntime?.version ?? ""}` : `Node.js ${flow.profile.nodeRuntime?.version ?? ""}`;
+  const runtime = flow.profile.frontendRuntime ? flow.profile.frontendRuntime.kind : flow.profile.nextRuntime ? `Next.js / Node ${flow.profile.nextRuntime.version}` : flow.profile.runtime === "docker" ? "برنامهٔ Docker" : flow.profile.runtime === "static" ? "سایت ایستا" : flow.profile.runtime === "python" ? `${flow.profile.pythonRuntime?.kind === "python" ? "Python" : flow.profile.pythonRuntime?.kind ?? "Python"} ${flow.profile.pythonRuntime?.version ?? ""}` : `Node.js ${flow.profile.nodeRuntime?.version ?? ""}`;
   return parseDestinationRecommendation({ version: 1, projectId: flow.id, sourceHash: flow.profile.sourceHash, catalogFingerprint: catalog.fingerprint,
     observedAt: catalog.observedAt, projectName: flow.displayName || (flow.selection.kind === "upload" || flow.selection.kind === "github" ? flow.selection.name : flow.selection.directory.split(/[\\/]/).at(-1)) || "پروژه شما",
     summary: `${runtime}؛ ${flow.profile.build ? "فرمان ساخت شناسایی شده است" : "فرمان ساخت جداگانه‌ای در پروژه پیدا نشده است"}؛ ${flow.profile.envNames.length ? `${flow.profile.envNames.length} نام تنظیم نیاز به بررسی دارد` : "نام تنظیم الزامی از بررسی ایستا استخراج نشده است"}.`,
@@ -83,6 +84,7 @@ export async function proposeDestination(config: Config, store: Store, actor: st
     (flow.profile.runtime === "node" && flow.profile.nodeRuntime?.version || flow.profile.runtime === "python" && flow.profile.pythonRuntime || flow.profile.runtime === "static" && flow.profile.staticRuntime || flow.profile.runtime === "docker" && flow.profile.dockerRuntime),
     "PROJECT_INCOMPLETE", "روش اجرای این پروژه هنوز آمادهٔ انتشار نیست؛ نتیجهٔ بررسی فایل‌ها و آماده‌سازی را ببینید.", 409);
   assertApplicationPublicationScope(flow.profile);
+  if (flow.profile.pythonRuntime && flow.profile.pythonRuntime.kind !== "python") assertFrameworkBuild(store, actor, flow);
   if (flow.profile.pnpmComponent) await localComponentVerification(store, config.stateDir, actor, flow);
   const budget = dependencies.budget ?? new RunBudget(scoped), client = dependencies.read ?? new LiaraAccountClient(scoped, connection.identityId),
     catalog = await client.catalog(budget, signal), quote = quotePaaSOffer(catalog, identifier(input.planId), identifier(input.bundleId)),
@@ -97,7 +99,7 @@ export async function proposeDestination(config: Config, store: Store, actor: st
     : flow.profile.runtime === "static" && flow.profile.staticRuntime
     ? { version: 16 as const, nodeVersion: null, runtime: flow.profile.staticRuntime }
     : flow.profile.runtime === "python" && flow.profile.pythonRuntime
-    ? { version: 12 as const, nodeVersion: null, runtime: flow.profile.pythonRuntime }
+    ? flow.profile.pythonRuntime.kind === "python" ? { version: 12 as const, nodeVersion: null, runtime: flow.profile.pythonRuntime } : { version: 42 as const, nodeVersion: null, runtime: flow.profile.pythonRuntime }
     : flow.profile.frontendRuntime ? { version: 20 as const, nodeVersion: "20" as const, runtime: flow.profile.frontendRuntime }
     : flow.profile.nextRuntime ? { version: 18 as const, nodeVersion: flow.profile.nextRuntime.version, runtime: flow.profile.nextRuntime }
     : { version: 8 as const, nodeVersion: parseNodeVersion(flow.profile.nodeRuntime?.version) }), operation: "create_app", scope: { teamId: scoped.teamId, app },
@@ -116,7 +118,7 @@ export async function executeDestination(config: Config, store: Store, session: 
   signal: AbortSignal, dependencies: Dependencies = {}): Promise<Action> {
   ensure(config.enableMutations && config.enableLiveLiara, "MUTATIONS_DISABLED", "ساخت مقصد در این نصب خاموش است.", 403);
   const action = store.getAction(id, session.actorId);
-  ensure((action.spec.version === 8 || action.spec.version === 12 || action.spec.version === 16 || action.spec.version === 18 || action.spec.version === 20 || action.spec.version === 22) && action.state === "approved" && !action.attemptId && action.expiresAt > Date.now(),
+  ensure((action.spec.version === 8 || (action.spec.version === 12 || action.spec.version === 42) || action.spec.version === 16 || action.spec.version === 18 || action.spec.version === 20 || action.spec.version === 22) && action.state === "approved" && !action.attemptId && action.expiresAt > Date.now(),
     "ACTION_CONFLICT", "پیشنهاد ساخت معتبر و تأییدشده‌ای برای اجرا وجود ندارد.", 409);
   const spec = action.spec, scoped = assertAccount(config, store, session.actorId, spec), budget = dependencies.budget ?? new RunBudget(scoped),
     client = dependencies.read ?? new LiaraAccountClient(scoped, spec.accountId), writer = dependencies.write ?? new LiaraProvisionClient(scoped);
@@ -142,7 +144,7 @@ export async function executeDestination(config: Config, store: Store, session: 
 export async function observeDestination(config: Config, store: Store, session: Session, id: string,
   signal: AbortSignal, dependencies: Dependencies = {}): Promise<Action> {
   const action = store.getAction(id, session.actorId);
-  ensure((action.spec.version === 8 || action.spec.version === 12 || action.spec.version === 16 || action.spec.version === 18 || action.spec.version === 20 || action.spec.version === 22) && action.provision && (action.state === "observing" || action.state === "uncertain"),
+  ensure((action.spec.version === 8 || (action.spec.version === 12 || action.spec.version === 42) || action.spec.version === 16 || action.spec.version === 18 || action.spec.version === 20 || action.spec.version === 22) && action.provision && (action.state === "observing" || action.state === "uncertain"),
     "ACTION_CONFLICT", "ساخت مقصد منتظر نتیجه نیست.", 409);
   const spec = action.spec, scoped = assertAccount(config, store, session.actorId, spec), budget = dependencies.budget ?? new RunBudget(scoped),
     client = dependencies.read ?? new LiaraAccountClient(scoped, spec.accountId);

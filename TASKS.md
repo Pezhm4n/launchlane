@@ -1,5 +1,9 @@
 # برنامه اجرایی Launchlane
 
+Flask/Django, 2026-11-02: plan10 reuses the actual Python worker/original framework runners and WSGI; native41/42 use existing decisions/journals with source/job/workload/env fences. [Short evidence](docs/evidence/framework-python.md). Live Liara, raw corpus/data, source repair and remaining-family acceptance stay open.
+
+Policy `c0c4dd2e` passed domain817/817, review12layouts and guided54states; final worker `3c4707ec` adds the reproduced counterfeit-process guard and passed worker15/15, focused6/6, lint/typecheck/build, HTTP48/48 and both actual web-worker/archive/replay/reload flows. The target/build prerequisite cycle is fixed; no model/cloud spend, root dependency or SQLite migration was added.
+
 ## Vue SFC compiler and explicit output — 2026-11-02
 
 AC19/24/26/28: close the Vite `--outDir=` source-selection defect in the shared Agent component path; preserve the frozen root build and original tests. Add actual locked Vue/plugin compiler, source-test/compiler failures, exact archive selection, Agent publication proposal and fresh Docker/Chromium reactivity/route/reload. [Evidence and limits](docs/evidence/vue-compiled-component.md). This is a controlled Vue component acceptance step; full14-family, raw corpus, native cloud and data remain executable obligations.

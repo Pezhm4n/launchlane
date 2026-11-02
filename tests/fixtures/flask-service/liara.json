@@ -1,0 +1,1 @@
+{"platform":"flask","port":8000,"flask":{"pythonVersion":"3.12","mirror":false,"appModule":"web:app"}}

@@ -11,7 +11,7 @@ export type ProjectProfile = Readonly<{
   nodeVersion: string | null;
   // Historical profiles predate runtime selection; fresh inspection always supplies it.
   nodeRuntime?: import("./node-runtime.ts").NodeRuntime;
-  pythonRuntime?: import("./python-runtime.ts").PythonRuntime;
+  pythonRuntime?: import("./python-runtime.ts").PythonRuntime | import("./framework-python.ts").FrameworkPythonRuntime;
   staticRuntime?: import("./static-runtime.ts").StaticRuntime;
   nextRuntime?: import("./next-runtime.ts").NextRuntime;
   frontendRuntime?: import("./frontend-runtime.ts").FrontendRuntime;
@@ -162,6 +162,12 @@ export type ActionSpec = (ActionInputs &
         version: 21; operation: "deploy"; sourceHash: string; artifactHash: string; projectFlowId: string;
         selectionHash: string; accountId: string; targetAppId: string; workload: import("./deployment.ts").WorkloadContract;
         nodeVersion: null; runtime: import("./docker-runtime.ts").DockerRuntime;
+        environment: import("./environment.ts").EnvironmentReference | null;
+      }>
+    | Readonly<{
+        version: 41; operation: "deploy"; sourceHash: string; artifactHash: string; projectFlowId: string;
+        selectionHash: string; accountId: string; targetAppId: string; workload: import("./deployment.ts").WorkloadContract;
+        nodeVersion: null; runtime: import("./framework-python.ts").FrameworkPythonRuntime;
         environment: import("./environment.ts").EnvironmentReference | null;
       }>
     | Readonly<{

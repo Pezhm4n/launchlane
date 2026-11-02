@@ -1,3 +1,4 @@
+import { parseFrameworkPythonRuntime, type FrameworkPythonRuntime } from "./framework-python.ts";
 import { ensure } from "../server/errors.ts";
 import { exactKeys, hash, identifier, integer, object, string } from "./validation.ts";
 import { parseNodeVersion, type NodeVersion } from "./node-runtime.ts";
@@ -27,7 +28,7 @@ type NodeProvisionSpec = Readonly<{
     hourlyHundredthsToman: number; region: string; currency: "toman"; period: "hour";
     extras: "tax_traffic_storage_not_included" }>;
 }>;
-export type ProvisionSpec = NodeProvisionSpec | (Omit<NodeProvisionSpec, "version" | "nodeVersion"> & Readonly<{
+export type ProvisionSpec = (Omit<NodeProvisionSpec, "version" | "nodeVersion"> & Readonly<{version: 42; nodeVersion: null; runtime: FrameworkPythonRuntime}>) | NodeProvisionSpec | (Omit<NodeProvisionSpec, "version" | "nodeVersion"> & Readonly<{
   version: 12; nodeVersion: null; runtime: PythonRuntime;
 }>) | (Omit<NodeProvisionSpec, "version" | "nodeVersion"> & Readonly<{ version: 16; nodeVersion: null; runtime: StaticRuntime }>)
   | (Omit<NodeProvisionSpec, "version"> & Readonly<{ version: 18; runtime: NextRuntime }>)
@@ -59,11 +60,11 @@ export type ProvisionReadback = Readonly<{
   defaultSubdomain?: boolean;
 }>;
 export function canReadDestinationResult(action: import("./domain.ts").Action): boolean {
-  return (action.spec.version === 8 || action.spec.version === 12 || action.spec.version === 16 || action.spec.version === 18 || action.spec.version === 20 || action.spec.version === 22) && !!action.provision &&
+  return (action.spec.version === 8 || (action.spec.version === 12 || action.spec.version === 42) || action.spec.version === 16 || action.spec.version === 18 || action.spec.version === 20 || action.spec.version === 22) && !!action.provision &&
     (action.state === "observing" || action.state === "uncertain");
 }
 export function isProvisionSpec(spec: ActionSpec): spec is ProvisionSpec {
-  return spec.version === 8 || spec.version === 12 || spec.version === 16 || spec.version === 18 || spec.version === 20 || spec.version === 22;
+  return spec.version === 8 || (spec.version === 12 || spec.version === 42) || spec.version === 16 || spec.version === 18 || spec.version === 20 || spec.version === 22;
 }
 export function providerObjectId(value: unknown): string {
   const id = string(value, 24);
@@ -72,6 +73,11 @@ export function providerObjectId(value: unknown): string {
 }
 export function parseProvisionSpec(value: unknown): ProvisionSpec {
   const row = object(value);
+  if (row.version === 42) {
+    ensure(row.nodeVersion === null, "INVALID_INPUT", "مقصد framework نسخه Node نمی‌پذیرد.");
+    const { runtime, ...rest } = row, parsed = parseFrameworkPythonRuntime(runtime), base = parseProvisionSpec({ ...rest, version: 8, nodeVersion: "22" });
+    return { ...base, version: 42, nodeVersion: null, runtime: parsed };
+  }
   if (row.version === 22) {
     ensure(row.nodeVersion === null, "INVALID_INPUT", "مقصد Docker نسخه Node نمی‌پذیرد.");
     const { runtime, ...rest } = row, parsed = parseDockerRuntime(runtime), base = parseProvisionSpec({ ...rest, version: 8, nodeVersion: "22" });

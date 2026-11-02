@@ -1,3 +1,4 @@
+import { parseFrameworkPythonRuntime } from "./framework-python.ts";
 import { parseComponentVerification } from "./pnpm-component.ts";
 import type {
   Action,
@@ -79,6 +80,15 @@ export function decodeAction(value: unknown): Action {
   if (spec.version === 24) {
     const parsed = parseLifecycleSpec(spec), { bundleId: _bundle, expected: _expected, cost: _cost, publication: _publication, ...rest } = spec;
     return { ...decodeAction({ ...raw, spec: { ...rest, version: 14, operation: "stop_app" } }), spec: parsed };
+  }
+  if (spec.version === 41) {
+    const runtime = parseFrameworkPythonRuntime(spec.runtime), base = decodeAction({ ...raw, spec: { ...spec, version: 11, runtime: { kind: "python", version: "3.12", command: ["python3", "main.py"] } } });
+    ensure(base.spec.version === 11 && base.spec.args.port === runtime.port, "INVALID_RESPONSE", "پورت framework برابر نیست.");
+    return { ...base, spec: { ...base.spec, version: 41, runtime } };
+  }
+  if (spec.version === 42) {
+    const parsed = parseProvisionSpec(spec), { runtime: _runtime, ...rest } = spec;
+    return { ...decodeAction({ ...raw, spec: { ...rest, version: 8, nodeVersion: "22" } }), spec: parsed };
   }
   if (spec.version === 40) {
     const { verification, ...rest } = spec, base = decodeAction({ ...raw, spec: { ...rest, version: 21 } });
@@ -173,7 +183,7 @@ export function decodeAction(value: unknown): Action {
   else if (spec.version === 8) parsedSpec = parseProvisionSpec(spec);
   else {
     ensure(spec.operation === "deploy" || spec.operation === "restart", "INVALID_RESPONSE", "نوع اقدام معتبر نیست.");
-    const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12 | 13 | 14 | 16 | 18 | 20 | 22 | 24 | 25 | 27 | 28}>, "scope" | "operation" | "sourceHash" | "args"> = {
+    const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12 | 13 | 14 | 16 | 18 | 20 | 22 | 24 | 25 | 27 | 28 | 42}>, "scope" | "operation" | "sourceHash" | "args"> = {
       operation: spec.operation,
       scope: { teamId: string(scope.teamId), app: string(scope.app) },
       sourceHash: nullableString(spec.sourceHash),
@@ -324,7 +334,7 @@ export function decodeProfile(value: unknown): ProjectProfile {
     runtime: raw.runtime,
     nodeVersion: nullableString(raw.nodeVersion),
     ...(raw.nodeRuntime === undefined ? {} : { nodeRuntime: parseNodeRuntime(raw.nodeRuntime) }),
-    ...(raw.pythonRuntime === undefined ? {} : { pythonRuntime: parsePythonRuntime(raw.pythonRuntime) }),
+    ...(raw.pythonRuntime === undefined ? {} : { pythonRuntime: object(raw.pythonRuntime).kind === "python" ? parsePythonRuntime(raw.pythonRuntime) : parseFrameworkPythonRuntime(raw.pythonRuntime) }),
     ...(raw.staticRuntime === undefined ? {} : { staticRuntime: parseStaticRuntime(raw.staticRuntime) }),
     ...(raw.nextRuntime === undefined ? {} : { nextRuntime: parseNextRuntime(raw.nextRuntime) }),
     ...(raw.frontendRuntime === undefined ? {} : { frontendRuntime: parseFrontendRuntime(raw.frontendRuntime) }),

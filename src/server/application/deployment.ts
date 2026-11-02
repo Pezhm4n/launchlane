@@ -1,4 +1,6 @@
 import { componentVerification, componentAssets } from "./component-verification.ts";
+import { assertFrameworkBuild } from "../policy/framework-python.ts";
+import { matchesPublishedBuildEnvironment } from "../environment/build.ts";
 import type { Action, Session } from "../../contracts/domain.ts";
 import {
   parseWorkloadExpectation,
@@ -71,7 +73,7 @@ function authorize(
       ensure(flow, "PROJECT_CHANGED", "پروژهٔ مصوب Docker موجود نیست.", 409);
       assertDockerRuntimeSource(flow.profile, spec.runtime);
     }
-    if (spec.version === 10 || (spec.version === 11 || spec.version === 17 || spec.version === 19 || (spec.version === 21 || spec.version === 40) || (spec.version === 23 || spec.version === 26)) && spec.environment !== null) projectEnvironmentValues(store, current.sessionSecret, actorId, spec.projectFlowId, spec.environment);
+    if (spec.version === 10 || ((spec.version === 11 || spec.version === 41) || spec.version === 17 || spec.version === 19 || (spec.version === 21 || spec.version === 40) || (spec.version === 23 || spec.version === 26)) && spec.environment !== null) projectEnvironmentValues(store, current.sessionSecret, actorId, spec.projectFlowId, spec.environment);
   }
   else
     ensure(
@@ -82,7 +84,7 @@ function authorize(
       "هویت برنامه بررسی‌شده تغییر کرده است.",
       403,
     );
-  ensure((spec.version !== 7 && spec.version !== 10 && spec.version !== 11 && spec.version !== 15 && spec.version !== 17 && spec.version !== 19 && (spec.version !== 21 && spec.version !== 40) && (spec.version !== 23 && spec.version !== 26)) || store.getConnection(actorId, "liara")?.view.identityId === spec.accountId,
+  ensure((spec.version !== 7 && spec.version !== 10 && (spec.version !== 11 && spec.version !== 41) && spec.version !== 15 && spec.version !== 17 && spec.version !== 19 && (spec.version !== 21 && spec.version !== 40) && (spec.version !== 23 && spec.version !== 26)) || store.getConnection(actorId, "liara")?.view.identityId === spec.accountId,
     "SCOPE_DENIED", "حساب انتشار تغییر کرده است.", 403);
 }
 async function checkProject(
@@ -102,7 +104,7 @@ async function checkProject(
   );
 }
 async function checkEnvironment(config: Config, spec: DeploymentSpec, budget: RunBudget, signal: AbortSignal, client?: LiaraEnvironmentClient) {
-  if (spec.version !== 10 && spec.version !== 11 && spec.version !== 17 && spec.version !== 19 && (spec.version !== 21 && spec.version !== 40) && (spec.version !== 23 && spec.version !== 26)) return;
+  if (spec.version !== 10 && (spec.version !== 11 && spec.version !== 41) && spec.version !== 17 && spec.version !== 19 && (spec.version !== 21 && spec.version !== 40) && (spec.version !== 23 && spec.version !== 26)) return;
   const reference = spec.environment;
   if (reference === null) return;
   const current = await (client ?? new LiaraEnvironmentClient(config)).read(spec, budget, signal);
@@ -180,6 +182,8 @@ async function prepareDeployment(
   const connection = store.getConnection(actorId, "liara")?.view;
   ensure(connection?.status === "connected", "LIARA_AUTH_REQUIRED", "ابتدا حساب را متصل کنید.", 409);
   const environment = currentEnvironment(store, scoped.sessionSecret, actorId, flow.id);
+  if (flow.profile.pythonRuntime && flow.profile.pythonRuntime.kind !== "python") ensure(matchesPublishedBuildEnvironment(scoped, store, actorId, flow.id, assertFrameworkBuild(store, actorId, flow)),
+    "FRAMEWORK_ENV_CHANGED", "تنظیمات انتشار با همان runner آزموده‌شده برابر نیست.", 409);
   assertDatabaseEnvironmentBinding(store, scoped.sessionSecret, actorId, flow, environment);
   assertApplicationPublicationScope(flow.profile);
   if (flow.profile.dockerRuntime) assertDockerRuntimeSource(flow.profile, flow.profile.dockerRuntime);
@@ -208,7 +212,7 @@ async function prepareDeployment(
     : flow.profile.nextRuntime ? { ...common, version: 17, operation: "deploy", sourceHash: flow.profile.sourceHash, nodeVersion: flow.profile.nextRuntime.version,
       runtime: flow.profile.nextRuntime, environment, accountId: connection.identityId, workload: parseWorkloadContract(workload) }
     : flow.profile.runtime === "python" && flow.profile.pythonRuntime
-    ? { ...common, version: 11, operation: "deploy", nodeVersion: null, runtime: flow.profile.pythonRuntime, environment, accountId: connection.identityId, workload: parseWorkloadContract(workload) }
+    ? flow.profile.pythonRuntime.kind !== "python" ? { ...common, version: 41, operation: "deploy", sourceHash: flow.profile.sourceHash, nodeVersion: null, runtime: flow.profile.pythonRuntime, environment, accountId: connection.identityId, workload: parseWorkloadContract(workload) } : { ...common, version: 11, operation: "deploy", nodeVersion: null, runtime: flow.profile.pythonRuntime, environment, accountId: connection.identityId, workload: parseWorkloadContract(workload) }
     : generic
     ? environment ? { ...common, nodeVersion: parseNodeVersion(flow.profile.nodeRuntime?.version), sourceHash: flow.profile.sourceHash, version: 10, operation: "deploy", accountId: connection.identityId, workload: parseWorkloadContract(workload), environment }
       : { ...common, nodeVersion: parseNodeVersion(flow.profile.nodeRuntime?.version), version: 7, accountId: connection.identityId, workload: parseWorkloadContract(workload) }
@@ -246,7 +250,7 @@ export async function executeDeployment(
   );
   const action = store.getAction(id, session.actorId);
   ensure(
-    action.spec.version === 5 || (action.spec.version === 7 || action.spec.version === 10 || action.spec.version === 11 || action.spec.version === 15 || action.spec.version === 17 || action.spec.version === 19 || (action.spec.version === 21 || action.spec.version === 40) || (action.spec.version === 23 || action.spec.version === 26)),
+    action.spec.version === 5 || (action.spec.version === 7 || action.spec.version === 10 || (action.spec.version === 11 || action.spec.version === 41) || action.spec.version === 15 || action.spec.version === 17 || action.spec.version === 19 || (action.spec.version === 21 || action.spec.version === 40) || (action.spec.version === 23 || action.spec.version === 26)),
     "DEPLOYMENT_PROPOSAL_REQUIRED",
     "این پیشنهاد قدیمی قابل انتشار نیست؛ پیشنهاد تازه با نسخه اجرا و معیار بررسی سایت بسازید.",
     409,
@@ -283,7 +287,7 @@ export async function executeDeployment(
         await checkEnvironment(scoped, spec, budget, bounded, dependencies.environment);
         if (spec.version === 26) await checkPublicationDisk(scoped, spec, budget, bounded, false, dependencies.disk);
         // Leave room for both writes and the second identity read, including its one connect retry.
-        ensure(budget.maxToolCalls - budget.toolCalls >= (spec.version === 26 ? 7 : (spec.version === 10 || (spec.version === 11 || spec.version === 17 || spec.version === 19 || (spec.version === 21 || spec.version === 40) || spec.version === 23) && spec.environment !== null) ? 6 : 4), "BUDGET_EXHAUSTED", "بودجه ادامه انتشار و بررسی مقصد کافی نیست.", 409);
+        ensure(budget.maxToolCalls - budget.toolCalls >= (spec.version === 26 ? 7 : (spec.version === 10 || ((spec.version === 11 || spec.version === 41) || spec.version === 17 || spec.version === 19 || (spec.version === 21 || spec.version === 40) || spec.version === 23) && spec.environment !== null) ? 6 : 4), "BUDGET_EXHAUSTED", "بودجه ادامه انتشار و بررسی مقصد کافی نیست.", 409);
         authorize(scoped, store, session.actorId, spec, id);
       },
       async execute(claimed, bounded, source) {
@@ -303,7 +307,7 @@ export async function executeDeployment(
       },
     },
   }); } catch (error) {
-    if ((spec.version === 10 || (spec.version === 11 || spec.version === 17 || spec.version === 19 || (spec.version === 21 || spec.version === 40) || (spec.version === 23 || spec.version === 26)) && spec.environment !== null) && error instanceof AppError && error.code === "ENV_REFERENCE_CHANGED")
+    if ((spec.version === 10 || ((spec.version === 11 || spec.version === 41) || spec.version === 17 || spec.version === 19 || (spec.version === 21 || spec.version === 40) || (spec.version === 23 || spec.version === 26)) && spec.environment !== null) && error instanceof AppError && error.code === "ENV_REFERENCE_CHANGED")
       return store.invalidateEnvironmentPublication(id, session.actorId);
     throw error;
   }
@@ -375,7 +379,7 @@ export async function observeDeployment(
           spec.workload.path,
           budget,
           signal,
-          (spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 15 || spec.version === 17 || spec.version === 19 || (spec.version === 21 || spec.version === 40) || (spec.version === 23 || spec.version === 26)) ? 65536 : 4096,
+          (spec.version === 7 || spec.version === 10 || (spec.version === 11 || spec.version === 41) || spec.version === 15 || spec.version === 17 || spec.version === 19 || (spec.version === 21 || spec.version === 40) || (spec.version === 23 || spec.version === 26)) ? 65536 : 4096,
         );
         ensure(
           probe.scope.teamId === spec.scope.teamId &&
@@ -406,7 +410,7 @@ export async function observeDeployment(
           outcome:
             probe.outcome === "response" &&
             probe.status === spec.workload.status &&
-            ((spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 15 || spec.version === 17 || spec.version === 19 || (spec.version === 21 || spec.version === 40) || (spec.version === 23 || spec.version === 26))
+            ((spec.version === 7 || spec.version === 10 || (spec.version === 11 || spec.version === 41) || spec.version === 15 || spec.version === 17 || spec.version === 19 || (spec.version === 21 || spec.version === 40) || (spec.version === 23 || spec.version === 26))
               ? matchesWorkload(spec.workload, probe.status, probe.body)
               : revision === spec.workload.revision)
               ? "verified"
@@ -415,7 +419,7 @@ export async function observeDeployment(
         };
         // Provider current/READY can precede the public route switching from the old response.
         // Waiting never changes the approved assertion; a persistent mismatch still fails at the deadline.
-        if (result.outcome === "failed" && (spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 15 || spec.version === 17 || spec.version === 19 || (spec.version === 21 || spec.version === 40) || (spec.version === 23 || spec.version === 26)) && probe.outcome === "response" &&
+        if (result.outcome === "failed" && (spec.version === 7 || spec.version === 10 || (spec.version === 11 || spec.version === 41) || spec.version === 15 || spec.version === 17 || spec.version === 19 || (spec.version === 21 || spec.version === 40) || (spec.version === 23 || spec.version === 26)) && probe.outcome === "response" &&
           action.deployment.releaseAcceptedAt !== undefined &&
           probe.observedAt >= action.deployment.releaseAcceptedAt &&
           probe.observedAt - action.deployment.releaseAcceptedAt < 300_000)

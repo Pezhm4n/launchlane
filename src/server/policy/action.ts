@@ -1,3 +1,4 @@
+import { parseFrameworkPythonRuntime } from "../../contracts/framework-python.ts";
 import { parseComponentVerification } from "../../contracts/pnpm-component.ts";
 import { createHash } from "node:crypto";
 import type { ActionSpec, Scope } from "../../contracts/domain.ts";
@@ -54,6 +55,12 @@ export function parseActionSpec(value: unknown): ActionSpec {
     ensure(base.version === 23 && base.nodeVersion === "24" && base.environment !== null, "DISK_SCOPE_INVALID", "انتشار Worker به Node24، تنظیمات تأییدشده و دیسک مشخص نیاز دارد.", 409);
     return { ...base, version: 26, nodeVersion: "24", environment: base.environment, storage: parseDiskBinding(storage) };
   }
+  if (input.version === 41) {
+    const runtime = parseFrameworkPythonRuntime(input.runtime), base = parseActionSpec({ ...input, version: 11, runtime: { kind: "python", version: "3.12", command: ["python3", "main.py"] } });
+    ensure(base.version === 11 && base.args.port === runtime.port, "FRAMEWORK_START_CHANGED", "پورت انتشار با framework برابر نیست.", 409);
+    return { ...base, version: 41, runtime };
+  }
+  if (input.version === 42) return parseProvisionSpec(input);
   if (input.version === 40) {
     const { verification, ...rest } = input, base = parseActionSpec({ ...rest, version: 21 });
     ensure(base.version === 21, "INVALID_INPUT", "انتشار component به مسیر Docker نیاز دارد.", 409);
@@ -148,7 +155,7 @@ export function parseActionSpec(value: unknown): ActionSpec {
     "INVALID_INPUT",
     "restart آرگومان انتشار نمی‌پذیرد.",
   );
-  const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12 | 13 | 14 | 16 | 18 | 20 | 22 | 24 | 25 | 27 | 28}>, "scope" | "operation" | "sourceHash" | "args"> = {
+  const common: Pick<Exclude<ActionSpec, {version: 8 | 9 | 12 | 13 | 14 | 16 | 18 | 20 | 22 | 24 | 25 | 27 | 28 | 42}>, "scope" | "operation" | "sourceHash" | "args"> = {
     scope: { teamId, app },
     operation: input.operation,
     sourceHash,

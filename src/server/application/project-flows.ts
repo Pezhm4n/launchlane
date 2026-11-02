@@ -1,4 +1,6 @@
 import { componentVerification, localComponentVerification } from "./component-verification.ts";
+import { assertFrameworkBuild } from "../policy/framework-python.ts";
+import { matchesPublishedBuildEnvironment } from "../environment/build.ts";
 import { randomUUID } from "node:crypto";
 import { join, resolve } from "node:path";
 import type { Action, ActionSpec } from "../../contracts/domain.ts";
@@ -242,7 +244,7 @@ export async function validateProjectAction(
   spec: ActionSpec,
   signal: AbortSignal,
 ): Promise<void> {
-  if (spec.version !== 3 && spec.version !== 4 && spec.version !== 5 && (spec.version !== 7 && spec.version !== 10 && spec.version !== 11 && spec.version !== 15 && spec.version !== 17 && spec.version !== 19 && (spec.version !== 21 && spec.version !== 40) && (spec.version !== 23 && spec.version !== 26)) && (spec.version !== 8 && spec.version !== 12 && spec.version !== 16 && spec.version !== 18 && spec.version !== 20 && spec.version !== 22) && spec.version !== 9 && spec.version !== 13 && spec.version !== 25 && (spec.version !== 27 && spec.version !== 28)) return;
+  if (spec.version !== 3 && spec.version !== 4 && spec.version !== 5 && (spec.version !== 7 && spec.version !== 10 && (spec.version !== 11 && spec.version !== 41) && spec.version !== 15 && spec.version !== 17 && spec.version !== 19 && (spec.version !== 21 && spec.version !== 40) && (spec.version !== 23 && spec.version !== 26)) && (spec.version !== 8 && (spec.version !== 12 && spec.version !== 42) && spec.version !== 16 && spec.version !== 18 && spec.version !== 20 && spec.version !== 22) && spec.version !== 9 && spec.version !== 13 && spec.version !== 25 && (spec.version !== 27 && spec.version !== 28)) return;
   const flow = await restoreProjectFlow(config, store, actorId, signal, spec.projectFlowId);
   ensure(
     flow?.status === "ready",
@@ -251,6 +253,8 @@ export async function validateProjectAction(
     409,
   );
   store.assertProjectAction(actorId, spec);
+  if (spec.version === 41) ensure(matchesPublishedBuildEnvironment(config, store, actorId, flow.id, assertFrameworkBuild(store, actorId, flow)),
+    "FRAMEWORK_ENV_CHANGED", "تنظیمات همان ساخت framework پیش از انتشار تغییر کرده است.", 409);
   if (flow.profile.pnpmComponent && (spec.operation === "deploy" || spec.operation === "create_app")) {
     const evidence = spec.operation === "deploy" ? await componentVerification(store, config.stateDir, actorId, flow, config.sessionSecret)
       : (await localComponentVerification(store, config.stateDir, actorId, flow)).verification;
@@ -262,12 +266,12 @@ export async function validateProjectAction(
   }
   if ((spec.version === 23 || spec.version === 26)) ensure(fingerprint(await fullstackVerification(store, config.stateDir, actorId, flow, config.sessionSecret)) === fingerprint(spec.verification),
     "FULLSTACK_BUILD_REQUIRED", "تبار ساخت یا معیارهای API نسخهٔ مصوب تغییر کرده است.", 409);
-  if (spec.version === 10 || (spec.version === 11 || spec.version === 17 || spec.version === 19 || (spec.version === 21 || spec.version === 40) || (spec.version === 23 || spec.version === 26)) && spec.environment !== null) projectEnvironmentValues(store, config.sessionSecret, actorId, spec.projectFlowId, spec.environment);
+  if (spec.version === 10 || ((spec.version === 11 || spec.version === 41) || spec.version === 17 || spec.version === 19 || (spec.version === 21 || spec.version === 40) || (spec.version === 23 || spec.version === 26)) && spec.environment !== null) projectEnvironmentValues(store, config.sessionSecret, actorId, spec.projectFlowId, spec.environment);
   if ((spec.version === 21 || spec.version === 40) || spec.version === 22) ensure(fingerprint(flow.profile.dockerRuntime) === fingerprint(spec.runtime), "DOCKER_RUNTIME_CHANGED", "Dockerfile یا پورت نسخهٔ مصوب تغییر کرده است.", 409);
   else if (spec.version === 19 || spec.version === 20) ensure(fingerprint(flow.profile.frontendRuntime) === fingerprint(spec.runtime), "FRONTEND_RUNTIME_CHANGED", "روش ساخت و انتشار رابط تغییر کرده است.", 409);
   else if (spec.version === 17 || spec.version === 18) ensure(fingerprint(flow.profile.nextRuntime) === fingerprint(spec.runtime), "NEXT_RUNTIME_CHANGED", "نسخه یا مسیر انتشار Next تغییر کرده است؛ پیشنهاد تازه لازم است.", 409);
     else if (spec.version === 15 || spec.version === 16) ensure(fingerprint(flow.profile.staticRuntime) === fingerprint(spec.runtime), "STATIC_RUNTIME_CHANGED", "روش انتشار سایت ایستا تغییر کرده است؛ پیشنهاد تازه لازم است.", 409);
-  else if (spec.version === 11 || spec.version === 12) ensure(fingerprint(flow.profile.pythonRuntime) === fingerprint(spec.runtime), "PYTHON_RUNTIME_CHANGED", "تنظیمات اجرای Python تغییر کرده است؛ پیشنهاد تازه لازم است.", 409);
+  else if ((spec.version === 11 || spec.version === 41) || (spec.version === 12 || spec.version === 42)) ensure(fingerprint(flow.profile.pythonRuntime) === fingerprint(spec.runtime), "PYTHON_RUNTIME_CHANGED", "تنظیمات اجرای Python تغییر کرده است؛ پیشنهاد تازه لازم است.", 409);
   else ensure((spec.version !== 5 && (spec.version !== 7 && spec.version !== 10) && spec.version !== 8) || flow.profile.nodeRuntime?.version === spec.nodeVersion, "NODE_VERSION_CHANGED", "نسخه Node پیشنهاد با پروژه برابر نیست؛ پیشنهاد تازه دریافت کنید.", 409);
 }
 

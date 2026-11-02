@@ -83,7 +83,7 @@ export function validateBuildPlan(files: readonly SourceFile[], profile: Project
     dockerBuildSource(files, plan);
     return plan;
   }
-  if (plan.version === 2) {
+  if ((plan.version === 2 || plan.version === 10)) {
     ensure(profile.runtime === "python" && fingerprint(profile.pythonRuntime) === fingerprint(plan.runtime) && profile.start === pythonStart(plan.runtime) &&
       profile.start === plan.startCommand && profile.port === plan.port && profile.build === null,
       "BUILD_PLAN_CHANGED", "فرمان، پورت یا نسخه Python با پروژه برابر نیست.", 409);

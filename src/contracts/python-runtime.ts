@@ -23,4 +23,4 @@ export function parsePythonRuntime(value: unknown): PythonRuntime {
   return { kind: "python", version: "3.12", command };
 }
 
-export function pythonStart(runtime: PythonRuntime): string { return runtime.command.join(" "); }
+export function pythonStart(runtime: Pick<PythonRuntime, "command">): string { return runtime.command.join(" "); }

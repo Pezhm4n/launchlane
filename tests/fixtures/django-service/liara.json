@@ -1,0 +1,1 @@
+{"platform":"django","port":8000,"django":{"pythonVersion":"3.12","mirror":false,"collectStatic":false,"modifySettings":false,"compileMessages":false}}
