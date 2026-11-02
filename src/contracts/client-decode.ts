@@ -1,3 +1,4 @@
+import { parseComponentVerification } from "./pnpm-component.ts";
 import type {
   Action,
   ActionSpec,
@@ -78,6 +79,11 @@ export function decodeAction(value: unknown): Action {
   if (spec.version === 24) {
     const parsed = parseLifecycleSpec(spec), { bundleId: _bundle, expected: _expected, cost: _cost, publication: _publication, ...rest } = spec;
     return { ...decodeAction({ ...raw, spec: { ...rest, version: 14, operation: "stop_app" } }), spec: parsed };
+  }
+  if (spec.version === 40) {
+    const { verification, ...rest } = spec, base = decodeAction({ ...raw, spec: { ...rest, version: 21 } });
+    ensure(base.spec.version === 21, "INVALID_RESPONSE", "انتشار component معتبر نیست.");
+    return { ...base, spec: { ...base.spec, version: 40, verification: parseComponentVerification(verification) } };
   }
   if (spec.version === 23) {
     const { verification, environment, ...rest } = spec, base = decodeAction({ ...raw, spec: { ...rest, version: 7 } });
@@ -325,6 +331,7 @@ export function decodeProfile(value: unknown): ProjectProfile {
     ...(raw.dockerRuntime === undefined ? {} : { dockerRuntime: parseDockerRuntime(raw.dockerRuntime) }),
     ...(raw.nativeInspection === undefined ? {} : { nativeInspection: parseNativePlatformInspection(raw.nativeInspection) }),
     ...(raw.fullstack === undefined ? {} : { fullstack: parseFullstackInspection(raw.fullstack) }),
+    ...(raw.pnpmComponent === undefined ? {} : { pnpmComponent: parseComponentVerification(raw.pnpmComponent) }),
     ...(raw.pnpmWorkspace === undefined ? {} : { pnpmWorkspace: parsePnpmWorkspace(raw.pnpmWorkspace) }),
     ...(raw.applicationRequirements === undefined ? {} : { applicationRequirements: parseApplicationRequirements(raw.applicationRequirements) }),
     ...(raw.sourceFixtureReviews === undefined ? {} : { sourceFixtureReviews: parseSourceFixtureReviews(raw.sourceFixtureReviews) }),

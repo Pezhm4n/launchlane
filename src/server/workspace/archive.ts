@@ -217,6 +217,7 @@ export async function createSourceArchive(input: {
   sourceHash: string;
   secrets?: readonly string[];
   signal?: AbortSignal;
+  componentOutput?: Buffer;
   compiledOutput?: ValidatedBuildOutput;
 }): Promise<{ artifact: SourceArtifact; bytes: Buffer }> {
   cancelled(input.signal);
@@ -249,6 +250,12 @@ export async function createSourceArchive(input: {
     ensure(!files.some(file => file.path === directory || file.path.startsWith(prefix)), "BUILD_OUTPUT_BINDING_CHANGED", "خروجی نباید فایل source موجود را جایگزین کند.", 409);
     packaged = [...files, ...output.files.map(file => ({ path: prefix + file.path, content: file.content }))];
     ensure(packaged.length <= 1000, "SOURCE_LIMIT", "تعداد فایل‌های بستهٔ نهایی بیش از سقف این انتشار است.", 413);
+  }
+  if (input.componentOutput) {
+    const metadata = files.find(file => file.path === ".launchlane-component.json");
+    ensure(profile.runtime === "docker" && profile.pnpmComponent && metadata && !files.some(file => file.path === ".launchlane-component.gz") && digest(input.componentOutput) === profile.pnpmComponent.outputArtifactHash,
+      "BUILD_OUTPUT_BINDING_CHANGED", "بستهٔ compiled با گواه component برابر نیست.", 409);
+    packaged = [...packaged, { path: ".launchlane-component.gz", content: input.componentOutput }];
   }
   const bytes = await encode(packaged, input.signal);
   const artifact: SourceArtifact = {

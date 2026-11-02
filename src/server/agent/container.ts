@@ -1,10 +1,14 @@
 import { spawn } from "node:child_process";
+import { writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { AppError, ensure } from "../errors.ts";
 import { parseProjectBuildPlan, projectBuildImage, type ProjectBuildPlan } from "../../contracts/project-build.ts";
 import { exactKeys, object } from "../../contracts/validation.ts";
 import { environmentVariables, isApplicationEnvironmentKey, isPublicClientEnvironmentKey, type EnvironmentVariable } from "../../contracts/environment.ts";
-import { exportBuildOutput } from "./container-output.ts";
+import { exportBuildOutput, exportComponentOutput } from "./container-output.ts";
+import { componentPackProgram, componentMaterializeProgram, componentRuntimeProgram, componentCheckProgram } from "./component-program.ts";
+import type { ComponentOutput } from "./component-output.ts";
 import type { ValidatedBuildOutput } from "./build-output.ts";
 import { dockerEndpointHost, type LocalDockerEndpoint } from "./docker-engine.ts";
 import type { PostgresFixtureBinding } from "./postgres-fixture.ts";
@@ -18,7 +22,7 @@ import { pnpmInstallProgram } from "./pnpm-program.ts";
 
 export const node22Image = projectBuildImage;
 export type CommandResult = { output: string; exitCode: number | null; signal: string | null };
-export type ContainerBuildResult = CommandResult & { containerId: string; image: string; buildOutput?: ValidatedBuildOutput; databaseMigration?: PostgresMigrationTestReceipt; databaseRunner?: PostgresRunnerTestReceipt };
+export type ContainerBuildResult = CommandResult & { containerId: string; image: string; buildOutput?: ValidatedBuildOutput; componentOutput?: ComponentOutput; databaseMigration?: PostgresMigrationTestReceipt; databaseRunner?: PostgresRunnerTestReceipt };
 export function docker(args: string[], signal: AbortSignal, maxBytes = 32768, input?: Buffer): Promise<CommandResult> {
   ensure(!signal.aborted, "CANCELLED", "اجرای ایزوله متوقف شد.", 409);
   return new Promise((resolve, reject) => {
@@ -160,7 +164,7 @@ let managerExecutable='/usr/local/bin/npm';
 ${pnpmInstallProgram}
 const env={PATH:'/usr/local/bin:/usr/bin:/bin',HOME:'/work',TMPDIR:'/work',CI:'true',NEXT_TELEMETRY_DISABLED:'1',PORT:String(plan.port),NODE_OPTIONS:'--max-old-space-size=512',npm_config_cache:'/work/cache',npm_config_offline:'true',npm_config_audit:'false',npm_config_fund:'false'};
 const payload=JSON.parse(fs.readFileSync(0,'utf8')||'[]'),runtimeValues=plan.testDatabase?disposableDatabaseValues(plan,payload):{};
-for(const item of plan.testDatabase?[]:payload){if(!/^[A-Za-z_][A-Za-z0-9_]*$/.test(item.key)||/^(?:PATH|HOME|TMPDIR|NODE_OPTIONS|NODE_ENV|PORT|CI|NEXT_TELEMETRY_DISABLED|npm_config_.*)$/i.test(item.key)||typeof item.value!=='string')throw Error('invalid project environment');runtimeValues[item.key]=item.value;if(plan.version!==7&&plan.version!==8||/^(?:NEXT_PUBLIC_|VITE_|REACT_APP_)/.test(item.key))env[item.key]=item.value}
+for(const item of plan.testDatabase?[]:payload){if(!/^[A-Za-z_][A-Za-z0-9_]*$/.test(item.key)||/^(?:PATH|HOME|TMPDIR|NODE_OPTIONS|NODE_ENV|PORT|CI|NEXT_TELEMETRY_DISABLED|npm_config_.*)$/i.test(item.key)||typeof item.value!=='string')throw Error('invalid project environment');runtimeValues[item.key]=item.value;if(plan.version!==7&&plan.version!==8&&plan.version!==9||/^(?:NEXT_PUBLIC_|VITE_|REACT_APP_)/.test(item.key))env[item.key]=item.value}
 if(plan.version===7)env.npm_config_engine_strict='true';
 fs.cpSync('/source','/work/project',{recursive:true,dereference:false});
 fs.writeFileSync('/work/user.npmrc','');fs.writeFileSync('/work/global.npmrc','');
@@ -168,18 +172,19 @@ const npm=async (args,verifyTests=false,commandEnv=env)=>new Promise((resolve,re
 (async()=>{
 const cacache=require('/usr/local/lib/node_modules/npm/node_modules/cacache');
 for(const item of JSON.parse(fs.readFileSync('/tarballs/manifest.json','utf8'))){if(!/^[a-f0-9]{64}\\.tgz$/.test(item.file)||!['sha512','sha256'].includes(item.algorithm))throw Error('invalid cache manifest');const bytes=fs.readFileSync('/tarballs/'+item.file);if(item.algorithm+'-'+createHash(item.algorithm).update(bytes).digest('base64')!==item.integrity)throw Error('cache integrity changed');await cacache.put('/work/cache/_cacache','launchlane:'+item.file,bytes,{algorithms:[item.algorithm]})}
-stage='install';if(plan.version===8)await installPnpm();else if(plan.install!=='none')await npm(['ci','--offline','--no-audit','--no-fund','--userconfig=/work/user.npmrc','--globalconfig=/work/global.npmrc']);
+stage='install';if(plan.version===8||plan.version===9)await installPnpm();else if(plan.install!=='none')await npm(['ci','--offline','--no-audit','--no-fund','--userconfig=/work/user.npmrc','--globalconfig=/work/global.npmrc']);
 const cacheBefore=fs.statfsSync('/work');fs.rmSync('/work/cache',{recursive:true,force:true});const cacheAfter=fs.statfsSync('/work');
 console.log('Launchlane: dependency staging released before build',JSON.stringify({workBytesBefore:(cacheBefore.blocks-cacheBefore.bfree)*cacheBefore.bsize,workBytesAfter:(cacheAfter.blocks-cacheAfter.bfree)*cacheAfter.bsize}));
 stage='build';if(plan.buildCommand!==null)await npm(['run','build']);
-if(plan.version===8)verifyPnpmSource();
+if(plan.version===8||plan.version===9)verifyPnpmSource();
 if(plan.version===8&&plan.phase==='compile'){console.log('Launchlane: workspace compile only; tests, start, data and publication unverified');clearTimeout(watchdog);process.exit(0);}
 if(payload.runnerPhase===true){stage='migration';if(plan.testDatabase?.version!==3)throw Error('migration runner mode denied');const runner=plan.testDatabase.runner,scripts=JSON.parse(fs.readFileSync('/work/project/package.json','utf8')).scripts,chain=['pre'+runner.script,runner.script,'post'+runner.script].filter(name=>scripts[name]!==undefined).map(name=>({name,command:scripts[name]}));if(createHash('sha256').update(JSON.stringify(chain)).digest('hex')!==runner.sha256)throw Error('migration script changed');await npm(['run',runner.script],false,{...env,...runtimeValues,NODE_ENV:'test'});console.log('Launchlane: reviewed source migration runner completed; independent data checks still required');clearTimeout(watchdog);return;}
-stage='test';if(plan.version===7){if(!plan.testDatabase)for(const script of plan.fullstack.testScripts)await npm(['run',script],true)}else if(plan.testCommand!==null)await npm(['test'],plan.version===8);
-if(plan.version===8)verifyPnpmSource();
+stage='test';if(plan.version===9){if(plan.component.testCommand!==null)await npm(['--dir=/work/project/'+plan.component.root,'run','test'],true)}else if(plan.version===7){if(!plan.testDatabase)for(const script of plan.fullstack.testScripts)await npm(['run',script],true)}else if(plan.testCommand!==null)await npm(['test'],plan.version===8);
+if(plan.version===8||plan.version===9)verifyPnpmSource();
 stage='workload';
-let child;
-if(plan.frontend){
+let child,componentPackage;
+if(plan.version===9){await assertNoComponentDaemons();componentPackage=packageComponent();clearComponentBuildTree();materializeComponent(componentPackage.output,'/work/component-runtime');const proof={version:1,testedSourceHash:plan.sourceHash,planHash:componentPackage.output.planHash,outputArtifactHash:createHash('sha256').update(componentPackage.wire).digest('hex')};child=await startComponent('/work/component-runtime',plan.component,proof,plan.port,{PATH:'/usr/local/bin:/usr/bin:/bin',HOME:'/work',TMPDIR:'/work',...runtimeValues});}
+else if(plan.frontend){
 const path=require('node:path'),http=require('node:http'),root=fs.realpathSync('/work/project/'+plan.frontend.outputDirectory);
 if(!root.startsWith('/work/project/')||!fs.statSync(root+'/index.html').isFile())throw Error('frontend output index.html missing');
 const mime={'.html':'text/html; charset=utf-8','.js':'application/javascript','.mjs':'application/javascript','.css':'text/css','.json':'application/json','.svg':'image/svg+xml','.png':'image/png','.woff2':'font/woff2'};
@@ -194,6 +199,7 @@ if(asset.status!==200||size===0||!frontendAssetMime(reference.kind,asset.headers
 try{if(plan.testDatabase){stage='test';await waitForDisposableRelations(plan,runtimeValues);stage='workload';}let result=null,lastIssue='no matching response';const deadline=Date.now()+15000;while(Date.now()<deadline){try{const response=await fetch('http://127.0.0.1:'+plan.port+plan.workload.path,{redirect:'manual',signal:AbortSignal.timeout(1000)});const chunks=[],type=(response.headers.get('content-type')||'').split(';')[0].trim().toLowerCase(),limit=plan.workload.assertion.kind==='text'&&/^next start(?:\\s|$)/.test(plan.startCommand)&&['text/html','application/xhtml+xml'].includes(type)?${htmlWorkloadByteLimit}:65536;let size=0;for await(const bytes of response.body){size+=bytes.length;if(size>limit)throw Error('response exceeded '+limit+' bytes; HTTP '+response.status);chunks.push(Buffer.from(bytes))};const body=Buffer.concat(chunks).toString('utf8');
 const a=plan.workload.assertion;let matches=false;if(a.kind==='text')matches=body.includes(a.contains);else{try{const json=JSON.parse(body);matches=json!==null&&typeof json==='object'&&!Array.isArray(json)&&Object.hasOwn(json,a.field)&&json[a.field]===a.equals}catch{}}
 if(response.status===plan.workload.status&&matches){console.log('Launchlane: original workload response',JSON.stringify({status:response.status,bytes:size,limit,contentType:type}));result=true;break}else{lastIssue='HTTP '+response.status+'; expected assertion '+(matches?'matched':'not matched')}}catch(error){lastIssue=String(error.message).slice(0,160)}await new Promise(resolve=>setTimeout(resolve,250))};if(!result)throw Error('original workload expectation not met; '+lastIssue);console.log('Launchlane: '+(plan.install==='none'?'dependency-free':'locked install')+', build and original workload verified');
+if(plan.version===9)await checkCompiledComponent(plan);
 if(plan.version===7){
 const origin='http://127.0.0.1:'+plan.port,html=fs.readFileSync('/work/project/'+plan.fullstack.outputDirectory+'/index.html','utf8'),assets=frontendAssets(html),base=new URL(assets.base??'/',origin+'/'),seen=new Set();let total=0;
 if(base.origin!==origin)throw Error('external frontend origin is not verified');
@@ -203,6 +209,7 @@ console.log('Launchlane: built frontend assets and independent API criteria veri
 if(plan.testDatabase){stage='test';for(const script of plan.fullstack.testScripts)await npm(['run',script],true,{...env,...runtimeValues,NODE_ENV:'test'});console.log('Launchlane: unchanged tests ran against disposable data; no publication artifact');}
 }
 }finally{child.kill()}
+if(plan.version===9){await assertNoComponentDaemons(3000);verifyTestedComponent(plan,componentPackage);}
 clearTimeout(watchdog);process.exit(0)
 })().catch(error=>{console.error('Launchlane build check failed:',stage,error.message);process.exit({cache:74,install:71,build:72,workload:73,test:76}[stage]??75)});`;
 
@@ -210,6 +217,10 @@ export type NodeBuildDependencies = { command?: typeof docker; endpoint?: LocalD
 export async function runContainerBuild(workspace: string, tarballs: string, value: ProjectBuildPlan, signal: AbortSignal,
   onCreated?: (id: string) => void | Promise<void>, environment: readonly EnvironmentVariable[] = [], options: NodeBuildDependencies = {}): Promise<ContainerBuildResult> {
   const plan = parseProjectBuildPlan(value), values = environmentVariables(environment);
+  if (plan.version === 9) {
+    await writeFile(join(tarballs, "launchlane-component-build.cjs"), `${componentPackProgram}\n${componentMaterializeProgram}\n${componentRuntimeProgram}\n${componentCheckProgram}\n${buildProgram}`, { flag: "wx", mode: 0o600 });
+    await writeFile(join(tarballs, "launchlane-component-plan.json"), JSON.stringify(plan), { flag: "wx", mode: 0o600 });
+  }
   const compatibility = plan.version === 7 && plan.testDatabase !== undefined;
   ensure(compatibility ? !!options.fixture && !!options.endpoint && values.length === 0 : options.fixture === undefined,
     "TEST_DATABASE_BINDING_CHANGED","آزمون ساختگی به namespace همان job و ورودی خالی از تنظیمات واقعی نیاز دارد.",409);
@@ -248,31 +259,34 @@ export async function runContainerBuild(workspace: string, tarballs: string, val
       ...(plan.version === 7 && plan.fullstack.workerSqlite ? ["--tmpfs", "/data:rw,nosuid,nodev,noexec,size=268435456,uid=1000,gid=1000,mode=0700"] : []),
       "--mount", `type=bind,source=${workspace},target=/source,readonly`, "--mount", `type=bind,source=${tarballs},target=/tarballs,readonly`,
       // Frontend commands run in an exec process; PID 1 keeps tmpfs alive until export and cleanup.
-      plan.image, "node", "-e", ...(plan.version === 5 || plan.version === 7 ? ["setTimeout(()=>process.exit(124),330000)"] : [buildProgram, "--", JSON.stringify(plan)])], signal, 4096); }
+      plan.image, "node", "-e", ...(plan.version === 5 || plan.version === 7 || plan.version === 9 ? ["setTimeout(()=>process.exit(124),330000)"] : [buildProgram, "--", JSON.stringify(plan)])], signal, 4096); }
     catch (error) {if (!compatibility) throw error;created={output:"",exitCode:null,signal:"LOST_RESPONSE"};}
     try { id = await resolveCreatedContainer(created, { name, label: "locked-build-v1", image: plan.image },command); }
     catch(error){if(!compatibility)throw error;throw new AppError("SANDBOX_CLEANUP_UNCONFIRMED","پاسخ ساخت worker آزمون تعیین تکلیف نشد؛ ساخت تازه مجاز نیست.",503);}
     if (id && compatibility) {await fixtureIdentity(id,AbortSignal.timeout(5000));fixtureIdentityVerified=true;}
     if (id) {const createdId=id;await abortable(()=>Promise.resolve(onCreated?.(createdId)),signal);}
     ensure(created.exitCode === 0 && !created.signal && id && id === created.output.trim(), "SANDBOX_UNAVAILABLE", "محیط build محدود ایجاد نشد؛ script روی میزبان اجرا نشده است.", 503);
-    if (plan.version === 5 || plan.version === 7) {
+    if (plan.version === 5 || plan.version === 7 || plan.version === 9) {
       const started = await command(["start", id], signal, 4096);
       ensure(started.exitCode === 0 && !started.signal, "SANDBOX_UNCERTAIN", "شروع محیط همین ساخت تأیید نشد؛ خروجی قابل انتشار نیست.", 409);
     }
     const input = Buffer.from(JSON.stringify(compatibility ? {environment:[],testDatabase:options.fixture, ...(options.runnerPhase ? { runnerPhase: true } : {})} : values));
     let result: CommandResult;
-    try { result = await command(plan.version === 5 || plan.version === 7 ? ["exec", "--interactive", id, "/usr/local/bin/node", "-e", buildProgram, "--", JSON.stringify(plan)] : ["start", "--attach", "--interactive", id], signal, 32768, input); }
+    try { result = await command(plan.version === 5 || plan.version === 7 || plan.version === 9 ? ["exec", "--interactive", id, "/usr/local/bin/node", "-e", ...(plan.version === 9
+      ? ["process.argv[1]=require('node:fs').readFileSync('/tarballs/launchlane-component-plan.json','utf8');require('/tarballs/launchlane-component-build.cjs')"]
+      : [buildProgram, "--", JSON.stringify(plan)])] : ["start", "--attach", "--interactive", id], signal, 32768, input); }
     finally { input.fill(0); }
-    if (plan.version === 5 || plan.version === 7) {
+    if (plan.version === 5 || plan.version === 7 || plan.version === 9) {
       const inspected = await command(["inspect", "--format", "{{json .State}}", id], AbortSignal.timeout(5000), 4096);
       ensure(inspected.exitCode === 0, "SANDBOX_UNCERTAIN", "وضعیت محیط خروجی ساخت قابل بررسی نیست.", 409);
       const state = object(JSON.parse(inspected.output));
       ensure(state.Running === true && typeof state.OOMKilled === "boolean", "SANDBOX_UNCERTAIN", "محیط ساخت پیش از دریافت خروجی پایان یافته است.", 409);
       const stopped = result.signal ?? (state.OOMKilled ? "OOM" : result.exitCode === 137 ? "SIGKILL" : null);
-      const buildOutput = !compatibility && result.exitCode === 0 && !stopped && !signal.aborted ? await exportBuildOutput(id, plan.version === 7 ? plan.fullstack.outputDirectory : plan.frontend.outputDirectory, signal,
+      const componentOutput = plan.version === 9 && result.exitCode === 0 && !stopped && !signal.aborted ? await exportComponentOutput(id, signal, values.filter(row => !isPublicClientEnvironmentKey(row.key)).map(row => row.value)) : undefined;
+      const buildOutput = plan.version !== 9 && !compatibility && result.exitCode === 0 && !stopped && !signal.aborted ? await exportBuildOutput(id, plan.version === 7 ? plan.fullstack.outputDirectory : plan.frontend.outputDirectory, signal,
         values.filter(row => !isPublicClientEnvironmentKey(row.key)).map(row => row.value)) : undefined;
       return { ...result, signal: stopped, exitCode: signal.aborted || stopped ? null : result.exitCode, containerId: id, image: plan.image,
-        ...(buildOutput ? { buildOutput } : {}) };
+        ...(buildOutput ? { buildOutput } : {}), ...(componentOutput ? { componentOutput } : {}) };
     }
     const state = await containerState(id), stopped = result.signal ?? (state.oom ? "OOM" : null);
     return { ...result, signal: stopped, exitCode: signal.aborted || stopped ? null : state.exitCode, containerId: id, image: plan.image };

@@ -1,5 +1,8 @@
 # Deployment capability corpus
 
+Pnpm component delta, 2026-10-29: Factory feed package manifests were reread (pnpm11.19.0, Node>=24, original root build/database wrapper, direct compiled API entry and Vite frontend). Its source/database/deployments were not used as a test lab. The new public controlled Vite workspace and compiled Node fixtures exercise packaging/execution through plan9/Docker40; they do not close Factory feed raw intake or PostgreSQL ledger acceptance. [Evidence](evidence/pnpm-components.md).
+
+
 ## Product goal
 
 The user clarified on 2026-10-26 that the supplied projects test Launchlane's ability to deploy complete applications. Finishing a set of manually operated deployments is not the product objective. A private controller, direct helper or a successful frontend is only evidence for the boundary it actually exercises.

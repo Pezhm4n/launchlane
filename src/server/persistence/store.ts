@@ -1,3 +1,4 @@
+import { assertComponentJob } from "../policy/component-artifact.ts";
 import { createHash, randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import type {
@@ -308,7 +309,7 @@ export class Store {
     });
   }
   assertProjectAction(actorId: string, spec: ActionSpec, existingId?: string): void {
-    if (spec.version !== 3 && spec.version !== 4 && spec.version !== 5 && (spec.version !== 7 && spec.version !== 10 && spec.version !== 11 && spec.version !== 15 && spec.version !== 17 && spec.version !== 19 && spec.version !== 21 && (spec.version !== 23 && spec.version !== 26)) && (spec.version !== 8 && spec.version !== 12 && spec.version !== 16 && spec.version !== 18 && spec.version !== 20 && spec.version !== 22) && spec.version !== 9 && spec.version !== 13 && spec.version !== 25 && (spec.version !== 27 && spec.version !== 28)) return;
+    if (spec.version !== 3 && spec.version !== 4 && spec.version !== 5 && (spec.version !== 7 && spec.version !== 10 && spec.version !== 11 && spec.version !== 15 && spec.version !== 17 && spec.version !== 19 && (spec.version !== 21 && spec.version !== 40) && (spec.version !== 23 && spec.version !== 26)) && (spec.version !== 8 && spec.version !== 12 && spec.version !== 16 && spec.version !== 18 && spec.version !== 20 && spec.version !== 22) && spec.version !== 9 && spec.version !== 13 && spec.version !== 25 && (spec.version !== 27 && spec.version !== 28)) return;
     const flow = this.getProjectFlow(actorId);
     ensure(
       flow &&
@@ -326,12 +327,16 @@ export class Store {
     if (spec.operation === "deploy" && flow.profile.fullstack?.workerSqlite) ensure(spec.version === 26, "WORKER_STORAGE_BINDING_REQUIRED", "انتشار Worker بدون دیسک تأییدشده برای همین نسخه مجاز نیست.", 409);
     if ((spec.version === 23 || spec.version === 26)) ensure(flow.profile.fullstack && !flow.profile.fullstack.requiresPreparation && flow.profile.nodeRuntime?.version === spec.nodeVersion && flow.profile.fullstack.outputDirectory === spec.verification.outputDirectory,
       "FULLSTACK_BUILD_REQUIRED", "نسخه و خروجی انتشار کامل با پروژه برابر نیستند.", 409);
-    else if (spec.version === 21 || spec.version === 22) assertDockerRuntimeSource(flow.profile, spec.runtime);
+    else if ((spec.version === 21 || spec.version === 40) || spec.version === 22) assertDockerRuntimeSource(flow.profile, spec.runtime);
     else if (spec.version === 19 || spec.version === 20) ensure(fingerprint(flow.profile.frontendRuntime) === fingerprint(spec.runtime), "FRONTEND_RUNTIME_CHANGED", "روش ساخت و انتشار رابط تغییر کرده است.", 409);
     else if (spec.version === 17 || spec.version === 18) ensure(fingerprint(flow.profile.nextRuntime) === fingerprint(spec.runtime), "NEXT_RUNTIME_CHANGED", "نسخه یا مسیر انتشار Next تغییر کرده است؛ پیشنهاد تازه لازم است.", 409);
     else if (spec.version === 15 || spec.version === 16) ensure(fingerprint(flow.profile.staticRuntime) === fingerprint(spec.runtime), "STATIC_RUNTIME_CHANGED", "روش انتشار سایت ایستا تغییر کرده است؛ پیشنهاد تازه لازم است.", 409);
     else if (spec.version === 11 || spec.version === 12) ensure(fingerprint(flow.profile.pythonRuntime) === fingerprint(spec.runtime), "PYTHON_RUNTIME_CHANGED", "تنظیمات اجرای Python تغییر کرده است؛ پیشنهاد تازه لازم است.", 409);
     else ensure((spec.version !== 5 && (spec.version !== 7 && spec.version !== 10) && spec.version !== 8) || flow.profile.nodeRuntime?.version === spec.nodeVersion, "NODE_VERSION_CHANGED", "نسخه Node پیشنهاد با بررسی پروژه برابر نیست؛ پیشنهاد تازه دریافت کنید.", 409);
+    if (flow.profile.pnpmComponent && (spec.operation === "deploy" || spec.operation === "create_app")) {
+      const evidence = assertComponentJob(this, actorId, flow);
+      ensure(spec.operation !== "deploy" || spec.version === 40 && fingerprint(spec.verification) === fingerprint(evidence.verification) && fingerprint(spec.workload) === fingerprint({ ...evidence.build.workload, origin: spec.workload.origin }), "COMPONENT_BUILD_REQUIRED", "انتشار component به گواه دقیق همان worker نیاز دارد.", 409);
+    } else ensure(spec.version !== 40, "COMPONENT_BUILD_REQUIRED", "گواه component در source موجود نیست.", 409);
     const connection = this.getConnection(actorId, "liara")?.view;
     if (spec.version === 25) ensure(flow.profile.fullstack?.workerSqlite && connection?.identityId === spec.accountId && connection.apps.some(app => app.id === spec.targetAppId && app.name === spec.scope.app), "DISK_SCOPE_INVALID", "دیسک فقط برای Worker و مقصد همین حساب مجاز است.", 409);
     if (spec.version === 25 && spec.agentRunId !== null) ensure(this.db.prepare("SELECT id FROM agent_runs WHERE actor_id=? AND id=? AND json_extract(data_json,'$.context.projectId')=? AND json_extract(data_json,'$.context.sourceHash')=? AND json_extract(data_json,'$.context.selectionHash')=? AND json_extract(data_json,'$.context.target.appId')=?").get(actorId, spec.agentRunId, flow.id, spec.sourceHash, spec.selectionHash, spec.targetAppId), "DISK_SCOPE_INVALID", "فضای پایدار باید به همین مأموریت، پروژه و مقصد تعلق داشته باشد.", 409);
@@ -344,7 +349,7 @@ export class Store {
         disk.accountId === spec.accountId && disk.scope.teamId === spec.scope.teamId && disk.scope.app === spec.scope.app && disk.targetAppId === spec.targetAppId && disk.args.planId === spec.args.planId &&
         fingerprint(spec.storage) === fingerprint({ actionId: action.id, diskId: action.disk.diskId, ...disk.disk }), "DISK_REFERENCE_UNVERIFIED", "انتشار به دیسک و بازخوانی تأییدشدهٔ همین مقصد و artifact نیاز دارد.", 409);
     }
-    if (spec.version === 10 || (spec.version === 11 || spec.version === 17 || spec.version === 19 || spec.version === 21 || (spec.version === 23 || spec.version === 26)) && spec.environment !== null) {
+    if (spec.version === 10 || (spec.version === 11 || spec.version === 17 || spec.version === 19 || (spec.version === 21 || spec.version === 40) || (spec.version === 23 || spec.version === 26)) && spec.environment !== null) {
       const reference = spec.environment;
       ensure(reference, "ENV_REFERENCE_CHANGED", "مرجع اطلاعات انتشار مشخص نیست.", 409);
       const environment = this.getAction(reference.actionId, actorId), input = environment.spec;
@@ -363,7 +368,7 @@ export class Store {
     ensure(
       connection?.status === "connected" &&
         connection.teamId === spec.scope.teamId &&
-        (((spec.version !== 7 && spec.version !== 10 && spec.version !== 11 && spec.version !== 15 && spec.version !== 17 && spec.version !== 19 && spec.version !== 21 && (spec.version !== 23 && spec.version !== 26)) && spec.version !== 9 && spec.version !== 25 && (spec.version !== 27 && spec.version !== 28)) || connection.identityId === spec.accountId) &&
+        (((spec.version !== 7 && spec.version !== 10 && spec.version !== 11 && spec.version !== 15 && spec.version !== 17 && spec.version !== 19 && (spec.version !== 21 && spec.version !== 40) && (spec.version !== 23 && spec.version !== 26)) && spec.version !== 9 && spec.version !== 25 && (spec.version !== 27 && spec.version !== 28)) || connection.identityId === spec.accountId) &&
         connection.selectedApp === spec.scope.app &&
         connection.apps.some(
           (app) =>
@@ -659,7 +664,7 @@ export class Store {
       }
       this.assertActionContext(actorId, spec);
       if (
-        ((spec.version === 2 || spec.version === 3 || spec.version === 4 || spec.version === 5 || (spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 15 || spec.version === 17 || spec.version === 19 || spec.version === 21 || (spec.version === 23 || spec.version === 26))) &&
+        ((spec.version === 2 || spec.version === 3 || spec.version === 4 || spec.version === 5 || (spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 15 || spec.version === 17 || spec.version === 19 || (spec.version === 21 || spec.version === 40) || (spec.version === 23 || spec.version === 26))) &&
         spec.operation === "deploy") || (spec.version === 8 || spec.version === 12 || spec.version === 16 || spec.version === 18 || spec.version === 20 || spec.version === 22) || spec.version === 9 || spec.version === 13 || spec.version === 25 || (spec.version === 27 || spec.version === 28)
       ) {
         const artifact = this.getArtifact(actorId, spec.artifactHash ?? "");
@@ -706,7 +711,7 @@ export class Store {
           .run(action.id, spec.secretRef, actorId, now);
         ensure(linked.changes === 1, "ENV_INPUT_EXPIRED", "اطلاعات امن مصرف شده یا منقضی است.", 409);
       }
-      if (spec.version === 3 || spec.version === 4 || spec.version === 5 || (spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 15 || spec.version === 17 || spec.version === 19 || spec.version === 21 || (spec.version === 23 || spec.version === 26)) || (spec.version === 8 || spec.version === 12 || spec.version === 16 || spec.version === 18 || spec.version === 20 || spec.version === 22) || spec.version === 9 || spec.version === 13 || spec.version === 25 || (spec.version === 27 || spec.version === 28)) {
+      if (spec.version === 3 || spec.version === 4 || spec.version === 5 || (spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 15 || spec.version === 17 || spec.version === 19 || (spec.version === 21 || spec.version === 40) || (spec.version === 23 || spec.version === 26)) || (spec.version === 8 || spec.version === 12 || spec.version === 16 || spec.version === 18 || spec.version === 20 || spec.version === 22) || spec.version === 9 || spec.version === 13 || spec.version === 25 || (spec.version === 27 || spec.version === 28)) {
         const flow = this.getProjectFlow(actorId);
         if (flow) this.invalidateProjectAction(flow, actorId);
         this.db
@@ -1000,7 +1005,7 @@ export class Store {
         this.writeDeploymentProgress(id, {
           ...action.deployment,
           stage: "release_accepted",
-          ...((action.spec.version === 7 || action.spec.version === 10 || action.spec.version === 11 || action.spec.version === 15 || action.spec.version === 17 || action.spec.version === 19 || action.spec.version === 21 || (action.spec.version === 23 || action.spec.version === 26)) ? { releaseAcceptedAt: now } : {}),
+          ...((action.spec.version === 7 || action.spec.version === 10 || action.spec.version === 11 || action.spec.version === 15 || action.spec.version === 17 || action.spec.version === 19 || (action.spec.version === 21 || action.spec.version === 40) || (action.spec.version === 23 || action.spec.version === 26)) ? { releaseAcceptedAt: now } : {}),
         });
       }
       this.db
@@ -1019,7 +1024,7 @@ export class Store {
   invalidateEnvironmentPublication(id: string, actorId: string): Action {
     return this.transaction(() => {
       const action = this.getAction(id, actorId);
-      ensure((action.spec.version === 10 || (action.spec.version === 11 || action.spec.version === 17 || action.spec.version === 19 || action.spec.version === 21 || (action.spec.version === 23 || action.spec.version === 26)) && action.spec.environment !== null) && action.state === "approved" && !action.attemptId, "ACTION_CONFLICT", "این تصمیم دیگر قابل ابطال پیش از اجرا نیست.", 409);
+      ensure((action.spec.version === 10 || (action.spec.version === 11 || action.spec.version === 17 || action.spec.version === 19 || (action.spec.version === 21 || action.spec.version === 40) || (action.spec.version === 23 || action.spec.version === 26)) && action.spec.environment !== null) && action.state === "approved" && !action.attemptId, "ACTION_CONFLICT", "این تصمیم دیگر قابل ابطال پیش از اجرا نیست.", 409);
       this.db.prepare("UPDATE actions SET state='failed',error_code='ENV_REFERENCE_CHANGED' WHERE id=?").run(id);
       this.audit(action, "environment_approval_invalidated", Date.now()); return this.getAction(id, actorId);
     });

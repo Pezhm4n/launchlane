@@ -18,6 +18,7 @@ export type ProjectProfile = Readonly<{
   dockerRuntime?: import("./docker-runtime.ts").DockerRuntime;
   nativeInspection?: import("./liara-platform.ts").NativePlatformInspection;
   fullstack?: import("./fullstack.ts").FullstackInspection;
+  pnpmComponent?: import("./pnpm-component.ts").ComponentVerification;
   pnpmWorkspace?: import("./pnpm-workspace.ts").PnpmWorkspace;
   applicationRequirements?: import("./application-requirements.ts").ApplicationRequirementsInspection;
   sourceFixtureReviews?: readonly import("./source-fixture-review.ts").SourceFixtureReviewEvidence[];
@@ -162,6 +163,12 @@ export type ActionSpec = (ActionInputs &
         selectionHash: string; accountId: string; targetAppId: string; workload: import("./deployment.ts").WorkloadContract;
         nodeVersion: null; runtime: import("./docker-runtime.ts").DockerRuntime;
         environment: import("./environment.ts").EnvironmentReference | null;
+      }>
+    | Readonly<{
+        version: 40; operation: "deploy"; sourceHash: string; artifactHash: string; projectFlowId: string;
+        selectionHash: string; accountId: string; targetAppId: string; workload: import("./deployment.ts").WorkloadContract;
+        nodeVersion: null; runtime: import("./docker-runtime.ts").DockerRuntime;
+        environment: import("./environment.ts").EnvironmentReference | null; verification: import("./pnpm-component.ts").ComponentVerification;
       }>
   )) | import("./provision.ts").ProvisionSpec | import("./environment.ts").EnvironmentSpec | import("./network.ts").NetworkSpec | import("./project-lifecycle.ts").LifecycleSpec | import("./persistent-disk.ts").DiskSpec | import("./database-provision.ts").DatabaseProvisionSpec;
 

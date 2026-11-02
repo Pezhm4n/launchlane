@@ -14,5 +14,6 @@ export function assertApplicationPublicationScope(profile: ProjectProfile): void
   if (!inspection) return; // Historical snapshots acquire no invented resource evidence.
   ensure(inspection.sourceHash === profile.sourceHash, "APPLICATION_SOURCE_CHANGED", "نیازهای برنامه متعلق به همین نسخهٔ source نیستند.", 409);
   ensure(!inspection.diagnostics.length, "APPLICATION_ANALYSIS_INCOMPLETE", "بخشی از نیازهای برنامه قابل بررسی نبود؛ نبود نتیجه به معنای نبود API یا منابع نیست.", 409);
+  if (profile.pnpmComponent) return; // Explicit component scope only; Store/application require successful worker evidence.
   ensure(!separateApplicationRequirements(profile).length, "APPLICATION_TOPOLOGY_REQUIRED", "این پروژه بخش‌های اجرایی دیگری دارد. انتشار یک فرانت یا image بدون برنامه و سنجش آن بخش‌ها، انتشار کامل پروژه نیست.", 409);
 }

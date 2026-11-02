@@ -1,3 +1,4 @@
+import { parseComponentVerification } from "../../contracts/pnpm-component.ts";
 import { createHash } from "node:crypto";
 import type { ActionSpec, Scope } from "../../contracts/domain.ts";
 import {
@@ -52,6 +53,11 @@ export function parseActionSpec(value: unknown): ActionSpec {
     const { storage, ...rest } = input, base = parseActionSpec({ ...rest, version: 23 });
     ensure(base.version === 23 && base.nodeVersion === "24" && base.environment !== null, "DISK_SCOPE_INVALID", "انتشار Worker به Node24، تنظیمات تأییدشده و دیسک مشخص نیاز دارد.", 409);
     return { ...base, version: 26, nodeVersion: "24", environment: base.environment, storage: parseDiskBinding(storage) };
+  }
+  if (input.version === 40) {
+    const { verification, ...rest } = input, base = parseActionSpec({ ...rest, version: 21 });
+    ensure(base.version === 21, "INVALID_INPUT", "انتشار component به مسیر Docker نیاز دارد.", 409);
+    return { ...base, version: 40, verification: parseComponentVerification(verification) };
   }
   if (input.version === 23) {
     const { verification, environment, ...rest } = input, base = parseActionSpec({ ...rest, version: 7 });

@@ -1,3 +1,4 @@
+import { componentVerification, componentAssets } from "./component-verification.ts";
 import type { Action, Session } from "../../contracts/domain.ts";
 import {
   parseWorkloadExpectation,
@@ -65,12 +66,12 @@ function authorize(
   );
   if (requireActiveProject) {
     store.assertProjectAction(actorId, spec, actionId);
-    if (spec.version === 21) {
+    if ((spec.version === 21 || spec.version === 40)) {
       const flow = store.getProjectFlow(actorId);
       ensure(flow, "PROJECT_CHANGED", "پروژهٔ مصوب Docker موجود نیست.", 409);
       assertDockerRuntimeSource(flow.profile, spec.runtime);
     }
-    if (spec.version === 10 || (spec.version === 11 || spec.version === 17 || spec.version === 19 || spec.version === 21 || (spec.version === 23 || spec.version === 26)) && spec.environment !== null) projectEnvironmentValues(store, current.sessionSecret, actorId, spec.projectFlowId, spec.environment);
+    if (spec.version === 10 || (spec.version === 11 || spec.version === 17 || spec.version === 19 || (spec.version === 21 || spec.version === 40) || (spec.version === 23 || spec.version === 26)) && spec.environment !== null) projectEnvironmentValues(store, current.sessionSecret, actorId, spec.projectFlowId, spec.environment);
   }
   else
     ensure(
@@ -81,7 +82,7 @@ function authorize(
       "هویت برنامه بررسی‌شده تغییر کرده است.",
       403,
     );
-  ensure((spec.version !== 7 && spec.version !== 10 && spec.version !== 11 && spec.version !== 15 && spec.version !== 17 && spec.version !== 19 && spec.version !== 21 && (spec.version !== 23 && spec.version !== 26)) || store.getConnection(actorId, "liara")?.view.identityId === spec.accountId,
+  ensure((spec.version !== 7 && spec.version !== 10 && spec.version !== 11 && spec.version !== 15 && spec.version !== 17 && spec.version !== 19 && (spec.version !== 21 && spec.version !== 40) && (spec.version !== 23 && spec.version !== 26)) || store.getConnection(actorId, "liara")?.view.identityId === spec.accountId,
     "SCOPE_DENIED", "حساب انتشار تغییر کرده است.", 403);
 }
 async function checkProject(
@@ -101,7 +102,7 @@ async function checkProject(
   );
 }
 async function checkEnvironment(config: Config, spec: DeploymentSpec, budget: RunBudget, signal: AbortSignal, client?: LiaraEnvironmentClient) {
-  if (spec.version !== 10 && spec.version !== 11 && spec.version !== 17 && spec.version !== 19 && spec.version !== 21 && (spec.version !== 23 && spec.version !== 26)) return;
+  if (spec.version !== 10 && spec.version !== 11 && spec.version !== 17 && spec.version !== 19 && (spec.version !== 21 && spec.version !== 40) && (spec.version !== 23 && spec.version !== 26)) return;
   const reference = spec.environment;
   if (reference === null) return;
   const current = await (client ?? new LiaraEnvironmentClient(config)).read(spec, budget, signal);
@@ -187,7 +188,12 @@ async function prepareDeployment(
   if (verification) await publicBuildAssets(store, scoped.stateDir, actorId, verification, workload.origin);
   const storage = flow.profile.fullstack?.workerSqlite ? currentDiskBinding(store, actorId, flow) : null;
   ensure(!flow.profile.fullstack?.workerSqlite || storage && environment && flow.profile.nodeRuntime?.version === "24", "WORKER_STORAGE_BINDING_REQUIRED", "ابتدا تنظیمات خصوصی و دیسک پایدار همین نسخه و مقصد باید تأیید شوند.", 409);
-  const spec: DeploySpec = verification
+  const component = flow.profile.pnpmComponent ? await componentVerification(store, scoped.stateDir, actorId, flow, scoped.sessionSecret) : null;
+  if (component) await componentAssets(store, scoped.stateDir, actorId, component, workload.origin);
+  const spec: DeploySpec = component && flow.profile.dockerRuntime
+    ? { ...common, version: 40, operation: "deploy", sourceHash: flow.profile.sourceHash, nodeVersion: null, runtime: flow.profile.dockerRuntime,
+      environment, accountId: connection.identityId, workload: parseWorkloadContract(workload), verification: component }
+    : verification
     ? storage && environment
       ? { ...common, version: 26, operation: "deploy", sourceHash: flow.profile.sourceHash, nodeVersion: "24", environment, storage, accountId: connection.identityId, workload: parseWorkloadContract(workload), verification }
       : { ...common, version: 23, operation: "deploy", sourceHash: flow.profile.sourceHash, nodeVersion: parseNodeVersion(flow.profile.nodeRuntime?.version), environment,
@@ -240,7 +246,7 @@ export async function executeDeployment(
   );
   const action = store.getAction(id, session.actorId);
   ensure(
-    action.spec.version === 5 || (action.spec.version === 7 || action.spec.version === 10 || action.spec.version === 11 || action.spec.version === 15 || action.spec.version === 17 || action.spec.version === 19 || action.spec.version === 21 || (action.spec.version === 23 || action.spec.version === 26)),
+    action.spec.version === 5 || (action.spec.version === 7 || action.spec.version === 10 || action.spec.version === 11 || action.spec.version === 15 || action.spec.version === 17 || action.spec.version === 19 || (action.spec.version === 21 || action.spec.version === 40) || (action.spec.version === 23 || action.spec.version === 26)),
     "DEPLOYMENT_PROPOSAL_REQUIRED",
     "این پیشنهاد قدیمی قابل انتشار نیست؛ پیشنهاد تازه با نسخه اجرا و معیار بررسی سایت بسازید.",
     409,
@@ -277,7 +283,7 @@ export async function executeDeployment(
         await checkEnvironment(scoped, spec, budget, bounded, dependencies.environment);
         if (spec.version === 26) await checkPublicationDisk(scoped, spec, budget, bounded, false, dependencies.disk);
         // Leave room for both writes and the second identity read, including its one connect retry.
-        ensure(budget.maxToolCalls - budget.toolCalls >= (spec.version === 26 ? 7 : (spec.version === 10 || (spec.version === 11 || spec.version === 17 || spec.version === 19 || spec.version === 21 || spec.version === 23) && spec.environment !== null) ? 6 : 4), "BUDGET_EXHAUSTED", "بودجه ادامه انتشار و بررسی مقصد کافی نیست.", 409);
+        ensure(budget.maxToolCalls - budget.toolCalls >= (spec.version === 26 ? 7 : (spec.version === 10 || (spec.version === 11 || spec.version === 17 || spec.version === 19 || (spec.version === 21 || spec.version === 40) || spec.version === 23) && spec.environment !== null) ? 6 : 4), "BUDGET_EXHAUSTED", "بودجه ادامه انتشار و بررسی مقصد کافی نیست.", 409);
         authorize(scoped, store, session.actorId, spec, id);
       },
       async execute(claimed, bounded, source) {
@@ -297,7 +303,7 @@ export async function executeDeployment(
       },
     },
   }); } catch (error) {
-    if ((spec.version === 10 || (spec.version === 11 || spec.version === 17 || spec.version === 19 || spec.version === 21 || (spec.version === 23 || spec.version === 26)) && spec.environment !== null) && error instanceof AppError && error.code === "ENV_REFERENCE_CHANGED")
+    if ((spec.version === 10 || (spec.version === 11 || spec.version === 17 || spec.version === 19 || (spec.version === 21 || spec.version === 40) || (spec.version === 23 || spec.version === 26)) && spec.environment !== null) && error instanceof AppError && error.code === "ENV_REFERENCE_CHANGED")
       return store.invalidateEnvironmentPublication(id, session.actorId);
     throw error;
   }
@@ -369,7 +375,7 @@ export async function observeDeployment(
           spec.workload.path,
           budget,
           signal,
-          (spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 15 || spec.version === 17 || spec.version === 19 || spec.version === 21 || (spec.version === 23 || spec.version === 26)) ? 65536 : 4096,
+          (spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 15 || spec.version === 17 || spec.version === 19 || (spec.version === 21 || spec.version === 40) || (spec.version === 23 || spec.version === 26)) ? 65536 : 4096,
         );
         ensure(
           probe.scope.teamId === spec.scope.teamId &&
@@ -400,7 +406,7 @@ export async function observeDeployment(
           outcome:
             probe.outcome === "response" &&
             probe.status === spec.workload.status &&
-            ((spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 15 || spec.version === 17 || spec.version === 19 || spec.version === 21 || (spec.version === 23 || spec.version === 26))
+            ((spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 15 || spec.version === 17 || spec.version === 19 || (spec.version === 21 || spec.version === 40) || (spec.version === 23 || spec.version === 26))
               ? matchesWorkload(spec.workload, probe.status, probe.body)
               : revision === spec.workload.revision)
               ? "verified"
@@ -409,7 +415,7 @@ export async function observeDeployment(
         };
         // Provider current/READY can precede the public route switching from the old response.
         // Waiting never changes the approved assertion; a persistent mismatch still fails at the deadline.
-        if (result.outcome === "failed" && (spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 15 || spec.version === 17 || spec.version === 19 || spec.version === 21 || (spec.version === 23 || spec.version === 26)) && probe.outcome === "response" &&
+        if (result.outcome === "failed" && (spec.version === 7 || spec.version === 10 || spec.version === 11 || spec.version === 15 || spec.version === 17 || spec.version === 19 || (spec.version === 21 || spec.version === 40) || (spec.version === 23 || spec.version === 26)) && probe.outcome === "response" &&
           action.deployment.releaseAcceptedAt !== undefined &&
           probe.observedAt >= action.deployment.releaseAcceptedAt &&
           probe.observedAt - action.deployment.releaseAcceptedAt < 300_000)
@@ -433,7 +439,7 @@ export async function observeDeployment(
                 : { ...result, assets };
           }
         }
-        if (result.outcome === "verified" && (spec.version === 23 || spec.version === 26)) {
+        if (result.outcome === "verified" && (spec.version === 23 || spec.version === 26 || spec.version === 40)) {
           const proof = await (dependencies.probe ?? new WorkloadProbe(scoped)).check(spec.scope, compiledProofPath, budget, signal, 65536);
           ensure(proof.scope.teamId === spec.scope.teamId && proof.scope.app === spec.scope.app && proof.origin === spec.workload.origin && proof.path === compiledProofPath && proof.observedAt >= started,
             "EVIDENCE_MISMATCH", "گواه نسخه متعلق به همین انتشار نیست.", 409);
@@ -446,7 +452,7 @@ export async function observeDeployment(
           }
         }
         if (result.outcome === "verified") {
-          if ((spec.version === 23 || spec.version === 26)) for (const asset of await publicBuildAssets(store, scoped.stateDir, session.actorId, spec.verification, spec.workload.origin)) {
+          if (spec.version === 23 || spec.version === 26 || spec.version === 40) for (const asset of spec.version === 40 ? await componentAssets(store, scoped.stateDir, session.actorId, spec.verification, spec.workload.origin) : await publicBuildAssets(store, scoped.stateDir, session.actorId, spec.verification, spec.workload.origin)) {
             const observed = await (dependencies.probe ?? new WorkloadProbe(scoped)).checkFile(spec.scope, asset.path, budget, signal);
             ensure(observed.scope.teamId === spec.scope.teamId && observed.scope.app === spec.scope.app && observed.origin === spec.workload.origin && observed.path === asset.path && observed.observedAt >= started,
               "EVIDENCE_MISMATCH", "فایل مرورگر متعلق به همین برنامه و دور بررسی نیست.", 409);

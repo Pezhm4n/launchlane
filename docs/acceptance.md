@@ -1,5 +1,8 @@
 # معیارهای پذیرش محصول
 
+Compiled component delta, 2026-10-29 (AC19/24/26/28/31/32): plan9 and Docker publication40 connect exact compiled pnpm output to the same Agent/web job, artifact and decision/journal. Whole-workspace success is withheld after component success. Original data requirements and binding interfaces remain; no public/provider/data acceptance is inferred from local worker or synthetic transport results. [Evidence](evidence/pnpm-components.md).
+
+
 Publication route observation, 2026-10-29 (AC24/27/28/31/32): the same read_workload can evaluate the original publication page plus explicit JSON API routes, verifying the saved archive and accepted attempt/release correlation with current/READY fences. It persists a host notice and never changes publication authority/health. The original single-path mode remains available; public runtime/browser/data acceptance is still open. [Evidence](evidence/publication-routes.md).
 
 Pnpm workspace delta, 2026-10-29 (AC19/26/28/31/32): the shared proposal/decision/job path now executes the original root lock and package manager in isolation. Seven worker scenarios distinguish compile-only, full root runtime, original test failure, wrong workload, release-age rejection, skipped tests and changed test source. Actual directory upload/mission/HTTP decision/worker/reload/replay and responsive review are exercised with synthetic model transport. This is bounded local evidence, not acceptance of Factory feed, compiled component publication, database effects or all runtime families. [Evidence](evidence/pnpm-workspaces.md).

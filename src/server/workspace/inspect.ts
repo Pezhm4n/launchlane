@@ -1,3 +1,4 @@
+import { parseComponentVerification } from "../../contracts/pnpm-component.ts";
 import { createHash } from "node:crypto";
 import { constants, type Dirent } from "node:fs";
 import { lstat, open, opendir, realpath } from "node:fs/promises";
@@ -255,10 +256,12 @@ async function scanProject(
   const liara: Record<string, unknown> = liaraJson ?? {};
   const applicationRequirements = inspectApplicationRequirements(files);
   const separateExecution = separateApplicationRequirements({ applicationRequirements }).length > 0;
-  const fullstack = inspectFullstack(pkg, liara, files, [...envNames].sort());
+  const componentFile = files.find(file => file.path === ".launchlane-component.json");
+  const pnpmComponent = componentFile ? parseComponentVerification(object(JSON.parse(componentFile.content.toString("utf8"))).verification) : undefined;
+  const fullstack = pnpmComponent && liara.platform === "docker" ? undefined : inspectFullstack(pkg, liara, files, [...envNames].sort());
   const pnpmWorkspace = !fullstack && liara.platform === "docker" ? undefined : inspectPnpmWorkspace(files);
   for (const key of fullstack?.workerSqlite?.requiredEnvironmentKeys ?? []) envNames.add(key);
-  const nativeInspection = inspectNativePlatform(files, liara);
+  const nativeInspection = inspectNativePlatform(files, liara, !!pnpmComponent);
   const dockerDescriptor = nativeInspection.state === "detected" && nativeInspection.descriptor.platform === "docker" ? nativeInspection.descriptor : null;
   const dockerEntry = dockerDescriptor?.entry ? manifest.find(file => file.path === dockerDescriptor.entry) : undefined;
   // A package's Dockerfile may only build its API; it does not supersede an entire Node application implicitly.
@@ -322,6 +325,7 @@ async function scanProject(
     ...(nativeInspection.state !== "not_applicable" ? { nativeInspection } : {}),
     ...(fullstack ? { fullstack } : {}),
     ...(pnpmWorkspace ? { pnpmWorkspace } : {}),
+    ...(pnpmComponent ? { pnpmComponent } : {}),
     applicationRequirements,
     ...(usedFixtureReviews.length ? { sourceFixtureReviews: usedFixtureReviews } : {}),
     ...(nextRuntime ? { nextRuntime } : {}),

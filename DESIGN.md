@@ -1,5 +1,8 @@
 # اصول طراحی Launchlane
 
+Compiled component review (2026-10-29): reuse the existing pnpm build card and publication decision. Show the selected member, original-root build, selected tests, remaining sections and separate publication decision. A component publication says "بخش انتخاب‌شده منتشر شد" and keeps the whole-project/data limitation visible. Technical manager/output/proof details stay in disclosures. The existing runner select is constrained inside its card at narrow widths; Docker no longer falls back to a Python label. No new layout/theme or workflow is introduced.
+
+
 Publication route observation, 2026-10-29: the existing Agent step notice explains matched, mismatching or inconclusive observations in plain Persian. It states that current/READY release fences and route matches do not verify executable content, private configuration, data persistence or browser behavior. No new card, badge, layout or automatic publication success is added.
 
 ## Pnpm workspace review — 2026-10-28

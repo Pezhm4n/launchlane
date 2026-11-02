@@ -16,6 +16,7 @@
 .publication-journey { margin-block-start: var(--space-6); }
 .publication-journey .mission-summary { margin-block-end: var(--space-4); }
 .publication-card[data-verified="true"] { border-color: var(--color-primary); }
+.publication-journey .agent-repair select { min-inline-size: 0; max-inline-size: 100%; }
 .publication-success { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-3); padding: var(--space-4); border-radius: var(--radius-lg); background: var(--color-primary-soft); }
 .publication-success-mark { display: grid; place-items: center; inline-size: var(--space-12); block-size: var(--space-12); border: var(--border-width) solid var(--color-primary); border-radius: 50%; color: var(--color-primary); }
 .publication-success-mark svg { inline-size: var(--space-6); block-size: var(--space-6); }

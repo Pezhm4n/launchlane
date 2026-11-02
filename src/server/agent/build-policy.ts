@@ -17,6 +17,7 @@ import { fullstackTestCommand } from "../../contracts/fullstack.ts";
 import { validateTestDatabaseSource } from "./test-database.ts";
 import { inspectPnpmWorkspace } from "../workspace/pnpm.ts";
 import { pnpmTarballs } from "./pnpm-source.ts";
+import { sourcePnpmComponent } from "./pnpm-component.ts";
 
 export function requiresProjectBuild(files: readonly SourceFile[]): boolean {
   if (files.some(file => file.path === "Dockerfile")) return true;
@@ -50,6 +51,13 @@ export function validateBuildRepairPaths(paths: readonly string[]) {
 }
 export function validateBuildPlan(files: readonly SourceFile[], profile: ProjectProfile, value: ProjectBuildPlan): ProjectBuildPlan {
   const plan = parseProjectBuildPlan(value);
+  if (plan.version === 9) {
+    ensure(profile.pnpmWorkspace && profile.sourceHash === plan.sourceHash && fingerprint(profile.pnpmWorkspace) === fingerprint(plan.workspace) &&
+      fingerprint(inspectPnpmWorkspace(files)) === fingerprint(plan.workspace) && fingerprint(sourcePnpmComponent(files, plan.workspace, plan.component.root, plan.component.internalPort)) === fingerprint(plan.component) &&
+      plan.buildCommand === plan.workspace.packages[0]?.build && !!plan.buildCommand,
+      "COMPONENT_PLAN_CHANGED", "برنامهٔ component با source و lock اصلی برابر نیست.", 409);
+    pnpmTarballs(files); return plan;
+  }
   if (plan.version === 8) {
     ensure(fingerprint(inspectPnpmWorkspace(files)) === fingerprint(plan.workspace) && fingerprint(profile.pnpmWorkspace) === fingerprint(plan.workspace),
       "PNPM_BUILD_CHANGED", "برنامهٔ workspace با source فعلی برابر نیست.", 409);

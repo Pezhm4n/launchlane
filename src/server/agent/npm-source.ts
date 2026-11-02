@@ -63,7 +63,7 @@ export function lockedTarballs(files: readonly SourceFile[]): LockedTarball[] {
 }
 
 export type TarballReader = (item: LockedTarball, signal: AbortSignal) => Promise<Buffer>;
-export async function registryBytes(url: string, signal: AbortSignal, byteLimit: number, accept: string): Promise<Buffer> {
+export async function registryBytes(url: string, signal: AbortSignal, byteLimit: number, accept: string, compressedMetadata = false): Promise<Buffer> {
   try {
   const addresses = await abortable(() => lookup("registry.npmjs.org", { all: true, family: 4 }), signal);
   ensure(addresses.length > 0 && addresses.every(entry => isPublicAddress({ address: entry.address, family: 4 })),
@@ -74,7 +74,7 @@ export async function registryBytes(url: string, signal: AbortSignal, byteLimit:
     // Pin the validated address while TLS still authenticates the official registry hostname.
     const req = request(url, { signal, family: 4, maxHeaderSize: 8192,
       lookup: (_hostname, _options, callback) => callback(null, address.address, 4),
-      headers: { Accept: accept, "Accept-Encoding": "identity", "User-Agent": "Launchlane-LockedBuild/1" } }, response => {
+      headers: { Accept: accept, "Accept-Encoding": compressedMetadata ? "gzip" : "identity", "User-Agent": "Launchlane-LockedBuild/1" } }, response => {
       if (response.statusCode !== 200) {
         response.destroy(); reject(new AppError("BUILD_DEPENDENCY_UNAVAILABLE", "دریافت dependency قفل‌شده کامل نشد؛ build اجرا نشده است.", 502, true)); return;
       }

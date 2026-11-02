@@ -1,3 +1,5 @@
+import { assembleComponentArtifact } from "./component-artifact.ts";
+import { persistComponentOutput, readComponentOutput } from "./build-output-store.ts";
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { assertMissionJobExecution } from "../policy/mission-authority.ts";
@@ -341,7 +343,7 @@ export class CodeRepairAdapter {
         modelCalls: integer(usage.modelCalls, 0, 8),
         // Pnpm records include checked package metadata reads. Actual execution
         // remains bounded by the parent's persisted limits (maximum 4096).
-        toolCalls: integer(usage.toolCalls, 0, parsedJob.build === undefined ? 12 : parsedJob.build.version === 8 ? 4096 : 512),
+        toolCalls: integer(usage.toolCalls, 0, parsedJob.build === undefined ? 12 : (parsedJob.build.version === 8 || parsedJob.build.version === 9) ? 4096 : 512),
         tokens: usage.tokens === null ? null : integer(usage.tokens, 0, 1000000),
         unknownModelCalls: integer(usage.unknownModelCalls, 0, 8),
       },
@@ -452,7 +454,7 @@ export class CodeRepairAdapter {
         signal,
         secrets: this.secrets(actor),
       });
-    if (input.execution === "container") ensure(input.build?.version === 7 && input.preparation?.version === 2 || flow.profile.nodeRuntime?.version === "22" || flow.profile.nodeRuntime?.version === "24" && (input.build?.version === 3 || input.build?.version === 7 || input.build?.version === 8) || flow.profile.nodeRuntime?.version === "20" && (input.build?.version === 4 || input.build?.version === 5) || flow.profile.runtime === "python" && input.build?.version === 2 || flow.profile.runtime === "docker" && input.build?.version === 6, "SANDBOX_RUNTIME_UNAVAILABLE", "محیط ایزولهٔ سازگار با این پروژه آماده نیست؛ کد روی رایانه اجرا نمی‌شود.", 409);
+    if (input.execution === "container") ensure(input.build?.version === 7 && input.preparation?.version === 2 || flow.profile.nodeRuntime?.version === "22" || flow.profile.nodeRuntime?.version === "24" && (input.build?.version === 3 || input.build?.version === 7 || (input.build?.version === 8 || input.build?.version === 9)) || flow.profile.nodeRuntime?.version === "20" && (input.build?.version === 4 || input.build?.version === 5) || flow.profile.runtime === "python" && input.build?.version === 2 || flow.profile.runtime === "docker" && input.build?.version === 6, "SANDBOX_RUNTIME_UNAVAILABLE", "محیط ایزولهٔ سازگار با این پروژه آماده نیست؛ کد روی رایانه اجرا نمی‌شود.", 409);
     ensure(
       captured.profile.sourceHash === input.expectedSourceHash,
       "PROJECT_CHANGED",
@@ -464,7 +466,8 @@ export class CodeRepairAdapter {
     const build = input.build ? validateBuildPlan(captured.files, captured.profile, input.build) : undefined;
     ensure(!(build?.version===7 && build.testDatabase) || input.validationOnly || input.preparation?.version===2,
       "TEST_DATABASE_REPAIR_DENIED","این برش فقط آزمون سازگاری یا آماده‌سازی قطعی است؛ اصلاح مدل و انتشار را مجاز نمی‌کند.",409);
-    if (build) ensure(!containsSourceCredential(JSON.stringify({ workload: build.workload, ...(build.version === 7 ? { apiChecks: build.apiChecks } : {}) }),
+    ensure(build?.version !== 9 || input.validationOnly === true, "COMPONENT_REPAIR_UNSUPPORTED", "ساخت component در این برش source را تغییر نمی‌دهد.", 409);
+    if (build) ensure(!containsSourceCredential(JSON.stringify({ workload: build.workload, ...((build.version === 7 || build.version === 9) ? { apiChecks: build.apiChecks } : {}) }),
       [...this.secrets(actor), ...projectSecretValues(this.store, this.config.sessionSecret, actor)]), "SENSITIVE_INPUT", "معیار بررسی نباید شامل مقدار محرمانه باشد.", 409);
     ensure(build?.version !== 6 || input.validationOnly, "DOCKER_REPAIR_UNSUPPORTED", "تغییر Dockerfile یا dependency به برنامهٔ آماده‌سازی مستقل نیاز دارد؛ ساخت مجوز ویرایش نمی‌دهد.", 409);
     if (build && !(build.version === 7 && build.testDatabase)) buildEnvironmentValues(this.config, this.store, actor, flow.id, build.environment, buildSourceEnvironment(build));
@@ -659,9 +662,9 @@ export class CodeRepairAdapter {
             await reusePythonWheels(pythonRequirements(base.files), join(this.config.stateDir, "repair-tarballs", parent.id), tarballs, bounded);
           } else await downloadPythonWheels(pythonRequirements(base.files), tarballs, bounded, () => budget.take("tool", bounded));
         }
-        else if (build.version !== 6) await downloadLockedTarballs(build.version === 8 ? pnpmTarballs(base.files) : build.version === 7 ? fullstackTarballs(base.files, build.fullstack) : build.install === "none" ? [] : lockedTarballs(base.files), tarballs, bounded, () => budget.take("tool", bounded), this.tarballReader,
+        else if (build.version !== 6) await downloadLockedTarballs((build.version === 8 || build.version === 9) ? pnpmTarballs(base.files) : build.version === 7 ? fullstackTarballs(base.files, build.fullstack) : build.install === "none" ? [] : lockedTarballs(base.files), tarballs, bounded, () => budget.take("tool", bounded), this.tarballReader,
           { root: join(this.config.stateDir, "npm-cache"), ...(this.config.npmContentCache ? { operatorContentRoot: this.config.npmContentCache } : {}) });
-        if (build.version === 8) await writePnpmRegistryManifest(base.files, tarballs, bounded, () => budget.take("tool", bounded), this.pnpmMetadataReader);
+        if (build.version === 8 || build.version === 9) await writePnpmRegistryManifest(base.files, tarballs, bounded, () => budget.take("tool", bounded), this.pnpmMetadataReader);
         });
       }
       const tests = async (keepOutput = false): Promise<RepairTestReceipt> => {
@@ -721,6 +724,10 @@ export class CodeRepairAdapter {
             result.databaseRunner.sourceHash === record.job.postgresFixtureSourceHash && result.databaseRunner.planHash === fingerprint(build.testDatabase), "MIGRATION_RUNNER_RECEIPT_INVALID", "runner موفق بدون رسید مستقل تمام دیتابیس‌ها پذیرفته نمی‌شود.", 409);
           if (build.version === 6) record.job.builtImage = result.image;
           let outputReceipt: RepairTestReceipt["buildOutput"];
+          if (build.version === 9 && result.exitCode === 0 && !result.signal && !bounded.aborted) {
+            ensure(result.componentOutput, "BUILD_OUTPUT_UNAVAILABLE", "خروجی compiled همان worker موجود نیست.", 409);
+            outputReceipt = await persistComponentOutput(this.config.stateDir, result.componentOutput);
+          }
           if (frontendSource && result.exitCode === 0 && !result.signal && !bounded.aborted) {
             ensure(result.buildOutput, "BUILD_OUTPUT_UNAVAILABLE", "ساخت موفق بدون بایت خروجی قابل انتشار نیست.", 409);
             const after = await captureProject(record.workspace, ".", { signal: bounded, secrets: this.secrets(actor) });
@@ -728,7 +735,7 @@ export class CodeRepairAdapter {
             checkParent();
             outputReceipt = await persistBuildOutput(this.config.stateDir, result.buildOutput, { sourceHash: after.profile.sourceHash, planHash: fingerprint(record.job.build) });
           }
-          return { command: build.version === 8 ? `pnpm@${build.workspace.manager.version} install --frozen-lockfile from verified isolated registry; original build${build.phase === "compile" ? "; compile only (no tests/start/publication)" : "; original test/start; GET " + build.workload.path}` : build.version === 7 && build.testDatabase?.version === 3 ? `npm run ${build.testDatabase.runner.script} in two fresh workers; independent per-database schema/seed and replay checks; original build/API/tests in two fresh app workers; independent write/persistence checks` : build.version === 7 && build.testDatabase?.version === 2 ? "psql reviewed SQL; independent schema/seed checks; original build/API/tests in two fresh workers; checksum replay; independent write/persistence checks" : build.version === 6 ? `isolated Docker build; independent GET ${build.workload.path}` : build.version === 2 ? `pip install --no-index --require-hashes; compileall; unittest ${record.job.testFiles.join(" ")}; ${build.startCommand}; GET ${build.workload.path}` : `${build.install === "none" ? "no dependencies to install" : "npm ci --offline"}${build.buildCommand ? " && npm run build" : ""}${build.testCommand ? " && npm test" : ""} && ${build.version === 5 ? `host serve ${build.frontend.outputDirectory}; verify local JS/CSS` : "npm start"}; GET ${build.workload.path}`,
+          return { command: build.version === 9 ? `pnpm@${build.workspace.manager.version} frozen install; original root build; ${build.component.testCommand ? "original component tests" : "no component test declared"}; exact compiled closure start; GET ${build.workload.path}; independent API checks (component only)` : build.version === 8 ? `pnpm@${build.workspace.manager.version} install --frozen-lockfile from verified isolated registry; original build${build.phase === "compile" ? "; compile only (no tests/start/publication)" : "; original test/start; GET " + build.workload.path}` : build.version === 7 && build.testDatabase?.version === 3 ? `npm run ${build.testDatabase.runner.script} in two fresh workers; independent per-database schema/seed and replay checks; original build/API/tests in two fresh app workers; independent write/persistence checks` : build.version === 7 && build.testDatabase?.version === 2 ? "psql reviewed SQL; independent schema/seed checks; original build/API/tests in two fresh workers; checksum replay; independent write/persistence checks" : build.version === 6 ? `isolated Docker build; independent GET ${build.workload.path}` : build.version === 2 ? `pip install --no-index --require-hashes; compileall; unittest ${record.job.testFiles.join(" ")}; ${build.startCommand}; GET ${build.workload.path}` : `${build.install === "none" ? "no dependencies to install" : "npm ci --offline"}${build.buildCommand ? " && npm run build" : ""}${build.testCommand ? " && npm test" : ""} && ${build.version === 5 ? `host serve ${build.frontend.outputDirectory}; verify local JS/CSS` : "npm start"}; GET ${build.workload.path}`,
             exitCode: result.exitCode, signal: result.signal, durationMs: Date.now() - started, output: redact(result.output, [...this.secrets(actor), ...environment.map(row => row.value).filter(value => value.length >= 4)]),
             passed: result.exitCode === 0 && !bounded.aborted && !result.signal, ...(outputReceipt ? { buildOutput: outputReceipt } : {}), ...(result.databaseMigration ? { databaseMigration: result.databaseMigration } : {}), ...(result.databaseRunner ? { databaseRunner: result.databaseRunner } : {}) };
         }
@@ -744,6 +751,10 @@ export class CodeRepairAdapter {
       };
       const verifyOutput = async (sourceHash: string) => {
         if(record.job.build?.version===7 && record.job.build.testDatabase)return;
+        if (record.job.build?.version === 9) {
+          const receipt = record.job.afterTest?.buildOutput; ensure(receipt, "BUILD_OUTPUT_UNAVAILABLE", "خروجی component موجود نیست.", 409);
+          await readComponentOutput(this.config.stateDir, receipt, { sourceHash, planHash: fingerprint(record.job.build) }); return;
+        }
         if (record.job.build?.version !== 5 && record.job.build?.version !== 7) return;
         const receipt = record.job.afterTest?.buildOutput;
         ensure(receipt, "BUILD_OUTPUT_UNAVAILABLE", "خروجی پایدار همان ساخت تأییدشده موجود نیست.", 409);
@@ -752,6 +763,13 @@ export class CodeRepairAdapter {
       const publicationArtifact = async (sourceHash: string) => {
         if(record.job.build?.version===8 && record.job.build.phase==="compile")return null;
         if(record.job.build?.version===7 && record.job.build.testDatabase)return null;
+        if (record.job.build?.version === 9) {
+          const receipt = record.job.afterTest?.buildOutput; ensure(receipt, "BUILD_OUTPUT_UNAVAILABLE", "خروجی component موجود نیست.", 409);
+          const assembled = await assembleComponentArtifact({ store: this.store, stateDir: this.config.stateDir, actorId: actor, workspace: record.workspace, sourceHash,
+            jobId: record.job.id, plan: record.job.build, receipt, signal: bounded, secrets: this.secrets(actor) });
+          record.job.publication = assembled.publication;
+          record.job.changedPaths = [...new Set([...record.job.changedPaths, ...assembled.changedPaths])]; return assembled.artifact;
+        }
         if (record.job.build?.version === 7) {
           const receipt = record.job.afterTest?.buildOutput;
           ensure(receipt, "BUILD_OUTPUT_UNAVAILABLE", "خروجی ساخت کامل موجود نیست.", 409);

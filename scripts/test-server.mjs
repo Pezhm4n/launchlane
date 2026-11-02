@@ -7,7 +7,8 @@ import { setTimeout as pause } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import { freeHttpTestPort } from "../tests/helpers/http-port.ts";
 
-export async function startTestServer({ browserHost = "127.0.0.1", publicOrigin = "", agentFixture = false, environmentFixture = false, activationFixture = false, destinationFixture = false, databaseFixture = false, workspaceConfigured = true, authFixture = false, staticFixture = false } = {}) {
+export async function startTestServer({ browserHost = "127.0.0.1", publicOrigin = "", agentFixture = false, environmentFixture = false, activationFixture = false, destinationFixture = false, databaseFixture = false, workspaceConfigured = true, authFixture = false, staticFixture = false, componentFixture = false } = {}) {
+  if (componentFixture && (agentFixture || environmentFixture || destinationFixture || databaseFixture || authFixture || staticFixture)) throw new Error("Component fixture requires its own network-denying hook");
   if (environmentFixture && !agentFixture) throw new Error("Environment fixture requires the network-denying test hook");
   if (activationFixture && !environmentFixture) throw new Error("Activation fixture requires the environment fixture");
   if (destinationFixture && !agentFixture) throw new Error("Destination fixture requires the network-denying test hook");
@@ -65,6 +66,8 @@ export async function startTestServer({ browserHost = "127.0.0.1", publicOrigin 
     ...(databaseFixture ? { LAUNCHLANE_ENABLE_MUTATIONS: "true", LAUNCHLANE_ENABLE_LIVE_LIARA: "true", LAUNCHLANE_DATABASE_FIXTURE_LOG: join(directory,"database.jsonl"),
       NODE_OPTIONS: `--import=${pathToFileURL(resolve("tests/helpers/database-targets-hook.mjs")).href}` } : {}),
     ...(authFixture ? { LAUNCHLANE_AUTH_MODE: "liara", NODE_OPTIONS: `--import=${pathToFileURL(resolve("tests/helpers/liara-auth-hook.mjs")).href}` } : {}),
+    ...(componentFixture ? { LAUNCHLANE_ENABLE_MUTATIONS: "true", LAUNCHLANE_ENABLE_LIVE_MODEL: "true", LAUNCHLANE_ENABLE_LOCAL_REPAIR: "true", LAUNCHLANE_ENABLE_LIVE_LIARA: "true",
+      MODEL_ID: "gpt-6-luna", MODEL_API_KEY: "synthetic-component-test-only", LAUNCHLANE_AGENT_FIXTURE_LOG: join(directory,"model.jsonl"), NODE_OPTIONS: `--import=${pathToFileURL(resolve("tests/helpers/component-publication-hook.mjs")).href}` } : {}),
     ...(staticFixture ? { LAUNCHLANE_ENABLE_MUTATIONS: "true", LAUNCHLANE_ENABLE_LIVE_MODEL: "true", LAUNCHLANE_ENABLE_LIVE_LIARA: "true",
       MODEL_ID: "gpt-6-luna", MODEL_API_KEY: "synthetic-static-fixture-key", NODE_OPTIONS: `--import=${pathToFileURL(resolve("tests/helpers/static-publication-hook.mjs")).href}` } : {}),
   };
@@ -115,7 +118,7 @@ export async function startTestServer({ browserHost = "127.0.0.1", publicOrigin 
           workspace,
           stateDir: env.LAUNCHLANE_STATE_DIR,
           sessionSecret: env.LAUNCHLANE_SESSION_SECRET,
-          modelLog:agentFixture?env.LAUNCHLANE_AGENT_FIXTURE_LOG:null,
+          modelLog:agentFixture || componentFixture?env.LAUNCHLANE_AGENT_FIXTURE_LOG:null,
           databaseLog: databaseFixture ? env.LAUNCHLANE_DATABASE_FIXTURE_LOG : null,
           activationFailureMarker: activationFixture ? env.LAUNCHLANE_ACTIVATION_FAILURE_MARKER : null,
           close,

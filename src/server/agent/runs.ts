@@ -761,11 +761,11 @@ export async function driveAgentRun(
         await delay(dependencies.pollDelayMs ?? Math.min((poll + 1) * 5000, 20_000), undefined, { signal });
       }
       if (run.publication.state === "succeeded") {
-        run.state = "completed";
+        run.state = run.publication.spec.version === 40 ? "partially_completed" : "completed";
         run.effect = "remote_changes_verified";
-        run.nextAction = null;
+        run.nextAction = run.publication.spec.version === 40 ? "reply" : null;
         run.question = null;
-        addEvent(run, "assistant", "همان نسخه تأییدشده منتشر شد و پاسخ مورد انتظار همان صفحه بررسی شد. نتیجه و نشانی سایت در کارت انتشار آمده است.");
+        addEvent(run, "assistant", run.publication.spec.version === 40 ? "همان component ساخته‌شده منتشر و گواه نسخه و معیارهای مصوب آن بررسی شدند؛ انتشار کل workspace، سایر اجزا و داده هنوز تأیید نشده‌اند." : "همان نسخه تأییدشده منتشر شد و پاسخ مورد انتظار همان صفحه بررسی شد. نتیجه و نشانی سایت در کارت انتشار آمده است.");
         persist();
         return;
       }

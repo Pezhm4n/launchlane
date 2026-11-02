@@ -1,5 +1,8 @@
 # وضعیت پلتفرم‌ها و مسیر انتشار
 
+Compiled pnpm delta, 2026-10-29: Node/static browser members can use a source-derived plan9 and a pinned Docker envelope with no destination reinstall/rebuild. This is a scoped component route, retaining original tests and remaining runtime/data obligations. Controlled Vite/React execution and fixture/provider evidence are kept separate in [the ledger](evidence/pnpm-components.md). Native-family table statuses and complete fourteen-family acceptance are unchanged without their actual acceptance evidence.
+
+
 Pnpm delta, 2026-10-28: ProjectBuildPlan8 adds source-pinned pnpm11.19.0 workspace execution with exact Node22/24 compatibility. All importers and workspace links are retained. Compile-only results are explicitly nonpublishable; root runtime tests/source artifacts and native provider publication are separate boundaries. Native npm publication cannot consume this receipt. Factory feed metadata is detected but raw intake stops on source findings; its Vite/Nest/data behavior remains UNCONFIRMED. [Evidence](evidence/pnpm-workspaces.md).
 
 

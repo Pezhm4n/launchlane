@@ -1,3 +1,4 @@
+import { localComponentVerification } from "./component-verification.ts";
 import type { Action, Session } from "../../contracts/domain.ts";
 import type { ProvisionSpec, ProvisionObservation, ProvisionReadback } from "../../contracts/provision.ts";
 import { identifier } from "../../contracts/validation.ts";
@@ -82,6 +83,7 @@ export async function proposeDestination(config: Config, store: Store, actor: st
     (flow.profile.runtime === "node" && flow.profile.nodeRuntime?.version || flow.profile.runtime === "python" && flow.profile.pythonRuntime || flow.profile.runtime === "static" && flow.profile.staticRuntime || flow.profile.runtime === "docker" && flow.profile.dockerRuntime),
     "PROJECT_INCOMPLETE", "روش اجرای این پروژه هنوز آمادهٔ انتشار نیست؛ نتیجهٔ بررسی فایل‌ها و آماده‌سازی را ببینید.", 409);
   assertApplicationPublicationScope(flow.profile);
+  if (flow.profile.pnpmComponent) await localComponentVerification(store, config.stateDir, actor, flow);
   const budget = dependencies.budget ?? new RunBudget(scoped), client = dependencies.read ?? new LiaraAccountClient(scoped, connection.identityId),
     catalog = await client.catalog(budget, signal), quote = quotePaaSOffer(catalog, identifier(input.planId), identifier(input.bundleId)),
     networkId = providerObjectId(input.networkId);

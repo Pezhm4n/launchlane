@@ -1,5 +1,14 @@
 # برنامه اجرایی Launchlane
 
+## Compiled pnpm component publication — 2026-10-29
+
+AC19/24/26/28/31/32: ProjectBuildPlan9 exports the actual compiled member/static output and installed production dependency closure after the unchanged frozen root build and original selected tests. Actor/job/source/plan/output/archive/fixed recipe gates feed the existing selection, Docker22 destination and ActionSpec40 publication/journal. Independent primary/proof/API/static-hash observations keep release/app/env fences. Successful components remain partial whole-workspace missions. No SQL, database binding, SQLite migration, production dependency or actual model/cloud write is added. [ADR0047](docs/decisions/0047-exact-compiled-pnpm-components.md), [checks and preserved failures](docs/evidence/pnpm-components.md).
+
+Validation2026-11-02 on runtime `e4671060`: domain810/810, HTTP48/48, component containers11/11 including actual Vite/React/Docker/Chromium, legacy containers16/16, lint/typecheck/build, actual component web/publication/replay/reload10layouts and legacy review6layouts passed. Exact hashes/configuration and preserved failures are in the evidence/private handoff. Remaining: raw Factory feed/data-dependent tests and ledger, independent multi-component/worker/scheduler topology, native missing-family execution and all-fourteen production acceptance. Compiled-component rollback/history needs joint integration with the data lane; plan9 source repair is explicitly unsupported rather than bypassing the oracle.
+
+Additional final browsers: actual legacy compile worker5layouts/replay/reload, guided54states, platforms12states and route observations15layouts/MCP denial passed. Every heavy command held the shared OS lock and used independent state/ports/TEMP; runtime bytes stayed unchanged through the final matrix.
+
+
 ## Publication-bound route observations — 2026-10-29 / path B
 
 AC24/27/28/31/32: extend the same read_workload/schema/application with an accepted publication ID and explicit JSON route expectations. Verify the saved archive and exact current/READY release before/after, retaining the original primary criterion. Persist a host notice without modifying publication approval/journal or data-path logic. [ADR0046](docs/decisions/0046-publication-bound-route-observations.md), [scope and checks](docs/evidence/publication-routes.md). Final worktree-local temp configuration passes domain803/HTTP48, lint/typecheck/build, route browser15layouts, actual web/pnpm worker5layouts, review6layouts, guided54states and actual container13/13. Public browser/data/worker effects and exact compiled component publication remain open.

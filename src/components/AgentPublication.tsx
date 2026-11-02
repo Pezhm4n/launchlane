@@ -72,7 +72,7 @@ export function AgentPublication({
         <div className="publication-success-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false"><path d="m5 12 4 4L19 6" /></svg></div>
         <div className="publication-success-heading">
           <span className="publication-success-label">انتشار موفق</span>
-          <h3 id="publication-title">سایت شما منتشر شد</h3>
+          <h3 id="publication-title">{spec.version === 40 ? "بخش انتخاب‌شده منتشر شد" : "سایت شما منتشر شد"}</h3>
           <p role="status">{status}</p>
         </div>
         <div className="publication-success-address">
@@ -86,7 +86,8 @@ export function AgentPublication({
           </button>
         </div>
         <p className="hint publication-copy-status" aria-live="polite">{copyState === "copied" ? "نشانی سایت در حافظه کپی شد." : copyState === "failed" ? "کپی خودکار در این مرورگر در دسترس نیست؛ نشانی بالا را انتخاب و کپی کنید." : "باز کردن سایت در زبانهٔ تازه، انتشار دوباره‌ای آغاز نمی‌کند."}</p>
-      </div> : <h3 id="publication-title">انتشار پروژه</h3>}
+      </div> : <h3 id="publication-title">{spec.version === 40 ? "انتشار بخش انتخاب‌شده" : "انتشار پروژه"}</h3>}
+      {spec.version === 40 ? <p className="note">فقط <bdi>{spec.verification.component.name}</bdi> از خروجی ساخته‌شدهٔ همین نسخه منتشر می‌شود. سایر بخش‌ها، اتصال داده و انتشار کامل پروژه هنوز تأیید نشده‌اند.</p> : null}
       <ol className="publication-steps" aria-label="مراحل انتشار">
         <li className="is-done">پیشنهاد ساخته شد</li>
         <li
@@ -155,9 +156,9 @@ export function AgentPublication({
         <summary>اطلاعات فنی نسخه</summary>
         <dl className="profile-facts">
           <div>
-            <dt>{spec.version === 15 ? "نوع انتشار" : spec.version === 21 ? "Docker" : spec.version === 19 ? `${{ react: "React", vue: "Vue", angular: "Angular" }[spec.runtime.kind]} / Node` : spec.version === 17 ? "Next.js / Node" : spec.version === 11 ? "Python" : "Node"}</dt>
+            <dt>{spec.version === 15 ? "نوع انتشار" : (spec.version === 21 || spec.version === 40) ? "Docker" : spec.version === 19 ? `${{ react: "React", vue: "Vue", angular: "Angular" }[spec.runtime.kind]} / Node` : spec.version === 17 ? "Next.js / Node" : spec.version === 11 ? "Python" : "Node"}</dt>
             <dd>
-              <code dir="ltr" className="ltr-code"><bdo dir="ltr">{spec.version === 15 ? "Static · Nginx لیارا" : spec.version === 21 ? spec.runtime.dockerfile : spec.version === 11 ? spec.runtime.version : spec.nodeVersion}</bdo></code>
+              <code dir="ltr" className="ltr-code"><bdo dir="ltr">{spec.version === 15 ? "Static · Nginx لیارا" : (spec.version === 21 || spec.version === 40) ? spec.runtime.dockerfile : spec.version === 11 ? spec.runtime.version : spec.nodeVersion}</bdo></code>
             </dd>
           </div>
           <div>

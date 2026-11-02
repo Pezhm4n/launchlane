@@ -908,7 +908,7 @@ export function AgentPanel({
               <h3 id="repair-title">{run.repair.validationOnly ? run.repair.build?.version === 8 && run.repair.build.phase === "compile" ? "بررسی ساخت بسته‌های پروژه" : "بررسی ساخت و اجرای پروژه" : "اصلاح نسخه جدا از پروژه"}</h3>
               <BuildFailureNote job={run.repair} />
               <MigrationTestReview job={run.repair} />
-              {run.repair.build?.version === 8 ? <PnpmBuildReview build={run.repair.build} /> : null}
+              {(run.repair.build?.version === 8 || run.repair.build?.version === 9) ? <PnpmBuildReview build={run.repair.build} /> : null}
               <details>
                 <summary>جزئیات اصلاح و رسید آزمون</summary>
                 <p>{run.repair.goal}</p>
@@ -921,7 +921,7 @@ export function AgentPanel({
                   ))}
                 </ul>
                 <p className="hint">{run.repair.validationOnly ? run.repair.build?.version === 8 && run.repair.build.phase === "compile" ? "نصب با lock ریشه و فرمان ساخت اصلی بررسی می‌شوند:" : run.repair.build?.version === 1 && run.repair.build.install === "none" ? "وابستگی اعلام‌شده‌ای وجود ندارد؛ فرمان ساخت و اجرا و پاسخ مورد انتظار بررسی می‌شوند:" : "نصب قفل‌شده، فرمان ساخت و اجرای موجود و پاسخ مورد انتظار بررسی می‌شوند:" : "همین معیار موجود، پیش و پس از اصلاح اجرا می‌شود:"}</p>
-                <code dir="ltr">{run.repair.build?.version === 8 ? pnpmBuildCommand(run.repair.build) : run.repair.build?.version === 2 ? `pip install --no-index --require-hashes; compileall; unittest ${run.repair.testFiles.join(" ")}; start: ${run.repair.build.startCommand}; GET ${run.repair.build.workload.path}` : run.repair.build ? `${run.repair.build.install === "none" ? "no dependencies to install" : "npm ci --offline"}${run.repair.build.buildCommand ? `; build: ${run.repair.build.buildCommand}` : ""}${run.repair.build.testCommand ? `; test: ${run.repair.build.testCommand}` : ""}; start: ${run.repair.build.startCommand}; GET ${run.repair.build.workload.path}` : `node --test -- ${run.repair.testFiles.join(" ")}`}</code>
+                <code dir="ltr">{(run.repair.build?.version === 8 || run.repair.build?.version === 9) ? pnpmBuildCommand(run.repair.build) : run.repair.build?.version === 2 ? `pip install --no-index --require-hashes; compileall; unittest ${run.repair.testFiles.join(" ")}; start: ${run.repair.build.startCommand}; GET ${run.repair.build.workload.path}` : run.repair.build ? `${run.repair.build.install === "none" ? "no dependencies to install" : "npm ci --offline"}${run.repair.build.buildCommand ? `; build: ${run.repair.build.buildCommand}` : ""}${run.repair.build.testCommand ? `; test: ${run.repair.build.testCommand}` : ""}; start: ${run.repair.build.startCommand}; GET ${run.repair.build.workload.path}` : `node --test -- ${run.repair.testFiles.join(" ")}`}</code>
                 <p className="hint">
                   {run.repair.execution === "container" ? "آزمون در container محدود، بدون شبکه و بدون دسترسی نوشتن به پوشه اصلی اجرا می‌شود." : "فرمان در نسخه جدا با دسترسی محدود Node اجرا می‌شود. این روش شبکه جدا یا sandbox سیستم‌عامل نیست."} پوشه اصلی تغییر نمی‌کند.
                 </p>

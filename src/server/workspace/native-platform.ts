@@ -52,7 +52,7 @@ function codeShape(text: string, python = false): string {
 const notApplicable: NativePlatformInspection = { state: "not_applicable", publishable: false };
 
 /** Bounded source evidence only. No filesystem access, imports of project code, scripts or cloud calls. */
-export function inspectNativePlatform(files: readonly SourceFile[], liaraValue?: unknown): NativePlatformInspection {
+export function inspectNativePlatform(files: readonly SourceFile[], liaraValue?: unknown, compiledComponentContext = false): NativePlatformInspection {
   let platform: NativeLiaraPlatform | null = null;
   try {
     if (files.length > SOURCE_MAX_FILES) reject("NATIVE_SOURCE_LIMIT", "تعداد فایل‌ها از سقف بررسی بیشتر است.");
@@ -272,7 +272,9 @@ export function inspectNativePlatform(files: readonly SourceFile[], liaraValue?:
           if (/^(?:[a-z][a-z0-9+.-]*:\/\/|git@)/i.test(source)) reject("NATIVE_DOCKER_REMOTE_INPUT", "ورودی دوردست ساخت باید پیش از اجرا جداگانه تثبیت و بررسی شود.", [entry]);
           if (source === "." || source === "./") continue;
           const path = localPath(source.replace(/\/+$/, ""), entry);
-          if (!index.has(path) && ![...index.keys()].some(file => file.startsWith(`${path}/`))) reject("NATIVE_DOCKER_CONTEXT_MISSING", "یکی از ورودی‌های Dockerfile در بستهٔ source وجود ندارد؛ بستهٔ ناقص آمادهٔ ساخت نیست.", [entry]);
+          // Opaque compiled bytes are injected by createSourceArchive, outside source inspection.
+          // This declaration grants no authority: application/Store verify the successful job and payload.
+          if (!(compiledComponentContext && entry === ".launchlane-component.Dockerfile" && path === ".launchlane-component.gz") && !index.has(path) && ![...index.keys()].some(file => file.startsWith(`${path}/`))) reject("NATIVE_DOCKER_CONTEXT_MISSING", "یکی از ورودی‌های Dockerfile در بستهٔ source وجود ندارد؛ بستهٔ ناقص آمادهٔ ساخت نیست.", [entry]);
         }
       }
       const exposed = lines.slice(finalStage + 1).filter(line => /^EXPOSE\s+/i.test(line)).flatMap(line => line.replace(/\s+#.*$/, "").replace(/^EXPOSE\s+/i, "").split(/\s+/));
