@@ -1,4 +1,6 @@
 import { frameworkPythonRuntime } from "./framework-python.ts";
+import { sourceGoRuntime } from "./go.ts";
+import { parseExecutableVerification } from "../../contracts/go-runtime.ts";
 import { parseComponentVerification } from "../../contracts/pnpm-component.ts";
 import { createHash } from "node:crypto";
 import { constants, type Dirent } from "node:fs";
@@ -243,8 +245,8 @@ async function scanProject(
         for (const value of candidates.ports) ports.add(value);
         unresolvedPort ||= candidates.unresolved;
       }
-      const testOnly = /(?:^|\/)(?:tests?|testing|unit|__tests__|e2e)(?:\/|$)|(?:^|\/)(?:test_[^/]+\.py|[^/]+_test\.py)|\.(?:test|spec)\.[cm]?[jt]sx?$/i.test(relativePath);
-      if (!testOnly && /\.(?:py|vue|[cm]?[jt]sx?)$/i.test(relativePath)) {
+      const testOnly = /(?:^|\/)(?:tests?|testing|unit|__tests__|e2e)(?:\/|$)|(?:^|\/)(?:test_[^/]+\.py|[^/]+_test\.py|[^/]+_test\.go)|\.(?:test|spec)\.[cm]?[jt]sx?$/i.test(relativePath);
+      if (!testOnly && /\.(?:py|go|vue|[cm]?[jt]sx?)$/i.test(relativePath)) {
         for (const name of sourceEnvironmentNames(text, relativePath)) envNames.add(name);
         ensure(envNames.size <= 128, "ENV_DISCOVERY_LIMIT", "تعداد نام تنظیمات پروژه بیشتر از سقف این بررسی است.", 413);
       }
@@ -259,6 +261,7 @@ async function scanProject(
   const separateExecution = separateApplicationRequirements({ applicationRequirements }).length > 0;
   const componentFile = files.find(file => file.path === ".launchlane-component.json");
   const pnpmComponent = componentFile ? parseComponentVerification(object(JSON.parse(componentFile.content.toString("utf8"))).verification) : undefined;
+  const executableFile = files.find(file => file.path === ".launchlane-executable.json"), compiledExecutable = executableFile ? parseExecutableVerification(object(JSON.parse(executableFile.content.toString("utf8"))).verification) : undefined;
   const fullstack = pnpmComponent && liara.platform === "docker" ? undefined : inspectFullstack(pkg, liara, files, [...envNames].sort());
   const pnpmWorkspace = !fullstack && liara.platform === "docker" ? undefined : inspectPnpmWorkspace(files);
   for (const key of fullstack?.workerSqlite?.requiredEnvironmentKeys ?? []) envNames.add(key);
@@ -269,7 +272,8 @@ async function scanProject(
   const dockerRuntime = !fullstack && dockerDescriptor && dockerEntry && dockerDescriptor.port && (liara.platform === "docker" || !packageJson)
     ? parseDockerRuntime({ kind: "docker", contextRoot: ".", dockerfile: dockerEntry.path, dockerfileHash: dockerEntry.sha256, port: dockerDescriptor.port }) : undefined;
   const frameworkPython = frameworkPythonRuntime(files, nativeInspection, liara);
-  const nativeExecutionRequired = !frameworkPython && (nativeInspection.state === "detected" && nativeInspection.descriptor.platform !== "docker" ||
+  const goRuntime = sourceGoRuntime(files, nativeInspection, liara);
+  const nativeExecutionRequired = !frameworkPython && !goRuntime && (nativeInspection.state === "detected" && nativeInspection.descriptor.platform !== "docker" ||
     nativeInspection.state === "unsupported" && (nativeInspection.platform !== "docker" || liara.platform === "docker"));
   const scripts = pkg.scripts === undefined ? {} : object(pkg.scripts);
   const staticSite = !packageJson && manifest.some(file => file.path === "index.html") &&
@@ -301,7 +305,7 @@ async function scanProject(
   const python = !packageJson && manifest.some(file => file.path.endsWith(".py"));
   const pythonRuntime = frameworkPython ?? (python ? parsePythonRuntime({ kind: "python", version: object(liara.python ?? {}).version ?? "3.12",
     command: Array.isArray(liara.args) && liara.args.length === 1 && typeof liara.args[0] === "string" ? liara.args[0].trim().split(/\s+/) : ["python3", "main.py"] }) : undefined);
-  const start = nativeExecutionRequired ? null : dockerRuntime ? "liara-docker" : staticSite ? "liara-static" : frontend ? "liara-frontend" : pythonRuntime ? (pythonRuntime.command[1] === "-m" || manifest.some(file => file.path === pythonRuntime.command[1]) ? pythonStart(pythonRuntime) : null) : hasWorkspaces ? null : safeScript(scripts.start),
+  const start = nativeExecutionRequired ? null : dockerRuntime ? "liara-docker" : goRuntime ? "launchlane-go" : staticSite ? "liara-static" : frontend ? "liara-frontend" : pythonRuntime ? (pythonRuntime.command[1] === "-m" || manifest.some(file => file.path === pythonRuntime.command[1]) ? pythonStart(pythonRuntime) : null) : hasWorkspaces ? null : safeScript(scripts.start),
     build = dockerRuntime ? null : safeScript(scripts.build);
   const missing: string[] = [];
   if (separateApplicationRequirements({ applicationRequirements, ...(fullstack ? { fullstack } : {}), start, build }).length) missing.push("این پروژه بخش اجرایی مستقل هم دارد؛ ساخت و بررسی فقط فرانت برای انتشار کامل کافی نیست.");
@@ -312,7 +316,7 @@ async function scanProject(
   if (pnpmWorkspace && !safeScript(scripts.start)) missing.push("ساخت بسته‌های workspace از ریشه قابل بررسی است؛ انتشار کامل به اجرای مستقل بخش‌ها و اتصال منابع نیاز دارد.");
   if (next && !manifest.some(file => /^(?:src\/)?(?:app\/(?:\([^/]+\)\/)*page|pages\/index)\.[cm]?[jt]sx?$/.test(file.path))) missing.push("صفحهٔ اصلی Next در پوشهٔ انتخاب‌شده پیدا نشد؛ ریشهٔ همان برنامه را بررسی کنید.");
   if (next && !build) missing.push("فرمان ساخت Next در پروژه موجود نیست؛ پروژه پیش از انتشار به آماده‌سازی نیاز دارد.");
-  if (!staticSite && !packageJson && !python && !dockerRuntime) missing.push("روش اجرای قابل انتشار هنوز مشخص نیست؛ شواهد پلتفرم را بررسی کنید.");
+  if (!staticSite && !packageJson && !python && !dockerRuntime && !goRuntime) missing.push("روش اجرای قابل انتشار هنوز مشخص نیست؛ شواهد پلتفرم را بررسی کنید.");
   if (!start) missing.push("دستور start مشخص نیست؛ قبل از انتشار آن را تعیین کنید.");
   if (port === null) missing.push("پورت قطعی نیست؛ پورت برنامه را وارد کنید.");
   if (packageJson && !nodeRuntime.version) missing.push(nodeRuntime.detail);
@@ -321,13 +325,14 @@ async function scanProject(
   manifest.sort((a, b) => a.path.localeCompare(b.path, "en"));
   const profile: ProjectProfile = {
     directory,
-    runtime: dockerRuntime ? "docker" : staticSite ? "static" : packageJson ? "node" : python ? "python" : "unknown",
-    nodeVersion: dockerRuntime || python || staticSite ? null : nodeRuntime.requirement,
-    ...(dockerRuntime ? { dockerRuntime } : staticSite ? { staticRuntime } : pythonRuntime ? { pythonRuntime } : { nodeRuntime }),
+    runtime: dockerRuntime ? "docker" : goRuntime ? "go" : staticSite ? "static" : packageJson ? "node" : python ? "python" : "unknown",
+    nodeVersion: dockerRuntime || goRuntime || python || staticSite ? null : nodeRuntime.requirement,
+    ...(dockerRuntime ? { dockerRuntime } : goRuntime ? { goRuntime } : staticSite ? { staticRuntime } : pythonRuntime ? { pythonRuntime } : { nodeRuntime }),
     ...(nativeInspection.state !== "not_applicable" ? { nativeInspection } : {}),
     ...(fullstack ? { fullstack } : {}),
     ...(pnpmWorkspace ? { pnpmWorkspace } : {}),
     ...(pnpmComponent ? { pnpmComponent } : {}),
+    ...(compiledExecutable ? { compiledExecutable } : {}),
     applicationRequirements,
     ...(usedFixtureReviews.length ? { sourceFixtureReviews: usedFixtureReviews } : {}),
     ...(nextRuntime ? { nextRuntime } : {}),

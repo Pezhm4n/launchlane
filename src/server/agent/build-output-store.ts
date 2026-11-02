@@ -9,6 +9,7 @@ import { decodeBuildOutputExport } from "./container-output.ts";
 import { validateBuildOutput, type ValidatedBuildOutput } from "./build-output.ts";
 import { readFile } from "node:fs/promises";
 import { decodeComponentOutput, encodeComponentOutput, type ComponentOutput } from "./component-output.ts";
+import { decodeExecutableOutput, encodeExecutableOutput, type ExecutableOutput } from "./executable-output.ts";
 
 const digest = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
 const writers = new Map<string, Promise<void>>();
@@ -101,6 +102,35 @@ export async function persistComponentOutput(stateDir: string, output: Component
 export async function componentOutputBytes(stateDir: string, receipt: BuildOutputReceipt): Promise<Buffer> {
   await readComponentOutput(stateDir, receipt, receipt); const bytes = await readFile(join(await directory(stateDir), `${receipt.artifactHash}.component.gz`));
   ensure(digest(bytes) === receipt.artifactHash, "BUILD_OUTPUT_MISMATCH", "بستهٔ runtime هنگام آماده‌سازی تغییر کرد.", 409); return bytes;
+}
+
+export async function executableOutputBytes(stateDir: string, value: BuildOutputReceipt, expected = value): Promise<Buffer> {
+  const receipt = parseBuildOutputReceipt(value);
+  ensure(receipt.version === 3 && receipt.sourceHash === expected.sourceHash && receipt.planHash === expected.planHash, "BUILD_OUTPUT_BINDING_CHANGED", "رسید executable به همین source و برنامه تعلق ندارد.", 409);
+  const target = join(await directory(stateDir), `${receipt.artifactHash}.executable.gz`);
+  try {
+    const before = await lstat(target); ensure(before.isFile() && !before.isSymbolicLink() && before.nlink === 1 && before.size === receipt.bytes && await realpath(target) === target, "BUILD_OUTPUT_MISMATCH", "بستهٔ executable تغییر کرده است.", 409);
+    const file = await open(target, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
+    try {
+      const opened = await file.stat(); ensure(opened.dev === before.dev && opened.ino === before.ino && opened.size === before.size, "BUILD_OUTPUT_MISMATCH", "فایل executable هنگام خواندن تغییر کرد.", 409);
+      const bytes = await file.readFile(), after = await file.stat();
+      ensure(bytes.length === receipt.bytes && digest(bytes) === receipt.artifactHash && before.mtimeMs === after.mtimeMs && before.ctimeMs === after.ctimeMs, "BUILD_OUTPUT_MISMATCH", "بایت‌های executable با رسید برابر نیستند.", 409);
+      const output = decodeExecutableOutput(bytes); ensure(output.sourceHash === receipt.sourceHash && output.planHash === receipt.planHash && output.bytes === receipt.totalBytes && receipt.fileCount === 1, "BUILD_OUTPUT_BINDING_CHANGED", "تبار واقعی executable تغییر کرده است.", 409); return bytes;
+    } finally { await file.close(); }
+  } catch (error) { if (error instanceof AppError) throw error; throw new AppError("BUILD_OUTPUT_UNAVAILABLE", "بستهٔ executable موجود یا معتبر نیست.", 409); }
+}
+export async function persistExecutableOutput(stateDir: string, output: ExecutableOutput): Promise<BuildOutputReceipt> {
+  const bytes = encodeExecutableOutput(output), receipt = parseBuildOutputReceipt({ version: 3, sourceHash: output.sourceHash, planHash: output.planHash, artifactHash: digest(bytes), bytes: bytes.length, fileCount: 1, totalBytes: output.bytes }), root = await directory(stateDir), name = `${receipt.artifactHash}.executable.gz`;
+  return writeExclusively(root, async () => {
+    const entries = await readdir(root);
+    if (!entries.includes(name)) {
+      let occupied = 0; for (const entry of entries) { const stat = await lstat(join(root, entry)); ensure(stat.isFile() && !stat.isSymbolicLink(), "BUILD_OUTPUT_PATH_DENIED", "نگهداری خروجی فایل نامعتبر دارد.", 503); occupied += stat.size; }
+      ensure(entries.length < 32 && occupied + bytes.length <= 128 * 1024 * 1024, "BUILD_OUTPUT_STORAGE_LIMIT", "نگهداری خروجی به سقف رسیده است.", 413);
+      const temporary = join(root, `${randomUUID()}.pending`), file = await open(temporary, "wx", 0o600);
+      try { try { await file.writeFile(bytes); await file.sync(); } finally { await file.close(); } await link(temporary, join(root, name)); } finally { await unlink(temporary); }
+    }
+    await executableOutputBytes(stateDir, receipt); return receipt;
+  });
 }
 
 export async function persistBuildOutput(stateDir: string, output: ValidatedBuildOutput,

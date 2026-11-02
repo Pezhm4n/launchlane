@@ -7,7 +7,7 @@ export type ManifestEntry = Readonly<{
 }>;
 export type ProjectProfile = Readonly<{
   directory: string;
-  runtime: "node" | "python" | "static" | "docker" | "unknown";
+  runtime: "node" | "python" | "go" | "static" | "docker" | "unknown";
   nodeVersion: string | null;
   // Historical profiles predate runtime selection; fresh inspection always supplies it.
   nodeRuntime?: import("./node-runtime.ts").NodeRuntime;
@@ -16,6 +16,8 @@ export type ProjectProfile = Readonly<{
   nextRuntime?: import("./next-runtime.ts").NextRuntime;
   frontendRuntime?: import("./frontend-runtime.ts").FrontendRuntime;
   dockerRuntime?: import("./docker-runtime.ts").DockerRuntime;
+  goRuntime?: import("./go-runtime.ts").GoRuntime;
+  compiledExecutable?: import("./go-runtime.ts").ExecutableVerification;
   nativeInspection?: import("./liara-platform.ts").NativePlatformInspection;
   fullstack?: import("./fullstack.ts").FullstackInspection;
   pnpmComponent?: import("./pnpm-component.ts").ComponentVerification;
@@ -175,6 +177,12 @@ export type ActionSpec = (ActionInputs &
         selectionHash: string; accountId: string; targetAppId: string; workload: import("./deployment.ts").WorkloadContract;
         nodeVersion: null; runtime: import("./docker-runtime.ts").DockerRuntime;
         environment: import("./environment.ts").EnvironmentReference | null; verification: import("./pnpm-component.ts").ComponentVerification;
+      }>
+    | Readonly<{
+        version: 43; operation: "deploy"; sourceHash: string; artifactHash: string; projectFlowId: string;
+        selectionHash: string; accountId: string; targetAppId: string; workload: import("./deployment.ts").WorkloadContract;
+        nodeVersion: null; runtime: import("./docker-runtime.ts").DockerRuntime;
+        environment: import("./environment.ts").EnvironmentReference | null; verification: import("./go-runtime.ts").ExecutableVerification;
       }>
   )) | import("./provision.ts").ProvisionSpec | import("./environment.ts").EnvironmentSpec | import("./network.ts").NetworkSpec | import("./project-lifecycle.ts").LifecycleSpec | import("./persistent-disk.ts").DiskSpec | import("./database-provision.ts").DatabaseProvisionSpec;
 

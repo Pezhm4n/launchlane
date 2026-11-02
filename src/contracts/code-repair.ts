@@ -140,7 +140,7 @@ export function parseCodeRepairJob(value: unknown): CodeRepairJob {
     })()),
     ...(row.publication === undefined ? {} : (() => {
       const publication = object(row.publication);
-      ensure(publication.version === 1 && (object(row.build).version === 7 || object(row.build).version === 9) && row.state === "succeeded" && row.artifact !== null,
+      ensure(publication.version === 1 && (object(row.build).version === 7 || object(row.build).version === 9 || object(row.build).version === 11) && row.state === "succeeded" && row.artifact !== null,
         "STORAGE_INVALID", "تبار بستهٔ کامل معتبر نیست.", 503);
       return { publication: { version: 1 as const, testedSourceHash: hash(publication.testedSourceHash), planHash: hash(publication.planHash), outputArtifactHash: hash(publication.outputArtifactHash) } };
     })()),

@@ -1,4 +1,6 @@
+import { executablePort } from "../../contracts/go-runtime.ts";
 import { sourcePnpmComponent } from "./pnpm-component.ts";
+import { executableVerification, assertExecutableJob } from "../application/executable-verification.ts";
 import { componentVerification, assertComponentJob, localComponentVerification } from "../application/component-verification.ts";
 import { object, exactKeys, identifier, integer, string, text } from "../../contracts/validation.ts";
 import type { Config } from "../config.ts";
@@ -25,7 +27,7 @@ import { verifyHtmlAssets } from "../application/publication-assets.ts";
 import { parseProbeOrigins } from "../policy/probe-target.ts";
 import type { PublicationMission } from "../../contracts/publication-mission.ts";
 import type { WorkloadContract } from "../../contracts/deployment.ts";
-import { parseProjectBuildPlan, nodeBuildRuntime, pythonBuildImage } from "../../contracts/project-build.ts";
+import { parseProjectBuildPlan, nodeBuildRuntime, pythonBuildImage, projectBuildImage } from "../../contracts/project-build.ts";
 import { pnpmTool } from "../../contracts/pnpm-workspace.ts";
 import { parseCodeRepairJob, type CodeRepairJob } from "../../contracts/code-repair.ts";
 import { requiresProjectBuild, sameBuildWorkload, projectTestCommand, dependencyFreeNode, dockerProjectBuild } from "./build-policy.ts";
@@ -233,7 +235,7 @@ function registeredTools(config: Config): readonly ToolDefinition[] {
 export function toolsForConversation(config: Config): readonly ToolDefinition[] {
   return [...agentTools, ...(config.enableLiveLiara ? catalogTools : [])];
 }
-export function toolsForAgent(config: Config, preparation: "native" | "build" | "fullstack" | "framework" = "native", hasTarget = true, publicationProgram = false, persistentStorage = false, managedDatabase = false): readonly ToolDefinition[] {
+export function toolsForAgent(config: Config, preparation: "native" | "build" | "fullstack" | "framework" | "compiled" = "native", hasTarget = true, publicationProgram = false, persistentStorage = false, managedDatabase = false): readonly ToolDefinition[] {
   // Offer the applicable preparation path without two competing tools for the same task.
   const omitted = preparation === "native" ? "propose_project_build" : "propose_project_preparation";
   return registeredTools(config).filter(tool => tool.function.name !== omitted && tool.function.name !== (hasTarget ? "propose_network" : "read_metrics") &&
@@ -242,7 +244,7 @@ export function toolsForAgent(config: Config, preparation: "native" | "build" | 
     (tool.function.name !== "propose_disk" || hasTarget && persistentStorage) &&
     (tool.function.name !== "propose_database" || hasTarget && managedDatabase) &&
     (!managedDatabase || !["read_publications", "propose_rollback", "read_metrics"].includes(tool.function.name)) &&
-    !(publicationProgram && !hasTarget && (tool.function.name === "propose_publication" || preparation !== "fullstack" && preparation !== "framework" && tool.function.name === "propose_project_build")));
+    !(publicationProgram && !hasTarget && (tool.function.name === "propose_publication" || preparation !== "fullstack" && preparation !== "framework" && preparation !== "compiled" && tool.function.name === "propose_project_build")));
 }
 const preparationTool: ToolDefinition = { type: "function", function: {
   name: "propose_project_preparation",
@@ -538,6 +540,8 @@ export async function executeAgentTool(
     const workload = { path: args.path, status: args.status, assertion: args.assertion };
     if (c.buildJob?.build && !(args.componentRoot !== undefined && c.buildJob.build.version === 8 && c.buildJob.build.phase === "compile")) ensure(fingerprint(workload) === fingerprint(c.buildJob.build.workload), "MISSION_EXPECTATION_CHANGED", "معیار build قبلی تغییر نمی‌کند.", 409);
     if (name === "propose_project_build") {
+      ensure(!flow.profile.compiledExecutable, "EXECUTABLE_SOURCE_REQUIRED", "برای build تازه source اصلی Go لازم است؛ این انتخاب همان باینری آزموده‌شده است.", 409);
+      ensure(!flow.profile.goRuntime || args.compatibilityDatabase === undefined && args.componentRoot === undefined && args.componentPort === undefined, "GO_COMPONENT_SCOPE_REQUIRED", "طرح Go، component npm یا runner دادهٔ متفاوت را اجرا نمی‌کند.", 409);
       ensure(args.componentPort === undefined || args.componentRoot !== undefined, "COMPONENT_ROOT_REQUIRED", "پورت داخلی فقط همراه component مشخص پذیرفته می‌شود.", 409);
       const testDatabase = args.compatibilityDatabase === undefined ? undefined : (() => {
         const possibleRunner = object(args.compatibilityDatabase);
@@ -586,7 +590,7 @@ export async function executeAgentTool(
       if (c.buildJob?.build?.version === 7) ensure(fingerprint(apiChecks) === fingerprint(c.buildJob.build.apiChecks), "MISSION_EXPECTATION_CHANGED", "معیار مستقل API در بازآزمایی تغییر نمی‌کند.", 409);
       const workspace = flow.profile.pnpmWorkspace;
       ensure(!workspace || !testDatabase && !preparation && (component || args.apiChecks === undefined), "PNPM_DATA_SCOPE_UNSUPPORTED", "workspace از قرارداد داده و API چندبخشیِ npm استفاده نمی‌کند؛ runner و سنجش هر بخش باید با interface مستقل متصل شوند.", 409);
-      const build = workspace && component ? parseProjectBuildPlan({ ...nodeBuildRuntime(workspace.nodeVersion), version: 9, sourceHash: flow.profile.sourceHash, workspace, component, apiChecks: apiChecks ?? [],
+      const build = flow.profile.goRuntime ? parseProjectBuildPlan({ version: 11, nodeVersion: null, image: projectBuildImage, runtime: flow.profile.goRuntime, sourceHash: flow.profile.sourceHash, buildCommand: "go build -mod=readonly -trimpath -buildvcs=false", testCommand: "go test -json -count=1 -mod=readonly ./...", startCommand: "launchlane-compiled-go", port: executablePort(flow.profile.goRuntime), workload, environment, ...(sourceEnvironment ? { sourceEnvironment } : {}) }) : workspace && component ? parseProjectBuildPlan({ ...nodeBuildRuntime(workspace.nodeVersion), version: 9, sourceHash: flow.profile.sourceHash, workspace, component, apiChecks: apiChecks ?? [],
         buildCommand: flow.profile.build, testCommand: component.testCommand, startCommand: component.kind === "node" ? `node ${component.argv.join(" ")}` : "launchlane-component-static",
         port: component.internalPort === 8080 ? 8081 : 8080, workload, environment, ...(sourceEnvironment ? { sourceEnvironment } : {}) }) : workspace ? parseProjectBuildPlan({ ...nodeBuildRuntime(workspace.nodeVersion), version: 8, workspace, phase: compileWorkspace ? "compile" : "runtime",
         buildCommand: flow.profile.build, testCommand: compileWorkspace ? null : projectTestCommand(captured.files), startCommand: compileWorkspace ? "pnpm-workspace-compile" : flow.profile.start,
@@ -597,14 +601,17 @@ export async function executeAgentTool(
         buildCommand: flow.profile.build, testCommand: flow.profile.pythonRuntime?.kind === "flask" ? "python3 -m unittest discover" : flow.profile.pythonRuntime?.kind === "django" ? "python3 manage.py test" : projectTestCommand(captured.files), startCommand: flow.profile.start, port: flow.profile.port, workload,
         environment, ...(sourceEnvironment ? { sourceEnvironment } : {}) });
       const job = await new CodeRepairAdapter(c.config, c.store).propose(c.actorId, {
-        projectId: flow.id, expectedSourceHash: c.context.sourceHash, goal: component ? `ساخت و بررسی مستقل ${component.name}؛ artifact دقیق compiled، بدون پذیرش سایر اجزا یا داده` : compileWorkspace ? `ساخت بسته‌های workspace با pnpm ${pnpmTool.version} و lock اصلی؛ بدون تست داده، شروع سرویس یا مجوز انتشار` : testDatabase ? "آزمون سازگاری با دیتابیس موقت و دادهٔ ساختگی؛ بدون تنظیمات واقعی و بدون فایل قابل انتشار" : build.version !== 2 && build.version !== 10 && build.version !== 6 && build.install === "none" ? "بررسی ساخت و پاسخ برنامهٔ بدون وابستگی در محیط ایزوله؛ نصب لازم نیست" : "ساخت و بررسی پاسخ همان برنامه در محیط ایزوله",
+        projectId: flow.id, expectedSourceHash: c.context.sourceHash, goal: build.version === 11 ? "ساخت Go با تست‌های اصلی و بررسی باینری در محیط تازه؛ بسته‌بندی برای مقصد Docker" : component ? `ساخت و بررسی مستقل ${component.name}؛ artifact دقیق compiled، بدون پذیرش سایر اجزا یا داده` : compileWorkspace ? `ساخت بسته‌های workspace با pnpm ${pnpmTool.version} و lock اصلی؛ بدون تست داده، شروع سرویس یا مجوز انتشار` : testDatabase ? "آزمون سازگاری با دیتابیس موقت و دادهٔ ساختگی؛ بدون تنظیمات واقعی و بدون فایل قابل انتشار" : build.version !== 2 && build.version !== 10 && build.version !== 6 && build.install === "none" ? "بررسی ساخت و پاسخ برنامهٔ بدون وابستگی در محیط ایزوله؛ نصب لازم نیست" : "ساخت و بررسی پاسخ همان برنامه در محیط ایزوله",
         ...(c.parentRunId ? { parentRunId: c.parentRunId } : {}),
         allowedPaths: preparation ? preparationPaths(captured.files, preparation) : [], testFiles: [], execution: "container", build,
         ...(preparation ? { preparation } : { validationOnly: true }),
       }, c.signal);
       return { repairProposal: job };
     }
-    if (flow.profile.pnpmComponent) {
+    if (flow.profile.compiledExecutable) {
+      await executableVerification(c.store, c.config.stateDir, c.actorId, flow, c.config.sessionSecret);
+      const build = assertExecutableJob(c.store, c.actorId, flow).build; ensure(sameBuildWorkload(build, parseProjectBuildPlan({ ...build, workload }).workload), "MISSION_EXPECTATION_CHANGED", "معیار همان Go worker باید حفظ شود.", 409);
+    } else if (flow.profile.pnpmComponent) {
       await componentVerification(c.store, c.config.stateDir, c.actorId, flow, c.config.sessionSecret);
       const componentBuild = assertComponentJob(c.store, c.actorId, flow).build;
       ensure(sameBuildWorkload(componentBuild, parseProjectBuildPlan({ ...componentBuild, workload }).workload), "COMPONENT_BUILD_REQUIRED", "معیار انتشار باید همان معیار worker باشد.", 409);
@@ -794,6 +801,8 @@ export async function executeAgentTool(
         runtime: flow.profile.runtime,
         nodeVersion: flow.profile.nodeRuntime?.version ?? null,
         ...(flow.profile.pythonRuntime ? { pythonRuntime: flow.profile.pythonRuntime } : {}),
+        ...(flow.profile.goRuntime ? { goRuntime: flow.profile.goRuntime } : {}),
+        ...(flow.profile.compiledExecutable ? { compiledExecutable: flow.profile.compiledExecutable } : {}),
         ...(flow.profile.nextRuntime ? { nextRuntime: flow.profile.nextRuntime } : {}),
         ...(flow.profile.frontendRuntime ? { frontendRuntime: flow.profile.frontendRuntime } : {}),
         ...(flow.profile.dockerRuntime ? { dockerRuntime: flow.profile.dockerRuntime } : {}),

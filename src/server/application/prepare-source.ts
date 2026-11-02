@@ -17,6 +17,7 @@ export async function prepareArchive(input: {
   secrets?: readonly string[];
   signal?: AbortSignal;
   componentOutput?: Buffer;
+  executableOutput?: Buffer;
   compiledOutput?: ValidatedBuildOutput;
 }): Promise<SourceArtifact> {
   ensure(!preparing, "SOURCE_BUSY", "یک بسته در حال آماده‌سازی است؛ کمی بعد دوباره تلاش کنید.", 429);

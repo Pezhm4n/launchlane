@@ -3,6 +3,7 @@ import { appendFileSync, existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { migrationBuildInput } from "./migration-fixture.ts";
 import { runnerBuildInput } from "./runner-fixture.ts";
+import { publicGoFixture } from "./go-fixture-cache.mjs";
 const nativeFetch = globalThis.fetch;
 let environmentValues = [{ key: "EXISTING_PRIVATE", value: "existing-private-fixture-value" }];
 let lifecycleScale = 1, lifecyclePresent = true, lifecycleDefaultSubdomain = process.env.LAUNCHLANE_ACTIVATION_FIXTURE !== "true";
@@ -52,6 +53,10 @@ globalThis.fetch = async (input, init) => {
   const url = new URL(
     typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
   );
+  if (process.env.LAUNCHLANE_GO_FIXTURE === "true" && (init?.method ?? "GET") === "GET" && !init?.body) {
+    const cached = publicGoFixture(url); if (cached) return new Response(cached);
+    if (url.protocol === "https:" && ["dl.google.com", "mirrors.aliyun.com", "proxy.golang.org", "goproxy.cn", "storage.googleapis.com"].includes(url.hostname)) return nativeFetch(input, init);
+  }
   // Public dependency reads only; the project still runs network-none. All provider writes remain denied.
   if (process.env.LAUNCHLANE_FRAMEWORK_FIXTURE === "true" && url.protocol === "https:" &&
       ["pypi.org", "files.pythonhosted.org"].includes(url.hostname) && (init?.method ?? "GET") === "GET" && !init?.body)
@@ -120,6 +125,12 @@ globalThis.fetch = async (input, init) => {
       return final("reply", null, "runner اصلی و WSGI همین نسخه بررسی شدند؛ انتشار و داده هنوز تأیید نشده‌اند.");
     if (last.role === "user") return reply("propose_project_build", { path: "/orders", status: 200, assertion: { kind: "text", contains: "73}" } });
     throw Error("Unexpected framework worker fixture transition");
+  }
+  if (process.env.LAUNCHLANE_GO_FIXTURE === "true") {
+    if (last.role === "user" && last.content.startsWith("Host local preparation receipt"))
+      return final("reply", null, "Go با تست‌های اصلی ساخته و همان باینری در محیط تازه بررسی شد؛ انتشار و داده هنوز تأیید نشده‌اند.");
+    if (last.role === "user") return reply("propose_project_build", { path: "/orders", status: 200, assertion: { kind: "text", contains: "73}" } });
+    throw Error("Unexpected Go worker fixture transition");
   }
   if (first.includes('نشانه الزامی صفحه: "Workspace lifecycle"')) {
     if (body.messages.some(message => message.role === "user" && message.content.startsWith("Host workspace compile receipt")))

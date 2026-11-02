@@ -1,3 +1,8 @@
+import { prepareGoDependencies, type GoReader } from "./go-source.ts";
+import { runGoBuild } from "./go-container.ts";
+import { assembleExecutableArtifact } from "./executable-artifact.ts";
+import { persistExecutableOutput, executableOutputBytes } from "./build-output-store.ts";
+import { goToolchain } from "../../contracts/go-runtime.ts";
 import { assembleComponentArtifact } from "./component-artifact.ts";
 import { persistComponentOutput, readComponentOutput } from "./build-output-store.ts";
 import { spawn } from "node:child_process";
@@ -305,13 +310,14 @@ export class CodeRepairAdapter {
   readonly tarballReader: TarballReader | undefined;
   readonly sandbox: Pick<NodeBuildDependencies,"command"|"endpoint">;
   readonly pnpmMetadataReader: PnpmMetadataReader | undefined;
-  constructor(config: Config, store: Store, model: ModelPort = new GoalModelClient(config), tarballReader?: TarballReader, sandbox: Pick<NodeBuildDependencies,"command"|"endpoint"> = {}, pnpmMetadataReader?: PnpmMetadataReader) {
+  readonly goReader: GoReader | undefined;
+  constructor(config: Config, store: Store, model: ModelPort = new GoalModelClient(config), tarballReader?: TarballReader, sandbox: Pick<NodeBuildDependencies,"command"|"endpoint"> = {}, pnpmMetadataReader?: PnpmMetadataReader, goReader?: GoReader) {
     this.config = config;
     this.store = store;
     this.model = model;
     this.tarballReader = tarballReader;
     this.sandbox=sandbox;
-    this.pnpmMetadataReader=pnpmMetadataReader;
+    this.pnpmMetadataReader=pnpmMetadataReader;this.goReader=goReader;
   }
   private secrets(actor: string): string[] {
     return [...new Set([...privateValues(this.config), ...projectSecretValues(this.store, this.config.sessionSecret, actor)])];
@@ -343,7 +349,7 @@ export class CodeRepairAdapter {
         modelCalls: integer(usage.modelCalls, 0, 8),
         // Pnpm records include checked package metadata reads. Actual execution
         // remains bounded by the parent's persisted limits (maximum 4096).
-        toolCalls: integer(usage.toolCalls, 0, parsedJob.build === undefined ? 12 : (parsedJob.build.version === 8 || parsedJob.build.version === 9) ? 4096 : 512),
+        toolCalls: integer(usage.toolCalls, 0, parsedJob.build === undefined ? 12 : (parsedJob.build.version === 8 || parsedJob.build.version === 9 || parsedJob.build.version === 11) ? 4096 : 512),
         tokens: usage.tokens === null ? null : integer(usage.tokens, 0, 1000000),
         unknownModelCalls: integer(usage.unknownModelCalls, 0, 8),
       },
@@ -454,7 +460,7 @@ export class CodeRepairAdapter {
         signal,
         secrets: this.secrets(actor),
       });
-    if (input.execution === "container") ensure(input.build?.version === 7 && input.preparation?.version === 2 || flow.profile.nodeRuntime?.version === "22" || flow.profile.nodeRuntime?.version === "24" && (input.build?.version === 3 || input.build?.version === 7 || (input.build?.version === 8 || input.build?.version === 9)) || flow.profile.nodeRuntime?.version === "20" && (input.build?.version === 4 || input.build?.version === 5) || flow.profile.runtime === "python" && (input.build?.version === 2 || input.build?.version === 10) || flow.profile.runtime === "docker" && input.build?.version === 6, "SANDBOX_RUNTIME_UNAVAILABLE", "محیط ایزولهٔ سازگار با این پروژه آماده نیست؛ کد روی رایانه اجرا نمی‌شود.", 409);
+    if (input.execution === "container") ensure(input.build?.version === 7 && input.preparation?.version === 2 || flow.profile.nodeRuntime?.version === "22" || flow.profile.nodeRuntime?.version === "24" && (input.build?.version === 3 || input.build?.version === 7 || (input.build?.version === 8 || input.build?.version === 9)) || flow.profile.nodeRuntime?.version === "20" && (input.build?.version === 4 || input.build?.version === 5) || flow.profile.runtime === "python" && (input.build?.version === 2 || input.build?.version === 10) || flow.profile.runtime === "docker" && input.build?.version === 6 || flow.profile.runtime === "go" && input.build?.version === 11, "SANDBOX_RUNTIME_UNAVAILABLE", "محیط ایزولهٔ سازگار با این پروژه آماده نیست؛ کد روی رایانه اجرا نمی‌شود.", 409);
     ensure(
       captured.profile.sourceHash === input.expectedSourceHash,
       "PROJECT_CHANGED",
@@ -466,6 +472,7 @@ export class CodeRepairAdapter {
     const build = input.build ? validateBuildPlan(captured.files, captured.profile, input.build) : undefined;
     ensure(!(build?.version===7 && build.testDatabase) || input.validationOnly || input.preparation?.version===2,
       "TEST_DATABASE_REPAIR_DENIED","این برش فقط آزمون سازگاری یا آماده‌سازی قطعی است؛ اصلاح مدل و انتشار را مجاز نمی‌کند.",409);
+    ensure(build?.version !== 11 || input.validationOnly === true, "GO_REPAIR_UNSUPPORTED", "این مسیر Go را بدون ویرایش source می‌سازد و اجرا می‌کند.", 409);
     ensure(build?.version !== 10 || input.validationOnly === true, "FRAMEWORK_REPAIR_UNSUPPORTED", "این مسیر فعلاً runner اصلی را بدون ویرایش source اجرا می‌کند.", 409);
     ensure(build?.version !== 9 || input.validationOnly === true, "COMPONENT_REPAIR_UNSUPPORTED", "ساخت component در این برش source را تغییر نمی‌دهد.", 409);
     if (build) ensure(!containsSourceCredential(JSON.stringify({ workload: build.workload, ...((build.version === 7 || build.version === 9) ? { apiChecks: build.apiChecks } : {}) }),
@@ -499,7 +506,7 @@ export class CodeRepairAdapter {
       403,
     );
     const pkg = captured.files.find((file) => file.path === "package.json");
-    ensure(pkg || (build?.version === 2 || build?.version === 10) || build?.version === 6, "REPAIR_TEST_DENIED", "فرمان آزمون پروژه مشخص نیست.", 409);
+    ensure(pkg || (build?.version === 2 || build?.version === 10) || build?.version === 6 || build?.version === 11, "REPAIR_TEST_DENIED", "فرمان آزمون پروژه مشخص نیست.", 409);
     const scripts = pkg ? object(object(JSON.parse(pkg.content.toString("utf8"))).scripts) : {};
     if (!build) ensure(
       scripts.test === "node --test" || scripts.test === `node --test ${input.testFiles.join(" ")}`,
@@ -653,7 +660,8 @@ export class CodeRepairAdapter {
         checkParent();
         if (!(build.version === 7 && build.testDatabase)) buildEnvironmentValues(this.config, this.store, actor, record.job.projectId, build.environment, buildSourceEnvironment(build));
         validateBuildPlan(base.files, base.profile, build);
-        if ((build.version === 2 || build.version === 10)) {
+        if (build.version === 11) await prepareGoDependencies(base.files, tarballs, this.config.stateDir, bounded, () => budget.take("tool", bounded), this.goReader);
+        else if ((build.version === 2 || build.version === 10)) {
           const selection = this.store.getProjectFlow(actor, record.job.projectId)?.selection,
             parent = selection?.kind === "repair" ? this.record(actor, selection.jobId).job : null;
           if (selection?.kind === "repair" && parent?.state === "succeeded" && (parent.build?.version === 2 || parent.build?.version === 10) &&
@@ -714,7 +722,7 @@ export class CodeRepairAdapter {
                   throw error;
                 }
               }
-              return (build.version === 2 || build.version === 10)
+              return build.version === 11 ? await runGoBuild(record.workspace, tarballs, join(this.config.stateDir, `go-${goToolchain.sha256}.tar.gz`), base.files, record.job.id, build, testSignal, onCreated, environment) : (build.version === 2 || build.version === 10)
                 ? await runPythonBuild(record.workspace, tarballs, build, record.job.testFiles, testSignal, onCreated, environment)
                 : await runContainerBuild(record.workspace, tarballs, build, testSignal, onCreated, environment);
             });
@@ -725,6 +733,7 @@ export class CodeRepairAdapter {
             result.databaseRunner.sourceHash === record.job.postgresFixtureSourceHash && result.databaseRunner.planHash === fingerprint(build.testDatabase), "MIGRATION_RUNNER_RECEIPT_INVALID", "runner موفق بدون رسید مستقل تمام دیتابیس‌ها پذیرفته نمی‌شود.", 409);
           if (build.version === 6) record.job.builtImage = result.image;
           let outputReceipt: RepairTestReceipt["buildOutput"];
+          if (build.version === 11 && result.exitCode === 0 && !result.signal && !bounded.aborted) { ensure(result.executableOutput, "BUILD_OUTPUT_UNAVAILABLE", "باینری همان worker موجود نیست.", 409); outputReceipt = await persistExecutableOutput(this.config.stateDir, result.executableOutput); }
           if (build.version === 9 && result.exitCode === 0 && !result.signal && !bounded.aborted) {
             ensure(result.componentOutput, "BUILD_OUTPUT_UNAVAILABLE", "خروجی compiled همان worker موجود نیست.", 409);
             outputReceipt = await persistComponentOutput(this.config.stateDir, result.componentOutput);
@@ -736,7 +745,7 @@ export class CodeRepairAdapter {
             checkParent();
             outputReceipt = await persistBuildOutput(this.config.stateDir, result.buildOutput, { sourceHash: after.profile.sourceHash, planHash: fingerprint(record.job.build) });
           }
-          return { command: build.version === 9 ? `pnpm@${build.workspace.manager.version} frozen install; original root build; ${build.component.testCommand ? "original component tests" : "no component test declared"}; exact compiled closure start; GET ${build.workload.path}; independent API checks (component only)` : build.version === 8 ? `pnpm@${build.workspace.manager.version} install --frozen-lockfile from verified isolated registry; original build${build.phase === "compile" ? "; compile only (no tests/start/publication)" : "; original test/start; GET " + build.workload.path}` : build.version === 7 && build.testDatabase?.version === 3 ? `npm run ${build.testDatabase.runner.script} in two fresh workers; independent per-database schema/seed and replay checks; original build/API/tests in two fresh app workers; independent write/persistence checks` : build.version === 7 && build.testDatabase?.version === 2 ? "psql reviewed SQL; independent schema/seed checks; original build/API/tests in two fresh workers; checksum replay; independent write/persistence checks" : build.version === 6 ? `isolated Docker build; independent GET ${build.workload.path}` : (build.version === 2 || build.version === 10) ? `pip install --no-index --require-hashes; compileall; unittest ${record.job.testFiles.join(" ")}; ${build.startCommand}; GET ${build.workload.path}` : `${build.install === "none" ? "no dependencies to install" : "npm ci --offline"}${build.buildCommand ? " && npm run build" : ""}${build.testCommand ? " && npm test" : ""} && ${build.version === 5 ? `host serve ${build.frontend.outputDirectory}; verify local JS/CSS` : "npm start"}; GET ${build.workload.path}`,
+          return { command: build.version === 11 ? `Go ${build.runtime.version}; original go.sum; go test -json -count=1 ./...; compiled binary in a fresh worker; GET ${build.workload.path}` : build.version === 9 ? `pnpm@${build.workspace.manager.version} frozen install; original root build; ${build.component.testCommand ? "original component tests" : "no component test declared"}; exact compiled closure start; GET ${build.workload.path}; independent API checks (component only)` : build.version === 8 ? `pnpm@${build.workspace.manager.version} install --frozen-lockfile from verified isolated registry; original build${build.phase === "compile" ? "; compile only (no tests/start/publication)" : "; original test/start; GET " + build.workload.path}` : build.version === 7 && build.testDatabase?.version === 3 ? `npm run ${build.testDatabase.runner.script} in two fresh workers; independent per-database schema/seed and replay checks; original build/API/tests in two fresh app workers; independent write/persistence checks` : build.version === 7 && build.testDatabase?.version === 2 ? "psql reviewed SQL; independent schema/seed checks; original build/API/tests in two fresh workers; checksum replay; independent write/persistence checks" : build.version === 6 ? `isolated Docker build; independent GET ${build.workload.path}` : (build.version === 2 || build.version === 10) ? `pip install --no-index --require-hashes; compileall; unittest ${record.job.testFiles.join(" ")}; ${build.startCommand}; GET ${build.workload.path}` : `${build.install === "none" ? "no dependencies to install" : "npm ci --offline"}${build.buildCommand ? " && npm run build" : ""}${build.testCommand ? " && npm test" : ""} && ${build.version === 5 ? `host serve ${build.frontend.outputDirectory}; verify local JS/CSS` : "npm start"}; GET ${build.workload.path}`,
             exitCode: result.exitCode, signal: result.signal, durationMs: Date.now() - started, output: redact(result.output, [...this.secrets(actor), ...environment.map(row => row.value).filter(value => value.length >= 4)]),
             passed: result.exitCode === 0 && !bounded.aborted && !result.signal, ...(outputReceipt ? { buildOutput: outputReceipt } : {}), ...(result.databaseMigration ? { databaseMigration: result.databaseMigration } : {}), ...(result.databaseRunner ? { databaseRunner: result.databaseRunner } : {}) };
         }
@@ -751,6 +760,7 @@ export class CodeRepairAdapter {
         return record.job.execution === "container" ? withSandboxCapacity(bounded, run) : run();
       };
       const verifyOutput = async (sourceHash: string) => {
+        if (record.job.build?.version === 11) { const receipt = record.job.afterTest?.buildOutput; ensure(receipt, "BUILD_OUTPUT_UNAVAILABLE", "باینری موجود نیست.", 409); await executableOutputBytes(this.config.stateDir, receipt, { ...receipt, sourceHash, planHash: fingerprint(record.job.build) }); return; }
         if(record.job.build?.version===7 && record.job.build.testDatabase)return;
         if (record.job.build?.version === 9) {
           const receipt = record.job.afterTest?.buildOutput; ensure(receipt, "BUILD_OUTPUT_UNAVAILABLE", "خروجی component موجود نیست.", 409);
@@ -762,6 +772,7 @@ export class CodeRepairAdapter {
         await readBuildOutput(this.config.stateDir, receipt, { sourceHash, planHash: fingerprint(record.job.build) });
       };
       const publicationArtifact = async (sourceHash: string) => {
+        if (record.job.build?.version === 11) { const receipt = record.job.afterTest?.buildOutput; ensure(receipt, "BUILD_OUTPUT_UNAVAILABLE", "رسید باینری موجود نیست.", 409); const result = await assembleExecutableArtifact({ store: this.store, stateDir: this.config.stateDir, actorId: actor, workspace: record.workspace, sourceHash, jobId: record.job.id, plan: record.job.build, receipt, signal: bounded, secrets: this.secrets(actor) }); record.job.publication = result.publication; record.job.changedPaths = [...new Set([...record.job.changedPaths, ...result.changedPaths])]; return result.artifact; }
         if(record.job.build?.version===8 && record.job.build.phase==="compile")return null;
         if(record.job.build?.version===7 && record.job.build.testDatabase)return null;
         if (record.job.build?.version === 9) {

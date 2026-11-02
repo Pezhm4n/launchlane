@@ -7,6 +7,7 @@ import { SOURCE_MAX_BYTES, SOURCE_MAX_CONFIG_BYTES, SOURCE_MAX_FILES, sourceFile
 import { ensure } from "../errors.ts";
 import { fingerprint } from "../policy/action.ts";
 import type { SourceFile } from "./inspect.ts";
+import { inspectGoEnvironment } from "./go-environment.ts";
 
 type Ast = Record<string, unknown> & { type: string };
 type Context = { node: Ast; functionDepth: number; conditional: boolean };
@@ -154,7 +155,7 @@ export function inspectApplicationRequirements(files: readonly SourceFile[]): Ap
   }
   let walked = 0;
   for (const file of files) {
-    if (excludedSource.test(file.path) || !/\.(?:[cm]?[jt]sx?|py|php)$/i.test(file.path)) continue;
+    if (excludedSource.test(file.path) || file.path.endsWith("_test.go") || !/\.(?:[cm]?[jt]sx?|py|go|php)$/i.test(file.path)) continue;
     if (file.content.length > SOURCE_MAX_CONFIG_BYTES || walked >= 300000) { diagnostic("ANALYSIS_LIMIT", file.path); continue; }
     let text: string; try { text = sourceText(file); } catch { diagnostic("SOURCE_PARSE_FAILED", file.path); continue; }
     if (/\.[cm]?[jt]sx?$/i.test(file.path)) {
@@ -240,7 +241,22 @@ export function inspectApplicationRequirements(files: readonly SourceFile[]): Ap
           const name = /^\s*["']([A-Z][A-Z0-9_]{1,127})["']/.exec(text.slice((match.index ?? 0) + match[0].length))?.[1]; if (name) environmentKeys.add(name);
         }
         const emit = (kind: ApplicationRequirementKind, match: RegExpMatchArray, need: ApplicationRequirementNeed = "unknown") => add(kind, need, file.path, match.index ?? 0, "source", [...environmentKeys]);
-        if (python) {
+        if (file.path.endsWith(".go")) {
+          const inspected = inspectGoEnvironment(text); for (const name of inspected.names) environmentKeys.add(name);
+          for (const imported of inspected.imports) {
+            const calls = new RegExp(`\\b${imported.alias}\\s*\\.\\s*(?:ListenAndServe(?:TLS)?|Connect(?:Config)?|New(?:WithConfig|Client|ClusterClient|UniversalClient|Server)?|Open)\\s*\\(`, "g");
+            if (!/^[A-Za-z_]\w*$/.test(imported.alias) || imported.alias === "_") continue;
+            for (const match of shape.matchAll(calls)) {
+              if (imported.path === "net/http") emit("backend_api", match);
+              if (/^(?:github\.com\/jackc\/pgx(?:\/|$)|gorm\.io\/driver\/postgres$)/.test(imported.path)) emit("postgresql", match);
+              if (imported.path === "gorm.io/driver/mysql") emit("mysql", match);
+              if (imported.path === "database/sql") emit("relational_database", match);
+              if (/^(?:github\.com\/redis\/go-redis|github\.com\/go-redis\/redis)(?:\/|$)/.test(imported.path)) emit("redis", match);
+              if (imported.path === "github.com/hibiken/asynq") { emit("background_worker", match); emit("redis", match); }
+              if (/^github\.com\/robfig\/cron(?:\/|$)/.test(imported.path)) emit("scheduler", match);
+            }
+          }
+        } else if (python) {
           const symbols = new Map<string, string>(), importedMembers = new Map<string, string>();
           for (const match of shape.matchAll(/^\s*from\s+([.A-Za-z_][\w.]*)\s+import\s+(?:\(([^)]{1,8192})\)|([^\r\n]{1,1000}))/gm)) {
             const module = match[1]; if (!module) continue;

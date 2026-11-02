@@ -218,6 +218,7 @@ export async function createSourceArchive(input: {
   secrets?: readonly string[];
   signal?: AbortSignal;
   componentOutput?: Buffer;
+  executableOutput?: Buffer;
   compiledOutput?: ValidatedBuildOutput;
 }): Promise<{ artifact: SourceArtifact; bytes: Buffer }> {
   cancelled(input.signal);
@@ -230,7 +231,7 @@ export async function createSourceArchive(input: {
     409,
   );
   ensure(
-    files.length > 0 && (profile.runtime === "node" || profile.runtime === "python" || profile.runtime === "static" || profile.runtime === "docker") && profile.start,
+    files.length > 0 && (profile.runtime === "node" || profile.runtime === "python" || profile.runtime === "go" || profile.runtime === "static" || profile.runtime === "docker") && profile.start,
     "PROJECT_INCOMPLETE",
     "پروژه به package.json و دستور start نیاز دارد.",
     409,
@@ -256,6 +257,11 @@ export async function createSourceArchive(input: {
     ensure(profile.runtime === "docker" && profile.pnpmComponent && metadata && !files.some(file => file.path === ".launchlane-component.gz") && digest(input.componentOutput) === profile.pnpmComponent.outputArtifactHash,
       "BUILD_OUTPUT_BINDING_CHANGED", "بستهٔ compiled با گواه component برابر نیست.", 409);
     packaged = [...packaged, { path: ".launchlane-component.gz", content: input.componentOutput }];
+  }
+  if (input.executableOutput) {
+    ensure(profile.runtime === "docker" && profile.compiledExecutable && !files.some(file => file.path === ".launchlane-executable.gz") && digest(input.executableOutput) === profile.compiledExecutable.outputArtifactHash,
+      "BUILD_OUTPUT_BINDING_CHANGED", "بستهٔ executable با گواه همان worker برابر نیست.", 409);
+    packaged = [...packaged, { path: ".launchlane-executable.gz", content: input.executableOutput }];
   }
   const bytes = await encode(packaged, input.signal);
   const artifact: SourceArtifact = {

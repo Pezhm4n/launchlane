@@ -3,7 +3,8 @@ import { randomUUID } from "node:crypto";
 import { docker } from "../../src/server/agent/container.ts";
 
 /** Local target from the actual approved archive; no provider or source checkout is executed. */
-export async function componentTarget(bytes: Buffer, port = 8080) {
+export async function componentTarget(bytes: Buffer, port = 8080, dockerfile = ".launchlane-component.Dockerfile") {
+  assert.ok([".launchlane-component.Dockerfile", ".launchlane-executable.Dockerfile"].includes(dockerfile));
   const name = `launchlane-component-${randomUUID()}`, label = `ir.launchlane.component-test=${name}`;
   let id: string | undefined, imageBuilt = false;
   const cleanup = async () => {
@@ -17,7 +18,7 @@ export async function componentTarget(bytes: Buffer, port = 8080) {
     }
   };
   try {
-    const built = await docker(["build", "--pull=false", "--network=none", "--label", label, "-f", ".launchlane-component.Dockerfile", "-t", name, "-"], AbortSignal.timeout(90000), 65536, bytes);
+    const built = await docker(["build", "--pull=false", "--network=none", "--label", label, "-f", dockerfile, "-t", name, "-"], AbortSignal.timeout(90000), 65536, bytes);
     assert.equal(built.exitCode, 0, built.output); imageBuilt = true;
     const created = await docker(["create", "--pull=never", "--name", name, "--label", label, "--read-only", "--cap-drop=ALL", "--security-opt=no-new-privileges", "--memory=256m", "--pids-limit=64", "--cpus=1", "--tmpfs", "/tmp:rw,nosuid,nodev,size=16777216", "--publish", `127.0.0.1::${port}`, name], AbortSignal.timeout(10000));
     assert.equal(created.exitCode, 0, created.output); id = created.output.trim(); assert.match(id, /^[a-f0-9]{64}$/);

@@ -1,5 +1,7 @@
 # معیارهای پذیرش محصول
 
+Go, 2026-11-02 (AC19/24/26/28/31/32): original module/tests, exact compiled archive, fresh runtime and existing Agent/web publication43 have actual local worker/browser evidence with synthetic cloud/model transports. [Scope](evidence/go-compiled-runtime.md); this is partial family acceptance, with live/full14/data boundaries open.
+
 Flask/Django, 2026-11-02 (AC19/24/26/28/31/32): original framework runners, production WSGI, tested source artifact and native41/42 decisions now use the shared Agent/web path, including build before a target. Actual worker/web evidence is separate from synthetic native provider contracts. [Short evidence](evidence/framework-python.md); full14, raw corpus, data and live acceptance remain open.
 
 Compiled component delta, 2026-10-29 (AC19/24/26/28/31/32): plan9 and Docker publication40 connect exact compiled pnpm output to the same Agent/web job, artifact and decision/journal. Whole-workspace success is withheld after component success. Original data requirements and binding interfaces remain; no public/provider/data acceptance is inferred from local worker or synthetic transport results. [Evidence](evidence/pnpm-components.md).

@@ -7,7 +7,9 @@ import { setTimeout as pause } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import { freeHttpTestPort } from "../tests/helpers/http-port.ts";
 
-export async function startTestServer({ browserHost = "127.0.0.1", publicOrigin = "", agentFixture = false, environmentFixture = false, activationFixture = false, destinationFixture = false, databaseFixture = false, workspaceConfigured = true, authFixture = false, staticFixture = false, componentFixture = false, frameworkFixture = false } = {}) {
+export async function startTestServer({ browserHost = "127.0.0.1", publicOrigin = "", agentFixture = false, environmentFixture = false, activationFixture = false, destinationFixture = false, databaseFixture = false, workspaceConfigured = true, authFixture = false, staticFixture = false, componentFixture = false, frameworkFixture = false, goFixture = false, goPublicationFixture = false } = {}) {
+  if (goPublicationFixture && (!componentFixture || goFixture || frameworkFixture)) throw new Error("Go publication requires the component transport hook");
+  if (goFixture && (!agentFixture || frameworkFixture || environmentFixture || activationFixture || destinationFixture || databaseFixture || authFixture || staticFixture || componentFixture)) throw new Error("Go fixture requires its isolated agent hook");
   if (frameworkFixture && (!agentFixture || environmentFixture || destinationFixture || databaseFixture || authFixture || staticFixture || componentFixture)) throw new Error("Framework fixture requires its isolated agent hook");
   if (componentFixture && (agentFixture || environmentFixture || destinationFixture || databaseFixture || authFixture || staticFixture)) throw new Error("Component fixture requires its own network-denying hook");
   if (environmentFixture && !agentFixture) throw new Error("Environment fixture requires the network-denying test hook");
@@ -55,6 +57,9 @@ export async function startTestServer({ browserHost = "127.0.0.1", publicOrigin 
     MODEL_ID: "",
     NODE_OPTIONS: "",
     LAUNCHLANE_FRAMEWORK_FIXTURE: frameworkFixture ? "true" : "false",
+    LAUNCHLANE_GO_FIXTURE: goFixture ? "true" : "false",
+    LAUNCHLANE_GO_FIXTURE_ARCHIVE: (goFixture || goPublicationFixture) && process.env.LAUNCHLANE_TEST_GO_TOOLCHAIN ? resolve(process.env.LAUNCHLANE_TEST_GO_TOOLCHAIN) : "",
+    LAUNCHLANE_GO_PUBLICATION_FIXTURE: goPublicationFixture ? "true" : "false",
     ...(agentFixture?{
       LAUNCHLANE_ENABLE_LIVE_MODEL:"true",LAUNCHLANE_ENABLE_LOCAL_REPAIR:"true",
       MODEL_ID:"gpt-6-luna",MODEL_API_KEY:"synthetic-model-key-for-isolated-test-only",

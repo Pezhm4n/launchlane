@@ -1,5 +1,6 @@
 import { createRequire } from "node:module";
 import { ensure } from "../errors.ts";
+import { inspectGoEnvironment } from "./go-environment.ts";
 
 type Ast = Record<string, unknown> & { type: string };
 type Scope = { parent: Scope | null; functionScope: boolean; names: Set<string>; processImports: Map<string, "process" | "env"> };
@@ -175,7 +176,7 @@ function pythonNames(source: string): string[] {
 /** Discovers literal environment keys without evaluating imports, scripts or values. Unsupported syntax stays unknown. */
 export function sourceEnvironmentNames(source: string, path: string): string[] {
   ensure(Buffer.byteLength(source) <= sourceLimit, "ENV_DISCOVERY_LIMIT", "فایل برای بررسی نام تنظیمات بیش از حد بزرگ است.", 413);
-  const names = path.endsWith(".py") ? pythonNames(source) : /\.[cm]?[jt]sx?$/.test(path) ? javascriptNames(source) : path.endsWith(".vue")
+  const names = path.endsWith(".go") ? inspectGoEnvironment(source).names : path.endsWith(".py") ? pythonNames(source) : /\.[cm]?[jt]sx?$/.test(path) ? javascriptNames(source) : path.endsWith(".vue")
     ? [...source.replace(/<!--[\s\S]*?-->/g, "").matchAll(/<script\b[^>]*>([\s\S]*?)<\/script\s*>/gi)].flatMap(match => javascriptNames(match[1] ?? "")) : [];
   const unique = [...new Set(names)].sort();
   ensure(unique.length <= 128, "ENV_DISCOVERY_LIMIT", "تعداد نام تنظیمات این فایل بیشتر از سقف مجاز است.", 413);

@@ -1,4 +1,5 @@
 import { parseFrameworkPythonRuntime } from "../../contracts/framework-python.ts";
+import { parseExecutableVerification } from "../../contracts/go-runtime.ts";
 import { parseComponentVerification } from "../../contracts/pnpm-component.ts";
 import { createHash } from "node:crypto";
 import type { ActionSpec, Scope } from "../../contracts/domain.ts";
@@ -61,6 +62,11 @@ export function parseActionSpec(value: unknown): ActionSpec {
     return { ...base, version: 41, runtime };
   }
   if (input.version === 42) return parseProvisionSpec(input);
+  if (input.version === 43) {
+    const { verification, ...rest } = input, base = parseActionSpec({ ...rest, version: 21 });
+    ensure(base.version === 21, "EXECUTABLE_BUILD_REQUIRED", "انتشار executable به قرارداد Docker نیاز دارد.", 409);
+    return { ...base, version: 43, verification: parseExecutableVerification(verification) };
+  }
   if (input.version === 40) {
     const { verification, ...rest } = input, base = parseActionSpec({ ...rest, version: 21 });
     ensure(base.version === 21, "INVALID_INPUT", "انتشار component به مسیر Docker نیاز دارد.", 409);

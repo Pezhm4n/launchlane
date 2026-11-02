@@ -1,0 +1,1 @@
+document.querySelector("#load").addEventListener("click",async()=>{const response=await fetch("/orders");const invoice=await response.json();document.querySelector("#result").textContent=`Invoice total: ${invoice.total}`;history.pushState(null,"","/orders-view")});

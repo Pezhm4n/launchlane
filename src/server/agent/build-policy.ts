@@ -51,6 +51,10 @@ export function validateBuildRepairPaths(paths: readonly string[]) {
 }
 export function validateBuildPlan(files: readonly SourceFile[], profile: ProjectProfile, value: ProjectBuildPlan): ProjectBuildPlan {
   const plan = parseProjectBuildPlan(value);
+  if (plan.version === 11) {
+    ensure(profile.runtime === "go" && profile.sourceHash === plan.sourceHash && fingerprint(profile.goRuntime) === fingerprint(plan.runtime) && profile.start === "launchlane-go" && profile.port === plan.runtime.port,
+      "GO_BUILD_CHANGED", "برنامهٔ Go به source، بسته و پورت همین نسخه متصل نیست.", 409); return plan;
+  }
   if (plan.version === 9) {
     ensure(profile.pnpmWorkspace && profile.sourceHash === plan.sourceHash && fingerprint(profile.pnpmWorkspace) === fingerprint(plan.workspace) &&
       fingerprint(inspectPnpmWorkspace(files)) === fingerprint(plan.workspace) && fingerprint(sourcePnpmComponent(files, plan.workspace, plan.component.root, plan.component.internalPort)) === fingerprint(plan.component) &&

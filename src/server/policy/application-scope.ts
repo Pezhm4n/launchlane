@@ -14,6 +14,7 @@ export function assertApplicationPublicationScope(profile: ProjectProfile): void
   if (!inspection) return; // Historical snapshots acquire no invented resource evidence.
   ensure(inspection.sourceHash === profile.sourceHash, "APPLICATION_SOURCE_CHANGED", "نیازهای برنامه متعلق به همین نسخهٔ source نیستند.", 409);
   ensure(!inspection.diagnostics.length, "APPLICATION_ANALYSIS_INCOMPLETE", "بخشی از نیازهای برنامه قابل بررسی نبود؛ نبود نتیجه به معنای نبود API یا منابع نیست.", 409);
+  if (profile.goRuntime || profile.compiledExecutable) ensure(!inspection.requirements.some(item => item.need !== "optional" && (item.kind === "background_worker" || item.kind === "scheduler")), "GO_COMPONENT_SCOPE_REQUIRED", "باینری این Go server، اجرای worker یا scheduler مستقل را تأیید نمی‌کند.", 409);
   if (profile.pythonRuntime && profile.pythonRuntime.kind !== "python") ensure(!inspection.requirements.some(item => item.need !== "optional" && (item.kind === "background_worker" || item.kind === "scheduler")),
     "FRAMEWORK_TOPOLOGY_REQUIRED", "اجرای WSGI، worker یا scheduler مستقل این پروژه را تأیید نمی‌کند؛ برنامهٔ اجرای آن‌ها لازم است.", 409);
   if (profile.pnpmComponent) return; // Explicit component scope only; Store/application require successful worker evidence.
