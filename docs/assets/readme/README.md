@@ -1,19 +1,33 @@
 # README visuals
 
-- `launchlane.svg`: repository-maintained SVG representation of the existing UI
-  mark in `src/components/workbench.tsx` and shared brand styles; no new favicon.
-- `publication.png`: actual guided UI from `data-read-r8`, captured on 2026-10-29
-  at 1280px with Chromium. It shows a disposable authenticated operator session,
-  no personal account or production data.
-- `database-observation.png`: actual publication/data review component from the same
-  snapshot, with synthetic publication/database responses. This is **not** cloud
-  publication, production SQL, migration, application-write, or restart evidence.
+These images show the actual Persian interface at source
+`1af6a15bce4bd70f17707d25ef404e071517d798`, captured with Chromium on
+2026-11-04 from production build `w3jzwyov9AR7sRVyFdQ4A` at 1280 × 960.
+The application has a dark theme; the images retain its real appearance in light
+and dark README surroundings.
 
-Snapshot parent: `62a844e6b58bf51e874b5ae15033d2007de91a15`, plus the implementation
-committed as `32bb2aae48aee91be9e99f2c7f0880a82eb3f9a2`. Runtime/package source SHA-256:
-`8ae8da645abfcd27dd925a565d917af36bc3c3289db7f234f5e9157dc61af6dd`.
-See [the validation report](../../evidence/postgres-data-observation.md).
+| Asset | Content and scope |
+| --- | --- |
+| `launchlane.svg` | Existing Launchlane mark, maintained in the repository; no new identity or artwork |
+| `publication.png` | Authenticated landing page and actual folder/GitHub/sample entry points |
+| `inspection.png` | Actual built-in `node-service` inspection, with execution gates disabled |
+| `accounts.png` | Separate accounts page with disconnected Liara, GitHub and coding-tool controls |
 
-Images contain no login key, private URL, credential, or actual database row. The
-sample hostname in the card is test transport, not a demo link. The app has a dark
-UI; images retain that real appearance in light and dark README surroundings.
+Capture uses disposable operator state and separately executes local setup in a
+temporary directory. GitHub connection metadata alone is replaced with an explicit
+disconnected test response, so the host's CLI/account is never inspected. Browser
+requests outside the test server are denied. There were zero browser errors,
+external requests, model calls or provider writes. These are UI/setup observations,
+not deployment, production data or live account evidence. Images contain no login
+key, credential, private hostname or personal project.
+
+From the repository root, after installing the locked dependencies and Chromium:
+
+```sh
+npm run build
+node scripts/capture-readme.mjs
+```
+
+The script replaces the three PNGs and writes the current source revision, build
+ID and image SHA-256 values to the ignored `.local/readme-capture.json`. Review
+the actual images before committing; a later capture has its own provenance.

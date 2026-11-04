@@ -2,11 +2,11 @@
 
 گزینهٔ «مرا به خاطر بسپار» نشست ورود لیارا را تا ۳۰ روز حفظ می‌کند. بدون انتخاب آن، اعتبار نشست یک ساعت است. خروج از حساب نشست را در سرور لغو می‌کند. ماندگاری پس از restart به حفظ همان session secret، state و نشانی سایت وابسته است. رمز و کد دومرحله‌ای ذخیره نمی‌شوند.
 
-بازدیدکنندهٔ نسخهٔ عمومی، ایمیل و رمز حساب خودش در لیارا را وارد می‌کند. کد دومرحله‌ای فقط در صورت فعال‌بودن آن خواسته می‌شود. راه‌اندازی زیر فقط وظیفهٔ مدیر نصب است و داخل صفحهٔ ورود نمایش داده نمی‌شود. اصل تصمیم و محدودهٔ تأیید در [ADR0024](decisions/0024-liara-identity-login.md) است.
+بازدیدکنندهٔ نسخهٔ عمومی، ایمیل و رمز حساب خودش در لیارا را وارد می‌کند. کد دومرحله‌ای فقط در صورت فعال‌بودن آن خواسته می‌شود. راه‌اندازی زیر فقط وظیفهٔ مدیر نصب است و داخل صفحهٔ ورود نمایش داده نمی‌شود. اصل تصمیم و محدودهٔ تأیید در [ADR0024](decisions/access.md#0024-liara-identity-login) است.
 
 ## تنظیم نصب
 
-بررسی مستقیم PostgreSQL به‌صورت پیش‌فرض خاموش است. فقط اگر سرور Launchlane مسیر خصوصی کنترل‌شده به شبکهٔ همان دیتابیس‌های تأییدشده دارد، مدیر نصب می‌تواند `LAUNCHLANE_ENABLE_DATABASE_DATA_READS=true` و آرایهٔ JSON در `LAUNCHLANE_DATABASE_READ_NETWORKS` را تعیین کند. هر عضو باید دقیقاً `accountId`، `teamId` و `networkId` معتبر داشته باشد؛ آرایهٔ خالی یا حساب/تیم/شبکهٔ دیگر، پیش از دریافت credential سرویس یا اتصال SQL رد می‌شود. این تنظیم در UI قابل تغییر نیست و شبکهٔ عمومی، control-panel یا SQL نوشتن را فعال نمی‌کند. [قرارداد و حدود](decisions/0038-independent-postgres-data-observation.md). اتصال plain خصوصی، اعتماد به مسیر خصوصی نصب است؛ TLS لیارا تأیید نشده و خودکار فرض نمی‌شود.
+بررسی مستقیم PostgreSQL به‌صورت پیش‌فرض خاموش است. فقط اگر سرور Launchlane مسیر خصوصی کنترل‌شده به شبکهٔ همان دیتابیس‌های تأییدشده دارد، مدیر نصب می‌تواند `LAUNCHLANE_ENABLE_DATABASE_DATA_READS=true` و آرایهٔ JSON در `LAUNCHLANE_DATABASE_READ_NETWORKS` را تعیین کند. هر عضو باید دقیقاً `accountId`، `teamId` و `networkId` معتبر داشته باشد؛ آرایهٔ خالی یا حساب/تیم/شبکهٔ دیگر، پیش از دریافت credential سرویس یا اتصال SQL رد می‌شود. این تنظیم در UI قابل تغییر نیست و شبکهٔ عمومی، control-panel یا SQL نوشتن را فعال نمی‌کند. [قرارداد و حدود](decisions/database.md#0038-independent-postgres-data-observation). اتصال plain خصوصی، اعتماد به مسیر خصوصی نصب است؛ TLS لیارا تأیید نشده و خودکار فرض نمی‌شود.
 
 Node 24.15+ از خانوادهٔ 24 و dependencyهای lockfile لازم‌اند. پس از `npm ci` و `npm run build`، در تنظیمات امن سرور تعیین کنید:
 
@@ -38,7 +38,7 @@ reverse proxy باید TLS معتبر، Host مطابق origin، محدودیت 
 - history نصب محلی دیده نمی‌شود: actor اپراتور با حساب لیارای تازه یکسان نیست؛ داده‌ها پاک نشده‌اند و خودکار به کاربر دیگری منتقل نمی‌شوند.
 - sandbox در دسترس نیست: build/test عمومی روی shell میزبان fallback نمی‌شود. سرویس اجرای ایزولهٔ مجاز در مقصد باید فراهم و آزموده شود؛ دسترسی عمومی به Docker socket راه‌حل این راهنما نیست.
 
-تا بستن موارد باز [شاهد ورود](evidence/liara-identity-login.md)، این راهنما تنظیم تکرارپذیر مسیر دسترسی است، نه گواه آماده‌بودن کامل برای داورها.
+تا بستن موارد باز [شاهد ورود](evidence/access.md#liara-identity-login)، این راهنما تنظیم تکرارپذیر مسیر دسترسی است، نه گواه آماده‌بودن کامل برای داورها.
 
 ## بستهٔ Linux و دامنهٔ پیش‌فرض لیارا
 
@@ -54,4 +54,4 @@ reverse proxy باید TLS معتبر، Host مطابق origin، محدودیت 
 
 GitHub CLI Linux نسخهٔ دقیق2.103.0 نیز dependency نصب است. آرشیو رسمی `gh_2.103.0_linux_amd64.tar.gz` با SHA256 `fdd768eb70f6409f80fcfa9f3a1c0adf0fc98d827ab3ce0bed2ac22762c5d786` بررسی و فقط `bin/gh` در `/opt/launchlane/tools/gh` با mode755 قرار می‌گیرد. runtime override همین فایل را read-only روی `/usr/local/bin/gh` mount می‌کند؛ هیچ GitHub credential مدیر کپی نمی‌شود. این آمادگی executable است، نه تأیید OAuth کاربر.
 
-بستهٔ web باید `examples/node-service` کنترل‌شده را نیز حمل کند؛ دکمهٔ نمونه به فایل‌های همین runtime وابسته است. مسیر build Node20/frontend به `node20BuildImage` قرارداد جاری، علاوه بر Node22/24 و Python3.12 نیاز دارد. در نصب با repair روشن، هرچهار image با digest دقیق پیش از startup موجود باشند؛ startup فایل‌های نمونه و imageها را بررسی می‌کند و خودکار image تازه نمی‌کشد. [رفع نقص واقعی بستهٔ عمومی](evidence/hosted-parity-20261025.md) شامل rollback path، حفظ state و برابری بایت assets است. compose باید همیشه image هویت‌دار جدید را بگیرد؛ commit نداشتن، جای manifest و ثبت بایت artifact را نمی‌گیرد.
+بستهٔ web باید `examples/node-service` کنترل‌شده را نیز حمل کند؛ دکمهٔ نمونه به فایل‌های همین runtime وابسته است. مسیر build Node20/frontend به `node20BuildImage` قرارداد جاری، علاوه بر Node22/24 و Python3.12 نیاز دارد. در نصب با repair روشن، هرچهار image با digest دقیق پیش از startup موجود باشند؛ startup فایل‌های نمونه و imageها را بررسی می‌کند و خودکار image تازه نمی‌کشد. [رفع نقص واقعی بستهٔ عمومی](evidence/access.md#hosted-parity-20261025) شامل rollback path، حفظ state و برابری بایت assets است. compose باید همیشه image هویت‌دار جدید را بگیرد؛ commit نداشتن، جای manifest و ثبت بایت artifact را نمی‌گیرد.

@@ -1,121 +1,48 @@
-# وضعیت پلتفرم‌ها و مسیر انتشار
+# پشتیبانی پلتفرم‌ها
 
-.NET/Docker, 2026-11-04 (AC19/24/26/28/31/32). Original locked ASP.NET10 now runs through Agent/web Docker6 before destination selection. Original SDK/tests/publish, public NuGet.Config and .slnx survive intake. Publication21 rebuilds the same source archive at Docker. [Scope and evidence](evidence/dotnet-docker.md). Native projects without Dockerfile, external NuGet packages, exact DLL delivery, data and complete14 remain open.
+[راهنمای نصب](setup.md) · [معیارهای پذیرش](acceptance.md) · [شواهد](verification.md)
 
-Angular delta, 2026-11-02: [actual Angular22 AOT, exact compiled pnpm artifact and web publication](evidence/angular-compiled-component.md) replace the missing compiler witness for one browser component. CLI configuration/output, scalar libc and bounded metadata preparation are source-aware; SSR/multiple apps/custom builders/data/native cloud/full14 remain open.
+این جدول قابلیت خود Launchlane را توصیف می‌کند؛ فهرست نسخه‌های در دسترس یک حساب لیارا نیست. نسخه، پلن، قیمت، شبکه و امکان ایجاد منبع باید هنگام پیشنهاد از حساب و source واقعی تطبیق داده شوند. تشخیص یک manifest، اجرای پروژه یا انتشار سالم آن را ثابت نمی‌کند.
 
-PHP/Laravel delta, 2026-11-02: [actual Composer/PHPUnit/Apache and installed-artifact publication](evidence/php-installed-runtime.md) add an executor for explicitly configured PHP8.3/Composer projects and a real Laravel12 API. Native cloud, Composerless/WordPress, general versions/config, frontend/worker/data and full-family acceptance remain open.
+## مسیرهای پیاده‌شده و حدود آن‌ها
 
-Go delta, 2026-11-02: [actual module/compiler/tests/fresh binary/Docker/browser](evidence/go-compiled-runtime.md) replace the missing executor for one explicitly configured pure-Go1.25 executable. Existing Docker publication43 preserves compiled bytes; native Go rebuilding, cgo/workspaces and complete family acceptance remain open.
+همهٔ خانواده‌های زیر در دامنهٔ محصول‌اند. هر مسیر همچنان به تنظیمات صریح، source سازگار، آزمون اصلی و worker مجاز نیاز دارد. واژهٔ «محلی» یعنی اجرای واقعی روی میزبان/کانتینر آزمایش؛ transport مدل یا لیارا ممکن است مصنوعی باشد.
 
-Flask/Django delta, 2026-11-02: [real local WSGI/runners and native contracts](evidence/framework-python.md) replace the missing executor for explicitly configured Python3.12 projects. Native payloads are synthetic-tested; live/corpus/data acceptance is open. Other-family statuses are unchanged.
-
-Vue delta, 2026-11-02: [controlled SFC compiler/artifact acceptance](evidence/vue-compiled-component.md) exercises the same plan9/ActionSpec40 path, actual Vue plugin/compiler, original tests and fresh archive Docker/Chromium reactivity/routing. The Vite equals-form output flag is now source-bound correctly; ambiguous output fails typed. This advances local Vue acceptance; native Liara, raw corpus, data and complete-family acceptance remain open.
-
-Compiled pnpm delta, 2026-10-29: Node/static browser members can use a source-derived plan9 and a pinned Docker envelope with no destination reinstall/rebuild. This is a scoped component route, retaining original tests and remaining runtime/data obligations. Controlled Vite/React execution and fixture/provider evidence are kept separate in [the ledger](evidence/pnpm-components.md). Native-family table statuses and complete fourteen-family acceptance are unchanged without their actual acceptance evidence.
-
-
-Pnpm delta, 2026-10-28: ProjectBuildPlan8 adds source-pinned pnpm11.19.0 workspace execution with exact Node22/24 compatibility. All importers and workspace links are retained. Compile-only results are explicitly nonpublishable; root runtime tests/source artifacts and native provider publication are separate boundaries. Native npm publication cannot consume this receipt. Factory feed metadata is detected but raw intake stops on source findings; its Vite/Nest/data behavior remains UNCONFIRMED. [Evidence](evidence/pnpm-workspaces.md).
-
-
-افزودهٔ بررسی داده، ۲۰۲۶-۱۰-۲۹: در مسیر فعلی Node fullstack/v4، معیارهای همان بسته و منابع خصوصی مصوب می‌توانند با درایور مستقل PostgreSQL فقط‌خواندنی بررسی شوند. [شاهد](evidence/postgres-data-observation.md) شامل SQL و دو مقصد موقت واقعی با provider/model مصنوعی است؛ مشاهدهٔ زندهٔ PostgreSQL لیارا، اجرای migration مقصد، نوشتن برنامه، restart persistence یا پذیرش خانواده‌های دیگر از آن نتیجه نمی‌شود. این محدودهٔ integration فعلی است؛ هدف تمام۱۴خانواده تغییر نکرده است.
-
-افزودهٔ runner داده، ۲۰۲۶-۱۰-۲۸: مسیر موجود Node fullstack با root `pg` و npm lock v3، script migration اصلی و hookهای source را روی چند target منطقی موقت اجرا می‌کند؛ transaction/ledger/SQL پروژه حفظ می‌شوند. [شاهد](evidence/project-migration-runners.md) شامل seeded/schema-only، quoted identifier، API و خواندن مستقل داده است. این adapter، CLI غایب یا driver تازه نمی‌سازد و پذیرش pnpm workspace، Python/framework-native، resourceهای مستقل provider یا باقی۱۴خانواده از آن نتیجه نمی‌شود.
-
-افزودهٔ آزمون داده، ۲۰۲۶-۱۰-۲۸: build7 موجود Node fullstack با npm lock می‌تواند plain SQL همین source را در PostgreSQL موقت اجرا و اثر schema/seed و نوشتن API را مستقل بسنجد؛ مقدار تازه باید پس از اجرای worker دوم حفظ شود. [شاهد](evidence/postgres-migration-test.md) به یک خانوادهٔ runtime یا provider production پذیرش عمومی نمی‌دهد. migrationهای framework، restart خود دیتابیس، چند component/resource و باقی۱۴خانواده همچنان هدف‌اند.
-
-افزودهٔ منابع، ۲۰۲۶-۱۰-۲۸: ساخت خصوصی دیتابیس برای requirement صریح PostgreSQL/MySQL/Redis و URL binding همان consumer در مسیر Agent/وب پیاده شد؛ نسخه‌ها از catalog فعلی انتخاب می‌شوند. این capability مشترک منبع است، پذیرش تازهٔ یک runtime یا اثبات کامل Django/Laravel/Worker نیست. [شاهد](evidence/managed-database.md) صریحاً migration، اتصال/داده و live provisioning را باز نگه می‌دارد. Supabase/D1 و سرویس‌های متفاوت با PostgreSQL ساده جایگزین نمی‌شوند.
-
-افزودهٔ ۲۰۲۶-۱۰-۲۸: مشاهدهٔ انتشار HTML برای مسیرهای غیر fullstack، تا۱۲ ارجاع CSS/JS هم‌مبدأ را با origin/DNS تأییدشده می‌خواند؛ فایل گم‌شده، HTML-fallback، خطای غیر۲۰۰ و `http:` ناموفق‌اند و خواندن ناقص نامعلوم می‌ماند. این گام برای Static/Next/React/Vue/Angular و HTML سرورهای Node/Python مفید است، اما اجرای JavaScript، routing مرورگری، API غیر-fullstack و انتشار واقعی تازه را ثابت نمی‌کند؛ ردیف‌های partial/missing بدون شاهد live تغییر نمی‌کنند. commit `1097e66075948117c2137f1a5e3c78c086cf4716`.
-
-افزودهٔ working tree در ۲۰۲۶-۱۰-۲۵: [ADR0029](decisions/0029-docker-and-compiled-fullstack-publication.md) مسیر Docker با build6/deploy21/create22 و مسیر mixed Vite/Node با build7/deploy23 را به همان approval/journal متصل می‌کند. Docker کنترل‌شده واقعاً ساخته و با verifier مستقل اجرا شد؛ compiler واقعی گلستان، cloud Docker و انتشار کامل گلستان هنوز تأیید نشده‌اند. خروجی build7 پیش از cleanup صادر می‌شود و archive نهایی همان byteها را با provenance و بررسی asset/API/public proof نگه می‌دارد. source-only detection برای Laravel/PHP/Django/Flask/.NET/Go اجازهٔ انتشار یا شاهد runtime نیست. هیچ ردیف missing با این delta خودکار کامل نمی‌شود و هر۱۴خانواده همچنان در دامنه‌اند. source requirements و خواندن metadata دیتابیس پیش‌نیاز A14 هستند، نه اثبات migration یا data plane. [شواهد و محدودیت‌ها](evidence/managed-fullstack-20261025.md).
-
-افزوده candidate47 بعد1890c3f: [ADR0028](decisions/0028-native-frontend-build.md) و [شاهد frontend](evidence/native-frontend.md)، مسیرهای بومی React/Vue/Angular با19/20 و worker ثابت Node20 را به موتور موجود وصل می‌کنند. React خام Notes-App با build واقعی، failure خروجی، patch Vite و آزمون مستقل گذشت؛ Vue/Angular هنوز compiler پروژه واقعی و هر سه خانواده هنوز native cloud ندارند. Next اکنون platformConfig.nodeVersion صحیح دارد؛ fixture قبلی فیلد اشتباه را تکرار کرده بود. ردیف‌های تاریخی زیر باید با این delta خوانده شوند؛ هیچ خانوادهٔ اضافه‌ای live verified اعلام نمی‌شود.
-
-
-افزوده بعد8b08364: Next دارای قراردادهای بومی17/18 و کنترل platform مشترک شد؛ یک compiler واقعی16.4.2 در Node22، install/build/start/GET و artifact را گذراند. این case کنترل‌شده است؛ raw upstream و native cloud همچنان UNCONFIRMED. [گزارش Next](evidence/native-next.md) تفاوت native payload، Docker worker، پروژه عمومی متوقف‌شده و مرزهای باز را ثبت می‌کند. عبارت تاریخی «native next پیاده نیست» پایین با این implementation جزئی جایگزین می‌شود؛ family کامل نیست.
-
-افزوده worker بعد از f5d9ace: Node24.18.0 با ProjectBuildPlan v3 و image رسمی digest-bound در همان build/repair/authority/artifact اجرا شد؛ candidate45، domain388/388، HTTP39/39 و۵sandbox واقعی پاس شد. این گسترش اجرای محلی22/24 است؛ native cloud Node24 و Next مستقل هنوز UNCONFIRMED هستند. [ADR0026](decisions/0026-node24-isolated-build.md).
-
-افزوده پس از72618b6: [Static واقعی Login](evidence/native-static-login.md) از انتخاب پوشه/upload محصول، create16، انتشار Agent با مدل واقعی، artifact15، current release، تطبیق HTML/CSS/JS و تعامل مرورگر گذشت؛ stop/delete همان app تأیید شد. سؤال Node/port حذف شد. ردیف‌های تاریخی Static/missing پایین با این شاهد جایگزین می‌شوند: وضعیت فعلی **implemented_verified برای plain index/asset**، بدون install/build/start کاربر؛ Nginx80، source/assetهای nested از root انتخابی؛ bundler، SPA rewrite عمومی و repair عمومی باز. این شاهد به خانواده‌های دیگر تعمیم ندارد؛ همه۱۴خانواده الزامی‌اند.
-
-شاهد افزوده `fb67971`: [کتاب‌فروشی upstream با fault صریح](evidence/codex-publication-mission.md) از upload محصول و Codex MCP، شبکه/مقصد تازه، برنامه مصوب، خطای500 در Node22 ایزوله، patch داخلی، آزمون مستقل و انتشار بومی همان artifact تا release جاری و HTML/API صحیح گذشت. source اصلی محفوظ و app با ID/404 پاک شد؛ cleanup خودکار شبکه هنوز تأیید نشده است. این مورد Node22ِ بدون dependency/lock/build-script است؛ Docker worker آن شاهد Docker publication، compiler frontend یا monorepo نیست و وضعیت خانواده‌های دیگر جدول را تغییر نمی‌دهد.
-
-بازبینی: ۲۰۲۶-۱۰-۲۳، پایه6ae5c38. این ماتریس قرارداد A11/AC28 است؛ هر ردیف تا پروژه واقعی و شاهد انتشار همان مسیر، باز می‌ماند. «فهرست رسمی لیارا»، «تشخیص ایستا»، «ساخت محلی در Docker» و «انتشار بومی روی لیارا» شواهد جدا هستند. محصول هنوز پشتیبانی کامل همه خانواده‌ها را ندارد.
-
-[فهرست رسمی](https://docs.liara.ir/paas/about/) در این بازبینی همان۱۴ خانواده را دارد. CLI نصب‌شده9.4.7 از package و source همان نصب بررسی شد؛ `get-supported-versions.js` فهرست ایستاست، پاسخ availability حساب نیست. دو GET واقعی `/v1/me?teamID` و `/v1/projects?teamID` در تیم مجاز200 شدند؛ تیم تطبیق داشت و فهرست برنامه‌ها خالی بود. پاسخ حساب، فهرست نسخه‌های database دارد؛ availability هر پلتفرم PaaS از آن اثبات نمی‌شود. OpenAPI pinned برای release، type/config را عرضه می‌کند و پذیرش همه ترکیب‌ها در حساب همچنان UNCONFIRMED است.
-
-## نسخه مستند در برابر CLI نصب‌شده
-
-| خانواده | نسخه‌های مستند / منبع | تفاوت مشاهده‌شده CLI9.4.7 | وضعیت Launchlane و مرز بعدی |
+| خانواده | مسیر موجود | آنچه شاهد دارد | مرزهای باز |
 | --- | --- | --- | --- |
-| NodeJS | [8/10/12/14/16/18/20/22/24؛ پیش‌فرض22](https://docs.liara.ir/paas/nodejs/how-tos/choose-version/) | فقط14/16/18/20/22/24؛ پیش‌فرض22 | partial؛ native Node22 محدود live؛ نسخه‌های دیگر و monorepo عمومی باز |
-| NextJS | [Node20/22/24؛ پیش‌فرض22](https://docs.liara.ir/paas/nextjs/how-tos/choose-version/) | همان فهرست | partial؛ native17/18 و compiler واقعی کنترل‌شده Node22؛ raw upstream/native cloud باز |
-| Laravel | [PHP7.2/7.3/7.4/8.0/8.1/8.2/8.3/8.4؛ پیش‌فرض7.4](https://docs.liara.ir/paas/laravel/how-tos/choose-version/) | پیش‌فرض8.2؛ فهرست یکسان | missing؛ آماده‌سازی، worker و native publication |
-| PHP | [7.2/7.3/7.4/8.0/8.1/8.2/8.3؛ پیش‌فرض8.0](https://docs.liara.ir/paas/php/how-tos/choose-version/) | CLI8.4 هم دارد | missing؛ نسخه/extension، build و publication |
-| Python | [3.7–3.13؛ پیش‌فرض3.12](https://docs.liara.ir/paas/python/how-tos/choose-version/) | همان فهرست | partial؛ فقط3.12/FastAPI آماده‌شده live؛ raw/pyproject/dependency repair باز |
-| Django | [Python3.7–3.13؛ پیش‌فرض3.12](https://docs.liara.ir/paas/django/how-tos/choose-version/) | همان فهرست | missing؛ manage/settings/static/migration و native publication |
-| Flask | [Python3.7–3.13؛ پیش‌فرض3.12](https://docs.liara.ir/paas/flask/how-tos/choose-version/) | همان فهرست | missing؛ WSGI/start، worker و native publication |
-| .NET | [2.1/2.2/3.0/3.1/5.0/6.0/7.0/8.0/9.0/10.0؛ صفحه پیش‌فرض3.1 می‌گوید](https://docs.liara.ir/paas/dotnet/how-tos/choose-version/) | پیش‌فرض8.0 | missing؛ solution/SDK/restore/publish و native publication |
-| Go | [1.21–1.25؛ پیش‌فرض1.22](https://docs.liara.ir/paas/go/how-tos/choose-version/) | پیش‌فرض1.24 | missing؛ module/toolchain/cgo و native publication |
-| React | [Vite یا create-react-app](https://docs.liara.ir/paas/react/how-tos/deploy-app/)؛ framework از lock، نسخه build runtime جداست | detector با react-scripts یا Vite+React؛ این detection build نیست | partial؛ native19/20، Node20، React خام upstream و اصلاح output در worker؛ native cloud باز |
-| Angular | [پروژه Angular CLI](https://docs.liara.ir/paas/angular/how-tos/deploy-app/)؛ نسخه از lock | detector از @angular/core | partial؛ native19/20 و outputPath/Node20/runner؛ compiler واقعی و native cloud باز |
-| Vue | [Vite یا vue-cli](https://docs.liara.ir/paas/vue/how-tos/deploy-app/)؛ نسخه از lock | detector از vue-cli-service یا Vite+Vue | partial؛ native19/20 و Node20/runner؛ compiler واقعی و native cloud باز |
-| Static | [HTML/CSS/JS](https://docs.liara.ir/paas/static/how-tos/deploy-app/)؛ نسخه زبان مستقل ندارد | native80 و platformConfig خالی؛ create/release واقعی | implemented_verified برای plain index/asset؛ Login واقعی؛ bundler و repair عمومی باز |
-| Docker | [Dockerfile یا مسیر image مستند](https://docs.liara.ir/paas/docker/how-tos/deploy-app/)؛ نسخه از image digest | detector Dockerfile، تعارض بعضی manifestها سؤال می‌گیرد | missing؛ Docker worker موجود با Docker publication فرق دارد؛ build/deploy واقعی هر framework لازم است |
+| Node.js | npm lock v3، Node20/22/24؛ pnpm11.19 workspace با runtime سازگار | install/build/test/start محدود؛ artifact و چند چرخهٔ native Node22 زنده | نسخه‌ها و دستورهای عمومی، تمام dependencyها و پذیرش هر repository |
+| Next.js | آماده‌سازی و publication بومی با نسخهٔ Node صریح؛ compiler کنترل‌شده | npm build/test و قرارداد native در نمونهٔ محدود | pnpm Next/SSR عمومی، raw corpus و native cloud برای پروژه‌های دلخواه |
+| React | native frontend و component کامپایل‌شدهٔ pnpm/Vite | compiler واقعی، تست اصلی، archive دقیق و مرورگر | کل topology، backend/data همراه و native cloud عمومی |
+| Vue | Vite/Vue SFC در مسیر component اصلی workspace | compiler واقعی، output صریح، archive، مرورگر و failureها | SSR، چند app، تنظیمات/نسخه‌های عمومی و پذیرش کل پروژه |
+| Angular | انتخاب project/config/output واقعی Angular CLI و component pnpm | AOT واقعی، تست اصلی، archive و route مرورگر | SSR، builder سفارشی، چند component و native cloud |
+| Static | index/assets ساده بدون اجرای build؛ خروجی static آزموده‌شدهٔ component | نمونهٔ native زنده و آزمون فایل‌ها/مرورگر | هر bundler، repair عمومی و اعتبار سرویس‌های پنهان پشت frontend |
+| Python | Python3.12 با requirements تثبیت‌شده، wheel hash و start صریح | install آفلاین، compile/tests/start؛ FastAPI آماده‌شده با انتشار زندهٔ محدود | pyproject/نسخه‌های دیگر، monorepo خام و تغییر عمومی dependency |
+| Django | Python3.12، تنظیمات صریح WSGI/Gunicorn و runner اصلی framework | worker واقعی، Agent/web و قرارداد publication | settings/static/messages خودکار، migration و دادهٔ مقصد، provider زنده |
+| Flask | Python3.12، WSGI/Gunicorn و تست اصلی | install/tests/API واقعی و مسیر مشترک Agent/web | entryهای مبهم، نسخه‌های عمومی و اتصال داده/انتشار زنده |
+| PHP | PHP8.3.36، Composer2.11.1، lock/hooks/PHPUnit و Apache تازه | vendor دقیق و archive قابل انتشار در Docker | PHP بدون Composer، extension/config عمومی، WordPress و native PHP cloud |
+| Laravel | همان مسیر PHP با artisan/public و تنظیمات تست صریح | Laravel API و vendor نصب‌شده، Agent/web/Docker | frontend، queue/scheduler، migration/data و native Laravel cloud |
+| .NET | Dockerfile اصلی ASP.NET10 با SDK10.0.403/runtime10.0.14 و lock | SDK/tests/publish اصلی و Agent/web/Docker | native بدون Dockerfile، NuGet خارجی، تحویل دقیق DLL و داده/انتشار زنده |
+| Go | Go1.25.14، go.mod/go.sum، تست اصلی و باینری در worker تازه | باینری دقیق، archive، Docker و مرورگر | cgo، workspaces، نسخه‌های دیگر و native Go rebuild |
+| Docker | Dockerfile/context صریح، worker محدود و publication نسخه‌دار | build/workload محلی و مسیر Agent/web در نمونه‌های مشخص | هر Dockerfile، دسترسی شبکه/ابزار دلخواه و پذیرش production عمومی |
 
-نسخه‌های قدیمیِ ارائه‌شده، به معنی توصیه امنیتی یا سازگاری پروژه نیستند. تفاوت defaultها حل‌نشده است؛ هیچ default نامطمئن به approval تازه منتقل نمی‌شود. برای پروژه واقعی، قید manifest و lock، نسخه صریح، image/runtime و پذیرش حساب باید با هم سازگار باشند. انتخاب اولین عدد یا نسخه نصب‌شده میزبان جای این تطبیق نیست.
+جزئیات نسخه‌ها و image/toolهای تثبیت‌شده در `src/contracts/project-build.ts`، `pnpm-workspace.ts`، `go-runtime.ts` و `php-runtime.ts` قرار دارند. [گزارش‌های runtime](evidence/runtime.md) revision، فرمان، oracle و failure هر نمونه را نگه می‌دارند. [تصمیم‌های runtime](decisions/runtime.md) علت محدودیت‌ها را توضیح می‌دهند.
 
-## قرارداد عملی هر خانواده
+## Root، workspace و artifact
 
-در ردیف‌های missing، ستون «آماده‌سازی» نیازِ اجرای بعدی است؛ capability پیاده‌شده معرفی نمی‌شود. فرمان باید از پروژه واقعی استخراج و پیش از اجرا در plan بسته شود. عبارت‌هایی مانند test موجود، اجازه ساخت oracle دلخواه مدل نیستند. ابهام root، چند entry یا native/Docker سؤال مشخص می‌خواهد؛ inspect هیچ script، import یا virtualenv activation اجرا نمی‌کند.
+- ریشه و component اجرایی باید از manifest، lock و استفادهٔ واقعی source مشخص شوند. نام پروژه مسیر production را انتخاب نمی‌کند.
+- pnpm، root lock و importerها را حفظ می‌کند؛ flatten کردن workspace یا جایگزینی lock با npm، راه عبور آزمون نیست.
+- compile-only رسید build دارد و artifact قابل انتشار نمی‌سازد. موفقیت یک component، پذیرش کل monorepo نیست.
+- خروجی‌های compiled/static/vendor به job/source/plan/output/archive مصوب بسته می‌شوند. انتشار Dockerfile اصلی .NET بازساخت همان source است و گواه برابری بایت DLL تولیدشده نیست.
+- تست‌های موجود پروژه و معیار رفتار مستقل حفظ می‌شوند. شکست build، cache، runtime یا oracle باید typed و قابل‌اقدام بماند.
 
-| خانواده | شواهد تشخیص و root | manager / lock؛ install، build، test، start | port/assets و env/منابع | native/Docker، آماده‌سازی و oracle نسخه بعد | پروژه آزموده / وضعیت live |
-| --- | --- | --- | --- | --- | --- |
-| NodeJS | package.json، engines، liara.json و entry؛ leaf مستقل | npm lockv3؛ ci آفلاین، build/test/start موجود؛ تست مستقیم Node در برنامه محدود | port/binding ایستا سپس GET واقعی؛ env reference محدود؛ نیاز DB باید از استفاده معتبر بیاید | native Node22؛ start/port محدود قابل اصلاح؛ artifact آزموده، current release و همان پاسخ | calendar/checkout کنترل‌شده live؛ Vite ترب local؛ arbitrary repo باز |
-| NextJS | dependency next و scripts/config؛ root دارای workspaces مستقل فرض نشود | npm lock فعلی؛ install/build/test/start همان repo؛ worker محدود pnpm11 workspace در build8، پذیرش compiler Next باز؛ yarn باز | SSR/ISR/.next/public و public env ساخت، API و assets باید مستقل سنجیده شوند | native17/18 پیاده؛ compiler کنترل‌شده واقعی؛ Docker بدون آزمون جای native cloud نیست؛ نسخه جدید باید محتوای تازه داشته باشد | پروژه واقعی Next از محصول منتشر نشده؛ UNCONFIRMED |
-| Laravel | composer.json/laravel، artisan، public و config؛ root صحیح | composer.lock؛ [composer install](https://docs.liara.ir/paas/laravel/how-tos/deploy-app/)، build frontend/test همان repo؛ entry سرو public | PHP/extension، env امن، DB/queue/disk براساس source؛ migration تصمیم مستقل | native laravel و Docker هر دو باز؛ oracle HTTP/API/assets و اثر migration جدا | هیچ پروژه واقعی در این مسیر؛ missing |
-| PHP | composer.json یا entry PHP به‌همراه web root/config | composer.lock در صورت وجود؛ install/test از repo، نسخه/extension دقیق | web root/rewrites/assets و binding؛ DB/env براساس source | native php یا Docker انتخاب صریح؛ پاسخ واقعی و asset، current release | هیچ؛ missing |
-| Python | requirements/pyproject و entry/argv؛ monorepo خام پشتیبانی کامل ندارد | فقط pinned requirements و wheelهای کامل؛ pip offline/hash/pip check، compile/unittest/start | argv مستقیم یا uvicorn3.12؛ env stdin؛ assets همان‌مبدأ و نیاز DB جدا | native python3.12؛ patch موجود در scope، همان unittest و workload، release جاری | کپی آماده FastAPI/React ترب بدون DB؛ دو release live و cleanup؛ partial |
-| Django | requirements، manage.py، settings و WSGI/ASGI؛ app root مشخص | lock معتبر، install/test از repo؛ [collectstatic](https://docs.liara.ir/paas/django/how-tos/deploy-app/) و migration رفتارهای جدا | STATIC_ROOT/media/allowed hosts/DB؛ migration مخرب اختیار مستقل | native django و Docker باز؛ static، فرم/API و اتصال واقعی DB لازم | هیچ؛ missing |
-| Flask | dependency Flask و WSGI factory/entry؛ وجود نام فایل کافی نیست | requirements/lock معتبر؛ [install و Gunicorn](https://docs.liara.ir/paas/flask/how-tos/deploy-app/)، test/start از پروژه | static/templates، bind و env/DB براساس استفاده | native flask یا Docker باز؛ route معنادار، assets و release جدید | هیچ؛ missing |
-| .NET | csproj/sln، TargetFramework/global.json و entry؛ چند project نیازمند انتخاب | NuGet/lock موجود؛ restore/build/test/publish پروژه واقعی | ASP.NET binding، wwwroot، connection reference و DB/migration | native dotnet یا Docker باز؛ HTTP/API/static و revision فعلی | هیچ؛ missing |
-| Go | go.mod/go.sum، toolchain و package main؛ module در monorepo مشخص | modules/sums؛ download/build/test همان module؛ entry و cgo صریح | bind و embed/static؛ env/DB در صورت نیاز معتبر | native go یا Docker باز؛ binary/runtime سازگار، workload و نسخه جدید | هیچ؛ missing |
-| React | Vite/CRA و lock؛ ریشه frontend از API تفکیک شود | manager/lock واقعی؛ install/build/test؛ سرو output با برنامه مناسب | dist/build، SPA fallback و JS/CSS/font؛ public env با اعلام افشا | native19/20 پیاده، output build و Node20؛ موفقیت HTML بدون assets/browser پذیرفته نیست | Notes-App خام در worker Node20 و patch output واقعی؛ native cloud/browser تأیید نشده |
-| Angular | angular.json/@angular/core و پروژه انتخاب‌شده workspace | manager/lock؛ install/build/test همان target؛ outputPath از config | bundle/assets/base href/SPA routing و build-time config | native19/20 پیاده، outputPath محدود؛ compiler/cloud، route مرورگری و نسخه تازه باز | هیچ؛ missing |
-| Vue | vue-cli یا Vite+Vue و config/lock؛ leaf واقعی | manager/lock؛ install/build/test؛ output از config | dist/assets/SPA و public config | native19/20 پیاده، output dist محدود؛ compiler/cloud و browser/current release باز | هیچ؛ missing |
-| Static | سند index معتبر، manifest و نبود source سرور متعارض؛ assetهای nested در root انتخابی | plain files بدون install/build/start؛ source دارای package/build استثنا نیست | Nginx80؛ local assets بررسی، external CDN گزارش، secret مرورگر ممنوع | create16/deploy15 همان artifact؛ current release، متن، byte و browser؛ repair عمومی باز | Login اصلی از browser upload، native live و cleanup؛ implemented_verified در همین محدوده |
-| Docker | Dockerfile/context/ignore و target؛ ambiguity با manifest حل شود | manager/lock و stages داخل Dockerfile؛ فرمان‌ها و شبکه محدود و reviewشده | EXPOSE صرفاً شاهد است؛ listener/binding/assets/env/DB باید اجرا شوند | Docker publication جدا از sandbox؛ digest، health و رفتار framework واقعی | workerهای Node/Python فقط local؛ cloud Docker missing |
+## منابع داده و اجزای مستقل
 
-قیمت، ظرفیت، engine/version database و امکان شبکه تازه باید از حساب واقعی گرفته شوند؛ هیچ ردیف missing به معنی «بدون database» نیست. منابع ساخته‌شده، secret reference، readiness و اتصال workload به A14/AC34 وابسته‌اند. نسخه جدید هر خانواده از همان artifact/approval/journal و oracle اصلی عبور می‌کند؛ READY یا upload موفق جای آن نیست.
+منابع نام‌دار، اتصال به منبع موجود، env رمز‌شده، runner و schema baseline در [مسیر داده](evidence/database.md) و [تصمیم‌های آن](decisions/database.md) مستندند. منبع موقت و secret مصنوعی اختیار SQL یا migration تولیدی نمی‌دهند. دادهٔ مقصد، اتصال برنامه و persistence باید جداگانه سنجیده شوند.
 
-## تطبیق کار دستی مسیر رسمی
+backend/API، worker، queue consumer و scheduler را نمی‌توان با موفقیت frontend حذف‌شده فرض کرد. orchestration عمومی تمام componentها و وابستگی‌های آن‌ها هنوز پذیرش کامل ندارد. [Corpus](deployment-corpus.md) و [A11/A14](../TASKS.md) این مرز را نگه می‌دارند.
 
-[راهنمای CLI رسمی](https://docs.liara.ir/references/cli/deploy-app/) و source deploy نسخه نصب‌شده عملاً بررسی شدند؛ اجرای deploy روی پروژه/حساب انجام نشد. جدول مقایسه عدد زمان یا کلیک ندارد. شواهد گذشته، با revision و حدود خودشان معتبرند؛ URL ترب پس از cleanup فعال نیست.
+## پذیرش کامل یک خانواده
 
-| کار دستی فعلی کاربر | رفتار متناظر Launchlane | بخش خودکارشده | تصمیم ضروری کاربر | شاهد صحت |
-| --- | --- | --- | --- | --- |
-| انتخاب root، حذف secret/dependency و ساخت بسته | انتخاب محلی/GitHub/upload، inspect و archive خصوصی | دریافت pinned و manifest/hash/exclusion بدون تغییر اصل | انتخاب پروژه/root مبهم | source/domain/HTTP و شاهد GitHub؛ همه runtimeها هنوز نه |
-| تعیین entry/version/port و ساخت پروژه | profile و worker جدا با plan مشخص | Node/Python محدود؛ build/test/start واقعی در containment | scope اجرای محلی و ابهام واقعی | ADR0012/0015؛ شاهد raw monorepo عمومی باز |
-| ساخت app و انتخاب منابع | catalog/quote و پیشنهاد actor-bound | Node/Python create محدود و ثبت ID/config | مقصد و اثر هزینه | destination-provisioning و python-real-project؛ DB/network تازه باز |
-| کپی env و اتصال database | فرم امن و reference رمز‌شده | env merge/readback قراردادی و یک build Docker؛ DB provision هنوز missing | مقدار واقعاً بیرونی و هزینه/اثر منابع | ADR0013/0014؛ env/DB زنده باز |
-| upload، deploy و خواندن history/log | application/journal و observe همان release | upload/release/current/semantic probe در محدوده فعلی | approval انتشار فعلی؛ اختیار چندمرحله‌ای هنوز partial | Node/Python live محدود؛ نسخه جاری و workload جدا |
-| خواندن شکست، کپی log، اصلاح و deploy دوباره | CodeRepairJob، patch/test/artifact و proposal انتشار | اصلاح محدود مدل واقعی بدون کپی دستی log | هنوز scope/build و publication تصمیم جدا دارند | Python روی ترب آماده‌شده؛ چرخه عمومی خودکار و همه connectorها باز |
-| تنظیم CI/CD برای pushهای بعدی | artifact/journal نسخه بعدی موجود | انتشار مجاز نسخه بعد؛ webhook هنوز missing | opt-in، branch/commit و سقف هزینه آینده | شواهد release بعدی؛ auto-push acceptance ندارد |
+پروژهٔ واقعی باید از مسیر مشترک وب/Agent و MCP وارد شود؛ runtime و منابع لازم آماده شوند؛ artifact/release دقیق منتشر شود؛ رفتار اصلی، route/assets و در صورت وجود اثر داده بررسی شوند؛ شکست معنادار و مسیر repair/redeploy نیز سنجیده شوند. HTTP200، READY یا upload موفق به‌تنهایی کافی نیستند.
 
-## تطبیق capability با تسک موجود
-
-| قابلیت | تسک/AC | implementation / شاهد | وضعیت | اولین مرز اثبات‌نشده |
-| --- | --- | --- | --- | --- |
-| انتخاب، source و archive | A01/A07/AC19/32 | project-flows/inspect/archive؛ GitHub و upload evidence | implemented_verified در محدوده همان sourceهای آزموده | raw monorepo چند runtime و انتخاب root از MCP |
-| مأموریت و replay | A02/A08/AC17/24 | AgentRun/Repository، domain و HTTP مشترک | implemented_verified در محدوده آزموده | resume خودکار بدون دورزدن uncertain |
-| worker داخلی | A06/A07/AC26 | CodeRepairAdapter، Node/Python container و receipts | partial | dependency/command repair و runtimeهای غایب |
-| اختیار چندمرحله‌ای | A05/AC23 | approval/claim/journal برای هر اقدام | partial | قرارداد برنامه، budget/محدوده و تبار artifact مشتق در یک تصمیم |
-| env/منابع | A05/A14/AC22/34 | env9/10 و encrypted reference | partial؛ database missing | provision/readiness و اتصال واقعی DB؛ env زنده |
-| انتشار و اصلاح | A08/A10/AC27 | Node/Python native، oracle/current release | partial | پروژه خام، چرخه خودکار در plan واحد و سایر خانواده‌ها |
-| MCP | A16/AC31 | facade مشترک/SDK HTTP+stdio و Codex واقعی | partial | انتخاب source، incident مستقل، Claude/OpenCode و پذیرش نهایی |
-| connector اجرایی بیرونی | A06/AC26 | CLI/help Codex و مستندات رسمی سه میزبان | missing | dispatch job در sandbox، receipt مستقل، cancellation/reconcile و هزینه |
-| fallback داخلی connector | A06/A10 | worker داخلی موجود است | partial | broker بیرونی با fallback پیش از شروع و منع اجرای موازی نامعلوم |
-| پوشش همه پلتفرم‌ها | A11/AC28 | جدول بالا؛ Node/Python محدود | partial | build و publication واقعی هر خانواده، بدون حذف موارد missing |
-
-وضعیت blocked فقط برای مانع واقعاً مشاهده‌شده به کار می‌رود. نبود implementation با کمبود اعتبار یا «عدم امکان» یکی نیست؛ ردیف‌های missing در Aهای موجود باقی می‌مانند.
+پذیرش تولیدی کامل تمام ۱۴ خانواده باز است. نسخه‌های قدیمی یا فهرست‌شده در مستند provider، تضمین سازگاری یا توصیهٔ استفاده نیستند. برای اجرای آزمون‌ها، پیش‌نیازهای [AGENTS.md](../AGENTS.md) و راهنمای [نصب](setup.md) را رعایت کنید؛ Docker یا credential ناموجود، نتیجهٔ pass نیست.

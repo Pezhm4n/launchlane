@@ -1,6 +1,6 @@
 # Deployment capability corpus
 
-Pnpm component delta, 2026-10-29: Factory feed package manifests were reread (pnpm11.19.0, Node>=24, original root build/database wrapper, direct compiled API entry and Vite frontend). Its source/database/deployments were not used as a test lab. The new public controlled Vite workspace and compiled Node fixtures exercise packaging/execution through plan9/Docker40; they do not close Factory feed raw intake or PostgreSQL ledger acceptance. [Evidence](evidence/pnpm-components.md).
+Pnpm component delta, 2026-10-29: Factory feed package manifests were reread (pnpm11.19.0, Node>=24, original root build/database wrapper, direct compiled API entry and Vite frontend). Its source/database/deployments were not used as a test lab. The new public controlled Vite workspace and compiled Node fixtures exercise packaging/execution through plan9/Docker40; they do not close Factory feed raw intake or PostgreSQL ledger acceptance. [Evidence](evidence/runtime.md#pnpm-components).
 
 
 ## Product goal
@@ -30,7 +30,7 @@ The corpus is an adversarial sample for this ladder. Passing one application doe
 | Eyewear | Next frontend + FastAPI + PostgreSQL/Redis + Celery worker/beat | Complete multi-process/resource plan and execution; private source findings require proper handling |
 | Foodino | Frontend + Supabase Auth/RLS/RPC | Preserve the actual external service contract and safe configuration; generic PostgreSQL is not an automatic replacement |
 | Data Agent | Python pyproject/Docker + SQLite/DuckDB + reports and model service | Exact 19 test fixtures are owner-reviewed; after shared syntax corrections eight other source findings, locked preparation and the actual Python/Docker packaging path remain open |
-| Factory feed | Vite/Nest + pnpm + PostgreSQL inventory ledger | Pnpm11 workspace worker is implemented with independent fixtures; this corpus raw intake still stops on56 unclassified source findings. Exact Vite/Nest compilation/component artifacts, database/migration binding and original ledger invariants remain unverified. [Bounded evidence](evidence/pnpm-workspaces.md) |
+| Factory feed | Vite/Nest + pnpm + PostgreSQL inventory ledger | Pnpm11 workspace worker is implemented with independent fixtures; this corpus raw intake still stops on56 unclassified source findings. Exact Vite/Nest compilation/component artifacts, database/migration binding and original ledger invariants remain unverified. [Bounded evidence](evidence/runtime.md#pnpm-workspaces) |
 | Zarinpal challenge | Next application and runtime corpus | Exact native artifact publication has operator-controlled live evidence; this is not fresh acceptance of the complete hosted Agent path |
 | Liara challenge | Next + model/Redis and runtime corpus | Complete dependent services, source intake and real application/Agent acceptance |
 | Arvancloud challenge | WordPress/PHP + MariaDB + persistent uploads and schedules | PHP/WordPress build/start, approved resources and complete plugin/business path |
@@ -40,7 +40,7 @@ These rows reconcile the eight explicitly listed candidate repositories with the
 
 ## Active implementation order
 
-2026-10-28 source recheck: the [bounded SQL/data slice](evidence/postgres-migration-test.md) has real local PostgreSQL/API effects, but only 2 of Golestan's 12 unchanged SQL files fit its plain-SQL adapter. Its two-target apply/baseline runner must retain its own semantics in a future reviewed runner adapter. Factory feed's current root declares pnpm 11.19.0 and Node >=24; npm-only single-component tests are not evidence for that workspace. These were source reads, with no script, SQL or production mutation.
+2026-10-28 source recheck: the [bounded SQL/data slice](evidence/database.md#postgres-migration-test) has real local PostgreSQL/API effects, but only 2 of Golestan's 12 unchanged SQL files fit its plain-SQL adapter. Its two-target apply/baseline runner must retain its own semantics in a future reviewed runner adapter. Factory feed's current root declares pnpm 11.19.0 and Node >=24; npm-only single-component tests are not evidence for that workspace. These were source reads, with no script, SQL or production mutation.
 
 Close a missing product boundary before adding another manually driven destination. First connect tested capabilities to native mission tools, review cards, cancellation/recovery and shared MCP execution. Then extend generic component/resource planning and runtime/dependency preparation against the next corpus gap. Each slice must include an unchanged failure case, independent meaningful behavior checks, exact artifacts and evidence at its measured level. A live test is scheduled only when the product path is ready and the concrete resource/cost decision is authorized.
 

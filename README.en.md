@@ -1,50 +1,25 @@
-English · [فارسی](README.md)
+[فارسی](README.md) · [Setup](docs/setup.md) · [Platform support](docs/platform-support.md)
 
-<img src="docs/assets/readme/launchlane.svg" width="64" height="64" alt="Launchlane mark: three ascending lanes" />
+<img src="docs/assets/readme/launchlane.svg" width="64" height="64" alt="Launchlane mark" />
 
 # Launchlane
 
-An agent-driven assistant for preparing, deploying, and checking projects on
-**Liara**. Introduce a project; Launchlane inspects its source, proposes the work
-needed, and asks for your decision before infrastructure changes. Execution results
-are tied to the exact artifact, release, and collected evidence.
+**From project source to a Liara deployment, with your decision and a verifiable result.**
 
-**Under active development:** bounded paths have real validation, but complete
-deployment of every architecture and all 14 platform families is still in progress.
-The [platform matrix](docs/platform-support.md) and [verification index](docs/verification.md)
-distinguish implemented paths, local tests, and actual provider evidence. The current
-application interface is in Persian.
+Launchlane is a web workbench for understanding projects, bounded preparation and repair, deployment, and site investigation. Introduce a local folder or GitHub project; the Agent uses the application's real tools, presents changes for review, and binds results to the selected artifact and release. The interface is Persian. Chat is optional alongside the guided publication flow.
 
-![Actual publication screen with folder or GitHub selection and optional chat](docs/assets/readme/publication.png)
+[![Node.js 24.x](https://img.shields.io/badge/Node.js-24.x-43853d?style=flat)](package.json)
+[![MIT License](https://img.shields.io/badge/license-MIT-69e2c0?style=flat)](LICENSE)
 
-Actual UI in a disposable test session. Selecting a project starts the workflow;
-opening a page alone does not start a model call or deployment. This image is not
-evidence of a cloud release.
+<img src="docs/assets/readme/publication.png" width="960" alt="Current Launchlane interface: introduce a local folder or GitHub project and follow publication" />
 
-## What it does
+Actual application UI in an isolated local session with test data. These images are not cloud deployment evidence. [Capture details and reproduction](docs/assets/readme/README.md).
 
-- **Understand the project:** import a folder, GitHub source, or upload; inspect
-  within bounds without running source; preserve a private immutable source archive.
-- **Prepare and repair:** let the Agent select tools, build or repair in a bounded
-  worker, run checks, and retain a derived artifact while preserving the original source.
-- **Review changes before deployment:** inspect the destination, resources, reported
-  costs, and proposed changes. Server-side approval binds the exact account, app,
-  arguments, and artifact.
-- **Observe and recover:** check the release, page/API response, and same-origin assets;
-  investigate a site problem and restore a previous artifact on supported paths.
-- **Handle configuration and data:** encrypted environment inputs, private resource
-  binding, disposable PostgreSQL tests, and independent destination data reads in
-  the existing bounded integration. These do not establish production migrations or
-  persistence after a restart.
+**Under active development:** executable paths exist for the target families, but complete deployment of every project and production acceptance of all 14 families remain open. A successful build, ready release, HTTP response, and correct data are separate criteria. See [capabilities and limits](docs/platform-support.md) and [versioned verification](docs/verification.md).
 
-## Quickstart
+## Your first result, without service keys
 
-For a private local installation, use **Node.js 24.15+ within 24.x**, npm, and Git.
-The current validated local environment is Windows/PowerShell with Node 24.18.0.
-Offline startup needs no Liara key, model key, or Docker. Isolated worker execution
-requires a Linux Docker engine and the prescribed images.
-
-From your preferred parent directory:
+A **fresh private installation** needs Git, npm, and **Node.js 24.15+ within 24.x**. The validated local host is Windows/PowerShell with Node 24.18.0. These commands work unchanged in PowerShell and POSIX shells; dependency downloads need internet access. This path needs no Docker, Liara account, or model key.
 
 ```sh
 git clone https://github.com/Pezhm4n/launchlane.git
@@ -54,87 +29,73 @@ npm run setup:local
 npm run dev
 ```
 
-Open <http://127.0.0.1:3000>. Read the login key **locally only** from
-`.local/operator-access.txt`. Setup generates separate login/session secrets,
-preserves existing configuration, and contacts no provider. `.env.local`, `.local/`,
-and `.data/` are private and must not be published.
+1. Open <http://127.0.0.1:3000>.
+2. For a fresh local installation, read the login key privately from `.local/operator-access.txt` on the same machine. It is different from a Liara password.
+3. In **انتشار پروژه** (Publish project), choose **امتحان با پروژه نمونه** (Try a sample project). The `node-service` name and inspected files appear; nothing is sent to Liara.
+4. For your own project, choose **انتخاب پوشه پروژه** (Choose project folder). Source identification does not run the project's scripts.
 
-After signing in, use **انتشار پروژه** (Publish project), choose a folder or
-**امتحان با پروژه نمونه** (Try a sample project), and inspect the files. Chat is
-optional. The second tab, **بررسی مشکل سایت** (Investigate a site problem), provides
-a separate evidence and symptom investigation flow. Disabled or incomplete
-capabilities show their reason.
+<details>
+<summary>See the inspected sample</summary>
 
-Stop the server with `Ctrl+C`. Local data remains; do not delete it to resolve an
-error. After configuration or migration changes, restart the process when no
-operation is in progress. See [setup](docs/setup.md) for ports, production startup,
-and common problems.
+<img src="docs/assets/readme/inspection.png" width="960" alt="The sample project has been inspected; its name and runtime are visible while Agent execution remains disabled" />
 
-## Connect services
+</details>
 
-All real-execution gates default to off. Model requests cost money; cloud APIs and
-workers have additional prerequisites and authorized scope. A gate never replaces
-approval of an individual action.
+Stop the server with `Ctrl+C`; local data remains. Preserve `.env.local`, `.local/`, `.data/`, and private archives, and keep them out of Git. `setup:local` retains existing settings and secrets: an existing `LAUNCHLANE_AUTH_MODE=liara` installation still uses Liara sign-in. See [login modes and host troubleshooting](docs/setup.md).
 
-| Need | Main configuration | Default |
-| --- | --- | --- |
-| BoxAPI model | `MODEL_API_KEY`, `MODEL_ID`, `LAUNCHLANE_ENABLE_LIVE_MODEL` | Empty key/model, gate off |
-| Liara reads | Connect through **حساب‌ها** (Accounts), `LAUNCHLANE_ENABLE_LIVE_LIARA` | Off |
-| Infrastructure changes | `LAUNCHLANE_ENABLE_MUTATIONS` and valid action approval | Off |
-| Code repair | `LAUNCHLANE_ENABLE_LOCAL_REPAIR` and a ready worker | Off |
-| PostgreSQL data reads | `LAUNCHLANE_ENABLE_DATABASE_DATA_READS` and private-route allowlist | Off, empty list |
+## When you are ready for real execution
 
-Use [.env.example](.env.example) and [setup](docs/setup.md); historical model IDs or
-prices are not current defaults. Read [hosted access](docs/hosted-access.md) before
-exposing an HTTPS installation. Web and [MCP](docs/mcp.md) share policy, tools, and state.
+Use **حساب‌ها و دسترسی** (Accounts and access) to manage Liara, GitHub, and coding-tool connections. Connecting an account alone starts neither deployment nor model spending.
 
-## How it works
+<details>
+<summary>See the accounts and access page</summary>
 
-The model proposes tools and next actions. The host enforces input validation,
-scope, budgets, and authority. Source, logs, and tool responses cannot grant permission.
+<img src="docs/assets/readme/accounts.png" width="960" alt="Dedicated accounts page with Liara, GitHub, MCP, and session management" />
+
+</details>
+
+- **Prepare a project:** inspect its root, runtime, manager, and lockfile. Supported paths execute original install/build/test/start commands in a bounded worker. Pnpm components retain workspace topology and their own verified output.
+- **Choose destinations and resources:** the destination, network, private configuration, and data resources share the proposal and decision path. Disposable PostgreSQL data, runner execution, and destination data reads do not grant production migration authority.
+- **Publish and maintain:** selected artifacts, release and workload observations, investigation, artifact rollback, and start/stop/delete controls are available on supported paths. An uncertain operation cannot authorize blind replay.
+
+A fresh installation disables model, Liara-read, infrastructure-write, repair, and data-read gates. **Model requests cost money**: choose an authorized model, budget, and installation limits before enabling them. Workers require a Linux Docker engine and the exact images/tools for their path. Enter keys through secure forms or server configuration, never chat or `NEXT_PUBLIC_`. [.env.example](.env.example) and [service setup](docs/setup.md) explain the operational route.
+
+Web and [MCP](docs/mcp.md) share the registry, policy, and Store. To host Launchlane publicly, read [HTTPS and separate visitor identities](docs/hosted-access.md); local setup alone is not a public-hosting design.
+
+## How does a change execute?
+
+The model proposes; the server checks inputs, scope, budget, and a valid decision. Approval binds the actor, destination, cost, arguments, and artifact. This diagram follows an approved change; see [architecture](ARCHITECTURE.md) for detail.
 
 ```mermaid
-flowchart TD
-    U["Web or MCP"] --> A["Shared application and Agent"]
-    A --> M["BoxAPI model: tool selection"]
-    M --> A
-    A --> P{"Policy, scope, and budget"}
-    P --> R["Authorized reads and evidence"]
-    P --> H["User decision for an exact change"]
-    H --> X["Claim and worker or provider execution"]
-    X --> V["Release and workload verification"]
-    R --> S["Durable Store and journal"]
-    V --> S
-    S --> A
+flowchart LR
+    S[Project source] --> I[Bounded inspection]
+    I --> A[Shared Agent / web / MCP]
+    A --> P[Typed plan and policy]
+    P --> D{User decision}
+    D -->|Approved scope| E[Worker / provider]
+    E --> J[Journal and artifact]
+    J --> V[Release and workload checks]
+    V --> A
 ```
 
-A release, an HTTP response, and data correctness are separate evidence. The
-[independent data-check card](docs/assets/readme/database-observation.png) shows
-the actual UI with test responses; its result does not establish production
-migrations, application writes, or persistence.
+## Development and documentation
 
-## Development and contributing
+From the repository root, run checks appropriate to the change:
 
 ```sh
 npm run lint
+npm run docs:check
 npm run typecheck
 npm run test:domain
-npm run build -- --webpack
+npm run build
 npx playwright install chromium
 npm run test:http
 ```
 
-HTTP tests start their own temporary server and need Chromium and OpenSSL for the HTTPS/MCP flow. On Linux, run `npx playwright install --with-deps chromium` first. Browser and Docker checks have separate
-prerequisites; `npm test` is only a smoke check and requires a running server.
-Continue with [contributing](CONTRIBUTING.md), the [documentation index](docs/README.md),
-[architecture](ARCHITECTURE.md), and [acceptance criteria](docs/acceptance.md).
-After publication, use Issues for sanitized bug reports and feature requests.
-See [SECURITY.md](SECURITY.md) for sensitive reports.
+HTTP tests start their own temporary server; HTTPS/MCP needs Chromium and OpenSSL. On Linux, run `npx playwright install --with-deps chromium` first. `npm test` is only a smoke check and needs a running server. Synthetic model/Liara tests are not provider acceptance; worker tests need the [applicable prerequisites](docs/platform-support.md).
 
-## License
+[Documentation index](docs/README.md) · [Contributing](CONTRIBUTING.md) · [Acceptance criteria](docs/acceptance.md) · [Open work](TASKS.md) · [Security reporting](SECURITY.md)
 
-Original code and documentation use the [MIT License](LICENSE). Fonts, Liara branding,
-and reference material have separate terms; see [third-party notices](THIRD_PARTY_NOTICES.md).
-The owner has confirmed redistribution permission for IRANYekan, but the supporting
-license file still needs to be added. Launchlane is an independent project and does
-not claim official affiliation with Liara.
+## License and credits
+
+Original code and documentation use [MIT](LICENSE). Fonts, Liara branding, and third-party material have separate terms: see [third-party notices](THIRD_PARTY_NOTICES.md). The owner confirmed IRANYekan redistribution permission, but its supporting notice still needs to be added. The existing Launchlane mark is retained and images are captured from the application. This project does not claim official Liara affiliation.

@@ -14,6 +14,7 @@
     "start": "next start --hostname 127.0.0.1",
     "start:hosted": "node --env-file-if-exists=.env.local scripts/start-hosted.mjs",
     "lint": "biome lint .",
+    "docs:check": "node scripts/check-docs.mjs",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "node --test tests/bootstrap.test.mjs",
     "test:domain": "node --test --test-concurrency=1 tests/domain/*.test.ts tests/domain/*.test.mjs",

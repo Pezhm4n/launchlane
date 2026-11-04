@@ -1,7 +1,0 @@
-# Remembered Liara login — 2026-11-04
-
-Existing Liara login accepts optional strict boolean remember. Only a verified login issues the ordinary signed HttpOnly/SameSite cookie with the existing persisted session. Selected lifetime is thirty days, default/operator lifetime is one hour. HTTPS retains Secure. Explicit logout revokes the durable row. No password/TOTP storage, dependency, migration or authority/approval extension.
-
-Actual domain21/21 covers default/operator compatibility, seven-day Store reopen, thirty-day expiry, logout, malformed flags before provider calls and existing Host/Origin/CSRF/tamper checks. HTTP48/48, lint/typecheck/build and actual Chromium login8states/two actors pass. Keyboard selection, 2FA, long-lived cookie, new browser context restoration, revocation, reload and project isolation are checked. Eight responsive/axe states pass with zero page errors. Provider responses are synthetic and network-denying, no real account login/model call/cloud write is performed.
-
-The private local runner separately reproduced HOST_DENIED at the old HTTP3101 URL while the same HTTPS3102 request passed Host validation. It now redirects old HTTP navigation to fixed https://localhost:3102 and keeps the Next backend on private3103. Host/Origin checks in product code stay intact. The self-signed local certificate remains a browser trust prompt. Real Liara password/2FA entry by the owner is still required for actual sign-in.

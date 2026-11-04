@@ -28,18 +28,36 @@ archives together when backing up an installation. Do not erase them to fix a
 migration, approval, or schema error. SQLite is supported for a **single application
 process**; do not run replicas against the same state.
 
+## Login mode and remembered sessions
+
+A fresh `setup:local` installation uses `operator` mode and its private local key.
+An installation explicitly configured with `LAUNCHLANE_AUTH_MODE=liara` uses Liara
+email/password and optional two-factor verification. Setup preserves an existing
+mode; it does not convert Liara sign-in to operator sign-in. Connecting Liara as a
+deployment account is separate from selecting how visitors enter Launchlane.
+
+In Liara sign-in, **remember me** issues a 30-day session; otherwise the session
+lasts one hour. Operator sessions last one hour. Signing out revokes the session.
+Preserve the session secret and SQLite state across restarts; deleting or changing
+them invalidates existing sessions. These durations do not bypass approval expiry.
+
+The URL must match `LAUNCHLANE_ORIGIN` exactly, including scheme, hostname and port.
+`localhost` and `127.0.0.1`, HTTP and HTTPS, and different ports are different
+origins. A host/origin rejection should be fixed by matching the server's configured
+origin and opening that URL, then restarting this installation if its configuration
+changed. Do not disable request-host checks to hide the error.
+
 ## Production build on loopback
 
 When no operation is running, stop the development server before using its port:
 
 ```sh
-npm run build -- --webpack
+npm run build
 npm start
 ```
 
-Webpack is the explicitly validated build route for recent snapshots; `npm run build`
-still invokes Next's default bundler. A build does not contact or validate a real
-provider. Public hosting is separate: follow [hosted access](hosted-access.md),
+The default build command is validated in the recorded combined baseline. A build
+does not contact or validate a real provider. Public hosting is separate: follow [hosted access](hosted-access.md),
 configure the exact HTTPS origin and visitor auth mode, and validate the hosted
 runtime/sandbox. Local operator setup is not public sign-up.
 
@@ -75,7 +93,7 @@ All of these gates default to `false`:
 - `LAUNCHLANE_ENABLE_LOCAL_REPAIR`: scoped code repair with reviewed worker inputs.
 - `LAUNCHLANE_ENABLE_DATABASE_DATA_READS`: independent bounded PostgreSQL reads.
 
-Connect Liara through **حساب‌ها** (Accounts). Inventory/capabilities are validated
+Connect Liara through the **حساب‌ها و دسترسی** (Accounts and access) page. Inventory/capabilities are validated
 before proposals. A gate is never an approval: writes still need the exact
 actor/account/team/app/arguments/artifact decision, durable claim, and journal.
 A possibly accepted write must be reconciled before another write.
@@ -84,7 +102,7 @@ PostgreSQL reads also require `LAUNCHLANE_DATABASE_READ_NETWORKS`, a server-cont
 JSON array of exact `{accountId,teamId,networkId}` entries; it defaults empty.
 IDs must be 24 lowercase hex characters. Configure only a verified private route.
 A model-supplied URL, host, SQL, or credential cannot create read authority. See
-[ADR0038](decisions/0038-independent-postgres-data-observation.md).
+[ADR0038](decisions/database.md#0038-independent-postgres-data-observation).
 
 ## Worker and GitHub prerequisites
 
@@ -98,7 +116,7 @@ On Windows x64, `npm run setup:github` installs the checksum-verified official
 GitHub CLI into private local tools without altering global PATH or signing you in.
 Account access uses explicit device grant and credential storage. An existing
 operator CLI may be selected with `LAUNCHLANE_GITHUB_CLI_PATH`. See
-[the account decision](decisions/0001-account-connections.md).
+[the account decision](decisions/access.md#0001-account-connections).
 
 ## Another local port
 

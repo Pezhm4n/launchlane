@@ -1,7 +1,0 @@
-# Destination controls refresh — 2026-11-04
-
-After mounting before destination creation, ProjectLifecycle retained app=null because its load depended only on projectId. AgentPanel now remounts that existing component on a successful destination/publication action ID. Its heading also names start/stop/delete. Existing authenticated API, server decisions, single-send journals and the verified-stop prerequisite for deletion are unchanged; no schema/dependency change.
-
-Against d0025cb, `node scripts/test-lifecycle-refresh-browser.mjs --baseline` reproduced one initial null lifecycle read and absent controls after a successful UI receipt. After the fix, lint (existing warnings), typecheck, build, the new Chromium test, project-library browser19states and HTTP48/48 passed under the shared OS lock. The test uses a controlled synthetic terminal receipt and actual lifecycle GET/Store: controls appear without reload, keyboard opens them, delete remains unavailable before verified stop, three widths have no overflow/axe violations, and reload preserves access. The existing library suite separately exercises stop/start/delete/replay with synthetic provider. No real model call or cloud write; these are UI/application regressions, not live stop/delete acceptance.
-
-Local evidence: `.local/runtime-components/lifecycle-{baseline-r3,refresh,library,http,lint,types,build}.log`; screenshots/results in `.artifacts/lifecycle-refresh/2026-11-04T11-22-25.553Z/`. The owner destination was not stopped or deleted.
