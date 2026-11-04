@@ -22,6 +22,7 @@ import type { PostgresMigrationTestReceipt } from "../../contracts/postgres-migr
 import type { PostgresRunnerTestReceipt } from "../../contracts/postgres-runner-test.ts";
 import { pnpmInstallProgram } from "./pnpm-program.ts";
 import { isRunnerTestDatabase, preparesDatabaseArtifact } from "../../contracts/test-database.ts";
+import { migrationModuleProgram } from "./postgres-module-runner.ts";
 
 export const node22Image = projectBuildImage;
 export type CommandResult = { output: string; exitCode: number | null; signal: string | null };
@@ -162,6 +163,7 @@ const buildProgram = `const fs=require('node:fs'),{spawn}=require('node:child_pr
 ${frontendAssetProgram}
 ${testOutputProgram}
 ${disposableDatabaseProgram}
+${migrationModuleProgram}
 const plan=JSON.parse(process.argv[1]);let stage='cache';const watchdog=setTimeout(()=>process.exit(124),plan.buildCommand!==null?270000:110000);
 let managerExecutable='/usr/local/bin/npm';
 ${pnpmInstallProgram}
@@ -181,7 +183,7 @@ console.log('Launchlane: dependency staging released before build',JSON.stringif
 stage='build';if(plan.buildCommand!==null)await npm(['run','build']);
 if(plan.version===8||plan.version===9)verifyPnpmSource();
 if(plan.version===8&&plan.phase==='compile'){console.log('Launchlane: workspace compile only; tests, start, data and publication unverified');clearTimeout(watchdog);process.exit(0);}
-if(payload.runnerPhase===true){stage='migration';if(![3,4].includes(plan.testDatabase?.version))throw Error('migration runner mode denied');const runner=plan.testDatabase.runner,scripts=JSON.parse(fs.readFileSync('/work/project/package.json','utf8')).scripts,chain=['pre'+runner.script,runner.script,'post'+runner.script].filter(name=>scripts[name]!==undefined).map(name=>({name,command:scripts[name]}));if(createHash('sha256').update(JSON.stringify(chain)).digest('hex')!==runner.sha256)throw Error('migration script changed');await npm(['run',runner.script],false,{...env,...runtimeValues,NODE_ENV:'test'});console.log('Launchlane: reviewed source migration runner completed; independent data checks still required');clearTimeout(watchdog);return;}
+if(payload.runnerPhase===true){stage='migration';if(![3,4].includes(plan.testDatabase?.version))throw Error('migration runner mode denied');const runner=plan.testDatabase.runner;if(runner.kind==='module'){await runMigrationModule(plan,runtimeValues,env)}else{const scripts=JSON.parse(fs.readFileSync('/work/project/package.json','utf8')).scripts,chain=['pre'+runner.script,runner.script,'post'+runner.script].filter(name=>scripts[name]!==undefined).map(name=>({name,command:scripts[name]}));if(createHash('sha256').update(JSON.stringify(chain)).digest('hex')!==runner.sha256)throw Error('migration script changed');await npm(['run',runner.script],false,{...env,...runtimeValues,NODE_ENV:'test'});}console.log('Launchlane: reviewed source migration runner completed; independent data checks still required');clearTimeout(watchdog);return;}
 stage='test';if(plan.version===9){if(plan.component.testCommand!==null)await npm(['--dir=/work/project/'+plan.component.root,'run','test'],true)}else if(plan.version===7){if(!plan.testDatabase)for(const script of plan.fullstack.testScripts)await npm(['run',script],true)}else if(plan.testCommand!==null)await npm(['test'],plan.version===8);
 if(plan.version===8||plan.version===9)verifyPnpmSource();
 stage='workload';
@@ -220,10 +222,6 @@ export type NodeBuildDependencies = { command?: typeof docker; endpoint?: LocalD
 export async function runContainerBuild(workspace: string, tarballs: string, value: ProjectBuildPlan, signal: AbortSignal,
   onCreated?: (id: string) => void | Promise<void>, environment: readonly EnvironmentVariable[] = [], options: NodeBuildDependencies = {}): Promise<ContainerBuildResult> {
   const plan = parseProjectBuildPlan(value), values = environmentVariables(environment);
-  if (plan.version === 9) {
-    await writeFile(join(tarballs, "launchlane-component-build.cjs"), `${componentPackProgram}\n${componentMaterializeProgram}\n${componentRuntimeProgram}\n${componentCheckProgram}\n${buildProgram}`, { flag: "wx", mode: 0o600 });
-    await writeFile(join(tarballs, "launchlane-component-plan.json"), JSON.stringify(plan), { flag: "wx", mode: 0o600 });
-  }
   const compatibility = plan.version === 7 && plan.testDatabase !== undefined;
   ensure(compatibility ? !!options.fixture && !!options.endpoint && values.length === 0 : options.fixture === undefined,
     "TEST_DATABASE_BINDING_CHANGED","آزمون ساختگی به namespace همان job و ورودی خالی از تنظیمات واقعی نیاز دارد.",409);
@@ -238,6 +236,14 @@ export async function runContainerBuild(workspace: string, tarballs: string, val
   ensure(values.every(row => isApplicationEnvironmentKey(row.key)), "ENV_SCOPE_DENIED", "تنظیمات runner از اطلاعات پروژه جداست.", 409);
   ensure(values.map(row => row.key).sort().join("\0") === [...(plan.sourceEnvironment?.keys ?? plan.environment?.keys ?? [])].sort().join("\0"), "ENV_REFERENCE_CHANGED", "ورودی محیط build با تصمیم برابر نیست.", 409);
   ensure(!workspace.includes(",") && !tarballs.includes(","), "SANDBOX_PATH_DENIED", "مسیر ورودی build معتبر نیست.", 403);
+  // Program and public plan use the existing read-only dependency mount, not OS command-line space.
+  // Private values stay in stdin. Each fresh worker gets new, exclusively created files.
+  const programName = `launchlane-build-${randomUUID()}`, planBytes = JSON.stringify(plan), program = plan.version === 9
+    ? `${componentPackProgram}\n${componentMaterializeProgram}\n${componentRuntimeProgram}\n${componentCheckProgram}\n${buildProgram}` : buildProgram;
+  ensure(Buffer.byteLength(planBytes) <= 512 * 1024 && Buffer.byteLength(program) <= 256 * 1024, "BUILD_INPUT_LIMIT", "طرح و برنامهٔ worker از سقف ورودی محدود بیشترند.", 413);
+  await writeFile(join(tarballs, `${programName}.cjs`), program, { flag: "wx", mode: 0o444 });
+  await writeFile(join(tarballs, `${programName}.json`), planBytes, { flag: "wx", mode: 0o444 });
+  const bootstrap = `process.argv[1]=require('node:fs').readFileSync('/tarballs/${programName}.json','utf8');require('/tarballs/${programName}.cjs')`;
   let id: string | null = null;
   const name = `launchlane-build-${compatibility ? options.expectedJobId : randomUUID()}`;
   let fixtureIdentityVerified = false;
@@ -265,7 +271,7 @@ export async function runContainerBuild(workspace: string, tarballs: string, val
       ...(plan.version === 7 && plan.fullstack.workerSqlite ? ["--tmpfs", "/data:rw,nosuid,nodev,noexec,size=268435456,uid=1000,gid=1000,mode=0700"] : []),
       "--mount", `type=bind,source=${workspace},target=/source,readonly`, "--mount", `type=bind,source=${tarballs},target=/tarballs,readonly`,
       // Frontend commands run in an exec process; PID 1 keeps tmpfs alive until export and cleanup.
-      plan.image, "node", "-e", ...(plan.version === 5 || plan.version === 7 || plan.version === 9 ? ["setTimeout(()=>process.exit(124),330000)"] : [buildProgram, "--", JSON.stringify(plan)])], signal, 4096); }
+      plan.image, "node", "-e", ...(plan.version === 5 || plan.version === 7 || plan.version === 9 ? ["setTimeout(()=>process.exit(124),330000)"] : [bootstrap])], signal, 4096); }
     catch (error) {if (!compatibility) throw error;created={output:"",exitCode:null,signal:"LOST_RESPONSE"};}
     try { id = await resolveCreatedContainer(created, { name, label: "locked-build-v1", image: plan.image },command); }
     catch(error){if(!compatibility)throw error;throw new AppError("SANDBOX_CLEANUP_UNCONFIRMED","پاسخ ساخت worker آزمون تعیین تکلیف نشد؛ ساخت تازه مجاز نیست.",503);}
@@ -278,9 +284,7 @@ export async function runContainerBuild(workspace: string, tarballs: string, val
     }
     const input = Buffer.from(JSON.stringify(compatibility ? {environment:[],testDatabase:options.fixture, ...(signing.length ? { testSigningValues: signing } : {}), ...(options.runnerPhase ? { runnerPhase: true } : {})} : values));
     let result: CommandResult;
-    try { result = await command(plan.version === 5 || plan.version === 7 || plan.version === 9 ? ["exec", "--interactive", id, "/usr/local/bin/node", "-e", ...(plan.version === 9
-      ? ["process.argv[1]=require('node:fs').readFileSync('/tarballs/launchlane-component-plan.json','utf8');require('/tarballs/launchlane-component-build.cjs')"]
-      : [buildProgram, "--", JSON.stringify(plan)])] : ["start", "--attach", "--interactive", id], signal, 32768, input); }
+    try { result = await command(plan.version === 5 || plan.version === 7 || plan.version === 9 ? ["exec", "--interactive", id, "/usr/local/bin/node", "-e", bootstrap] : ["start", "--attach", "--interactive", id], signal, 32768, input); }
     finally { input.fill(0); }
     if (signing.length) result = { ...result, output: redact(result.output, signing.map(row => row.value)) };
     if (plan.version === 5 || plan.version === 7 || plan.version === 9) {

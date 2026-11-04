@@ -10,8 +10,7 @@ import { ensure } from "../errors.ts";
 import { exactKeys, object } from "../../contracts/validation.ts";
 import type { PostgresFixtureBinding } from "./postgres-fixture.ts";
 import { migrationSource } from "./postgres-migration-test.ts";
-import { sourceMigrationRunner } from "./postgres-runner-test.ts";
-import { fingerprint } from "../policy/action.ts";
+import { validateSourceRunner } from "./postgres-runner-test.ts";
 import type { PostgresRunnerTarget } from "../../contracts/postgres-runner-test.ts";
 
 export function validateTestDatabaseSource(files: readonly SourceFile[], profile: ProjectProfile, value: DisposableTestDatabase): DisposableTestDatabase {
@@ -30,7 +29,7 @@ export function validateTestDatabaseSource(files: readonly SourceFile[], profile
   if (isRunnerTestDatabase(plan)) {
     for (const target of plan.targets) if (target.bootstrap) baselineSource(files, target.bootstrap);
   }
-  if (isRunnerTestDatabase(plan)) ensure(fingerprint(sourceMigrationRunner(files, plan.runner.script)) === fingerprint(plan.runner), "MIGRATION_RUNNER_CHANGED", "script و hookهای migration با source برابر نیستند.", 409);
+  if (isRunnerTestDatabase(plan)) validateSourceRunner(files, plan.runner);
   return plan;
 }
 

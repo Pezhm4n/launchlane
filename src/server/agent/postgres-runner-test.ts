@@ -1,7 +1,8 @@
 import { baselineSource } from "./postgres-baseline.ts";
 import { createHash } from "node:crypto";
 import { object } from "../../contracts/validation.ts";
-import { runnerScriptName, parsePostgresMigrationRunner, parsePostgresRunnerTestReceipt, type PostgresMigrationRunner, type PostgresRunnerTarget, type PostgresRunnerTestReceipt } from "../../contracts/postgres-runner-test.ts";
+import { runnerScriptName, parsePostgresMigrationRunner, parsePostgresRunnerTestReceipt, type PostgresMigrationRunner, type PostgresScriptRunner, type PostgresRunnerTarget, type PostgresRunnerTestReceipt } from "../../contracts/postgres-runner-test.ts";
+import { sourceMigrationModule, migrationModuleInput } from "./postgres-module-runner.ts";
 import type { DisposableTestDatabase } from "../../contracts/test-database.ts";
 import type { SourceFile } from "../workspace/inspect.ts";
 import type { PostgresFixtureBinding, PostgresFixtureSql } from "./postgres-fixture.ts";
@@ -9,13 +10,21 @@ import type { CommandResult } from "./container.ts";
 import { ensure } from "../errors.ts";
 import { fingerprint } from "../policy/action.ts";
 
-export function sourceMigrationRunner(files: readonly SourceFile[], scriptValue: unknown): PostgresMigrationRunner {
+export function sourceMigrationRunner(files: readonly SourceFile[], scriptValue: unknown): PostgresScriptRunner {
   const script = runnerScriptName(scriptValue), file = files.find(file => file.path === "package.json");
   ensure(file, "MIGRATION_RUNNER_INVALID", "package.json همان source لازم است.", 409);
   const scripts = object(object(JSON.parse(file.content.toString("utf8"))).scripts);
   ensure(typeof scripts[script] === "string" && scripts[script].trim(), "MIGRATION_RUNNER_INVALID", "script انتخاب‌شده باید در source موجود باشد؛ فرمانی ساخته نمی‌شود.", 409);
   const chain = [`pre${script}`, script, `post${script}`].filter(name => scripts[name] !== undefined).map(name => ({ name, command: scripts[name] }));
-  return parsePostgresMigrationRunner({ script, chain, sha256: createHash("sha256").update(JSON.stringify(chain)).digest("hex") });
+  const checked = parsePostgresMigrationRunner({ script, chain, sha256: createHash("sha256").update(JSON.stringify(chain)).digest("hex") });
+  ensure(!("kind" in checked), "MIGRATION_RUNNER_INVALID", "script اصلی لازم است.", 409); return checked;
+}
+export function validateSourceRunner(files: readonly SourceFile[], runner: PostgresMigrationRunner): void {
+  const actual = "kind" in runner ? sourceMigrationModule(files, migrationModuleInput(runner)) : sourceMigrationRunner(files, runner.script);
+  ensure(fingerprint(actual) === fingerprint(runner), "MIGRATION_RUNNER_CHANGED", "runner و ورودی‌های مصوب با source برابر نیستند.", 409);
+}
+export function migrationRunnerLabel(runner: PostgresMigrationRunner): string {
+  return "kind" in runner ? `${runner.module.path}#${runner.module.exportName}` : `npm run ${runner.script}`;
 }
 const literal = (value: string) => `'${value.replaceAll("'", "''")}'`;
 const scalar = (column: string) => `COALESCE(pg_catalog.to_jsonb(t."${column}"),'null'::pg_catalog.jsonb)`;
@@ -44,7 +53,7 @@ export async function runPostgresRunnerTest<T extends CommandResult>(options: {
   run: (phase: "runner" | "application") => Promise<T>; take: () => void;
 }): Promise<T & { databaseRunner?: PostgresRunnerTestReceipt }> {
   const { plan, fixture, sql, signal, take } = options;
-  ensure(fingerprint(sourceMigrationRunner(options.files, plan.runner.script)) === fingerprint(plan.runner), "MIGRATION_RUNNER_CHANGED", "script و hookهای واقعی با تصمیم برابر نیستند.", 409);
+  validateSourceRunner(options.files, plan.runner);
   ensure(fixture.targets?.length === plan.targets.length && plan.targets.every((target, index) => { const bound = fixture.targets?.[index]; return bound?.id === target.id && bound.database === `launchlane_target_${index}` && bound.user === `launchlane_app_${index}`; }), "MIGRATION_ROLE_REQUIRED", "اتصال‌های مستقل runner باید متعلق به همین طرح و roleهای محدود باشند.", 409);
   const observe = async (allowAbsent = false): Promise<Observed> => {
     const result = [];

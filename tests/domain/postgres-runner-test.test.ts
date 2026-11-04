@@ -30,6 +30,7 @@ async function prepared() {
 }
 test("the shared tool binds an original runner and all hooks and separates source-backed targets without executing or fabricating hashes", async () => {
   const f = await prepared(); try {
+    assert.ok(!("kind" in f.plan.runner));
     assert.deepEqual(f.plan.runner.chain.map(part => part.name), ["predb:migrate", "db:migrate"]); assert.equal(f.plan.runner.sha256, sourceMigrationRunner(f.files, "db:migrate").sha256);
     assert.deepEqual(f.plan.environmentKeys, ["AUTH_DB_URL", "PROFILE_DB_URL"]); assert.deepEqual(f.plan.targets.map(target => target.id), ["auth", "profile"]);
     assert.equal(f.job.afterTest, null); assert.deepEqual(f.job.containerIds, []); assert.equal(f.job.artifact, null);

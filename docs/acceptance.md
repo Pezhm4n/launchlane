@@ -1,5 +1,7 @@
 # معیارهای پذیرش محصول
 
+افزودهٔ AC24/26/32/34، ۲۰۲۶-۱۱-۰۴: انتخاب تابع migration اصلیِ exportشده به ابزار مشترک، تصمیم وب و worker متصل شد. تابع TypeScript/tsconfig/۱۲SQL گلستان با دو هدف، ledger و دادهٔ مستقل و artifact در محیط موقت گذشت؛ API این آزمایش harness است. ورودی محدود فایل در mount فقط‌خواندنی، خطای واقعی command line ویندوز را رفع کرد. [snapshot، آزمون‌ها و حدود](evidence/database.md#source-module-runners). این پذیرش شامل API کامل اصلی، migration مقصد، دادهٔ موجود یا ماندگاری provider نیست؛ مدل مصنوعی است و دیتابیس اصلی تغییر نکرده است.
+
 افزودهٔ AC24/26/32/34، ۲۰۲۶-۱۱-۰۴: ورودی امضای source-bound فقط در worker برنامه، ثبات بین دو اجرای تازه، رد نشت در artifact و مسیر واقعی وب→تصمیم→SQL/API در candidate r3 پذیرفته شدند. رگرسیون runner/۱۲SQL گلستان با API harness و ورود کامل source با fixtureهای دقیقِ تأییدشده نیز گذشتند. [حدود و آزمون‌ها](evidence/database.md#disposable-application-inputs). اجرای کل API اصلی، تابع migration فاقد npm script و migration/ماندگاری مقصد هنوز پذیرفته نشده‌اند؛ مدل/provider مصنوعی‌اند و دیتابیس اصلی تغییر نکرده است.
 
 افزودهٔ AC24/26/32/34، ۲۰۲۶-۱۱-۰۴. ساختار اولیهٔ schema در مسیر وب و ابزارهای مشترک

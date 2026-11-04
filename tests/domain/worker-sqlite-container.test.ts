@@ -1,11 +1,16 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { test } from "node:test";
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { node24BuildImage, parseProjectBuildPlan } from "../../src/contracts/project-build.ts";
 import { workerSqliteProgramHash, workerSqliteStart, workerSqliteBuild } from "../../src/server/agent/worker-sqlite-programs.ts";
 import { runContainerBuild, type docker } from "../../src/server/agent/container.ts";
 
 test("private source inputs reach only the approved Worker stdin; the database is a bounded isolated test mount", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "launchlane-worker-input-"));
+  try {
   const value = "controlled-private-worker-input", id = "a".repeat(64), calls: string[][] = [];
   const plan = parseProjectBuildPlan({ version: 7, nodeVersion: "24", image: node24BuildImage,
     fullstack: { version: 2, entryFile: "launchlane-worker-server.mjs", backendScript: "server", startCommand: workerSqliteStart, buildCommand: workerSqliteBuild,
@@ -22,7 +27,7 @@ test("private source inputs reach only the approved Worker stdin; the database i
     if (args[0] === "inspect") return { output: JSON.stringify({ Running: true, OOMKilled: false }), exitCode: 0, signal: null };
     return { output: "", exitCode: 0, signal: null };
   };
-  const result = await runContainerBuild("/reviewed/source", "/reviewed/dependencies", plan, AbortSignal.timeout(5000), undefined, [{ key: "SESSION_SECRET", value }], { command });
+  const result = await runContainerBuild("/reviewed/source", directory, plan, AbortSignal.timeout(5000), undefined, [{ key: "SESSION_SECRET", value }], { command });
   assert.equal(result.exitCode, 73);assert.equal(result.buildOutput, undefined);
   const create = calls.find(args => args[0] === "create");assert.ok(create);
   assert.ok(create.includes("/data:rw,nosuid,nodev,noexec,size=268435456,uid=1000,gid=1000,mode=0700"));
@@ -32,4 +37,8 @@ test("private source inputs reach only the approved Worker stdin; the database i
   const before = calls.length;
   await assert.rejects(runContainerBuild("/reviewed/source", "/reviewed/dependencies", plan, AbortSignal.timeout(5000), undefined, [{ key: "UNREVIEWED", value }], { command }), { code: "ENV_REFERENCE_CHANGED" });
   assert.equal(calls.length, before, "changed input keys must fail before container creation");
+  const files = await readdir(directory); assert.equal(files.length, 2);
+  for (const path of files) assert.equal((await readFile(join(directory, path), "utf8")).includes(value), false, "private input never enters program or plan files");
+  assert.ok(calls.every(args => args.join(" ").length < 4096));
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });

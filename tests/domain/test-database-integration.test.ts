@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
+import { basename, join } from "node:path";
 import { PassThrough } from "node:stream";
 import { EventEmitter } from "node:events";
 import { runInNewContext } from "node:vm";
@@ -132,7 +133,11 @@ function engine(f:Awaited<ReturnType<typeof sourceFixture>>,cleanupFails=false) 
       if(a.includes("/proc/self/mountinfo"))return result(["/var/lib/postgresql/data","/var/run/postgresql"].map(path=>`1 0 0:2 / ${path} rw,nosuid,nodev,noexec - tmpfs tmpfs rw`).join("\n"));
       assert.ok(input);const payload=JSON.parse(input.toString());assert.deepEqual(payload.environment,[]);
       assert.equal(input.includes(Buffer.from(f.config.modelKey)),false);assert.equal(input.includes(Buffer.from("private-local-fixture-value")),false);
-      const program=a[a.indexOf("-e")+1];assert.ok(program);await runFixedWorker(program,JSON.parse(a.at(-1)??"null"),payload,events);return result("synthetic command transport; fixed worker driver executed");
+      const bootstrap=a[a.indexOf("-e")+1];assert.ok(bootstrap);assert.ok(bootstrap.length<512,"OS command line carries only a bounded loader");
+      const runtime={argv:["node",""]},directory=join(f.config.stateDir,"repair-tarballs",jobId);
+      const file=(path:string)=>{assert.match(path,/^\/tarballs\/launchlane-build-[a-f0-9-]{36}\.(?:json|cjs)$/);return readFileSync(join(directory,basename(path)),"utf8");};
+      await runInNewContext(bootstrap,{process:runtime,require:(path:string)=>path==="node:fs"?{readFileSync:file}:runFixedWorker(file(path),JSON.parse(runtime.argv[1]??"null"),payload,events)});
+      return result("synthetic command transport; fixed worker driver executed");
     }
     if(a[0]==="rm"){if(a.at(-1)===nodeId){if(cleanupFails)return result("cleanup unavailable",1);node=false;events.push("node.remove");}else{pg=false;events.push("pg.remove");}return result(a.at(-1));}
     throw Error(`unexpected controlled engine operation ${a[0]}`);

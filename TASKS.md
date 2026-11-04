@@ -4,11 +4,11 @@
 
 این فایل backlog جاری است. گزارش‌های اجرا، تعداد تست و تاریخچهٔ هر برش در مرجع موضوعیِ [شواهد](docs/verification.md) قرار دارند. وضعیت «پیاده‌شده» با پذیرش کامل پروژه یا provider یکسان نیست.
 
-ورودی امضای مصنوعیِ متصل به source/تصمیم و محدود به دو اجرای برنامه، تشخیص listener تایپ‌دار، مسیر وب→worker و رگرسیون تازهٔ runner/SQL گلستان اعتبارسنجی شدند. [شواهد و failureهای حفظ‌شده](docs/evidence/database.md#disposable-application-inputs). ورود کامل source نیز با بازبینی دقیق سه fixture تأییدشده گذشت. مرز بعدی، فراخوانی تابع migration اصلی بدون npm script مستقل و آزمون API اصلی است؛ migration مقصد و ماندگاری provider همچنان در هدف‌اند. دیتابیس اصلی و allowance مدل تغییر نکردند.
+فراخوانی تابع migration اصلی بدون npm script مستقل به ابزار مشترک، تصمیم وب و worker متصل شد. تابع TypeScript و tsconfig و۱۲SQL گلستان با ledger و دادهٔ مستقل روی دو دیتابیس موقت گذشتند؛ API این آزمایش، harness صریح است. محدودیت command line ویندوز با ورودی فایلِ محدود و فقط‌خواندنی رفع شد و ورودی خصوصی همچنان stdin-only ماند. [شواهد، snapshotها و failureهای حفظ‌شده](docs/evidence/database.md#source-module-runners). مرز بعدی، workload مستقل روی API کامل اصلی است؛ تست history خودش دادهٔ fixture را پاک می‌کند و جای این پذیرش نیست. migration مقصد، دادهٔ موجود و ماندگاری provider همچنان در هدف‌اند. دیتابیس اصلی و allowance مدل تغییر نکردند.
 
 ## اولویت‌های اجرایی
 
-1. **برنامهٔ کامل و داده:** اتصال تابع exportشدهٔ runner اصلی و آزمون API کامل روی منابع موقت؛ سپس قرارداد مستقل migration/دادهٔ مقصد و سازگاری rollback. baseline منبع و ورودی امضای صریح از مسیر مشترک موجود استفاده می‌کنند.
+1. **برنامهٔ کامل و داده:** workload متصل به source برای API اصلی، دادهٔ fixture و اثر ماندگار آن روی منابع موقت، همراه با حفظ تست‌های اصلی؛ سپس قرارداد مستقل migration/دادهٔ مقصد و سازگاری rollback. تابع runner، baseline منبع و ورودی امضای صریح به مسیر مشترک متصل‌اند.
 2. **Topology:** root و componentهای مستقل backend/API/worker/queue consumer/scheduler با نیاز منابع واقعی؛ پذیرش یک frontend جای بقیه را نمی‌گیرد.
 3. **۱۴ خانواده:** گسترش نسخه/config/dependency و بستن مرزهای raw corpus از همان Agent/web/MCP، artifact و workload اصلی.
 4. **حلقهٔ شکست:** failure واقعی → تحقیق grounded → repair محدود → آزمون مستقل → تصمیم publication → همان رفتار روی release تازه.

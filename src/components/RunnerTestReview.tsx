@@ -6,7 +6,7 @@ export function RunnerTestReview({ database, receipt }: { database: Extract<Disp
   return <section aria-labelledby="migration-test-title">
     <h4 id="migration-test-title">آزمون آماده‌سازی و دادهٔ چند دیتابیس</h4>
     {database.version === 4 ? <p>پس از موفقیت همین آزمون‌ها، بایت‌های ساخته‌شده بررسی و بستهٔ آمادهٔ انتشار ساخته می‌شود. داده و نشانی دیتابیس موقت وارد بسته نمی‌شوند؛ اتصال منابع واقعی و انتشار، تصمیم‌های جدا دارند.</p> : null}
-    <p>فرمان موجود پروژه <bdi>npm run {database.runner.script}</bdi> در worker محدود اجرا می‌شود. ترتیب و transactionها را همان runner پروژه مدیریت می‌کند؛ SQL اصلی تغییر نمی‌کند.</p>
+    <p>{"kind" in database.runner ? <>تابع اصلی <bdi>{database.runner.module.path}#{database.runner.module.exportName}</bdi> با Pool و آرگومان جدا برای هر دیتابیس</> : <>فرمان موجود پروژه <bdi>npm run {database.runner.script}</bdi></>} در worker محدود اجرا می‌شود. ترتیب و transactionها را همان runner پروژه مدیریت می‌کند؛ SQL اصلی تغییر نمی‌کند.</p>
     <p className="note">{number.format(database.targets.length)} دیتابیس با role و ورودی اتصال جدا روی یک PostgreSQL موقت ساخته می‌شوند. این تصمیم فقط دادهٔ ساختگی همین آزمون را پوشش می‌دهد؛ ساخت منابع واقعی، migration تولیدی و انتشار تصمیم جدا دارند.</p>
     <p>پس از خواندن مستقل schema و داده، آزمون اصلی برنامه باید در هر دیتابیس مقدار تازه بنویسد. اجرای دوبارهٔ runner باید همان مقدار را حفظ کند؛ سپس یک برنامهٔ تازه نیز همان داده را می‌خواند.</p>
     <ul>{database.targets.map(target => <li key={target.id}><bdi>{target.id}</bdi> — {target.environmentKeys.map(key => <bdi key={key}> {key} </bdi>)}</li>)}</ul>

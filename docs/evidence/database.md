@@ -6,6 +6,7 @@ These versioned records preserve the original decisions, source revisions, failu
 
 ## Records
 
+- [Source-module migration runners](#source-module-runners)
 - [Disposable application signing inputs](#disposable-application-inputs)
 
 - [Data-tested prepared artifacts — 2026-10-29](#data-tested-artifact)
@@ -945,3 +946,126 @@ restart permission covered the shared runtime interruption. A normal official re
 timed out; official forced stop/start recovered Linux engine access. Owned containers
 were cleaned and absence confirmed; no prune or individual unrelated-container
 operation was performed. Failed probes are not counted as runtime passes.
+
+<a id="source-module-runners"></a>
+## Source-module migration runners — 2026-11-04
+
+The shared build tool can now select an existing exported migration function when
+the source has no npm migration script. The guided review, build approval, Agent/MCP
+registry, isolated worker and independent per-target data checks use the same path.
+See [ADR0052](../decisions/database.md#0052-source-module-migration-runners).
+
+### Candidate and reproducible path
+
+Candidate `database-module-r4` is a frozen source snapshot based on `51f99e3`, with
+Node24.18.0 and the unchanged pinned dependency lock. Its private19-file source/test/
+script manifest has SHA256
+`e555542b9d54b892dc0ab141adb8e0b2d94ae43a43abfa04d333b80293e55b38`.
+Documentation added after freezing is checked separately. No application secret,
+source dump, real model request or provider write is part of this validation.
+
+The public module fixture has no npm migration script. Its unchanged SQL and original
+API test are exercised through `propose_project_build`, an actual approved Agent job,
+two runner workers, two application workers and independent PostgreSQL reads. A second
+case makes the original module throw: no application worker, artifact or passing data
+receipt is issued. Signing continuity, known-secret output rejection and ordinary
+bootstrap roles retain their original assertions.
+
+```sh
+node --test --test-concurrency=1 tests/sandbox/postgres-module-runner.test.ts
+```
+
+The actual guided browser path uses the same fixture, imported schema, authenticated
+decision API and real Docker workers. On PowerShell, after build and with the normal
+cached images/dependencies:
+
+```powershell
+$env:LAUNCHLANE_TEST_MODULE_BROWSER='true'
+node scripts/test-migration-worker-browser.mjs
+Remove-Item Env:LAUNCHLANE_TEST_MODULE_BROWSER
+```
+
+An explicitly configured operator npm content cache is used in the recorded browser
+run. Model/provider transports are synthetic and deny external integration requests.
+The browser changes no decision or receipt response and performs actual upload,
+keyboard approval, SQL/API/data checks, replay409 and reload. The same receipt appears
+at280/320/390/768/1280 without horizontal overflow or axe violations.
+
+R4 passed typecheck, Webpack production build and lint with zero errors,52 existing
+warnings/47 infos. HTTP50/50 includes actual HTTPS/MCP access. Its real Chromium
+module path passed15 layouts, three synthetic model requests, five containers and
+zero browser errors/external requests. The original Golestan module case below also
+passed on r4. The complete r4 domain suite passed905/905, zero failures, skips or
+cancellations (366,528ms). These core results all belong to the same final r4
+source snapshot; no counts are assembled from earlier revisions. Final topic/docs
+updates separately passed `docs:check` for40 documents and three documentation
+regressions. Staged source was compared against all19 frozen manifest paths.
+
+Additional checks belong to the preceding `database-module-r3` snapshot, whose
+manifest is `554db5d6a76c6465fbc3a18a31f8c78ca7dbcd03facf60657ea2d4d3988ae0dc`:
+domain905/905, HTTP50/50, type/lint/build, real module browser15, five actual
+PostgreSQL/module/signing/bootstrap cases and one actual ordinary Node environment
+build all passed. Shared Node consumer regressions passed26/26:23 exercise actual
+Docker and three are parser/VM checks. They cover native Node20/22/24, frontend
+assets, seven pnpm workspace cases and ten compiled pnpm component cases, including
+original-test, API, skipped-test, altered-oracle and background-counterfeit failures.
+No cases were skipped. These additional Docker results are not fresh r4 reruns.
+
+R4 changes only argument-key ordering and its regression relative to r3: it uses
+locale-independent ordering for stable invocation hashes across hosts. Other worker,
+transport, UI and execution source remains byte-identical in the frozen manifests.
+
+### Original Golestan module
+
+At corpus revision `f0d4f4499e7cf605bb2a2e33e530c4c6dcf237ed`, the complete reviewed
+source and its isolated copy have the same source hash recorded in the previous
+section. The exact original `server/db/migrationRunner.ts` has SHA256
+`e1b5f5d0e3a4c018f31d554212ac959292f657766622e6cac5b5a5b11a973936`;
+it matches the original project file. Its original tsconfig and twelve SQL files are
+unchanged. No project-name branch or generated migration bridge is used by the product.
+
+The module's `runDatabaseMigrations` export receives a separate ordinary Pool and
+`databases:['AUTH_DB']` / `['PROF_DB']` for the two targets. The successful job uses
+five actual containers, checks five columns per target and independently verifies
+7+6 original ledger checksum/status rows. A fixture API writes a fresh value in each
+original schema; replay and a second application preserve it. A compiled artifact is
+selected through the existing path; no publication occurs.
+
+The source-derived fixture hash is
+`ded4940e52b0c73c4d060982f18f9f70c8625e08ef8d15d529bda548d56bcdeb`, its prepared
+execution source is `1999db95c94d8f01db8e481014021d73dd9ec5097c8d7df2035d575f0967a91f`,
+and the module invocation hash is
+`fa5be0dea831da1de43fb169cd496fe19d54b5970250eca7b88239b0d8bf5858`.
+The fixture retains pg8.16.3 and uses the source's tsx4.21.0 on pinned Node22.23.3;
+this is not execution of the complete Golestan lockfile or original HTTP application.
+
+### Retained failures and limits
+
+An initial typecheck caught optional container-ID handling in the new test. An old
+exact tool-field expectation also needed the new declared field. These expectations
+were corrected while invalid values, mixed runner modes and target changes remain
+rejected. The first browser worker stopped before creating a container because its
+locked dependency read was unavailable; the explicit content-cache rerun passed.
+No oracle or timeout was relaxed.
+
+The first TypeScript corpus attempt failed in the test setup because npm user/global
+config paths were the same. After separating those empty fixture configs, actual
+Windows spawning reproduced `ENAMETOOLONG` at33,072 argument characters. A diagnostic
+recorded lengths/error code only. The fixed read-only file protocol passed the same
+module, SQL, schema and API oracles. Private values remain stdin-only and are absent
+from the staged worker program/plan files.
+
+Destination migration, full original-app writes, database restart, existing-data
+compatibility and provider persistence remain unaccepted. Original deployed data and
+configuration were not accessed or modified. The next boundary is a source-bound
+original-API workload and complete-project execution, followed by separate exact
+destination migration authority and its data readback; local fixture success grants
+none of that authority.
+
+Source-only follow-up on the complete original HTML found two stylesheet references
+to `fonts.googleapis.com` through the actual worker parser. No external request or
+project script was executed for that read. The built original HTML still needs its
+own workload test and controlled external-resource contract; the source observation
+is not a measured build failure or full browser acceptance. The original history
+integration test also removes its fixture user in `finally`, so it cannot substitute
+for an independent retained-write workload of the original API.

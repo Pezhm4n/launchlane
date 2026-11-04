@@ -9,11 +9,12 @@ import AxeBuilder from "@axe-core/playwright";
 import { startTestServer } from "./test-server.mjs";
 import { Store } from "../src/server/persistence/store.ts";
 import { AgentRepository } from "../src/server/agent/store.ts";
+import { addModuleRunner } from "../tests/helpers/module-runner-fixture.ts";
 
 // Real browser -> authenticated HTTP -> Agent/job -> real Docker/PostgreSQL -> UI.
 // Only the model transport is synthetic. There is no request/decision/receipt interception.
-const signingMode = process.env.LAUNCHLANE_TEST_SIGNING_BROWSER === "true";
-const baselineMode = signingMode || process.env.LAUNCHLANE_TEST_BASELINE_BROWSER === "true";
+const moduleMode = process.env.LAUNCHLANE_TEST_MODULE_BROWSER === "true", signingMode = process.env.LAUNCHLANE_TEST_SIGNING_BROWSER === "true";
+const baselineMode = moduleMode || signingMode || process.env.LAUNCHLANE_TEST_BASELINE_BROWSER === "true";
 const artifactMode = process.env.LAUNCHLANE_TEST_DATA_ARTIFACT_BROWSER === "true", runnerMode = baselineMode || artifactMode || process.env.LAUNCHLANE_TEST_RUNNER_BROWSER === "true", expectedText = runnerMode ? "Runner lifecycle" : "Migration lifecycle",
   retainedText = runnerMode ? "همان داده در همهٔ دیتابیس‌ها پس از اجرای دوبارهٔ runner و برنامه حفظ شد." : "همان داده پس از اجرای دوبارهٔ برنامه حفظ شد.";
 const server = await startTestServer({ agentFixture: true }), browser = await chromium.launch({ headless: true });
@@ -34,6 +35,7 @@ const calls = async () => { try { return (await readFile(server.modelLog, "utf8"
 const originalFixture = resolve(runnerMode ? "tests/fixtures/postgres-runner" : "tests/fixtures/postgres-migration"), fixture = baselineMode ? await mkdtemp(join(tmpdir(), "launchlane-baseline-fixture-")) : originalFixture, originalPaths = runnerMode ? ["001_entries.sql", "oracle.test.cjs", "migrate.cjs", "preflight.cjs"] : ["001_entries.sql", "oracle.test.cjs"], originals = await Promise.all(originalPaths.map(path => readFile(join(originalFixture, path)))), layouts = [];
 if (baselineMode) {
   await cp(originalFixture, fixture, { recursive: true });
+  if (moduleMode) await addModuleRunner(fixture);
   await writeFile(join(fixture, ".env"), "JWT_SECRET=private_project_material_12345\n");
   const preflight = await readFile(join(fixture, "preflight.cjs"), "utf8");
   await writeFile(join(fixture, "preflight.cjs"), `${preflight}\nconst {Client}=require("pg");(async()=>{for(const key of ["AUTH_DB_URL","PROFILE_DB_URL"]){const c=new Client({connectionString:process.env[key]});await c.connect();try{await c.query("SELECT id FROM public.users LIMIT 0")}finally{await c.end()}}})().catch(e=>{console.error(e.message);process.exitCode=1});`);
@@ -117,6 +119,10 @@ try {
   assert.equal(proposed.state, "needs_approval"); assert.equal(proposed.repair.state, "proposed"); assert.deepEqual(proposed.repair.containerIds, []);
   assert.equal(proposed.repair.afterTest, null); assert.equal(proposed.repair.postgresFixtureId, undefined); assert.equal(await calls(), baselineMode ? 2 : 1);
   assert.equal(await page.locator(".optional-chat:visible").count(), 0);
+  if (moduleMode) {
+    assert.equal(proposed.repair.build.testDatabase.runner.kind, "module");
+    await review.getByText(/تابع اصلی/).waitFor(); await review.getByText("migrate.mjs#migrate", { exact: true }).waitFor();
+  }
   if (signingMode) {
     assert.deepEqual(proposed.repair.build.testDatabase.testSigningKeys, ["JWT_SECRET"]);
     await review.getByText(/مقدار امضای تصادفی/).waitFor();

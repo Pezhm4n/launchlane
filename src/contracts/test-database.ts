@@ -34,6 +34,7 @@ export function parseDisposableTestDatabase(value: unknown): DisposableTestDatab
   if (row.version === 1) return {version:1,...base};
   if (runnerMode) {
     const targets = parsePostgresRunnerTargets(row.targets), runner = parsePostgresMigrationRunner(row.runner);
+    if ("kind" in runner) ensure(JSON.stringify(runner.module.targets.map(target => target.id)) === JSON.stringify(targets.map(target => target.id)), "MIGRATION_MODULE_INVALID", "فراخوانی ماژول باید دقیقاً به همان دیتابیس‌های طرح متصل باشد.", 409);
     const testSigningKeys = row.testSigningKeys === undefined ? undefined : (() => {
       ensure(Array.isArray(row.testSigningKeys) && row.testSigningKeys.length > 0 && row.testSigningKeys.length <= 6 && row.testSigningKeys.every(key => typeof key === "string" && canGenerateSigningSecret(key)) && new Set(row.testSigningKeys).size === row.testSigningKeys.length,
         "TEST_SIGNING_KEYS_INVALID", "فقط نام ورودی امضای آزمایشی مجاز است؛ مقدار یا credential واقعی پذیرفته نمی‌شود.", 409);

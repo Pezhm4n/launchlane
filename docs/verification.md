@@ -13,6 +13,8 @@
 
 هر نتیجه فقط برای revision، artifact، تنظیمات و oracle همان گزارش معتبر است. گزارش تاریخیِ «در حال اجرا» وضعیت امروز یک سرور را تضمین نمی‌کند. یک test غیرفعال، prerequisite ناموجود یا نتیجهٔ نامعلوم pass نیست.
 
+تابع migration اصلی، ۲۰۲۶-۱۱-۰۴: candidate نهایی `database-module-r4` بر پایهٔ51f99e3، domain905/905، HTTP50/50، type/lint/build، فراخوانی export اصلی گلستان/tsconfig/۱۲SQL و مسیر واقعی وب→تصمیم→worker→SQL/API در۱۵layout را گذراند. رگرسیون‌های Docker مکمل r3 در [گزارش دقیق](evidence/database.md#source-module-runners) جدا ثبت‌اند؛ نتیجهٔ آن‌ها به r4 تعمیم داده نمی‌شود. بررسی نهایی۴۰سند و سه regression مستندات نیز مستقل گذشتند. مدل/provider مصنوعی‌اند و هیچ write روی دیتابیس اصلی یا لیارا انجام نشد.
+
 داده و ورودی امضای برنامه، ۲۰۲۶-۱۱-۰۴: candidate r3 بر پایهٔ1af6a15 با manifest دقیق، domain899/899، HTTP50/50، typecheck/lint/build، مرورگر review15/guided57 و actual PostgreSQL/signing3/3 را گذراند. مسیر وب→پنج کانتینر و رگرسیون runner اصلی گلستان/۱۲SQL/artifact نیز روی همان source پاس شدند. ادغام مستندات807a32c و docs-check/سه تست آن مستقل‌اند؛ نتیجهٔ ترکیبی902 ادعا نمی‌شود. [فرمان‌ها، scope و failureهای نگه‌داشته‌شده](evidence/database.md#disposable-application-inputs). هیچ مصرف واقعی مدل، write ابری، migration تولیدی یا پذیرش کامل API اصلی انجام نشد.
 
 ## baseline یکپارچهٔ ثبت‌شده

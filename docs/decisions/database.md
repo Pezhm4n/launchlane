@@ -6,6 +6,7 @@ These versioned records preserve the original decisions, source revisions, failu
 
 ## Records
 
+- [ADR0052 — Source-module migration runners and bounded worker input](#0052-source-module-migration-runners)
 - [ADR0051 — Reviewed signing inputs for disposable application tests](#0051-disposable-application-signing-inputs)
 
 - [ADR 0032 — Managed database creation and private application binding](#0032-managed-database-and-private-binding)
@@ -315,3 +316,65 @@ fence checks known private bytes, not arbitrary transformations by source code.
 Complete original-project intake still requires the normal credential/source guards.
 Fresh Docker, original-app and provider acceptance must be recorded separately from
 domain, HTTP and review-only browser checks.
+
+<a id="0052-source-module-migration-runners"></a>
+## ADR0052 — Source-module migration runners and bounded worker input
+
+Date: 2026-11-04. Status: implemented; acceptance is scoped to recorded checks.
+
+### Problem
+
+Some projects call an exported migration function during startup and have no npm
+migration script. Requiring a generated project-specific bridge hides that missing
+product capability. A startup handler may also catch a migration failure, making
+HTTP readiness insufficient evidence. The original Golestan module exposed this gap.
+
+### Decision
+
+The shared `propose_project_build` accepts `compatibilityDatabase.runnerModule` as
+an alternative to `runnerScript` in the existing disposable v3/v4 contract. Input
+contains a source path, directly named-exported function, Pool option name and one
+bounded literal-argument record for each exact database target. The function must
+accept a single destructured options object. The host statically verifies that
+export/options and the selected literals occur in the module; this is source
+evidence, not proof of their semantic correctness. SQL, connection values, executable
+arguments, loaders and caller-supplied hashes are not accepted as invocation input.
+
+The host derives source hashes, invocation identity and loader. TypeScript requires
+the existing backend's tsx and original tsconfig when selected. The complete plan
+uses the existing single-use build decision, job, scope and immutable source fences.
+Argument keys have locale-independent ordering before hashing.
+Each worker rechecks the descriptor, module/config bytes and exact ordered targets
+before import. Changing the selected runner is not a retry of the old decision.
+Historical script/hook plans retain their canonical representation.
+
+Inside the existing network-isolated fixture, a fixed adapter constructs one ordinary
+`pg.Pool` per target, calls the original function with its selected literal options
+and closes the Pool in `finally`. Connections have bounded acquisition/query times
+and one client per Pool. The original runner still owns SQL, transactions, checksums
+and its ledger. It receives only disposable database inputs. A rejected import or
+function stops the application and produces no successful data receipt.
+
+The existing independent schema, fixed-row and fresh-write checks run before and
+after runner replay and a second fresh application. Prepared artifact v4 retains
+the same resource, private-binding and publication requirements; module invocation
+adds no cloud SQL authority or replacement execution engine. The guided review shows
+the original module/export and keeps its per-target options under technical details.
+
+The larger real invocation also reproduced Windows `ENAMETOOLONG`: the Docker
+command carried 33,072 argument characters. Node build programs and validated public
+plans now use unique, exclusively created files in the existing read-only dependency
+mount, extending the component worker's existing approach. Program/plan inputs are
+bounded at256/512KiB. Private values remain in the zeroed stdin buffer; they enter
+neither these files nor Docker arguments. Image, memory, network, cleanup, execution
+timeout and output bounds are unchanged.
+
+### Limits
+
+This adapter supports directly defined named ESM exports with the stated options
+shape; aliases, arbitrary function signatures, custom loaders and general framework
+migration CLIs need their own source-backed contracts. Literal presence alone cannot
+validate migration intent: independent data oracles and explicit review remain required.
+No deployed database is read or migrated. Disposable success does not establish full
+original-application behavior, database restart, existing-data compatibility or provider
+persistence. Those boundaries remain part of the deployment mission.

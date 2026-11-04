@@ -3,14 +3,18 @@ import { exactKeys, hash, integer, object, string, text } from "./validation.ts"
 import { parsePostgresDataOracle, type PostgresDataOracle } from "./postgres-migration-test.ts";
 import { ensure } from "../server/errors.ts";
 import { isPublicClientEnvironmentKey } from "./environment.ts";
+import { parseMigrationModule, type MigrationModule } from "./postgres-module-runner.ts";
 
 export type PostgresRunnerTarget = Readonly<{ id: string; environmentKeys: readonly string[]; requiredRelations: readonly string[]; oracle: PostgresDataOracle; bootstrap?: PostgresBootstrap }>;
-export type PostgresMigrationRunner = Readonly<{ script: string; chain: readonly Readonly<{ name: string; command: string }>[]; sha256: string }>;
+export type PostgresScriptRunner = Readonly<{ script: string; chain: readonly Readonly<{ name: string; command: string }>[]; sha256: string }>;
+export type PostgresMigrationRunner = PostgresScriptRunner | Readonly<{ kind: "module"; module: MigrationModule; sha256: string }>;
 export function runnerScriptName(value: unknown): string {
   const name = string(value, 64); ensure(/^[A-Za-z0-9][A-Za-z0-9:_-]*$/.test(name), "MIGRATION_RUNNER_INVALID", "نام script باید از package.json همین پروژه انتخاب شود.", 409); return name;
 }
 export function parsePostgresMigrationRunner(value: unknown): PostgresMigrationRunner {
-  const row = object(value); exactKeys(row, ["script", "chain", "sha256"]); const script = runnerScriptName(row.script);
+  const row = object(value);
+  if (row.kind === "module") { exactKeys(row, ["kind", "module", "sha256"]); return { kind: "module", module: parseMigrationModule(row.module), sha256: hash(row.sha256) }; }
+  exactKeys(row, ["script", "chain", "sha256"]); const script = runnerScriptName(row.script);
   ensure(Array.isArray(row.chain) && row.chain.length > 0 && row.chain.length <= 3, "MIGRATION_RUNNER_INVALID", "زنجیرهٔ script موجود لازم است.", 409);
   const chain = row.chain.map(value => { const part = object(value); exactKeys(part, ["name", "command"]); return { name: runnerScriptName(part.name), command: text(part.command, 2000) }; });
   const permitted = [`pre${script}`, script, `post${script}`];

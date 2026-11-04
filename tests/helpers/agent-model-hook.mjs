@@ -155,12 +155,12 @@ globalThis.fetch = async (input, init) => {
     throw Error("Unexpected pnpm workspace worker fixture transition");
   }
   if (first.includes('نشانه الزامی صفحه: "Runner lifecycle"')) {
-    if (process.env.LAUNCHLANE_TEST_BASELINE_BROWSER === "true" || process.env.LAUNCHLANE_TEST_SIGNING_BROWSER === "true") {
+    if (process.env.LAUNCHLANE_TEST_BASELINE_BROWSER === "true" || process.env.LAUNCHLANE_TEST_SIGNING_BROWSER === "true" || process.env.LAUNCHLANE_TEST_MODULE_BROWSER === "true") {
       if (body.messages.some(message => message.role === "user" && message.content.startsWith("Host disposable compatibility receipt")))
         return final("reply", null, "baseline و runner و داده در دیتابیس موقت بررسی شدند؛ دادهٔ مقصد تأیید نشده است.");
       const inspection = body.messages.filter(message => message.role === "tool").map(message => { try { return JSON.parse(message.content); } catch { return null; } }).find(row => row?.data?.databaseBaselines?.length);
       if (!inspection) return reply("inspect_project");
-      const input = await runnerBuildInput(), baseline = inspection.data.databaseBaselines[0];
+      const input = process.env.LAUNCHLANE_TEST_MODULE_BROWSER === "true" ? await (await import("./module-runner-fixture.ts")).moduleRunnerBuildInput() : await runnerBuildInput(), baseline = inspection.data.databaseBaselines[0];
       return reply("propose_project_build", { ...input, compatibilityDatabase: { ...input.compatibilityDatabase,
         ...(process.env.LAUNCHLANE_TEST_SIGNING_BROWSER === "true" ? { testSigningKeys: ["JWT_SECRET"] } : {}),
         targets: input.compatibilityDatabase.targets.map(target => ({ ...target, bootstrap: { sqlFiles: [baseline.path], schemas: ["private"], roles: ["anon", "authenticated", "postgres"] } })) } });
