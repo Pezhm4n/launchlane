@@ -84,17 +84,19 @@ test("plan cards identify derived continuous-runtime estimates and keep the same
   assert.match(html, /برآورد روشن‌ماندن پیوسته/); assert.match(html, /۲۴٬۹۹۹٫۸۴/); assert.match(html, /۷۴۹٬۹۹۵٫۲/);
   assert.match(html, /ثابت‌ماندن نرخ همین پیشنهاد/); assert.match(html, /مالیات، ترافیک و فضای اضافه جدا هستند/);
   assert.doesNotMatch(html, /قیمت ماهانهٔ رسمی|ظرفیت اندازه‌گیری‌شده/);
-  assert.match(html, /حدود هزار و چهل و دو تومن/); assert.match(html, /حدود ۲۵ هزار تومن/); assert.match(html, /حدود ۷۵۰ هزار تومن/);
+  assert.match(html, /۱٬۰۴۱٫۶۶/); assert.match(html, /۲۴٬۹۹۹٫۸۴ تومان/); assert.match(html, /۷۴۹٬۹۹۵٫۲ تومان/);
+  assert.doesNotMatch(html, /حدود|تومن|میلیون|هزار و/);
   assert.match(html, /<summary>مبلغ دقیق پلن‌ها<\/summary>/);
 });
 
-test("readable money labels use plain toman words and rounded scales without changing exact quotes", () => {
-  assert.equal(plans.readablePlanCost(104166), "حدود هزار و چهل و دو تومن");
-  assert.equal(plans.readablePlanCost(1212300), "حدود ۱۲ هزار تومن");
-  assert.equal(plans.readablePlanCost(104166, 720), "حدود ۷۵۰ هزار تومن");
-  assert.equal(plans.readablePlanCost(319444, 720), "حدود ۲٫۳ میلیون تومن");
-  assert.equal(plans.readablePlanCost(1), "کمتر از یک تومن");
-  assert.equal(plans.readablePlanCost(0), "صفر تومن");
-  assert.equal(plans.readablePlanCost(99999999), "حدود ۱ میلیون تومن");
+test("money labels show grouped exact numbers and toman without words, scaling or rounding", () => {
+  assert.equal(plans.readablePlanCost(104166), "۱٬۰۴۱٫۶۶ تومان");
+  assert.equal(plans.readablePlanCost(1212300), "۱۲٬۱۲۳ تومان");
+  assert.equal(plans.readablePlanCost(104166, 720), "۷۴۹٬۹۹۵٫۲ تومان");
+  assert.equal(plans.readablePlanCost(319444, 720), "۲٬۲۹۹٬۹۹۶٫۸ تومان");
+  assert.equal(plans.readablePlanCost(1), "۰٫۰۱ تومان");
+  assert.equal(plans.readablePlanCost(0), "۰ تومان");
+  assert.equal(plans.readablePlanCost(99999999), "۹۹۹٬۹۹۹٫۹۹ تومان");
+  assert.equal(plans.readablePlanCost(1_000_000_000_000_001, 720), "۷٬۲۰۰٬۰۰۰٬۰۰۰٬۰۰۰٬۰۰۷٫۲ تومان");
   for (const invalid of [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1]) assert.throws(() => plans.readablePlanCost(invalid), RangeError);
 });

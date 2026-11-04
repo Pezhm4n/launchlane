@@ -1,4 +1,17 @@
 # شواهد اعتبارسنجی Launchlane
+
+## Publication UI and actual local runtime — 2026-11-04
+
+Main72bebaf plus owned UI/config paths passed build/typecheck/lint (0 errors,
+48 warnings/22 infos), targeted domain30 and browser23states. Runtimeefd696c plus
+twenty focused paths passed build/typecheck/lint (0 errors,54 warnings/47 infos),
+targeted domain44, HTTP/HTTPS/stdio33 and browser57states. These are separate frozen
+candidates; no combined full-domain claim is made. Exact commands, retained tooling
+failure and synthetic/live distinctions are in [evidence](evidence/publication-ui-local-runtime.md).
+The tested runtime build mYYsfnnZ1CBUT64lkOzR6 is now served on the owner's existing
+HTTPS3102 task; health/entry200 and served JS/CSS hashes match the compiled manifest.
+Env bytes unchanged, no account login, real model call or cloud write.
+
 ## MCP settings UI/application verification — 2026-11-04
 
 Frozen r6 on `f8fcc99`, Node24.18.0 and the pinned lockfile passed Webpack build,

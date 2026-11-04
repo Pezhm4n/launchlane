@@ -155,7 +155,8 @@ export function readConfig(env: Environment = process.env) {
     probeOrigins: parseProbeOrigins(authMode === "operator" ? env.LAUNCHLANE_PROBE_ORIGINS : undefined, authMode === "operator" ? apps : []),
     liaraBaseUrl: fixedUrl(env.LIARA_API_BASE_URL, "https://api.liara.ir"),
     liaraToken: authMode === "operator" ? env.LIARA_API_TOKEN || "" : "",
-    githubCliPath: authMode === "operator" && env.LAUNCHLANE_GITHUB_CLI_PATH
+    // A server-managed executable path is installation config, not an account credential.
+    githubCliPath: env.LAUNCHLANE_GITHUB_CLI_PATH
       ? resolve(/* turbopackIgnore: true */ env.LAUNCHLANE_GITHUB_CLI_PATH)
       : "",
     modelBaseUrl: fixedUrl(env.MODEL_BASE_URL, "https://ai.boxapi.ir/ai/v1"),

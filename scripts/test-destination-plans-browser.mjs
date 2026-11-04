@@ -47,15 +47,16 @@ try {
   const card = page.locator(".destination-card"); await card.getByRole("heading", { name: "ساخت مقصد تازه", exact: true }).waitFor();
   if (!baseline) {
     const starter = card.locator("label").filter({ has: page.getByRole("radio", { name: /^starter/ }) });
-    await starter.getByText("حدود ۱۳ هزار تومن", { exact: true }).waitFor();
+    await starter.getByText("۱۲٬۹۶۰ تومان", { exact: true }).waitFor();
     assert.notEqual(await starter.evaluate(node => getComputedStyle(node).boxShadow), "none", "Selected plan has its declared focus/selection surface");
     const alternative = card.locator("label").filter({ has: page.getByRole("radio", { name: /^growth/ }) });
     const resting = await alternative.evaluate(node => getComputedStyle(node).backgroundColor);
     await alternative.hover();
     await page.waitForFunction(({ resting }) => [...document.querySelectorAll("label")].some(node => node.matches(":hover") && node.querySelector('input[aria-label^="growth"]') && getComputedStyle(node).backgroundColor !== resting), { resting });
     await page.mouse.move(0, 0);
-    await starter.getByText("حدود ۳۸۹ هزار تومن", { exact: true }).waitFor();
-    assert.doesNotMatch(await starter.getByText("حدود پانصد و چهل تومن", { exact: true }).evaluate(node => getComputedStyle(node).fontFamily), /Consolas|monospace/i);
+    await starter.getByText("۳۸۸٬۸۰۰ تومان", { exact: true }).waitFor();
+    assert.doesNotMatch(await starter.getByText("۵۴۰", { exact: true }).evaluate(node => getComputedStyle(node).fontFamily), /Consolas|monospace/i);
+    assert.doesNotMatch(await starter.textContent() ?? "", /حدود|تومن|هزار|میلیون/);
     await card.getByText("مبلغ دقیق پلن‌ها", { exact: true }).click();
     await card.getByText("۱۲٬۹۶۰", { exact: true }).waitFor();
     await card.getByText("۳۸۸٬۸۰۰", { exact: true }).waitFor();
@@ -96,8 +97,8 @@ try {
     await page.waitForFunction(label => [...document.querySelectorAll('input[type="radio"]')].some(input => input.getAttribute("aria-label") === label && input.checked), await growth.getAttribute("aria-label"));
     assert.equal(await growth.isChecked(), true);
     const growthCard = choice.locator("label").filter({ has: page.getByRole("radio", { name: /growth/ }) });
-    await growthCard.getByText("حدود ۲۵ هزار تومن", { exact: true }).waitFor();
-    await growthCard.getByText("حدود ۷۴۹ هزار تومن", { exact: true }).waitFor();
+    await growthCard.getByText("۲۴٬۹۶۰ تومان", { exact: true }).waitFor();
+    await growthCard.getByText("۷۴۸٬۸۰۰ تومان", { exact: true }).waitFor();
     const revised = fixture.repository.get(fixture.actor, first.id); assert.notEqual(revised.destination.id, first.destination.id);
     assert.equal(revised.destination.spec.args.planId, "growth"); assert.equal(revised.usage.modelCalls, beforeTokens);
     assert.equal(fixture.store.getAction(first.destination.id, fixture.actor).state, "cancelled");

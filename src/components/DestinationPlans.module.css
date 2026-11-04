@@ -5,8 +5,6 @@
   margin-block: var(--space-2);
 }
 .intro {
-  border-inline-start: 3px solid var(--color-primary);
-  padding-inline-start: var(--space-3);
   margin-block-end: var(--space-1);
 }
 .intro h4 {
@@ -108,15 +106,20 @@
   font-size: var(--text-sm);
 }
 .price {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-2);
   color: var(--color-ink);
   font-family: var(--font-body);
-  font-size: var(--text-lg);
-  font-weight: 600;
-  line-height: var(--leading-body);
-  min-block-size: 3.6em;
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  line-height: var(--leading-heading);
+  min-block-size: var(--control-height);
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
+.currency { color: var(--color-muted); font-size: var(--text-sm); font-weight: 400; }
 .unit {
   color: var(--color-muted);
   font-size: var(--text-xs);
