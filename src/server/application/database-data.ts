@@ -15,9 +15,10 @@ import { LiaraAccountClient } from "../liara/catalog.ts";
 import { LiaraReadClient } from "../liara/client.ts";
 import { LiaraEnvironmentClient } from "../liara/environment.ts";
 import { PostgresObserver } from "../liara/postgres-observer.ts";
-import { fullstackVerification, requiresProductionDataVerification } from "./fullstack-verification.ts";
+import { localFullstackVerification, requiresProductionDataVerification } from "./fullstack-verification.ts";
 import { actionPlatform } from "../../contracts/platform.ts";
 import type { Scope } from "../../contracts/domain.ts";
+import { compareTargetSamples, previousTargetSamples, type PrivateTargetSample } from "./postgres-continuity.ts";
 
 type Dependencies = { database?: LiaraDatabaseReadClient; credentials?: LiaraDatabaseCredentialsClient; account?: LiaraAccountClient;
   read?: LiaraReadClient; environment?: LiaraEnvironmentClient; observer?: PostgresObserver; budget?: RunBudget };
@@ -75,7 +76,7 @@ export async function observeDatabaseData(config: Config, store: Store, actor: s
   ensure(config.enableLiveLiara && config.enableDatabaseDataReads, "DATABASE_DATA_READS_DISABLED", "بررسی مستقیم داده در این نصب فعال نیست؛ اتصال خصوصی میزبان به شبکهٔ همین دیتابیس لازم است.", 403);
   const initial = context(config, store, actor, actionId), plan = dataPlan(store, actor, initial);
   ensure(plan, "DATABASE_DATA_PLAN_REQUIRED", "این انتشار معیار مستقل دادهٔ آزموده‌شده ندارد.", 409);
-  const verification = await fullstackVerification(store, config.stateDir, actor, initial.flow, config.sessionSecret);
+  const { verification } = await localFullstackVerification(store, config.stateDir, actor, initial.flow);
   ensure(fingerprint(verification) === fingerprint(initial.spec.verification), "DATABASE_DATA_CONTEXT_CHANGED", "معیار داده یا بستهٔ انتشار تغییر کرده است.", 409);
   const bound = assertPreparedDatabaseBindings(store, config.sessionSecret, actor, initial.flow, plan),
     bindingHash = createHmac("sha256", config.sessionSecret).update(canonical({ actor, spec: initial.spec, environment: bound.reference,
@@ -104,7 +105,7 @@ export async function observeDatabaseData(config: Config, store: Store, actor: s
   };
   await database.capabilities(budget, bounded); // fresh account/team identity before any private detail or SQL connection
   await revalidate();
-  const targets = [], privatePersistence: (readonly string[])[] = [];
+  const targets = [], samples: PrivateTargetSample[] = [];
   const liveConnection = async (target: typeof bound.targets[number]) => {
     // Legacy credential bindings allowed an absent network field. A new data read requires
     // fresh explicit network identity too, without changing those historical contracts.
@@ -128,7 +129,7 @@ export async function observeDatabaseData(config: Config, store: Store, actor: s
     const result = await observer.observe(connection, target.target.oracle, { expectedMajor: String(expectedMajor), network: { mode: "private_network" },
       digestKey: config.sessionSecret, signal: bounded, take: () => budget.take("tool", bounded) });
     targets.push({ id: target.target.id, databaseId: target.databaseId, ...result.observation });
-    privatePersistence.push(result.privatePersistence);
+    samples.push({ id: target.target.id, databaseId: target.databaseId, ...result.serverWindow, cells: result.privatePersistence });
   }
   await revalidate();
   for (const target of bound.targets) await liveConnection(target);
@@ -137,11 +138,19 @@ export async function observeDatabaseData(config: Config, store: Store, actor: s
     "DATABASE_DATA_CONTEXT_CHANGED", "اتصال هنگام بررسی تغییر کرد.", 409);
   ensure(!bounded.aborted, "CANCELLED", "بررسی داده کامل نشد.", 409);
   const healthy = targets.every(target => target.schemaMatches && target.rowsMatch && target.persistencePresent && target.persistenceNonNull && target.persistenceChecks > 0);
+  const previous = baseline && healthy && baselineObservation?.outcome === "verified"
+    ? previousTargetSamples(JSON.parse(string(baseline.private_json, 32768))) : null;
+  ensure(!previous || previous.length === samples.length, "DATABASE_DATA_BASELINE_INVALID", "فهرست اهداف شاهد قبلی تغییر کرده است.", 409);
+  const compared = previous ? samples.map((sample, i) => {
+    const prior = previous[i];
+    ensure(prior, "DATABASE_DATA_BASELINE_INVALID", "شاهد منبع موجود نیست.", 409);
+    return compareTargetSamples(sample, prior);
+  }) : null;
   const observation = parseDatabaseDataObservation({ id: randomUUID(), actionId, releaseId: initial.action.remoteId, artifactHash: initial.spec.artifactHash, checkedAt: Date.now(),
     outcome: healthy ? "verified" : "failed",
-    targets: targets.map(({ checkedAt: _checkedAt, ...target }) => target), baselineId,
-    comparison: baseline ? !healthy || baselineObservation?.outcome !== "verified" ? "not_comparable" : canonical(JSON.parse(string(baseline.private_json, 32768))) === canonical(privatePersistence) ? "same_selected_values" : "selected_values_changed" : "not_requested",
+    targets: targets.map(({ checkedAt: _checkedAt, ...target }, i) => ({ ...target, serverComparison: compared?.[i]?.serverComparison ?? (baseline ? "inconclusive" : "uncompared") })), baselineId,
+    comparison: !baseline ? "not_requested" : !compared ? "not_comparable" : compared.every(row => row.equal) ? "same_selected_values" : "selected_values_changed",
     migrationVerified: false, applicationWriteVerified: false, restartPersistenceVerified: false, remoteChanges: false });
-  store.db.prepare("INSERT INTO database_data_observations VALUES (?,?,?,?,?,?,?)").run(observation.id, actor, actionId, bindingHash, JSON.stringify(observation), JSON.stringify(privatePersistence), observation.checkedAt);
+  store.db.prepare("INSERT INTO database_data_observations VALUES (?,?,?,?,?,?,?)").run(observation.id, actor, actionId, bindingHash, JSON.stringify(observation), JSON.stringify({ version: 2, targets: samples }), observation.checkedAt);
   return observation;
 }

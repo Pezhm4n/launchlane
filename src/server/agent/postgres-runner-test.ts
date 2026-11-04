@@ -27,7 +27,7 @@ export function runnerSchemaSql(target: PostgresRunnerTarget): string {
 }
 export function runnerDataSql(target: PostgresRunnerTarget): string {
   const rows = target.oracle.rows.map((row, i) => `SELECT ${i} AS i,(count(*)=1 AND COALESCE(bool_and(${row.values.map(value => `${scalar(value.column)} IS NOT DISTINCT FROM ${jsonValue(value.value)}`).join(" AND ")}),false)) AS ok FROM ${relation(row.relation)} t WHERE ${scalar(row.key.column)} IS NOT DISTINCT FROM ${jsonValue(row.key.value)}`).join(" UNION ALL ");
-  const persistence = target.oracle.persistence.map((row, i) => `SELECT ${i} AS i,(SELECT count(*)=1 FROM ${relation(row.relation)} t WHERE ${scalar(row.key.column)} IS NOT DISTINCT FROM ${jsonValue(row.key.value)}) AS present,(SELECT ${scalar(row.column)} FROM ${relation(row.relation)} t WHERE ${scalar(row.key.column)} IS NOT DISTINCT FROM ${jsonValue(row.key.value)}) AS value`).join(" UNION ALL ");
+  const persistence = target.oracle.persistence.map((row, i) => `SELECT ${i} AS i,(SELECT count(*)=1 FROM ${relation(row.relation)} t WHERE ${scalar(row.key.column)} IS NOT DISTINCT FROM ${jsonValue(row.key.value)}) AS present,(SELECT NULLIF(${scalar(row.column)},'null'::pg_catalog.jsonb)::text FROM ${relation(row.relation)} t WHERE ${scalar(row.key.column)} IS NOT DISTINCT FROM ${jsonValue(row.key.value)}) AS value`).join(" UNION ALL ");
   return `SELECT pg_catalog.json_build_object('rows',${rows ? `(SELECT pg_catalog.json_agg(x ORDER BY i) FROM (${rows}) x)` : "'[]'::pg_catalog.json"},'persistence',(SELECT pg_catalog.json_agg(x ORDER BY i) FROM (${persistence}) x));`;
 }
 function parsed(result: CommandResult): unknown {
@@ -53,7 +53,7 @@ export async function runPostgresRunnerTest<T extends CommandResult>(options: {
       take(); const data = object(parsed(await sql.read(runnerDataSql(target), signal, target.id)));
       ensure(Array.isArray(data.rows) && data.rows.length === target.oracle.rows.length && data.rows.every((value, i) => object(value).i === i && object(value).ok === true), "MIGRATION_ORACLE_FAILED", "ردیف‌های ثابت دیتابیس با معیار مصوب برابر نیستند.", 409);
       ensure(Array.isArray(data.persistence) && data.persistence.length === target.oracle.persistence.length, "MIGRATION_PERSISTENCE_FAILED", "سنجش ماندگاری همان دیتابیس کامل نیست.", 409);
-      const values = data.persistence.map((value, i) => { const item = object(value); ensure(item.i === i && (item.present === true || allowAbsent && item.present === false && item.value === null) && "value" in item && Buffer.byteLength(JSON.stringify(item.value)) <= 4096, "MIGRATION_PERSISTENCE_FAILED", "ردیف ماندگاری باید یکتا و محدود باشد؛ نبود ردیف فقط پیش از اولین اجرای برنامه مجاز است.", 409); return item.value; });
+      const values = data.persistence.map((value, i) => { const item = object(value); ensure(item.i === i && (item.present === true || allowAbsent && item.present === false && item.value === null) && (item.value === null || typeof item.value === "string" && Buffer.byteLength(item.value) <= 4096), "MIGRATION_PERSISTENCE_FAILED", "ردیف ماندگاری باید یکتا و محدود باشد؛ نبود ردیف فقط پیش از اولین اجرای برنامه مجاز است.", 409); return item.value; });
       result.push({ id: target.id, hashes: values.map(fingerprint), empty: values.map(value => value === null) });
     }
     return result;

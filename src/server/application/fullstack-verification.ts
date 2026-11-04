@@ -1,21 +1,13 @@
 import type { ProjectFlow } from "../../contracts/project-flow.ts";
-import { parseCodeRepairJob } from "../../contracts/code-repair.ts";
+import { assertTestedPostgresVersion, completedBuildJob, testedResourceTarget, verifiedFullstackRecord } from "../policy/prepared-data.ts";
 import { parseFullstackVerification, type FullstackVerification } from "../../contracts/fullstack.ts";
-import { object, string } from "../../contracts/validation.ts";
 import { ensure } from "../errors.ts";
 import { fingerprint } from "../policy/action.ts";
 import type { Store } from "../persistence/store.ts";
 import { readBuildOutput } from "../agent/build-output-store.ts";
 import { readArtifact } from "../workspace/archive.ts";
 import { matchesPublishedBuildEnvironment } from "../environment/build.ts";
-import { preparesDatabaseArtifact } from "../../contracts/test-database.ts";
 import { assertPreparedDatabaseBindings } from "../environment/prepared-database.ts";
-
-function completedBuildJob(store: Store, actor: string, id: string) {
-  const row = store.db.prepare("SELECT state,data_json FROM code_repair_jobs WHERE id=? AND actor_id=? AND state='succeeded'").get(id, actor);
-  ensure(row, "FULLSTACK_BUILD_REQUIRED", "رسید ساخت کامل این نسخه موجود نیست.", 409);
-  return parseCodeRepairJob({ ...object(object(JSON.parse(string(row.data_json, 1024 * 1024))).job), state: row.state });
-}
 
 /** Release/HTTP/API evidence cannot turn a disposable data receipt into destination data proof. */
 export function requiresProductionDataVerification(store: Store, actor: string, verification: FullstackVerification): boolean {
@@ -29,31 +21,38 @@ export function requiresProductionDataVerification(store: Store, actor: string, 
   return true;
 }
 
+async function verifyStoredBytes(store: Store, stateDir: string, actor: string, record: ReturnType<typeof verifiedFullstackRecord>) {
+  await readBuildOutput(stateDir, record.receipt, { sourceHash: record.binding.testedSourceHash, planHash: record.binding.planHash });
+  await readArtifact(stateDir, store.getArtifact(actor, record.artifact.archiveHash));
+}
+
 /** Local immutable build evidence is separate from a cloud environment decision. */
 export async function localFullstackVerification(store: Store, stateDir: string, actor: string, flow: ProjectFlow) {
-  ensure(flow.profile.fullstack && !flow.profile.fullstack.requiresPreparation && flow.artifact && flow.selection.kind === "repair",
-    "FULLSTACK_BUILD_REQUIRED", "ساخت کامل، API مستقل و خروجی پایدار همان نسخه باید پیش از انتشار تأیید شوند.", 409);
+  ensure(flow.selection.kind === "repair", "FULLSTACK_BUILD_REQUIRED", "رسید ساخت همین بسته لازم است.", 409);
   const job = completedBuildJob(store, actor, flow.selection.jobId);
-  ensure(!(job.build?.version===7 && job.build.testDatabase && !preparesDatabaseArtifact(job.build.testDatabase)),"COMPATIBILITY_ARTIFACT_NOT_PUBLISHABLE","آزمون ساختگی جای بررسی نسخهٔ قابل انتشار با منابع واقعی را نمی‌گیرد.",409);
-  const binding = job.publication, receipt = job.afterTest?.buildOutput;
-  if (job.build?.version === 7 && job.build.testDatabase?.version === 4) ensure(job.afterTest?.databaseRunner?.planHash === fingerprint(job.build.testDatabase) &&
-    job.afterTest.databaseRunner.sourceHash === binding?.testedSourceHash, "MIGRATION_RUNNER_RECEIPT_INVALID", "رسید دادهٔ انتخاب‌شده به برنامه و source همین بسته تعلق ندارد.", 409);
-  ensure(job.build?.version === 7 && binding && receipt && job.afterTest?.passed && job.afterTest.exitCode === 0 && !job.afterTest.signal && job.execution === "container" && job.containerIds?.length &&
-    job.artifact?.archiveHash === flow.artifact.archiveHash && job.artifact.sourceHash === flow.profile.sourceHash && binding.planHash === fingerprint(job.build) &&
-    receipt.sourceHash === binding.testedSourceHash && receipt.planHash === binding.planHash && receipt.artifactHash === binding.outputArtifactHash &&
-    job.build.startCommand === flow.profile.start && job.build.port === flow.profile.port && job.build.nodeVersion === flow.profile.nodeRuntime?.version &&
-    job.build.fullstack.outputDirectory === flow.profile.fullstack.outputDirectory && flow.profile.build === "node .launchlane-build.cjs",
-    "FULLSTACK_BUILD_REQUIRED", "بستهٔ نهایی باید به همان فرانت ساخته‌شده، API، نسخه Node و معیارهای مصوب متصل باشد.", 409);
-  await readBuildOutput(stateDir, receipt, { sourceHash: binding.testedSourceHash, planHash: binding.planHash });
-  await readArtifact(stateDir, store.getArtifact(actor, flow.artifact.archiveHash));
-  return { verification: parseFullstackVerification({ ...binding, buildJobId: job.id, outputDirectory: job.build.fullstack.outputDirectory, apiChecks: job.build.apiChecks }),
-    build: job.build, testedAt: job.updatedAt };
+  const record = verifiedFullstackRecord(flow, job), { binding, build } = record;
+  await verifyStoredBytes(store, stateDir, actor, record);
+  return { verification: parseFullstackVerification({ ...binding, buildJobId: job.id, outputDirectory: build.fullstack.outputDirectory, apiChecks: build.apiChecks }),
+    build, testedAt: job.updatedAt };
 }
 
 export async function fullstackVerification(store: Store, stateDir: string, actor: string, flow: ProjectFlow, secret: string): Promise<FullstackVerification> {
   const evidence = await localFullstackVerification(store, stateDir, actor, flow);
-  if (evidence.build.testDatabase?.version === 4) assertPreparedDatabaseBindings(store, secret, actor, flow, evidence.build.testDatabase);
+  if (evidence.build.testDatabase?.version === 4) {
+    const plan = evidence.build.testDatabase;
+    const bindings = assertPreparedDatabaseBindings(store, secret, actor, flow, plan);
+    for (const target of bindings.targets) assertTestedPostgresVersion(target.spec.database.version, plan.image);
+  }
   else ensure(matchesPublishedBuildEnvironment({ sessionSecret: secret }, store, actor, flow.id, evidence.build),
     "FULLSTACK_BUILD_REQUIRED", "بستهٔ نهایی باید به همان فرانت ساخته‌شده، API، نسخه Node و معیارهای مصوب متصل باشد.", 409);
   return evidence.verification;
+}
+
+/** Reject incompatible purchases/attachments before asking for a resource decision. */
+export async function assertPreparedResourceIntent(store: Store, stateDir: string, actor: string, flow: ProjectFlow,
+  consumerRoot: string, type: string, version: string, keys: readonly string[]) {
+  const record = testedResourceTarget(store, actor, flow, consumerRoot, type, version, keys);
+  if (!record) return false;
+  await verifyStoredBytes(store, stateDir, actor, record);
+  return true;
 }

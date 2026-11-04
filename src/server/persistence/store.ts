@@ -1,3 +1,4 @@
+import { testedResourceTarget } from "../policy/prepared-data.ts";
 import { createHash, randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import type {
@@ -336,7 +337,8 @@ export class Store {
     if (spec.version === 25) ensure(flow.profile.fullstack?.workerSqlite && connection?.identityId === spec.accountId && connection.apps.some(app => app.id === spec.targetAppId && app.name === spec.scope.app), "DISK_SCOPE_INVALID", "دیسک فقط برای Worker و مقصد همین حساب مجاز است.", 409);
     if (spec.version === 25 && spec.agentRunId !== null) ensure(this.db.prepare("SELECT id FROM agent_runs WHERE actor_id=? AND id=? AND json_extract(data_json,'$.context.projectId')=? AND json_extract(data_json,'$.context.sourceHash')=? AND json_extract(data_json,'$.context.selectionHash')=? AND json_extract(data_json,'$.context.target.appId')=?").get(actorId, spec.agentRunId, flow.id, spec.sourceHash, spec.selectionHash, spec.targetAppId), "DISK_SCOPE_INVALID", "فضای پایدار باید به همین مأموریت، پروژه و مقصد تعلق داشته باشد.", 409);
     if ((spec.version === 27 || spec.version === 28 || spec.version === 29) && spec.agentRunId !== null) ensure(this.db.prepare("SELECT id FROM agent_runs WHERE actor_id=? AND id=? AND json_extract(data_json,'$.context.projectId')=? AND json_extract(data_json,'$.context.sourceHash')=? AND json_extract(data_json,'$.context.selectionHash')=? AND json_extract(data_json,'$.context.target.appId')=?").get(actorId, spec.agentRunId, flow.id, spec.sourceHash, spec.selectionHash, spec.targetAppId), "DATABASE_SCOPE_INVALID", "دیتابیس باید به همین مأموریت، پروژه و مقصد تعلق داشته باشد.", 409);
-    if (spec.version === 28 || spec.version === 29) sourceDatabaseBindingKeys(flow.profile, spec.consumerRoot, spec.database.type, spec.bindingKeys);
+    if ((spec.version === 28 || spec.version === 29) && !testedResourceTarget(this, actorId, flow, spec.consumerRoot, spec.database.type, spec.database.version, spec.bindingKeys))
+      sourceDatabaseBindingKeys(flow.profile, spec.consumerRoot, spec.database.type, spec.bindingKeys);
     if (spec.version === 26) {
       const action = this.getAction(spec.storage.actionId, actorId), disk = action.spec;
       ensure(flow.profile.fullstack?.workerSqlite && disk.version === 25 && action.state === "succeeded" && action.disk?.outcome === "verified" && action.disk.diskId &&

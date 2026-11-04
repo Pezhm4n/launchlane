@@ -11,6 +11,10 @@ import type { ModelPort } from "../../src/server/agent/model.ts";
 import { prepareProjectFlow } from "../../src/server/application/project-flows.ts";
 import { localFullstackVerification, fullstackVerification } from "../../src/server/application/fullstack-verification.ts";
 import { readArtifact } from "../../src/server/workspace/archive.ts";
+import { proposeDatabase, proposeDatabaseAttachment } from "../../src/server/application/databases.ts";
+import { LiaraDatabaseReadClient } from "../../src/server/liara/database-read.ts";
+import { LiaraAccountClient } from "../../src/server/liara/catalog.ts";
+import { LiaraDatabaseCredentialsClient } from "../../src/server/liara/database-credentials.ts";
 import { AppError } from "../../src/server/errors.ts";
 import { bindDataArtifactResources } from "../helpers/data-artifact-bindings.ts";
 import { publishDataArtifact } from "../helpers/data-artifact-publication.ts";
@@ -24,7 +28,15 @@ for (const leak of [false, true]) test(`data preparation ${leak ? "rejects tempo
   const f = await runnerFixture(); try {
     const original = await readFile(join(f.project, "migrate.cjs")), oracle = await readFile(join(f.project, "oracle.test.cjs"));
     if (leak) { const path = join(f.project, "index.html"); await writeFile(path, `${await readFile(path, "utf8")}\n<span>launchlane_target_0</span>\n`); }
-    const flow = leak ? await prepareProjectFlow(f.config, f.store, f.session.actorId, { kind: "local", directory: "runner-service" }, AbortSignal.timeout(10000)) : f.flow;
+    else {
+      // Real applications often construct their pool inside a factory. Static discovery cannot prove it is required.
+      const path = join(f.project, "server.cjs"), code = await readFile(path, "utf8");
+      const conditional = code.replace(/new Pool\(\{ connectionString: process\.env\.(AUTH_DB_URL|PROFILE_DB_URL) \}\)/g, "connect(process.env.$1)");
+      assert.notEqual(conditional, code);
+      await writeFile(path, conditional.replace("const pools =", "function connect(url) { return new Pool({ connectionString: url }); }\nconst pools ="));
+    }
+    const flow = await prepareProjectFlow(f.config, f.store, f.session.actorId, { kind: "local", directory: "runner-service" }, AbortSignal.timeout(10000));
+    if (!leak) assert.equal(flow.profile.applicationRequirements?.requirements.find(row => row.kind === "postgresql")?.need, "unknown");
     const base = await runnerBuildInput(), input = { ...base, compatibilityDatabase: { ...base.compatibilityDatabase, prepareArtifact: true } };
     const { run } = await createPublicationMission(f.config, f.store, f.session, randomUUID(), { projectId: flow.id, sourceHash: flow.profile.sourceHash, path: "/", expectedText: "Runner lifecycle" }, AbortSignal.timeout(10000));
     let calls = 0;
@@ -60,11 +72,26 @@ for (const leak of [false, true]) test(`data preparation ${leak ? "rejects tempo
             INSERT INTO public.entries(id,label,note) VALUES(7,'${i ? "profile datum" : "identity datum"}','${randomUUID()}');`);
         }
         const bound = await bindDataArtifactResources(f, false, databases.map(database => database.port));
+        const common = { flowId: selected.id, requestKey: randomUUID(), consumerRoot: ".", bindingKeys: ["AUTH_DB_URL"] };
+        const before = f.store.db.prepare("SELECT count(*) n FROM actions").get()?.n, signal = AbortSignal.timeout(30000);
+        const deny = () => { throw new Error("Incompatible resource must be rejected before quoting or writing"); };
+        await assert.rejects(proposeDatabase(bound.config, f.store, f.session.actorId, { ...common, type: "postgres", version: "18.4", planId: "small", bundleId: "basic" },
+          signal, { read: new LiaraDatabaseReadClient(bound.config, "b".repeat(24), deny), account: new LiaraAccountClient(bound.config, "b".repeat(24), deny) }),
+          error => error instanceof AppError && error.code === "DATABASE_BUILD_VERSION_MISMATCH");
+        await assert.rejects(proposeDatabase(bound.config, f.store, f.session.actorId,
+          { ...common, bindingKeys: ["AUTH_DB_URL", "PROFILE_DB_URL"], type: "postgres", version: "16.4", planId: "small", bundleId: "basic" },
+          signal, { read: new LiaraDatabaseReadClient(bound.config, "b".repeat(24), deny) }), error => error instanceof AppError && error.code === "DATABASE_BUILD_TARGET_MISMATCH");
+        const incompatible = new LiaraDatabaseCredentialsClient(bound.config, async url => {
+          const response = await bound.credentials.send(url, { method: "GET" }); const value = await response.json(); value.database.version = "17.10"; return Response.json(value);
+        });
+        await assert.rejects(proposeDatabaseAttachment(bound.config, f.store, f.session.actorId, { ...common, databaseId: "e".repeat(24) }, signal, { read: bound.read, account: bound.account, credentials: incompatible }),
+          error => error instanceof AppError && error.code === "DATABASE_BUILD_VERSION_MISMATCH");
+        assert.equal(f.store.db.prepare("SELECT count(*) n FROM actions").get()?.n, before);
         assert.equal((await fullstackVerification(f.store, f.config.stateDir, f.session.actorId, selected, bound.config.sessionSecret)).outputArtifactHash, evidence.verification.outputArtifactHash);
         assert.equal(bound.actions.length, 2); assert.equal(f.store.db.prepare("SELECT count(*) n FROM actions").get()?.n, 4);
         const published = await publishDataArtifact(f, bound.config, selected, result.repair, bound.values), first = databases[0]; assert.ok(first);
         const observer = new PostgresObserver({ resolve: async () => [{ address: first.address, family: 4 }] });
-        await checkDataArtifact(f, bound, published, observer, async () => { await first.sql(`UPDATE public.entries SET note='${randomUUID()}' WHERE id=7;`); });
+        await checkDataArtifact(f, bound, published, observer, first.restart, async () => { await first.sql(`UPDATE public.entries SET note='${randomUUID()}' WHERE id=7;`); });
         assert.equal(f.store.db.prepare("SELECT count(*) n FROM actions").get()?.n, 5);
       } finally { for (const database of databases.reverse()) await database.close(); }
     }

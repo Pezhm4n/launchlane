@@ -9,7 +9,7 @@ import type { LiaraEnvironmentClient } from "../liara/environment.ts";
 import { environmentContext, proposeResourceEnvironment } from "./environment.ts";
 import { string } from "../../contracts/validation.ts";
 import { databaseBindingKeys, isDatabaseResourceSpec } from "../../contracts/database-provision.ts";
-import { sourceDatabaseBindingKeys } from "../policy/database-targets.ts";
+import { testedResourceTarget } from "../policy/prepared-data.ts";
 
 function context(config: Config, store: Store, actor: string, runId: string) {
   const c = environmentContext(config, store, actor, runId), action = c.run.database;
@@ -22,8 +22,7 @@ function context(config: Config, store: Store, actor: string, runId: string) {
     row.kind === (spec.database.type === "postgres" ? "postgresql" : spec.database.type === "mysql" ? "mysql" : "redis"));
   // A URL binding is accepted only when this exact consumer declares it. Never map unrelated application keys.
   const keys = databaseBindingKeys(spec);
-  ensure(keys.every(key => requirement?.environmentKeys.includes(key) && c.flow.profile.envNames.includes(key)), "DATABASE_BINDING_SHAPE_UNSUPPORTED", "کلید اتصال این بخش در source مشخص نیست؛ مقدار حدسی ساخته نمی‌شود.", 409);
-  if (spec.version !== 27) sourceDatabaseBindingKeys(c.flow.profile, spec.consumerRoot, spec.database.type, keys);
+  ensure(testedResourceTarget(store, actor, c.flow, spec.consumerRoot, spec.database.type, spec.database.version, keys) || keys.every(key => requirement?.environmentKeys.includes(key) && c.flow.profile.envNames.includes(key)), "DATABASE_BINDING_SHAPE_UNSUPPORTED", "کلید اتصال این بخش در source مشخص نیست؛ مقدار حدسی ساخته نمی‌شود.", 409);
   return { ...c, databaseAction: action, spec: action.spec, databaseId: action.database.databaseId, keys };
 }
 export function databaseEnvironmentOption(config: Config, store: Store, actor: string, runId: string) {

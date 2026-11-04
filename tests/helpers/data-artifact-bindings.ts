@@ -48,7 +48,7 @@ export async function bindDataArtifactResources(f: Awaited<ReturnType<typeof run
   for (slot = 0; slot < 2; slot++) {
     if (slot) { const previous = repo.get(f.session.actorId, run.id); assert.ok(previous); continueAgentRun(config, f.store, f.session, run.id, previous.revision, randomUUID(), "منبع بعدی همان پروژه را متصل کن"); }
     await driveAgentRun(config, f.store, f.session, run.id, { model, tool, database: { read, account, credentials }, pollDelayMs: 0 });
-    const pending = repo.get(f.session.actorId, run.id); assert.ok(pending?.database); actions.push(pending.database.id);
+    const pending = repo.get(f.session.actorId, run.id); assert.ok(pending?.database, JSON.stringify({ state: pending?.state, error: pending?.errorCode, tools: pending?.messages.filter(row => row.role === "tool").slice(-2), events: pending?.events.slice(-2) })); actions.push(pending.database.id);
     await decideAgentDatabase(config, f.store, f.session, run.id, pending.revision, pending.database.id, "approve");
     await driveAgentRun(config, f.store, f.session, run.id, { model, tool, database: { read, account, credentials }, pollDelayMs: 0 });
     const binding = await proposeDatabaseEnvironment(config, f.store, f.session, run.id, randomUUID(), AbortSignal.timeout(10000), { read, account, credentials, environment });

@@ -3,12 +3,14 @@ import { spawn } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
 import { networkInterfaces } from "node:os";
 import { setTimeout as delay } from "node:timers/promises";
+import { freeHttpTestPort } from "./http-port.ts";
 import { postgresTestImage } from "../../src/contracts/test-database.ts";
 import { resolveCreatedContainer, type CommandResult } from "../../src/server/agent/container.ts";
 
 export type PostgresObserverFixture = Readonly<{
   address: string; port: number;
   sql(query: string): Promise<string>;
+  restart(): Promise<void>;
   close(): Promise<void>;
 }>;
 
@@ -45,19 +47,22 @@ export async function createPostgresObserverFixture(password = randomBytes(24).t
     closed = true;
   };
   try {
+    const fixedPort = await freeHttpTestPort();
     const created = await command(["run", "--pull=never", "--rm", "--detach", "--name", name, "--label", `ir.launchlane.worker=${label}`,
-      "--restart=no", "--memory=256m", "--cpus=1", "--pids-limit=128", "--publish", `${address}:0:5432`,
+      "--restart=no", "--memory=256m", "--cpus=1", "--pids-limit=128", "--publish", `${address}:${fixedPort}:5432`,
       "--env", "POSTGRES_PASSWORD", "--env", "POSTGRES_DB=postgres", postgresTestImage], AbortSignal.timeout(20000));
     id = await resolveCreatedContainer(created, expected, command); assert.ok(id, "Disposable PostgreSQL creation did not return a correlated container.");
     const ownedId = id;
-    let ready = false;
-    for (let attempt = 0; attempt < 40; attempt++) {
-      // The image briefly starts a Unix-only bootstrap server. Wait for the final TCP server,
-      // otherwise seeding can race bootstrap shutdown despite pg_isready's earlier success.
-      const probe = await command(["exec", ownedId, "pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "postgres"], AbortSignal.timeout(2000));
-      if (probe.exitCode === 0) { ready = true; break; } await delay(300);
-    }
-    assert.ok(ready, "Disposable PostgreSQL did not become ready in its bounded startup window.");
+    const waitReady = async () => {
+      for (let attempt = 0; attempt < 40; attempt++) {
+        // The image briefly starts a Unix-only bootstrap server. Wait for the final TCP server,
+        // otherwise seeding can race bootstrap shutdown despite pg_isready's earlier success.
+        const probe = await command(["exec", ownedId, "pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "postgres"], AbortSignal.timeout(2000));
+        if (probe.exitCode === 0) return; await delay(300);
+      }
+      throw new Error("Disposable PostgreSQL did not become ready in its bounded startup window.");
+    };
+    await waitReady();
     const published = await command(["inspect", "--format", "{{json .NetworkSettings.Ports}}", ownedId], AbortSignal.timeout(5000));
     assert.equal(published.exitCode, 0); const ports: unknown = JSON.parse(published.output);
     assert.ok(typeof ports === "object" && ports !== null && "5432/tcp" in ports);
@@ -70,6 +75,12 @@ export async function createPostgresObserverFixture(password = randomBytes(24).t
       const result = await command(["exec", "--interactive", ownedId, "psql", "-X", "-q", "-t", "-A", "-v", "ON_ERROR_STOP=1", "-U", "postgres", "-d", "postgres"], AbortSignal.timeout(10000), 4096, Buffer.from(query));
       assert.equal(result.exitCode, 0, "Disposable fixture SQL failed; private stderr is withheld."); return result.output.trim();
     };
-    return { address, port, sql, close };
+    const restart = async () => {
+      assert.ok(!closed);
+      const result = await command(["restart", ownedId], AbortSignal.timeout(30000));
+      assert.equal(result.exitCode, 0, "Restart of the exact disposable database must succeed.");
+      await waitReady();
+    };
+    return { address, port, sql, restart, close };
   } catch (error) { await close(); throw error; }
 }

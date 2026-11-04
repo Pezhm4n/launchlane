@@ -28,6 +28,7 @@ export type PostgresObserverResult = Readonly<{
   observation: PostgresDataObservation;
   /** Secret-keyed digests for PRIVATE storage/comparison only. Never serialize this outer result to tools or UI. */
   privatePersistence: readonly string[];
+  serverWindow: Readonly<{ started: number; sampled: number }>;
 }>;
 
 function privateAddress(address: PostgresObserverAddress): boolean {
@@ -105,13 +106,23 @@ export class PostgresObserver {
         return rows;
       };
       await query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
-      await query("SELECT pg_catalog.set_config('statement_timeout','3000ms',true), pg_catalog.set_config('lock_timeout','1000ms',true), pg_catalog.set_config('idle_in_transaction_session_timeout','5000ms',true), pg_catalog.set_config('search_path','pg_catalog',true), pg_catalog.set_config('row_security','off',true)");
-      const identityRows = await query("SELECT pg_catalog.current_database() AS database, CURRENT_USER AS username, pg_catalog.current_setting('server_version_num') AS version, pg_catalog.current_setting('transaction_read_only') AS readonly");
+      await query("SELECT pg_catalog.set_config('statement_timeout','3000ms',true), pg_catalog.set_config('lock_timeout','1000ms',true), pg_catalog.set_config('idle_in_transaction_session_timeout','5000ms',true), pg_catalog.set_config('search_path','pg_catalog',true), pg_catalog.set_config('row_security','off',true), pg_catalog.set_config('TimeZone','UTC',true), pg_catalog.set_config('DateStyle','ISO, YMD',true), pg_catalog.set_config('IntervalStyle','iso_8601',true), pg_catalog.set_config('bytea_output','hex',true), pg_catalog.set_config('extra_float_digits','3',true)");
+      const identityRows = await query(`SELECT pg_catalog.current_database() AS database, CURRENT_USER AS username,
+        pg_catalog.current_setting('server_version_num') AS version, pg_catalog.current_setting('transaction_read_only') AS readonly,
+        (extract(epoch FROM pg_catalog.pg_postmaster_start_time()) * 1000000)::bigint::text AS started,
+        (extract(epoch FROM pg_catalog.statement_timestamp()) * 1000000)::bigint::text AS sampled`);
       ensure(identityRows.length === 1, "DATABASE_DATA_IDENTITY_CHANGED", "هویت نشست دیتابیس مشخص نیست.", 409);
       const identity = object(identityRows[0]);
       ensure(identity.database === target.database && identity.username === target.username && identity.readonly === "on" &&
         typeof identity.version === "string" && /^\d{6}$/.test(identity.version) && Math.floor(Number(identity.version) / 10000) === expectedMajor,
         "DATABASE_DATA_IDENTITY_CHANGED", "نام، نقش، نسخه یا حالت فقط‌خواندنی نشست دیتابیس تأیید نشد.", 409);
+      const clock = (value: unknown) => {
+        ensure(typeof value === "string" && /^[1-9][0-9]{0,15}$/.test(value) && Number.isSafeInteger(Number(value)),
+          "DATABASE_DATA_CLOCK_INVALID", "زمان نشست PostgreSQL قابل تأیید نیست.", 409);
+        return Number(value);
+      };
+      const serverWindow = { started: clock(identity.started), sampled: clock(identity.sampled) };
+      ensure(serverWindow.started <= serverWindow.sampled, "DATABASE_DATA_CLOCK_INVALID", "ترتیب زمان نشست PostgreSQL معتبر نیست.", 409);
       const params: unknown[] = [], expected = oracle.columns.map(column => {
         const index = params.length; params.push(column.relation.slice(7), column.name, column.type, column.nullable);
         return `($${index + 1}::text,$${index + 2}::text,$${index + 3}::text,$${index + 4}::boolean)`;
@@ -136,10 +147,10 @@ export class PostgresObserver {
         }
         for (const [i, row] of oracle.persistence.entries()) {
           const column = quoted(row.column), boundedValue = `pg_catalog.pg_column_size(${column})<=4096 AND pg_catalog.octet_length(${column}::text)<=4096`,
-            read = await query(`WITH selected AS (SELECT CASE WHEN ${boundedValue} THEN pg_catalog.to_jsonb(${column}) ELSE NULL END AS value, COALESCE(NOT (${boundedValue}),false) AS oversized FROM ${relation(row.relation)} WHERE ${boundedJsonCell(quoted(row.key.column))} IS NOT DISTINCT FROM $1::jsonb LIMIT 2) SELECT count(*)::integer AS count, COALESCE(bool_or(oversized),false) AS oversized, (jsonb_agg(value))->0 AS value FROM selected`, [json(row.key.value)]);
+            read = await query(`WITH selected AS (SELECT CASE WHEN ${boundedValue} THEN pg_catalog.to_jsonb(${column}) ELSE NULL END AS value, COALESCE(NOT (${boundedValue}),false) AS oversized FROM ${relation(row.relation)} WHERE ${boundedJsonCell(quoted(row.key.column))} IS NOT DISTINCT FROM $1::jsonb LIMIT 2) SELECT count(*)::integer AS count, COALESCE(bool_or(oversized),false) AS oversized, NULLIF(jsonb_agg(value)->0,'null'::jsonb)::text AS value FROM selected`, [json(row.key.value)]);
           ensure(read.length === 1, "DATABASE_DATA_RESPONSE_INVALID", "نتیجهٔ سنجش state معتبر نیست.", 409);
           const actual = object(read[0]); integer(actual.count, 0, 2);
-          ensure(actual.oversized === false && "value" in actual && Buffer.byteLength(json(actual.value)) <= 8192,
+          ensure(actual.oversized === false && (actual.value === null || typeof actual.value === "string") && Buffer.byteLength(json(actual.value)) <= 8192,
             "DATABASE_DATA_LIMIT", "مقدار خصوصی سنجش از سقف مجاز بزرگ‌تر است.", 409);
           const present = actual.count === 1; persistenceChecks++; persistencePresent = persistencePresent && present;
           persistenceNonNull = persistenceNonNull && present && actual.value !== null;
@@ -149,7 +160,7 @@ export class PostgresObserver {
       await query("ROLLBACK");
       ensure(!signal.aborted, "DATABASE_DATA_CANCELLED", "سنجش خصوصی دیتابیس پایان نیافت.", 409);
       return { observation: { checkedAt: Date.now(), serverMajor: expectedMajor, columnChecks: oracle.columns.length, rowChecks, persistenceChecks,
-        schemaMatches, rowsMatch, persistencePresent, persistenceNonNull }, privatePersistence };
+        schemaMatches, rowsMatch, persistencePresent, persistenceNonNull }, privatePersistence, serverWindow };
     } catch (error) {
       if (signal.aborted) throw new AppError("DATABASE_DATA_CANCELLED", "سنجش خصوصی دیتابیس لغو شد یا مهلت آن پایان یافت؛ وضعیت داده تأیید نشد.", 409);
       if (error instanceof AppError && error.code === "BUDGET_EXHAUSTED") throw new AppError("BUDGET_EXHAUSTED", "بودجهٔ سنجش مستقل دیتابیس تمام شد؛ نتیجه کامل نشده است.", 409);

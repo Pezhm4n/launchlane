@@ -1,4 +1,23 @@
 # شواهد اعتبارسنجی Launchlane
+## Database target and continuity verification — 2026-11-04
+
+Frozen candidate `db-nov4-r5` from `7d37279` used Node 24.18.0 and the committed
+lockfile. Runtime source manifest `7d948d8be9cc95da0d89aace5f10930adc74745693f1ac3d5c764e5dc6438df9`
+identifies the tested application. Typecheck, Webpack build and lint passed with
+zero errors, 48 warnings and 22 informational diagnostics. Domain tests passed
+823/823, HTTP 49/49, data UI 10 states and guided UI 57 states. The actual private
+PostgreSQL observer passed 1/1 and Docker data-artifact cases passed 2/2.
+
+The passing data path uses unknown static PostgreSQL discovery, a reviewed
+original runner, two independent temporary targets, private environment decisions,
+compiled output, synthetic publication, a real PostgreSQL restart and independent
+selected-cell reads. It rejects wrong major versions and merged key groups before
+a new resource decision. Exact numeric values above the JS safe integer range and
+session timezone changes have actual PostgreSQL regressions. The prior worker
+attempt was cancelled before its negative oracle; the final complete run retained
+and passed that oracle. Model and provider transports are synthetic. No live
+provider migration, application persistence or new model spending is accepted.
+
 
 ## آماده‌بودن دیالوگ پس از تغییر عرض؛ ۲۰۲۶-۱۱-۰۱
 

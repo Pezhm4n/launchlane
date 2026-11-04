@@ -7,7 +7,14 @@ export function dataObservationId(value: unknown): string {
   ensure(/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(id), "INVALID_INPUT", "شناسهٔ بررسی داده معتبر نیست.");
   return id;
 }
+export type ServerComparison = "uncompared" | "same_start" | "inconclusive" | "retained_after_later_start" | "changed_after_later_start";
+function serverComparison(value: unknown): ServerComparison {
+  ensure(value === "uncompared" || value === "same_start" || value === "inconclusive" || value === "retained_after_later_start" || value === "changed_after_later_start",
+    "DATABASE_DATA_INVALID", "شاهد شروع مجدد دیتابیس معتبر نیست.", 409);
+  return value;
+}
 export type DatabaseDataTargetObservation = Readonly<{
+  serverComparison?: ServerComparison;
   id: string; databaseId: string; serverMajor: number; columnChecks: number; rowChecks: number; persistenceChecks: number;
   schemaMatches: boolean; rowsMatch: boolean; persistencePresent: boolean; persistenceNonNull: boolean;
 }>;
@@ -25,17 +32,25 @@ export function parseDatabaseDataObservation(value: unknown): DatabaseDataObserv
     row.migrationVerified === false && row.applicationWriteVerified === false && row.restartPersistenceVerified === false && row.remoteChanges === false,
     "DATABASE_DATA_INVALID", "رسید فقط اتصال و معیارهای خوانده‌شدهٔ داده را پوشش می‌دهد.", 409);
   const targets = row.targets.map(value => {
-    const part = object(value); exactKeys(part, ["id", "databaseId", "serverMajor", "columnChecks", "rowChecks", "persistenceChecks", "schemaMatches", "rowsMatch", "persistencePresent", "persistenceNonNull"]);
+    const part = object(value); exactKeys(part, ["id", "databaseId", "serverMajor", "columnChecks", "rowChecks", "persistenceChecks", "schemaMatches", "rowsMatch", "persistencePresent", "persistenceNonNull", "serverComparison"]);
     const id = string(part.id, 32);
     ensure(/^[a-z][a-z0-9_]{0,31}$/.test(id) && typeof part.schemaMatches === "boolean" && typeof part.rowsMatch === "boolean" &&
       typeof part.persistencePresent === "boolean" && typeof part.persistenceNonNull === "boolean", "DATABASE_DATA_INVALID", "رسید سنجش دیتابیس معتبر نیست.", 409);
-    return { id, databaseId: providerObjectId(part.databaseId), serverMajor: integer(part.serverMajor, 10, 99),
+    const comparison = part.serverComparison === undefined ? undefined : serverComparison(part.serverComparison);
+    if (comparison !== undefined) {
+      ensure((row.baselineId === null) === (comparison === "uncompared") &&
+        (comparison === "uncompared" || comparison === "inconclusive" || row.outcome === "verified" && row.comparison !== "not_comparable") &&
+        (comparison !== "changed_after_later_start" || row.comparison === "selected_values_changed"),
+        "DATABASE_DATA_INVALID", "مقایسهٔ شروع سرور به دو رسید معتبر نیاز دارد.", 409);
+    }
+    return { ...(comparison === undefined ? {} : { serverComparison: comparison }), id, databaseId: providerObjectId(part.databaseId), serverMajor: integer(part.serverMajor, 10, 99),
       columnChecks: integer(part.columnChecks, 1, 64), rowChecks: integer(part.rowChecks, 0, 16), persistenceChecks: integer(part.persistenceChecks, 0, 8),
       schemaMatches: part.schemaMatches, rowsMatch: part.rowsMatch, persistencePresent: part.persistencePresent, persistenceNonNull: part.persistenceNonNull };
   });
   const healthy = targets.every(target => target.schemaMatches && target.rowsMatch && target.persistencePresent && target.persistenceNonNull && target.persistenceChecks > 0);
   ensure(new Set(targets.map(target => target.id)).size === targets.length && new Set(targets.map(target => target.databaseId)).size === targets.length &&
     row.outcome === (healthy ? "verified" : "failed") &&
+    (row.comparison !== "selected_values_changed" || targets.some(target => target.serverComparison !== "retained_after_later_start")) &&
     (row.baselineId === null ? row.comparison === "not_requested" : row.comparison === "not_comparable" || healthy && (row.comparison === "same_selected_values" || row.comparison === "selected_values_changed")),
     "DATABASE_DATA_INVALID", "نتیجهٔ داده باید از همهٔ معیارها به دست آید.", 409);
   const comparison = row.comparison;

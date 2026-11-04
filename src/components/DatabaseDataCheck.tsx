@@ -48,10 +48,14 @@ export function DatabaseDataCheck({ actionId, csrf, disabled }: { actionId: stri
       <p role="status">{latest.outcome === "verified" ? "اتصال و معیارهای انتخاب‌شدهٔ داده تأیید شدند." : "دست‌کم یکی از معیارهای داده تأیید نشد."}</p>
       <p className="hint">آخرین مشاهده: {new Intl.DateTimeFormat("fa-IR", { dateStyle: "short", timeStyle: "short" }).format(latest.checkedAt)}؛ وضعیت جاری با این مشاهدهٔ ذخیره‌شده تضمین نمی‌شود.</p>
       <ul>{latest.targets.map(target => <li key={target.id}><bdi>{target.id}</bdi>: {number(target.columnChecks)} ستون، {number(target.rowChecks)} معیار ردیف و {number(target.persistenceChecks)} مقدار state خوانده شد؛ {target.schemaMatches && target.rowsMatch && target.persistencePresent && target.persistenceNonNull ? "معیارها برابرند" : "معیارها کامل تأیید نشدند"}.</li>)}</ul>
-      {latest.comparison === "same_selected_values" ? <p>مقادیر انتخاب‌شده با بررسی قبلی برابرند؛ این مقایسه ماندگاری پس از restart را ثابت نمی‌کند.</p>
+      {latest.targets.some(target => target.serverComparison && target.serverComparison !== "uncompared") ? <ul>{latest.targets.map(target =>
+        <li key={target.id}><bdi>{target.id}</bdi> — {target.serverComparison === "retained_after_later_start" ? "پس از شروع تازهٔ PostgreSQL، همان مقدارهای انتخاب‌شده دوباره خوانده شدند."
+          : target.serverComparison === "changed_after_later_start" ? "پس از شروع تازهٔ PostgreSQL، مقدارهای انتخاب‌شده تغییر کرده‌اند."
+          : target.serverComparison === "same_start" ? "هر دو خواندن در یک دورهٔ اجرای PostgreSQL انجام شد." : "شروع تازه از روی این دو مشاهده قابل تأیید نیست."}</li>)}</ul> : null}
+      {latest.comparison === "same_selected_values" ? <p>مقادیر انتخاب‌شده با بررسی قبلی برابرند.</p>
         : latest.comparison === "selected_values_changed" ? <p>مقادیر انتخاب‌شده نسبت به بررسی قبلی تغییر کرده‌اند؛ علت تغییر هنوز مشخص نیست.</p>
-          : latest.comparison === "not_comparable" ? <p>معیارهای یکی از دو بررسی کامل تأیید نشده‌اند؛ برابری مقدارها اعلام نمی‌شود.</p> : null}
-      <p className="hint">اجرای migration، نوشتن واقعی برنامه و ماندگاری پس از restart هنوز جداگانه باید اثبات شوند.</p>
+          : latest.comparison === "not_comparable" ? <p>برای مقایسه به دو بررسی کامل با قالب دادهٔ یکسان نیاز است.</p> : null}
+      <p className="hint">اجرای migration، نوشتن از راه برنامه و راه‌اندازی مجدد برنامه شاهد جداگانه می‌خواهند.</p>
     </div> : state ? <p className="hint">هنوز بررسی مستقلی برای دادهٔ این انتشار ثبت نشده است.</p> : null}
     {error ? <p className="error-message" role="alert">{error}</p> : null}
     {message ? <p role="status">{message}</p> : null}

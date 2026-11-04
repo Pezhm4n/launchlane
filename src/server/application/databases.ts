@@ -1,6 +1,6 @@
 import type { Action, Session } from "../../contracts/domain.ts";
 import type { DatabaseResourceSpec } from "../../contracts/database-provision.ts";
-import { databaseHostname, parseDatabaseBindingKeys } from "../../contracts/database-provision.ts";
+import { databaseBindingKeys, databaseHostname, parseDatabaseBindingKeys } from "../../contracts/database-provision.ts";
 import { providerObjectId } from "../../contracts/provision.ts";
 import { LiaraDatabaseCredentialsClient } from "../liara/database-credentials.ts";
 import { sourceDatabaseBindingKeys } from "../policy/database-targets.ts";
@@ -15,6 +15,7 @@ import { LiaraDatabaseProvisionClient } from "../liara/database-provision.ts";
 import type { Store } from "../persistence/store.ts";
 import { RunBudget } from "../policy/budget.ts";
 import { executeApproved } from "./execute.ts";
+import { assertPreparedResourceIntent } from "./fullstack-verification.ts";
 import { restoreProjectFlow } from "./project-flows.ts";
 import { assertDatabaseEnvironmentBinding } from "../environment/database-binding.ts";
 import { currentEnvironment } from "../environment/secrets.ts";
@@ -88,9 +89,12 @@ export async function proposeDatabaseAttachment(config: Config, store: Store, ac
   const restored = await restoreProjectFlow(c.config, store, actor, signal, input.flowId);
   ensure(restored?.status === "ready" && restored.profile.sourceHash === c.flow.profile.sourceHash, "PROJECT_CHANGED", "source تغییر کرده است.", 409);
   const budget = deps.budget ?? new RunBudget(c.config), selected = await selectedDatabase(c, databaseId, budget, signal, deps);
-  sourceNeed(c, consumerRoot, selected.type);
-  const bindingKeys = sourceDatabaseBindingKeys(c.flow.profile, consumerRoot, selected.type, input.bindingKeys),
-    reader = deps.read ?? new LiaraDatabaseReadClient(c.config, c.connection.identityId),
+  const bindingKeys = parseDatabaseBindingKeys(input.bindingKeys);
+  if (!await assertPreparedResourceIntent(store, config.stateDir, actor, c.flow, consumerRoot, selected.type, selected.version, bindingKeys)) {
+    sourceNeed(c, consumerRoot, selected.type);
+    sourceDatabaseBindingKeys(c.flow.profile, consumerRoot, selected.type, bindingKeys);
+  }
+  const reader = deps.read ?? new LiaraDatabaseReadClient(c.config, c.connection.identityId),
     quote = quoteDatabaseOffer(await reader.capabilities(budget, signal), { type: selected.type, version: selected.version, planId: selected.planId, bundleId: selected.bundleId });
   ensure(quote.planHourlyToman !== null && quote.bundleHourlyToman !== null, "DATABASE_PRICE_REQUIRED", "دو مؤلفهٔ هزینهٔ منبع موجود مشخص نیستند.", 409);
   const account = deps.account ?? new LiaraAccountClient(c.config, c.connection.identityId), project = await account.projectMetadata(c.app.name, budget, signal);
@@ -111,8 +115,7 @@ export async function proposeDatabase(config: Config, store: Store, actor: strin
   const c = context(config, store, actor), consumerRoot = applicationSourcePath(input.consumerRoot, true), type = identifier(input.type),
     version = string(input.version, 64), planId = identifier(input.planId), bundleId = identifier(input.bundleId), requestKey = string(input.requestKey, 36);
   ensure(c.flow.id === input.flowId && /^[a-f0-9-]{36}$/.test(requestKey), "INVALID_INPUT", "پروژه یا شناسه درخواست دیتابیس معتبر نیست.");
-  sourceNeed(c, consumerRoot, type);
-  const bindingKeys = input.bindingKeys === undefined ? undefined : sourceDatabaseBindingKeys(c.flow.profile, consumerRoot, type, input.bindingKeys);
+  const bindingKeys = input.bindingKeys === undefined ? undefined : parseDatabaseBindingKeys(input.bindingKeys);
   const prior = store.db.prepare("SELECT id FROM actions WHERE actor_id=? AND json_extract(spec,'$.version') IN (27,28,29) AND json_extract(spec,'$.requestKey')=?").get(actor, requestKey);
   if (prior) {
     const action = store.getAction(string(prior.id, 36), actor), spec = action.spec;
@@ -126,6 +129,10 @@ export async function proposeDatabase(config: Config, store: Store, actor: strin
   store.assertAgentIdle(actor, null, false, input.agentRunId ?? null);
   const restored = await restoreProjectFlow(c.config, store, actor, signal, input.flowId);
   ensure(restored?.status === "ready" && restored.profile.sourceHash === c.flow.profile.sourceHash, "PROJECT_CHANGED", "source تغییر کرده است.", 409);
+  if (!await assertPreparedResourceIntent(store, config.stateDir, actor, c.flow, consumerRoot, type, version, bindingKeys ?? ["DATABASE_URL"])) {
+    sourceNeed(c, consumerRoot, type);
+    if (bindingKeys) sourceDatabaseBindingKeys(c.flow.profile, consumerRoot, type, bindingKeys);
+  }
   if (bindingKeys) assertDatabaseEnvironmentBinding(store, config.sessionSecret, actor, c.flow, currentEnvironment(store, config.sessionSecret, actor, c.flow.id));
   const budget = deps.budget ?? new RunBudget(c.config), reader = deps.read ?? new LiaraDatabaseReadClient(c.config, c.connection.identityId),
     account = deps.account ?? new LiaraAccountClient(c.config, c.connection.identityId),
@@ -152,11 +159,13 @@ export async function executeDatabase(config: Config, store: Store, session: Ses
   ensure((action.spec.version === 27 || action.spec.version === 28 || action.spec.version === 29) && action.state === "approved" && !action.attemptId, "ACTION_CONFLICT", "دیتابیس مجوز معتبر اجرا ندارد.", 409);
   const spec = action.spec, c = context(config, store, session.actorId, spec), budget = deps.budget ?? new RunBudget(c.config),
     writer = deps.write ?? new LiaraDatabaseProvisionClient(c.config);
-  sourceNeed(c, spec.consumerRoot, spec.database.type);
-  if (spec.version !== 27) sourceDatabaseBindingKeys(c.flow.profile, spec.consumerRoot, spec.database.type, spec.bindingKeys);
   return executeApproved({ config: c.config, store, session, id, currentSpec: spec, signal: budget.signal(signal), adapter: {
     async preflight(bounded) {
       ensure(budget.maxToolCalls - budget.toolCalls >= (spec.version === 29 ? 7 : 6), "BUDGET_EXHAUSTED", "بودجه بررسی حساب، قیمت و دیتابیس کافی نیست.", 409);
+      if (!await assertPreparedResourceIntent(store, config.stateDir, session.actorId, c.flow, spec.consumerRoot, spec.database.type, spec.database.version, databaseBindingKeys(spec))) {
+        sourceNeed(c, spec.consumerRoot, spec.database.type);
+        if (spec.version !== 27) sourceDatabaseBindingKeys(c.flow.profile, spec.consumerRoot, spec.database.type, spec.bindingKeys);
+      }
       await preflight(c, spec, budget, bounded, deps);
       context(config, store, session.actorId, spec);
       if (spec.version === 28) assertDatabaseEnvironmentBinding(store, config.sessionSecret, session.actorId, c.flow, currentEnvironment(store, config.sessionSecret, session.actorId, c.flow.id));

@@ -14,7 +14,7 @@ import { AppError } from "../../src/server/errors.ts";
 
 /** Actual artifact/application/approval/provider-readback path; provider HTTP is synthetic, SQL uses the passed actual observer. */
 export async function checkDataArtifact(f: Awaited<ReturnType<typeof runnerFixture>>, bound: Awaited<ReturnType<typeof bindDataArtifactResources>>,
-  published: Awaited<ReturnType<typeof publishDataArtifact>>, observer: PostgresObserver, mutateData: () => Promise<void>) {
+  published: Awaited<ReturnType<typeof publishDataArtifact>>, observer: PostgresObserver, restartFirst: () => Promise<void>, mutateData: () => Promise<void>) {
   const route = { accountId: "b".repeat(24), teamId: "a".repeat(24), networkId: "d".repeat(24) };
   const config = { ...published.config, enableDatabaseDataReads: true, databaseReadNetworks: [route] }, actor = f.session.actorId, id = published.action.id,
     deps = { database: bound.read, credentials: bound.credentials, account: bound.account, read: published.read, environment: published.environment, observer },
@@ -29,7 +29,9 @@ export async function checkDataArtifact(f: Awaited<ReturnType<typeof runnerFixtu
   const first = await observeDatabaseData(config, f.store, actor, id, null, signal(), deps);
   assert.equal(first.outcome, "verified"); assert.equal(first.targets.length, 2); assert.equal(first.comparison, "not_requested");
   assert.equal(first.migrationVerified, false); assert.equal(first.applicationWriteVerified, false); assert.equal(first.restartPersistenceVerified, false);
+  await restartFirst();
   const second = await observeDatabaseData(config, f.store, actor, id, first.id, signal(), deps);
+  assert.deepEqual(second.targets.map(row => row.serverComparison), ["retained_after_later_start", "same_start"]);
   assert.equal(second.comparison, "same_selected_values");
   assert.equal(databaseDataState(config, f.store, actor, id).latest?.id, second.id); assert.equal(count(), 2);
   await mutateData();

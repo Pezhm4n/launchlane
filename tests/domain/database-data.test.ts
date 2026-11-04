@@ -18,10 +18,36 @@ import { LiaraReadClient } from "../../src/server/liara/client.ts";
 import { callMcpTool, mcpTools } from "../../src/server/mcp/server.ts";
 import { object } from "../../src/contracts/validation.ts";
 
+import { compareTargetSamples, previousTargetSamples } from "../../src/server/application/postgres-continuity.ts";
+import { assertTestedPostgresVersion } from "../../src/server/policy/prepared-data.ts";
+import { postgresTestImage } from "../../src/contracts/test-database.ts";
+
 const observation = () => ({ id: randomUUID(), actionId: randomUUID(), releaseId: "release", artifactHash: "a".repeat(64), checkedAt: Date.now(), outcome: "verified",
   targets: [{ id: "auth", databaseId: "a".repeat(24), serverMajor: 16, columnChecks: 3, rowChecks: 1, persistenceChecks: 1,
     schemaMatches: true, rowsMatch: true, persistencePresent: true, persistenceNonNull: true }], baselineId: null, comparison: "not_requested",
   migrationVerified: false, applicationWriteVerified: false, restartPersistenceVerified: false, remoteChanges: false });
+test("legacy digests and overlapping or regressive server clocks cannot prove retention after a later start", () => {
+  const prior = { id: "auth", databaseId: "1".repeat(24), started: 100, sampled: 300, cells: ["a".repeat(64)] };
+  assert.equal(previousTargetSamples([prior.cells]), null);
+  assert.deepEqual(previousTargetSamples({ version: 2, targets: [prior] }), [prior]);
+  assert.throws(() => previousTargetSamples({ version: 2, targets: [{ ...prior, sampled: 90 }] }));
+  for (const started of [50, 250, 300]) assert.equal(compareTargetSamples({ ...prior, started, sampled: 400 }, prior).serverComparison, "inconclusive");
+  assert.equal(compareTargetSamples({ ...prior, sampled: 290 }, prior).serverComparison, "inconclusive");
+  assert.equal(compareTargetSamples(prior, prior).serverComparison, "same_start");
+  const fresh = { ...prior, started: 301, sampled: 350 };
+  assert.equal(compareTargetSamples(fresh, prior).serverComparison, "retained_after_later_start");
+  assert.equal(compareTargetSamples({ ...fresh, cells: ["b".repeat(64)] }, prior).serverComparison, "changed_after_later_start");
+  assert.throws(() => compareTargetSamples({ ...fresh, databaseId: "2".repeat(24) }, prior));
+  const base = observation();
+  assert.throws(() => parseDatabaseDataObservation({ ...base, targets: [{ ...base.targets[0], serverComparison: "same_start" }] }));
+  assert.throws(() => parseDatabaseDataObservation({ ...base, baselineId: randomUUID(), comparison: "selected_values_changed",
+    targets: [{ ...base.targets[0], serverComparison: "retained_after_later_start" }] }));
+});
+
+test("database preparation checks the tested major while allowing provider patch versions", () => {
+  for (const version of ["16", "16.14"]) assertTestedPostgresVersion(version, postgresTestImage);
+  for (const version of ["17", "18.4", "", "16-latest", "16.14foo", "016.14"]) assert.throws(() => assertTestedPostgresVersion(version, postgresTestImage));
+});
 const code = (expected: string) => (error: unknown) => error instanceof AppError && error.code === expected;
 test("database data receipts cannot manufacture migration, writes, restart persistence or raw data evidence", () => {
   const value = observation(), parsed = parseDatabaseDataObservation(value); assert.equal(parsed.outcome, "verified");

@@ -20,7 +20,7 @@ function harness(replace?: (sql: string, values: readonly unknown[]) => readonly
       async connect() { connections++; },
       async query(sql, values) {
         calls.push({ sql, values }); const replacement = replace?.(sql, values); if (replacement) return replacement;
-        if (sql.includes("current_database()")) return [{ database: connection.database, username: connection.username, version: "160003", readonly: "on" }];
+        if (sql.includes("current_database()")) return [{ database: connection.database, username: connection.username, version: "160003", readonly: "on", started: "1000000", sampled: "2000000" }];
         if (sql.includes("AS matches")) return [{ matches: oracle.columns.length, unsupported: 0 }];
         if (sql.includes("AS oversized")) return [{ count: 1, oversized: false, value: "application-generated-private-cell" }];
         if (sql.includes("AS ok")) return [{ count: 1, ok: true }];
@@ -59,6 +59,15 @@ test("persistence digests are stable across fresh sessions only with the same pr
   assert.deepEqual(first.privatePersistence, second.privatePersistence); assert.equal(f.counts().connections, 2);
   const different = await f.observer.observe(connection, oracle, { ...options, digestKey: "a-different-private-digest-key-for-tests" });
   assert.notDeepEqual(first.privatePersistence, different.privatePersistence);
+});
+
+test("missing, unsafe or reversed PostgreSQL clocks cannot issue a data receipt", async () => {
+  for (const [started, sampled] of [["3", "2"], ["NaN", "2"], ["1", "9007199254740992"], [undefined, "12"]]) {
+    const f = harness(sql => sql.includes("current_database()") ? [{ database: connection.database, username: connection.username,
+      version: "160003", readonly: "on", started, sampled }] : undefined);
+    await assert.rejects(f.observer.observe(connection, oracle, options), code("DATABASE_DATA_CLOCK_INVALID"));
+    assert.equal(f.counts().ended, 1);
+  }
 });
 
 test("schema mismatch blocks data lookup and never establishes data readiness", async () => {
@@ -100,7 +109,7 @@ test("only the validated DNS address is passed to the client and a fresh observa
 
 test("database, role, server version and readonly identity all have to match before schema reads", async () => {
   for (const change of [{ database: "another" }, { username: "another" }, { version: "150009" }, { readonly: "off" }, { version: "16.3" }]) {
-    const f = harness(sql => sql.includes("current_database()") ? [{ database: connection.database, username: connection.username, version: "160003", readonly: "on", ...change }] : undefined);
+    const f = harness(sql => sql.includes("current_database()") ? [{ database: connection.database, username: connection.username, version: "160003", readonly: "on", started: "1000000", sampled: "2000000", ...change }] : undefined);
     await assert.rejects(f.observer.observe(connection, oracle, options), code("DATABASE_DATA_IDENTITY_CHANGED"));
     assert.equal(f.calls.length, 3); assert.equal(f.counts().destroyed, 1);
   }
