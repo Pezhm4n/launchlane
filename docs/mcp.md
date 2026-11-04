@@ -76,7 +76,7 @@ npm run setup:mcp -- --missions --output .local/mcp-missions.json
 برای نسخهٔ عمومی، وارد همان وب‌اپ شوید و «حساب‌ها ← اتصال MCP» را باز کنید. محدودهٔ خواندن یا مأموریت را انتخاب، دسترسی را بسازید و فایل را دانلود کنید. سپس در checkout نصب‌شده روی رایانهٔ میزبان اجرا کنید:
 
 ```powershell
-npm run setup:mcp -- --from-file "$env:USERPROFILE\Downloads\launchlane-mcp-access.json" --origin <deployment-origin> --output .local/mcp-hosted.json
+npm run setup:mcp -- --from-file "$env:USERPROFILE\Downloads\launchlane-mcp-access.json" --origin https://launchlane.example.com --output .local/mcp-hosted.json
 ```
 
 نشانی `--origin` را مستقلاً با نصب موردنظر تطبیق دهید؛ از نشانی داخل فایل ناشناس به‌عنوان مرجع اعتماد استفاده نکنید. در این مسیر `.env.local` یا کلید operator لازم نیست. setup با TLS معتبر، مذاکرهٔ SDK و `launchlane_context` نام سرور و scope واقعی را بررسی می‌کند و فقط پس از موفقیت فایل را می‌نویسد. تغییر دامنه، HTTP غیرمحلی، redirect، scope بالاتر و فایل منقضی رد می‌شوند. رمز ورود، کلید لیارا و raw token به تنظیم میزبان منتقل نمی‌شوند. در همین پنجره، «لغو همین دسترسی MCP» فایل صادرشده را در سرور بی‌اعتبار می‌کند.

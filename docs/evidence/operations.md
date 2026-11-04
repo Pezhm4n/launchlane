@@ -301,8 +301,8 @@ function calling درخواست ابزار مدل را از اجرای ابزا�
 
 مقصد launchlane-sre-qa-1022 ابتدا وجود نداشت. ساخت با proposal، تصمیم server-validated و readback همان app ID انجام شد. انتشار تصمیم جدا، archive ثبت‌شده و معیار ثابت /total داشت.
 
-- نشانی زمان آزمون: <deployment-origin>
-- release ID: <resource-id>
+- نشانی زمان آزمون: &lt;deployment-origin&gt;
+- release ID: &lt;resource-id&gt;
 - وضعیت Liara: READY
 - پاسخ مستقل واقعی: HTTP 200 و {"total":36,"case":"qa-20261022"}
 - انتظار: total برابر 73
@@ -388,7 +388,7 @@ The private routes-review-before.log preserves both failing assertions (9/11), f
 
 ### Final isolated configuration
 
-The final full matrix retains the exact r3 application/package manifest. Child TEMP/TMP is explicitly <private-validation>, so even disposable state is under this managed checkout. Earlier independently cleaned system-temp receipts remain separately labelled above. Host Node24.18.0, pinned package lock and the existing image digests are unchanged. Ports are independently allocated; production/main/port3000 are untouched by this lane.
+The final full matrix retains the exact r3 application/package manifest. Child TEMP/TMP is explicitly &lt;private-validation&gt;, so even disposable state is under this managed checkout. Earlier independently cleaned system-temp receipts remain separately labelled above. Host Node24.18.0, pinned package lock and the existing image digests are unchanged. Ports are independently allocated; production/main/port3000 are untouched by this lane.
 
 | Check | Final measured result |
 | --- | --- |
@@ -567,10 +567,10 @@ fixture کوچک Node، از کد نوشته‌شده برای همین آزمو
 
 The initial main9c38849 and runtime4af8d04 had 17 and12 unique commits since fc01252. Three history-preserving merges (6f08e8c, ca4f628, f361346) retain both lines, schema199cd76 and accounts a1ab628. Main was fast-forwarded only after the other owners committed their work and its index/worktree were clean. Existing environment/state files were preserved.
 
-Exact executable source: f361346; Node24.18.0; primary folder <private-validation>; production build m5FSXET2TnE0UVFFqk-un. Under the shared OS lock, npm ci, lint (52 existing warnings/47 infos, zero errors), typecheck, domain893/893, build and HTTP50/50 passed. Nine actual Chromium suites passed: accounts13, responsive47, library19, login10/two actors, automatic lifecycle3, MCP24, plans14, guided57 and baseline intake/review/reject15. Browser state/providers/model are disposable/synthetic; baseline review starts no worker/SQL, rejects by keyboard and retains replay409. Local logs/results: <private-validation>; images: .artifacts.
+Exact executable source: f361346; Node24.18.0; primary folder &lt;private-validation&gt;; production build m5FSXET2TnE0UVFFqk-un. Under the shared OS lock, npm ci, lint (52 existing warnings/47 infos, zero errors), typecheck, domain893/893, build and HTTP50/50 passed. Nine actual Chromium suites passed: accounts13, responsive47, library19, login10/two actors, automatic lifecycle3, MCP24, plans14, guided57 and baseline intake/review/reject15. Browser state/providers/model are disposable/synthetic; baseline review starts no worker/SQL, rejects by keyboard and retains replay409. Local logs/results: &lt;private-validation&gt;; images: .artifacts.
 
 Retained integration failures: the first combined domain run was881/882 because the old hosted-config test expected an empty managed CLI path. Its expectation now follows the installed-tool contract; system-account denial and actor isolation remain tested. Duplicate identical CSS tokens were removed. The account owner's historical assistant-first browser script and kit self-test remain separate limitations in accounts-page.md. Fresh Docker/provider/model/full14 production acceptance was not performed by this integration.
 
 Verification history already moved by main stays in docs/archive/verification-20261029.md; duplicate restoration during the merge was removed only after confirming every old base line remains there with adjusted link prefixes.
 
-The manual local HTTPS runtime task now starts Next from the primary folder and serves that build. Entry/health200, unauthenticated workspace401 and nine served JS/CSS hashes matched the primary output. Its ignored launcher is <private-validation> old worktree entrypoints delegate to it. Existing private env/state/certificate stay in place with a private state backup. The child does not inherit the primary installation's configuration. Standard npm start/dev separately uses the primary folder's own .env.local at http://127.0.0.1:3000.
+The manual local HTTPS runtime task now starts Next from the primary folder and serves that build. Entry/health200, unauthenticated workspace401 and nine served JS/CSS hashes matched the primary output. Its ignored launcher is &lt;private-validation&gt; old worktree entrypoints delegate to it. Existing private env/state/certificate stay in place with a private state backup. The child does not inherit the primary installation's configuration. Standard npm start/dev separately uses the primary folder's own .env.local at http://127.0.0.1:3000.

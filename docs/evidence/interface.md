@@ -242,7 +242,7 @@ UI checks. The handoff includes the exact SHA, commands and retained failures.
 | --- | --- | --- |
 | run | 937a69de-f447-4edc-8437-20572a2f6f46 | c4174352-b2d6-4981-bf5a-ec47de545d80 |
 | مسیر و انتظار پیش از اجرا | /، وضعیت200، متن mentor publication ready | /orders، وضعیت200، متن JSON شامل total=73 |
-| release | <resource-id> | <resource-id> |
+| release | &lt;resource-id&gt; | &lt;resource-id&gt; |
 | archive SHA256 | c94615f9895c1611ab744edc98daec15e231c554461f47c9018298ff70608398 | f25a22bb514d0f22143715daf28f7e9959bbe881dc40d0b1f72eff77fe567948 |
 | مدل / ابزار | 7 / 45 | 12 / 48، شامل worker |
 | token گزارش‌شده | 30,086 | 50,820 |
@@ -252,7 +252,7 @@ UI checks. The handoff includes the exact SHA, commands and retained failures.
 
 در چرخه دوم، مدل از profile به source و آزمون مرتبط رفت. baseline با خطای محاسبه تعداد شکست خورد؛ فقط invoice.mjs تغییر کرد. همان تست، فاکتور خالی و اعشار را نیز کنترل کرد و روی Node22.23.3 داخل container گذشت. source اصلی همچنان خراب و محفوظ بود. archive انتخاب‌شده دقیقاً همان archive تست‌شده بود و به ID داخلی مقصد تازه متصل شد. host فقط پس از READY/current و پاسخ200 با انتظار مصوب completed ثبت کرد؛ GET عمومی مستقل هم پاسخ درست داد.
 
-هر دو مقصد از نام آزمایشی launchlane-sre-direct-check استفاده کردند؛ پیش از هر create، absence404 و پایان/cleanup چرخه قبلی مشخص بود. نام به‌تنهایی به مالکیت تبدیل نشد؛ ID برگشتی هر چرخه در journal و cleanup تطبیق داده شد. هر دو با یک DELETE و GET404 بسته شدند و سرورهای موقت متوقف شدند. نشانی <deployment-origin> پس از cleanup نمونه فعال نیست. env write و ساخت شبکه صفر بودند؛ صورتحساب قطعی از شمار درخواست یا token نتیجه نمی‌شود.
+هر دو مقصد از نام آزمایشی launchlane-sre-direct-check استفاده کردند؛ پیش از هر create، absence404 و پایان/cleanup چرخه قبلی مشخص بود. نام به‌تنهایی به مالکیت تبدیل نشد؛ ID برگشتی هر چرخه در journal و cleanup تطبیق داده شد. هر دو با یک DELETE و GET404 بسته شدند و سرورهای موقت متوقف شدند. نشانی &lt;deployment-origin&gt; پس از cleanup نمونه فعال نیست. env write و ساخت شبکه صفر بودند؛ صورتحساب قطعی از شمار درخواست یا token نتیجه نمی‌شود.
 
 این دو مورد **اصلاح قبل از انتشار** را ثابت می‌کنند. در چرخه دوم انتشار اولیه ناسالم و سپس redeploy انجام نشد؛ مدل پیش از اولین انتشار تست را خواند و اصلاح کرد. شاهد تاریخی آن مسیر با شاهد تازه این تجربه یکی نیست. تغییرهای پایانی channel/lock به regression مستقل نیاز دارند؛ فقط وجود این دو رسید، تأیید همه source نهایی نیست.
 
@@ -782,7 +782,7 @@ Existing Liara login accepts optional strict boolean remember. Only a verified l
 
 Actual domain21/21 covers default/operator compatibility, seven-day Store reopen, thirty-day expiry, logout, malformed flags before provider calls and existing Host/Origin/CSRF/tamper checks. HTTP48/48, lint/typecheck/build and actual Chromium login8states/two actors pass. Keyboard selection, 2FA, long-lived cookie, new browser context restoration, revocation, reload and project isolation are checked. Eight responsive/axe states pass with zero page errors. Provider responses are synthetic and network-denying, no real account login/model call/cloud write is performed.
 
-The private local runner separately reproduced HOST_DENIED at the old HTTP3101 URL while the same local HTTPS runtime request passed Host validation. It now redirects old HTTP navigation to fixed <local-origin> and keeps the Next backend on private3103. Host/Origin checks in product code stay intact. The self-signed local certificate remains a browser trust prompt. Real Liara password/2FA entry by the owner is still required for actual sign-in.
+The private local runner separately reproduced HOST_DENIED at the old HTTP3101 URL while the same local HTTPS runtime request passed Host validation. It now redirects old HTTP navigation to fixed &lt;local-origin&gt; and keeps the Next backend on private3103. Host/Origin checks in product code stay intact. The self-signed local certificate remains a browser trust prompt. Real Liara password/2FA entry by the owner is still required for actual sign-in.
 
 <a id="responsive-ui"></a>
 

@@ -58,7 +58,7 @@ patch از بایت‌های working tree بدون commit freeze شد: digest ma
 - قبل از جابه‌جایی production، نبود کار فعال/نامعلوم بررسی و SQLite backup consistent از state و ledger گرفته شد. در نخستین export، `docker cp` فایل داخل tmpfs را پیدا نکرد؛ هنوز هیچ توقف/config write نشده بود. backupهای موجود با stream باینری خصوصی صادر شدند و همان مرحله ادامه یافت؛ DB یا journal reset نشد.
 - claim خصوصی پیش از تعویض image ثبت شد؛ فقط web با همان compose و runtime env بازآفرینی شد. ingress، TLS، account scope و منابع پولی تغییر نکردند. image واقعی جدید healthy و OOM=false است؛ runtime config hash ثابت ماند.
 - پس از startup و درخواست واقعی حفاظت‌شده، همهٔ ردیف‌های۲۸جدول state و۵جدول ledger با backup برابر و هر دو quick_check=ok بودند؛ این شاهد حفظ state موجود در یک rollout بیکار است. state عمومی هنگام baseline پروژه‌ای نداشت؛ حفظ archiveهای پروژهٔ عمومی از این مقایسه نتیجه نمی‌شود و بررسی Login در محیط جدا ثبت شده است.
-- دامنهٔ **<deployment-origin> پاسخ200 دارد. هر۹asset واقعی JS/CSS قبل/بعد از نظر path، اندازه و SHA256 دقیقاً برابرند؛ درخواست عمومی بدون نشست به `/api/workspace` همچنان401/AUTH_REQUIRED است.
+- دامنهٔ **&lt;deployment-origin&gt; پاسخ200 دارد. هر۹asset واقعی JS/CSS قبل/بعد از نظر path، اندازه و SHA256 دقیقاً برابرند؛ درخواست عمومی بدون نشست به `/api/workspace` همچنان401/AUTH_REQUIRED است.
 
 محیط‌های baseline و staging متعلق به همین بررسی متوقف شدند؛ داده‌ها و logهای خصوصی نگه‌داری شدند. container production و proxy فعال‌اند. هیچ source/DB/ledger ترب، سرور محلی یا history Git تغییر/reset نشد.
 
@@ -75,7 +75,7 @@ patch از بایت‌های working tree بدون commit freeze شد: digest ma
 
 ## میزبانی واقعی Launchlane روی لیارا — ۲۰۲۶-۱۰-۲۴
 
-دامنهٔ قابل دسترس: **<deployment-origin> در `2026-10-23T20:45:20Z` صفحهٔ اصلی با عنوان Launchlane و هر۹ فایل JS/CSS با200 دریافت شدند. `GET /api/health` برابر200 و `GET /api/workspace` بدون نشست برابر401/AUTH_REQUIRED بود. این انتشار خود محصول است؛ انتشار تازهٔ پروژهٔ کاربر یا ترب از آن نتیجه نمی‌شود.
+دامنهٔ قابل دسترس: **&lt;deployment-origin&gt; در `2026-10-23T20:45:20Z` صفحهٔ اصلی با عنوان Launchlane و هر۹ فایل JS/CSS با200 دریافت شدند. `GET /api/health` برابر200 و `GET /api/workspace` بدون نشست برابر401/AUTH_REQUIRED بود. این انتشار خود محصول است؛ انتشار تازهٔ پروژهٔ کاربر یا ترب از آن نتیجه نمی‌شود.
 
 
 <a id="launchlane-hosted-release-هویت-و-ساختار-نصب"></a>
@@ -358,7 +358,7 @@ OAuth اختصاصی MCP، انتخاب source از MCP، incident goal مستق
 
 ## انتشار واقعی MCP روی دامنهٔ عمومی — ۲۰۲۶-۱۰-۲۵
 
-طبق درخواست مستقیم مالک، اصلاحات MCP بدون commit، staging، push یا تغییر طراحی روی **<deployment-origin> فعال شدند. در04:57UTC، SDK و میزبان واقعی Codex روی همان دامنه و با فایل صادرشده از نشست واقعی کاربر بررسی شدند؛ این گزارش ادامهٔ [آزمون مستقل](access.md#mcp-hosted-independent-20261025) است.
+طبق درخواست مستقیم مالک، اصلاحات MCP بدون commit، staging، push یا تغییر طراحی روی **&lt;deployment-origin&gt; فعال شدند. در04:57UTC، SDK و میزبان واقعی Codex روی همان دامنه و با فایل صادرشده از نشست واقعی کاربر بررسی شدند؛ این گزارش ادامهٔ [آزمون مستقل](access.md#mcp-hosted-independent-20261025) است.
 
 
 <a id="mcp-public-release-20261025-نسخه-و-دامنه-تغییر"></a>
