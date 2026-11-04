@@ -1,0 +1,9 @@
+# Primary checkout integration — 2026-11-04
+
+The initial main9c38849 and runtime4af8d04 had 17 and12 unique commits since fc01252. Three history-preserving merges (6f08e8c, ca4f628, f361346) retain both lines, schema199cd76 and accounts a1ab628. Main was fast-forwarded only after the other owners committed their work and its index/worktree were clean. Existing environment/state files were preserved.
+
+Exact executable source: f361346; Node24.18.0; primary folder I:/Computer/dev/starcoach/launchlane; production build m5FSXET2TnE0UVFFqk-un. Under the shared OS lock, npm ci, lint (52 existing warnings/47 infos, zero errors), typecheck, domain893/893, build and HTTP50/50 passed. Nine actual Chromium suites passed: accounts13, responsive47, library19, login10/two actors, automatic lifecycle3, MCP24, plans14, guided57 and baseline intake/review/reject15. Browser state/providers/model are disposable/synthetic; baseline review starts no worker/SQL, rejects by keyboard and retains replay409. Local logs/results: .local/runtime-integration-20261104; images: .artifacts.
+
+Retained integration failures: the first combined domain run was881/882 because the old hosted-config test expected an empty managed CLI path. Its expectation now follows the installed-tool contract; system-account denial and actor isolation remain tested. Duplicate identical CSS tokens were removed. The account owner's historical assistant-first browser script and kit self-test remain separate limitations in accounts-page.md. Fresh Docker/provider/model/full14 production acceptance was not performed by this integration.
+
+Verification history already moved by main stays in docs/archive/verification-20261029.md; duplicate restoration during the merge was removed only after confirming every old base line remains there with adjusted link prefixes. Start from the primary folder with npm start (or npm run dev), at http://127.0.0.1:3000; the old worktree HTTPS3102 task is stopped.

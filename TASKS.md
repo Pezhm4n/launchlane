@@ -1,5 +1,7 @@
 # برنامه اجرایی Launchlane
 
+Unified main, 2026-11-04: all committed runtime/database/account-UI work is now in the primary checkout; source f361346 passed domain893/HTTP50 and nine browser suites after a fresh primary-folder build. [Evidence](docs/evidence/worktree-integration.md). No live provider or fresh Docker acceptance is added.
+
 ## AC14/15/31 — حساب‌ها به‌صورت صفحه؛ ۲۰۲۶-۱۱-۰۴
 
 صفحهٔ `view=accounts` جای modal حساب‌ها را گرفت: نشانی مستقیم، حفظ مقصد/project، reload و history، راهبری بخش‌ها، سند قابل اسکرول و برگشت/فوکوس به مبدأ. خواندن تنظیمات با controller واحد و retry پس از failure کامل شد؛ اتصال‌ها و MCP همان API و اختیار موجود را دارند. candidate r4 بر پایه199cd76، build/typecheck/lint (صفرerror/46warning/22info)، domain14، حساب‌ها13حالت، responsive47 و MCP24 را گذراند. Workbench75، domain-guide22، guided57، plans14 و HTTP33 نیز پاس شدند؛ تست تاریخی assistant-first در انتظار h1 قدیمی شکست خورد و در شاهد جدا ثبت است. فعال‌سازی درخت متحد و اجرای نهایی از پوشهٔ اصلی با ایجنت ادغام هماهنگ است؛ مدل/ابر واقعی اجرا نشد. [شاهد و فرمان‌ها](docs/evidence/accounts-page.md).
