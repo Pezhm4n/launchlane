@@ -318,3 +318,11 @@ test("operator proxy credentials injected by Docker CLI are denied before starti
   await assert.rejects(withPostgresFixture(setup(h),async()=>h.markUsed()),code("POSTGRES_FIXTURE_ISOLATION_INVALID"));
   assert.equal(h.events.includes("start"),false);assert.equal(h.uses(),false);assert.equal(h.removed(),true);
 });
+
+test("bounded baseline failures keep their actionable typed code after confirmed fixture cleanup", async () => {
+  for (const expected of ["DATABASE_BASELINE_FAILED", "DATABASE_BOOTSTRAP_ROLE_FAILED"]) {
+    const h = harness();
+    await assert.rejects(withPostgresFixture(setup(h), async () => { throw new AppError(expected, "Reviewed prerequisite failed.", 409); }), code(expected));
+    assert.equal(h.removed(), true);
+  }
+});

@@ -86,14 +86,14 @@ export async function startTestServer({ browserHost = "127.0.0.1", publicOrigin 
     pipe.on("data", (chunk) => {
       output = `${output}${chunk}`.slice(-6000);
     });
-  async function close() {
+  async function close({ preserveState = false } = {}) {
     if (child.exitCode === null) {
       child.kill();
       await new Promise((done) => child.once("exit", done));
     }
     if (!resolve(directory).startsWith(join(tmpdir(), "launchlane-http-")))
       throw new Error("Unsafe test cleanup path");
-    await rm(directory, { recursive: true, force: true });
+    if (!preserveState) await rm(directory, { recursive: true, force: true });
   }
   const startupDeadline = Date.now() + 45_000;
   for (let attempt = 0; attempt < 100 && Date.now() < startupDeadline; attempt++) {

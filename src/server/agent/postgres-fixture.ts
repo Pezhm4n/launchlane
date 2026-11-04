@@ -1,3 +1,4 @@
+import { parsePostgresBootstrap, type PostgresBootstrap } from "../../contracts/postgres-bootstrap.ts";
 import { setTimeout as pause } from "node:timers/promises";
 import { exactKeys, object } from "../../contracts/validation.ts";
 import { AppError, ensure } from "../errors.ts";
@@ -21,7 +22,7 @@ type Command = typeof docker;
 type Owner = { jobId: string; sourceHash: string; name: string };
 export type PostgresFixtureTarget = Readonly<{ id: string; database: string; user: string }>;
 export type PostgresFixtureBinding = Readonly<Omit<typeof fixture, "user"> & { user: "launchlane_fixture" | "launchlane_migration_app"; jobId: string; sourceHash: string; containerId: string; networkMode: `container:${string}`; targets?: readonly PostgresFixtureTarget[] }>;
-export type PostgresFixtureSql = Readonly<{ apply: (sql: string, signal: AbortSignal) => Promise<CommandResult>; read: (sql: string, signal: AbortSignal, target?: string) => Promise<CommandResult> }>;
+export type PostgresFixtureSql = Readonly<{ bootstrap?: (target: string, setup: PostgresBootstrap, sql: string, signal: AbortSignal) => Promise<CommandResult>; apply: (sql: string, signal: AbortSignal) => Promise<CommandResult>; read: (sql: string, signal: AbortSignal, target?: string) => Promise<CommandResult> }>;
 export type PostgresFixtureOptions = Readonly<{
   jobId: string; sourceHash: string; signal: AbortSignal;
   onCreated: (id: string) => void | Promise<void>;
@@ -192,7 +193,27 @@ GRANT SELECT,INSERT ON public._launchlane_migrations TO launchlane_migration_app
       }
     }
     const binding = Object.freeze({ ...fixture, user: options.migration && !targets ? "launchlane_migration_app" as const : fixture.user, jobId: owner.jobId, sourceHash: owner.sourceHash, containerId: id, networkMode: `container:${id}` as const, ...(targets ? { targets: Object.freeze(targets) } : {}) });
-    const sql: PostgresFixtureSql = Object.freeze({ apply: (text, signal) => { ensure(!targets, "MIGRATION_RUNNER_SQL_DENIED", "runner اصلی مسئول SQL است؛ میزبان SQL جایگزین تزریق نمی‌کند.", 409); return query(text, "launchlane_migration_app", false, signal); },
+    const bootstrapRoles = new Set<string>();
+    const bootstrap: NonNullable<PostgresFixtureSql["bootstrap"]> = async (targetId, value, text, signal) => {
+      const target = targets?.find(target => target.id === targetId);
+      ensure(target && options.migration, "DATABASE_BOOTSTRAP_SCOPE_INVALID", "baseline فقط به دیتابیس مستقل همین job متصل می‌شود.", 409);
+      const setup = parsePostgresBootstrap(value);
+      const newRoles = setup.roles.filter(role => !bootstrapRoles.has(role));
+      const preparation = [
+        ...newRoles.map(role => `CREATE ROLE ${role} NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;`),
+        ...setup.roles.map(role => `GRANT ${role} TO ${target.user};`),
+        ...(setup.schemas.length ? [`GRANT CREATE ON DATABASE ${target.database} TO ${target.user};`,
+          ...setup.schemas.map(schema => `CREATE SCHEMA ${schema} AUTHORIZATION ${target.user};`)] : []),
+      ];
+      if (preparation.length) {
+        const prepared = await query(preparation.join("\n"), fixture.user, false, signal, target.database);
+        ensure(ok(prepared), "DATABASE_BOOTSTRAP_SETUP_FAILED", "پیش‌نیاز محدود همین دیتابیس دورریختنی آماده نشد.", 409);
+        for (const role of newRoles) bootstrapRoles.add(role);
+      }
+      if (!text) return { output: "Empty schema baseline completed.", exitCode: 0, signal: null };
+      return query(text, target.user, false, signal, target.database);
+    };
+    const sql: PostgresFixtureSql = Object.freeze({ bootstrap, apply: (text, signal) => { ensure(!targets, "MIGRATION_RUNNER_SQL_DENIED", "runner اصلی مسئول SQL است؛ میزبان SQL جایگزین تزریق نمی‌کند.", 409); return query(text, "launchlane_migration_app", false, signal); },
       read: (text, signal, targetId) => { if (!targets) { ensure(targetId === undefined, "MIGRATION_TARGET_UNKNOWN", "دیتابیس انتخاب‌شده متعلق به این آزمون نیست.", 409); return query(text, fixture.user, true, signal); }
         const target = targets.find(target => target.id === targetId); ensure(target, "MIGRATION_TARGET_UNKNOWN", "خواندن فقط از دیتابیس همان معیار مصوب مجاز است.", 409); return query(text, "launchlane_observer", true, signal, target.database); } });
     callbackSettled = false;
@@ -202,7 +223,7 @@ GRANT SELECT,INSERT ON public._launchlane_migrations TO launchlane_migration_app
       callbackUncertain = error instanceof AppError && /(?:UNCERTAIN|CLEANUP_UNCONFIRMED)/.test(error.code);
     });
     try { outcome = { ok: true, value: await abortable(() => callback, bounded) }; }
-    catch (error) { if (bounded.aborted) throw new AppError("CANCELLED", "آزمون دیتابیس متوقف شد؛ نتیجهٔ موفق ثبت نشد.", 409); if (error instanceof AppError && /^(?:MIGRATION_|BUILD_OUTPUT_)/.test(error.code)) throw error; throw new AppError("POSTGRES_FIXTURE_CALLBACK_FAILED", "آزمون برنامه در دیتابیس ساختگی موفق نبود.", 409); }
+    catch (error) { if (bounded.aborted) throw new AppError("CANCELLED", "آزمون دیتابیس متوقف شد؛ نتیجهٔ موفق ثبت نشد.", 409); if (error instanceof AppError && /^(?:MIGRATION_|BUILD_OUTPUT_|DATABASE_BASELINE_|DATABASE_BOOTSTRAP_)/.test(error.code)) throw error; throw new AppError("POSTGRES_FIXTURE_CALLBACK_FAILED", "آزمون برنامه در دیتابیس ساختگی موفق نبود.", 409); }
   } catch (error) {
     outcome = { ok: false, error: error instanceof AppError ? error : new AppError(options.signal.aborted || bounded.aborted ? "CANCELLED" : createStarted ? "POSTGRES_FIXTURE_UNCERTAIN" : "POSTGRES_FIXTURE_UNAVAILABLE",
       "اجرای دیتابیس ساختگی کامل نشد؛ جزئیات خصوصی نمایش داده نشد و ایجاد دوباره انجام نشد.", 503) };
