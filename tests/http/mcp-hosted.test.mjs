@@ -122,6 +122,7 @@ test("hosted HTTPS grants, CLI import, bridge lifecycle and browser revocation u
         await page.screenshot({ path: join(screenshots, `mcp-${width}.png`) });
       }
       await dialog.getByRole("button", { name: "لغو همین دسترسی MCP", exact: true }).click();
+      await dialog.getByRole("button", { name: "بله، لغو دسترسی", exact: true }).click();
       await dialog.getByRole("button", { name: "ساخت دسترسی همین حساب", exact: true }).waitFor();
       const revoked = await tls.fetch(downloaded.url, { method: "POST", headers: { authorization: `Bearer ${downloaded.accessToken}`, "content-type": "application/json", accept: "application/json, text/event-stream" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }) });
       assert.equal(revoked.status, 401);
@@ -130,6 +131,7 @@ test("hosted HTTPS grants, CLI import, bridge lifecycle and browser revocation u
       const stale = JSON.parse(await readFile(await (await secondDownload).path(), "utf8"));
       assert.equal((await web("/api/mcp/access", { id: stale.id }, "DELETE", cookie, csrf)).status, 200);
       await dialog.getByRole("button", { name: "لغو همین دسترسی MCP", exact: true }).click();
+      await dialog.getByRole("button", { name: "بله، لغو دسترسی", exact: true }).click();
       await dialog.getByRole("button", { name: "ساخت دسترسی همین حساب", exact: true }).waitFor();
       assert.equal(await dialog.getByRole("alert").count(), 0);
       await page.keyboard.press("Escape"); await dialog.waitFor({ state: "detached" });

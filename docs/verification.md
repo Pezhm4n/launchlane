@@ -1,4 +1,17 @@
 # شواهد اعتبارسنجی Launchlane
+## MCP settings UI/application verification — 2026-11-04
+
+Frozen r6 on `f8fcc99`, Node24.18.0 and the pinned lockfile passed Webpack build,
+typecheck, lint (zero errors,48warnings/22infos),14/14 targeted domain tests,
+14/14 HTTP/HTTPS/stdio checks including groups, and24 actual Chromium UI states.
+Runtime manifest: `4abf766e98e7b4bc5b8c24c9412b093f82c46c9f5480520a17eb0639482d0781`.
+The shared access API, disposable grants/downloads/revocation and CLI are actual;
+failure/permission/shortened-expiry UI inputs and provider/model transports are synthetic.
+Mobile/enlarged text, visible keyboard focus, client-specific guides and Clipboard
+fallback passed with no browser errors or external UI requests. Concurrent database
+work, production state, active servers and host configs were preserved. No public
+deployment or all-host live acceptance is claimed. [Evidence and retained failures](evidence/mcp-connection-ui.md).
+
 ## Explicit artwork playback with reduced motion — 2026-11-04
 
 The frozen `artwork-fix-20261104/candidate1` uses `4e4585e` plus only the artwork
