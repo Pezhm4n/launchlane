@@ -51,3 +51,15 @@ accepts neither the production schema nor a complete clean installation of the
 application. Source, scope and exact receipts stay installation-local. The original
 repository and deployed databases were outside mutation scope. The shared worker
 also preserved a failed original-runner receipt without selecting an artifact.
+
+The extended filesystem search then found a historical local authentication
+backup under the project's Python backup directory. Only the users table DDL and
+its primary key were extracted. No saved rows were restored. With that DDL and
+explicit local role prerequisites, the unchanged runner produced source-matching
+ledgers for both databases. The source-derived original backend accepted one
+fixture-principal API write, independent SQL found exactly one matching row, and
+that row remained after an observed PostgreSQL restart and a fresh backend start.
+The original API returned successfully again. Both owned containers were removed.
+These are isolated backend experiments with a historical partial baseline and
+synthetic principal. A raw-source web-to-Liara deployment of Golestan, current
+production schema equivalence and a destination runner approval remain open.

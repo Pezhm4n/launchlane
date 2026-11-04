@@ -136,3 +136,24 @@ failureهای حفظ‌شده را مشخص کند. ناتوانی در خوان
 تصمیم‌ها و failureها حفظ شده است. گزارش‌های قدیمی معیار وضعیت فعلی نیستند؛ ابتدا
 implementation و شواهد revision مرتبط را بخوانید. [معیارهای پذیرش](acceptance.md)
 و [کارهای باقی‌مانده](../TASKS.md) تعریف موفقیت را مشخص می‌کنند.
+
+## Isolated Golestan source experiment — 2026-11-04
+
+The unchanged original runner and twelve SQL files ran against two new local
+PostgreSQL databases with an ordinary owner. Empty databases exposed a missing
+base table and missing provider roles. An extended local-filesystem search found
+a historical auth backup. Only users DDL and its primary key were selected. No
+production rows were restored. Source checksum/status readback matched 7 auth
+and 6 professor ledger records, including the shared migration. Replay added none.
+
+The source-derived backend, its locked direct runtime dependency versions and a
+fixture bearer principal performed an actual API write. Independent SQL found one
+matching row before shutdown, after a later PostgreSQL server start and after a
+fresh backend start. The API responded successfully after restart. Two owned
+containers were removed. Local setup attempts first encountered bind-mount and
+module-layout failures; the final receipt passed explicit effect/retention/cleanup
+assertions. Exact revisions, source hashes and run receipts remain installation-local.
+No actual user data, real model calls or cloud mutations were used. The shared
+Launchlane worker's original-runner rejection is a distinct negative result. This
+experiment does not accept the whole raw repository, frontend, real authentication
+journey, production schema equivalence or a live destination migration.

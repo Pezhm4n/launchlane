@@ -13,7 +13,11 @@ lint با صفر error و48warning/22info، build Webpack، domain823/823، HTTP
 را گذراند. مدل و provider آزمون مصنوعی‌اند؛ SQL، build، worker و restart محلی واقعی‌اند.
 اجرای قبلی در رد خروجی حساس CANCELLED شد؛ تکرار نهایی همان oracle را گذراند.
 منبع/دادهٔ مقصد واقعی، migration تولید و ماندگاری لیارا هنوز پذیرش ندارند.
-اقدام بعدی، baseline رسمی و مجوز مستقل runner برای مقصد آزمایشی است.
+جست‌وجوی کامل فایل‌ها، DDL تاریخی users را در backup محلی پیدا کرد. استخراج فقط
+DDL/کلید اصلی، بدون دادهٔ ذخیره‌شده، اجرای runner، API write با principal ساختگی،
+SQL مستقل و حفظ همان ردیف پس از restart واقعی PostgreSQL/backend گذشت. این آزمون
+مستقیم backend از پذیرش مسیر کامل وب/مدل/لیارا جداست. اقدام بعدی، intake امن baseline
+در خود محصول و مجوز مستقل runner برای مقصد آزمایشی است.
 
 
 ## AC15/24 — همگامی حالت native دیالوگ هنگام resize؛ ۲۰۲۶-۱۱-۰۱
