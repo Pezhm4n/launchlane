@@ -51,6 +51,9 @@ let started = () => undefined,
 async function state(label, width = 360) {
   await page.setViewportSize({ width, height: width >= 768 ? 1000 : 844 });
   await page.evaluate(() => document.fonts.ready);
+  // Start each viewport at a deliberate position. A previously focused input can
+  // leave a reflowed submit button clipped at the viewport edge after resizing.
+  await page.evaluate(() => window.scrollTo(0, 0));
   const geometry = await page.evaluate(() => ({
     viewport: document.documentElement.clientWidth, content: document.documentElement.scrollWidth,
     overflow: [...document.querySelectorAll("body *")].filter((element) => { const rect = element.getBoundingClientRect(); return rect.width > 0 && (rect.left < -1 || rect.right > document.documentElement.clientWidth + 1); }).map((element) => ({ tag: element.tagName, class: element.className, text: element.textContent?.trim().slice(0, 120), width: element.getBoundingClientRect().width, left: element.getBoundingClientRect().left })).slice(0, 20),

@@ -7,7 +7,7 @@ import { setTimeout as pause } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import { freeHttpTestPort } from "../tests/helpers/http-port.ts";
 
-export async function startTestServer({ browserHost = "127.0.0.1", publicOrigin = "", agentFixture = false, environmentFixture = false, activationFixture = false, destinationFixture = false, databaseFixture = false, workspaceConfigured = true, authFixture = false, staticFixture = false, componentFixture = false, frameworkFixture = false, goFixture = false, goPublicationFixture = false, phpFixture = false, phpPublicationFixture = false, angularComponentFixture = false, dotnetPublicationFixture = false } = {}) {
+export async function startTestServer({ browserHost = "127.0.0.1", publicOrigin = "", agentFixture = false, environmentFixture = false, activationFixture = false, destinationFixture = false, databaseFixture = false, databaseAttachmentFixture = false, workspaceConfigured = true, authFixture = false, staticFixture = false, componentFixture = false, frameworkFixture = false, goFixture = false, goPublicationFixture = false, phpFixture = false, phpPublicationFixture = false, angularComponentFixture = false, dotnetPublicationFixture = false } = {}) {
   if (dotnetPublicationFixture && (!componentFixture || goFixture || goPublicationFixture || phpFixture || phpPublicationFixture || frameworkFixture || angularComponentFixture)) throw new Error("Docker publication requires its isolated component hook");
   if (angularComponentFixture && (!componentFixture || goFixture || goPublicationFixture || phpFixture || phpPublicationFixture || frameworkFixture)) throw new Error("Angular publication requires its isolated component hook");
   if (phpPublicationFixture && (!componentFixture || goFixture || goPublicationFixture || phpFixture || frameworkFixture)) throw new Error("PHP publication requires its isolated component hook");
@@ -20,6 +20,7 @@ export async function startTestServer({ browserHost = "127.0.0.1", publicOrigin 
   if (activationFixture && !environmentFixture) throw new Error("Activation fixture requires the environment fixture");
   if (destinationFixture && !agentFixture) throw new Error("Destination fixture requires the network-denying test hook");
   if (databaseFixture && (!agentFixture || environmentFixture || destinationFixture || staticFixture || authFixture)) throw new Error("Database fixture requires its isolated network-denying hook");
+  if (databaseAttachmentFixture && !databaseFixture) throw new Error("Database attachment requires its isolated database fixture");
   if (!["127.0.0.1", "localhost"].includes(browserHost)) throw new Error("Unsupported loopback test host");
   if (publicOrigin) {
     const target = new URL(publicOrigin);
@@ -78,7 +79,7 @@ export async function startTestServer({ browserHost = "127.0.0.1", publicOrigin 
     LAUNCHLANE_ACTIVATION_FAILURE_MARKER: activationFixture ? join(directory, "activation-uncertain.fixture") : "",
     ...(destinationFixture ? { LAUNCHLANE_ENABLE_MUTATIONS: "true", LAUNCHLANE_ENABLE_LIVE_LIARA: "true", LAUNCHLANE_DESTINATION_FIXTURE: "true" } : {}),
     ...(databaseFixture ? { LAUNCHLANE_ENABLE_MUTATIONS: "true", LAUNCHLANE_ENABLE_LIVE_LIARA: "true", LAUNCHLANE_DATABASE_FIXTURE_LOG: join(directory,"database.jsonl"),
-      NODE_OPTIONS: `--import=${pathToFileURL(resolve("tests/helpers/database-targets-hook.mjs")).href}` } : {}),
+      NODE_OPTIONS: `--import=${pathToFileURL(resolve(databaseAttachmentFixture ? "tests/helpers/database-attachment-hook.mjs" : "tests/helpers/database-targets-hook.mjs")).href}` } : {}),
     ...(authFixture ? { LAUNCHLANE_AUTH_MODE: "liara", NODE_OPTIONS: `--import=${pathToFileURL(resolve("tests/helpers/liara-auth-hook.mjs")).href}` } : {}),
     ...(componentFixture ? { LAUNCHLANE_ENABLE_MUTATIONS: "true", LAUNCHLANE_ENABLE_LIVE_MODEL: "true", LAUNCHLANE_ENABLE_LOCAL_REPAIR: "true", LAUNCHLANE_ENABLE_LIVE_LIARA: "true",
       MODEL_ID: "gpt-6-luna", MODEL_API_KEY: "synthetic-component-test-only", LAUNCHLANE_AGENT_FIXTURE_LOG: join(directory,"model.jsonl"), NODE_OPTIONS: `--import=${pathToFileURL(resolve("tests/helpers/component-publication-hook.mjs")).href}` } : {}),

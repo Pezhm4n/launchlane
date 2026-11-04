@@ -19,6 +19,7 @@ import { htmlWorkloadByteLimit } from "../../contracts/deployment.ts";
 import type { PostgresMigrationTestReceipt } from "../../contracts/postgres-migration-test.ts";
 import type { PostgresRunnerTestReceipt } from "../../contracts/postgres-runner-test.ts";
 import { pnpmInstallProgram } from "./pnpm-program.ts";
+import { isRunnerTestDatabase, preparesDatabaseArtifact } from "../../contracts/test-database.ts";
 
 export const node22Image = projectBuildImage;
 export type CommandResult = { output: string; exitCode: number | null; signal: string | null };
@@ -178,7 +179,7 @@ console.log('Launchlane: dependency staging released before build',JSON.stringif
 stage='build';if(plan.buildCommand!==null)await npm(['run','build']);
 if(plan.version===8||plan.version===9)verifyPnpmSource();
 if(plan.version===8&&plan.phase==='compile'){console.log('Launchlane: workspace compile only; tests, start, data and publication unverified');clearTimeout(watchdog);process.exit(0);}
-if(payload.runnerPhase===true){stage='migration';if(plan.testDatabase?.version!==3)throw Error('migration runner mode denied');const runner=plan.testDatabase.runner,scripts=JSON.parse(fs.readFileSync('/work/project/package.json','utf8')).scripts,chain=['pre'+runner.script,runner.script,'post'+runner.script].filter(name=>scripts[name]!==undefined).map(name=>({name,command:scripts[name]}));if(createHash('sha256').update(JSON.stringify(chain)).digest('hex')!==runner.sha256)throw Error('migration script changed');await npm(['run',runner.script],false,{...env,...runtimeValues,NODE_ENV:'test'});console.log('Launchlane: reviewed source migration runner completed; independent data checks still required');clearTimeout(watchdog);return;}
+if(payload.runnerPhase===true){stage='migration';if(![3,4].includes(plan.testDatabase?.version))throw Error('migration runner mode denied');const runner=plan.testDatabase.runner,scripts=JSON.parse(fs.readFileSync('/work/project/package.json','utf8')).scripts,chain=['pre'+runner.script,runner.script,'post'+runner.script].filter(name=>scripts[name]!==undefined).map(name=>({name,command:scripts[name]}));if(createHash('sha256').update(JSON.stringify(chain)).digest('hex')!==runner.sha256)throw Error('migration script changed');await npm(['run',runner.script],false,{...env,...runtimeValues,NODE_ENV:'test'});console.log('Launchlane: reviewed source migration runner completed; independent data checks still required');clearTimeout(watchdog);return;}
 stage='test';if(plan.version===9){if(plan.component.testCommand!==null)await npm(['--dir=/work/project/'+plan.component.root,'run','test'],true)}else if(plan.version===7){if(!plan.testDatabase)for(const script of plan.fullstack.testScripts)await npm(['run',script],true)}else if(plan.testCommand!==null)await npm(['test'],plan.version===8);
 if(plan.version===8||plan.version===9)verifyPnpmSource();
 stage='workload';
@@ -206,7 +207,7 @@ if(base.origin!==origin)throw Error('external frontend origin is not verified');
 for(const item of assets.references){const url=new URL(item.path,base);if(url.origin!==origin)throw Error('external frontend asset is not verified');if(seen.has(url.href))continue;seen.add(url.href);if(seen.size>32)throw Error('asset count limit');const response=await fetch(url,{redirect:'manual',signal:AbortSignal.timeout(2000)});let size=0;for await(const bytes of response.body){size+=bytes.length;total+=bytes.length;if(size>8388608||total>16777216)throw Error('asset bytes limit')}if(response.status!==200||!size||!frontendAssetMime(item.kind,response.headers.get('content-type')))throw Error('API server did not serve built frontend asset')}
 for(const check of plan.apiChecks){const response=await fetch(origin+check.path,{redirect:'manual',signal:AbortSignal.timeout(10000)});let bytes=0,chunks=[];for await(const part of response.body){bytes+=part.length;if(bytes>65536)throw Error('API response limit');chunks.push(Buffer.from(part))}if(response.status!==check.status||!(response.headers.get('content-type')||'').toLowerCase().includes('application/json'))throw Error('API status or type mismatch');const json=JSON.parse(Buffer.concat(chunks).toString('utf8'));for(const assertion of check.assertions){let value=json;for(const key of assertion.pointer){if(!value||typeof value!=='object'||!Object.hasOwn(value,key))throw Error('API expected field missing');value=value[key]}if(value!==assertion.equals)throw Error('API expected effect missing')}}
 console.log('Launchlane: built frontend assets and independent API criteria verified');
-if(plan.testDatabase){stage='test';for(const script of plan.fullstack.testScripts)await npm(['run',script],true,{...env,...runtimeValues,NODE_ENV:'test'});console.log('Launchlane: unchanged tests ran against disposable data; no publication artifact');}
+if(plan.testDatabase){stage='test';for(const script of plan.fullstack.testScripts)await npm(['run',script],true,{...env,...runtimeValues,NODE_ENV:'test'});console.log('Launchlane: unchanged tests ran against disposable data; host separately validates artifact eligibility');}
 }
 }finally{child.kill()}
 if(plan.version===9){await assertNoComponentDaemons(3000);verifyTestedComponent(plan,componentPackage);}
@@ -224,8 +225,8 @@ export async function runContainerBuild(workspace: string, tarballs: string, val
   const compatibility = plan.version === 7 && plan.testDatabase !== undefined;
   ensure(compatibility ? !!options.fixture && !!options.endpoint && values.length === 0 : options.fixture === undefined,
     "TEST_DATABASE_BINDING_CHANGED","آزمون ساختگی به namespace همان job و ورودی خالی از تنظیمات واقعی نیاز دارد.",409);
-  if (options.fixture) assertPostgresWorkerBinding(options.fixture,options.expectedJobId,options.expectedSourceHash, plan.version === 7 && plan.testDatabase?.version === 2, plan.version === 7 && plan.testDatabase?.version === 3 ? plan.testDatabase.targets : undefined);
-  ensure(!options.runnerPhase || plan.version === 7 && plan.testDatabase?.version === 3, "MIGRATION_RUNNER_INVALID", "مرحلهٔ runner فقط برای طرح مستقل داده مجاز است.", 409);
+  if (options.fixture) assertPostgresWorkerBinding(options.fixture,options.expectedJobId,options.expectedSourceHash, plan.version === 7 && plan.testDatabase?.version === 2, plan.version === 7 && isRunnerTestDatabase(plan.testDatabase) ? plan.testDatabase.targets : undefined);
+  ensure(!options.runnerPhase || plan.version === 7 && isRunnerTestDatabase(plan.testDatabase), "MIGRATION_RUNNER_INVALID", "مرحلهٔ runner فقط برای طرح مستقل داده مجاز است.", 409);
   const raw = options.command ?? docker, host = options.endpoint ? dockerEndpointHost(options.endpoint) : null;
   const command: typeof docker = host ? (args,parent,maxBytes,input) => abortable(()=>raw(["--host",host,...args],parent,maxBytes,input),parent) : raw;
   ensure(plan.version !== 2 && plan.version !== 10 && plan.version !== 11 && plan.version !== 12 && plan.version !== 6, "BUILD_RUNTIME_UNSUPPORTED", "این runner فقط برای Node است.", 409);
@@ -282,9 +283,9 @@ export async function runContainerBuild(workspace: string, tarballs: string, val
       const state = object(JSON.parse(inspected.output));
       ensure(state.Running === true && typeof state.OOMKilled === "boolean", "SANDBOX_UNCERTAIN", "محیط ساخت پیش از دریافت خروجی پایان یافته است.", 409);
       const stopped = result.signal ?? (state.OOMKilled ? "OOM" : result.exitCode === 137 ? "SIGKILL" : null);
-      const componentOutput = plan.version === 9 && result.exitCode === 0 && !stopped && !signal.aborted ? await exportComponentOutput(id, signal, values.filter(row => !isPublicClientEnvironmentKey(row.key)).map(row => row.value)) : undefined;
-      const buildOutput = plan.version !== 9 && !compatibility && result.exitCode === 0 && !stopped && !signal.aborted ? await exportBuildOutput(id, plan.version === 7 ? plan.fullstack.outputDirectory : plan.frontend.outputDirectory, signal,
-        values.filter(row => !isPublicClientEnvironmentKey(row.key)).map(row => row.value)) : undefined;
+      const componentOutput = plan.version === 9 && result.exitCode === 0 && !stopped && !signal.aborted ? await exportComponentOutput(id, signal, values.filter(row => !isPublicClientEnvironmentKey(row.key)).map(row => row.value), options.endpoint) : undefined;
+      const buildOutput = plan.version !== 9 && (!compatibility || plan.version === 7 && preparesDatabaseArtifact(plan.testDatabase) && !options.runnerPhase) && result.exitCode === 0 && !stopped && !signal.aborted ? await exportBuildOutput(id, plan.version === 7 ? plan.fullstack.outputDirectory : plan.frontend.outputDirectory, signal,
+        [...values.filter(row => !isPublicClientEnvironmentKey(row.key)).map(row => row.value), ...(compatibility ? ["launchlane_target_", "launchlane_app_", "launchlane_fixture", "launchlane_observer"] : [])], options.endpoint) : undefined;
       return { ...result, signal: stopped, exitCode: signal.aborted || stopped ? null : result.exitCode, containerId: id, image: plan.image,
         ...(buildOutput ? { buildOutput } : {}), ...(componentOutput ? { componentOutput } : {}) };
     }

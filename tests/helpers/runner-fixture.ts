@@ -20,7 +20,7 @@ export async function runnerFixture(seedless = false) {
   const f = await agentFixture(); try {
     const project = join(f.workspace, "runner-service"); await mkdir(project); await cp(resolve("tests/fixtures/postgres-runner"), project, { recursive: true });
     if (seedless) await cp(resolve("tests/fixtures/postgres-runner-empty"), project, { recursive: true });
-    const config = { ...f.config, enableLocalRepair: true }, flow = await prepareProjectFlow(config, f.store, f.session.actorId, { kind: "local", directory: "runner-service" }, AbortSignal.timeout(10000));
+    const config = { ...f.config, enableLocalRepair: true, ...(process.env.LAUNCHLANE_TEST_NPM_CACHE ? { npmContentCache: resolve(process.env.LAUNCHLANE_TEST_NPM_CACHE) } : {}) }, flow = await prepareProjectFlow(config, f.store, f.session.actorId, { kind: "local", directory: "runner-service" }, AbortSignal.timeout(10000));
     return { ...f, project, config, flow };
   } catch (error) { f.close(); throw error; }
 }

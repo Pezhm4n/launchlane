@@ -22,8 +22,8 @@ export function CodingAgentSelection({ selected, disabled, onPropose, onCancel }
     </select>
     {kind === "codex" ? <>
       <p>Codex از حساب ChatGPT واردشده در همین دستگاه استفاده می‌کند. فقط فایل‌های مجاز و خطای مرتبط را دریافت می‌کند؛ آزمون و انتشار با Launchlane است. اتصال و نسخه پیش از اجرای مجاز بررسی می‌شوند؛ انتخاب این گزینه به معنی «متصل» نیست.</p>
-      <label><input type="checkbox" checked={acknowledged} disabled={disabled} onChange={event => setAcknowledged(event.target.checked)} /> مصرف اشتراک Codex با قیمت نامعلوم را برای تلاش‌های محدود همین برنامه می‌پذیرم؛ این مصرف از اعتبار مدل داخلی جداست.</label>
-      <label><input type="checkbox" checked={fallback} disabled={disabled} onChange={event => setFallback(event.target.checked)} /> اگر Codex پیش از شروع اصلاح آماده نبود، عامل داخلی با بودجهٔ باقی‌مانده ادامه دهد. نتیجهٔ نامعلوم، اجرای موازی نمی‌سازد.</label>
+      <label className="agent-consent"><input type="checkbox" checked={acknowledged} disabled={disabled} onChange={event => setAcknowledged(event.target.checked)} /><span className="agent-consent-text">مصرف اشتراک Codex با قیمت نامعلوم را برای تلاش‌های محدود همین برنامه می‌پذیرم؛ این مصرف از اعتبار مدل داخلی جداست.</span></label>
+      <label className="agent-consent"><input type="checkbox" checked={fallback} disabled={disabled} onChange={event => setFallback(event.target.checked)} /><span className="agent-consent-text">اگر Codex پیش از شروع اصلاح آماده نبود، عامل داخلی با بودجهٔ باقی‌مانده ادامه دهد. نتیجهٔ نامعلوم، اجرای موازی نمی‌سازد.</span></label>
     </> : <p>عامل داخلی از بودجهٔ همین مأموریت استفاده می‌کند. اتصال عامل بیرونی لازم نیست.</p>}
     <div className="button-row">
       <button type="button" disabled={disabled || kind === "codex" && !acknowledged} onClick={() => onPropose(kind === "codex"

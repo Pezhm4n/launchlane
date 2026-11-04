@@ -1,7 +1,4 @@
 :root {
-  --color-field-hover: var(--color-elevated);
-  --radius-full: 999rem;
-  --shadow-sm: 0 var(--border-width) var(--space-1) color-mix(in srgb, var(--color-paper) 50%, transparent);
   interpolate-size: allow-keywords;
   --assistant-width: 26rem;
   --assistant-height: 38rem;
@@ -17,6 +14,7 @@
   --color-border: #34445b;
   --color-control-border: #72839a;
   --color-field: #111d2f;
+  --color-field-hover: var(--color-elevated);
   --color-warning: #f4c57d;
   --color-warning-soft: #372e24;
   --color-danger: #ffafc1;
@@ -52,6 +50,8 @@
   --radius-control: 0.625rem;
   --radius-md: 0.75rem;
   --radius-lg: 1.25rem;
+  --radius-xl: calc(var(--radius-lg) + var(--space-1));
+  --radius-full: 999rem;
   --border-width: 1px;
   --focus-width: 2px;
   --focus-offset: 2px;
@@ -86,6 +86,8 @@
   --color-grid: #26364c;
   --color-sheen: #69e2c014;
   --shadow-panel: 0 16px 48px #060d1830;
+  --shadow-sm: 0 var(--border-width) var(--space-1) color-mix(in srgb, var(--color-paper) 50%, transparent);
+  --shadow-surface: var(--shadow-panel);
   --shadow-assistant: 0 24px 90px #03091385;
   --shadow-action-hover: 0 6px 24px #69e2c021;
   --layout-studio: 72rem;

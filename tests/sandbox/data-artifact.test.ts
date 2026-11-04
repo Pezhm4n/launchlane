@@ -1,0 +1,100 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { randomUUID, createHash } from "node:crypto";
+import { readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { runnerFixture, runnerBuildInput } from "../helpers/runner-fixture.ts";
+import { createPublicationMission } from "../../src/server/application/publication-mission.ts";
+import { driveAgentRun, decideAgentRepair } from "../../src/server/agent/runs.ts";
+import { AgentRepository } from "../../src/server/agent/store.ts";
+import type { ModelPort } from "../../src/server/agent/model.ts";
+import { prepareProjectFlow } from "../../src/server/application/project-flows.ts";
+import { localFullstackVerification, fullstackVerification } from "../../src/server/application/fullstack-verification.ts";
+import { readArtifact } from "../../src/server/workspace/archive.ts";
+import { proposeDatabase, proposeDatabaseAttachment } from "../../src/server/application/databases.ts";
+import { LiaraDatabaseReadClient } from "../../src/server/liara/database-read.ts";
+import { LiaraAccountClient } from "../../src/server/liara/catalog.ts";
+import { LiaraDatabaseCredentialsClient } from "../../src/server/liara/database-credentials.ts";
+import { AppError } from "../../src/server/errors.ts";
+import { bindDataArtifactResources } from "../helpers/data-artifact-bindings.ts";
+import { publishDataArtifact } from "../helpers/data-artifact-publication.ts";
+import { checkDataArtifact } from "../helpers/data-artifact-observation.ts";
+import { createPostgresObserverFixture } from "../helpers/postgres-observer-fixture.ts";
+import { PostgresObserver } from "../../src/server/liara/postgres-observer.ts";
+
+// Original runner, independent SQL/data observation, compiled frontend and original API tests are real.
+// The model is synthetic. No production resource, SQL, model credit or cloud publication is used.
+for (const leak of [false, true]) test(`data preparation ${leak ? "rejects temporary connection bytes in compiled output" : "selects an exact compiled artifact only after runner, replay and independent data proof"}`, { timeout: 600000 }, async () => {
+  const f = await runnerFixture(); try {
+    const original = await readFile(join(f.project, "migrate.cjs")), oracle = await readFile(join(f.project, "oracle.test.cjs"));
+    if (leak) { const path = join(f.project, "index.html"); await writeFile(path, `${await readFile(path, "utf8")}\n<span>launchlane_target_0</span>\n`); }
+    else {
+      // Real applications often construct their pool inside a factory. Static discovery cannot prove it is required.
+      const path = join(f.project, "server.cjs"), code = await readFile(path, "utf8");
+      const conditional = code.replace(/new Pool\(\{ connectionString: process\.env\.(AUTH_DB_URL|PROFILE_DB_URL) \}\)/g, "connect(process.env.$1)");
+      assert.notEqual(conditional, code);
+      await writeFile(path, conditional.replace("const pools =", "function connect(url) { return new Pool({ connectionString: url }); }\nconst pools ="));
+    }
+    const flow = await prepareProjectFlow(f.config, f.store, f.session.actorId, { kind: "local", directory: "runner-service" }, AbortSignal.timeout(10000));
+    if (!leak) assert.equal(flow.profile.applicationRequirements?.requirements.find(row => row.kind === "postgresql")?.need, "unknown");
+    const base = await runnerBuildInput(), input = { ...base, compatibilityDatabase: { ...base.compatibilityDatabase, prepareArtifact: true } };
+    const { run } = await createPublicationMission(f.config, f.store, f.session, randomUUID(), { projectId: flow.id, sourceHash: flow.profile.sourceHash, path: "/", expectedText: "Runner lifecycle" }, AbortSignal.timeout(10000));
+    let calls = 0;
+    const model: ModelPort = { async complete(messages, _tools, budget, signal) {
+      budget.take("model", signal); calls++;
+      if (!leak && calls === 2) assert.ok(messages.some(message => message.content?.includes('"selectedTestedArtifact":true') && message.content.includes('"productionDataVerified":false')));
+      return { content: null, calls: [{ id: `data-artifact-${calls}`, type: "function", function: { name: calls === 1 ? "propose_project_build" : "finish_investigation", arguments: JSON.stringify(calls === 1 ? input
+        : { state: "partially_completed", message: "نتیجهٔ ساخت محلی از اتصال، migration و دادهٔ مقصد جداست.", question: null, nextAction: "reply" }) } }], usage: 5 };
+    } };
+    const repo = new AgentRepository(f.store);
+    await driveAgentRun(f.config, f.store, f.session, run.id, { model }); const pending = repo.get(f.session.actorId, run.id); assert.ok(pending?.repair?.build?.version === 7 && pending.repair.build.testDatabase?.version === 4);
+    assert.equal(pending.repair.artifact, null); await decideAgentRepair(f.config, f.store, f.session, run.id, pending.revision, pending.repair.id, "approve");
+    await driveAgentRun(f.config, f.store, f.session, run.id, { model }); const result = repo.get(f.session.actorId, run.id); assert.ok(result?.repair);
+    const diagnostic = JSON.stringify({ state: result.state, error: result.errorCode, job: result.repair.state, code: result.repair.errorCode, output: result.repair.afterTest?.output, message: result.repair.message, events: result.events.slice(-3) });
+    assert.equal(result.state, "partially_completed", diagnostic); assert.equal(result.publication, null); assert.equal(result.effect, "no_remote_changes");
+    assert.equal(f.store.db.prepare("SELECT count(*) n FROM actions").get()?.n, 0);
+    if (leak) { assert.equal(result.repair.state, "failed", diagnostic); assert.equal(result.repair.errorCode, "BUILD_OUTPUT_SENSITIVE", diagnostic); assert.equal(result.repair.artifact, null); assert.equal(result.repair.publication, undefined); }
+    else {
+      assert.equal(result.repair.state, "succeeded"); assert.ok(result.repair.artifact && result.repair.publication && result.repair.afterTest?.buildOutput && result.repair.afterTest.databaseRunner);
+      const selected = f.store.getProjectFlow(f.session.actorId); assert.ok(selected?.selection.kind === "repair"); assert.equal(selected.artifact?.archiveHash, result.repair.artifact.archiveHash);
+      const evidence = await localFullstackVerification(f.store, f.config.stateDir, f.session.actorId, selected); assert.equal(evidence.build.testDatabase?.version, 4);
+      assert.equal(evidence.verification.outputArtifactHash, result.repair.afterTest.buildOutput.artifactHash); assert.equal(evidence.verification.testedSourceHash, result.repair.afterTest.databaseRunner.sourceHash);
+      const bytes = await readArtifact(f.config.stateDir, f.store.getArtifact(f.session.actorId, result.repair.artifact.archiveHash)); assert.equal(createHash("sha256").update(bytes).digest("hex"), result.repair.artifact.archiveHash);
+      await assert.rejects(fullstackVerification(f.store, f.config.stateDir, f.session.actorId, selected, f.config.sessionSecret), error => error instanceof AppError && error.code === "DATABASE_BINDING_REQUIRED");
+      assert.equal(result.repair.afterTest.databaseRunner.production, false); assert.equal(result.repair.containerIds?.length, 5);
+      const databases: Awaited<ReturnType<typeof createPostgresObserverFixture>>[] = [];
+      try {
+        for (const [i, id] of ["e".repeat(24), "f".repeat(24)].entries()) {
+          const database = await createPostgresObserverFixture(`synthetic-private-${id}`); databases.push(database);
+          const sql = await readFile(join(f.project, "001_entries.sql"), "utf8"), checksum = createHash("sha256").update(sql).digest("hex");
+          await database.sql(`${sql}\nCREATE TABLE public.schema_migrations(version text PRIMARY KEY,checksum text NOT NULL);
+            INSERT INTO public.schema_migrations VALUES('001_entries.sql','${checksum}');
+            INSERT INTO public.entries(id,label,note) VALUES(7,'${i ? "profile datum" : "identity datum"}','${randomUUID()}');`);
+        }
+        const bound = await bindDataArtifactResources(f, false, databases.map(database => database.port));
+        const common = { flowId: selected.id, requestKey: randomUUID(), consumerRoot: ".", bindingKeys: ["AUTH_DB_URL"] };
+        const before = f.store.db.prepare("SELECT count(*) n FROM actions").get()?.n, signal = AbortSignal.timeout(30000);
+        const deny = () => { throw new Error("Incompatible resource must be rejected before quoting or writing"); };
+        await assert.rejects(proposeDatabase(bound.config, f.store, f.session.actorId, { ...common, type: "postgres", version: "18.4", planId: "small", bundleId: "basic" },
+          signal, { read: new LiaraDatabaseReadClient(bound.config, "b".repeat(24), deny), account: new LiaraAccountClient(bound.config, "b".repeat(24), deny) }),
+          error => error instanceof AppError && error.code === "DATABASE_BUILD_VERSION_MISMATCH");
+        await assert.rejects(proposeDatabase(bound.config, f.store, f.session.actorId,
+          { ...common, bindingKeys: ["AUTH_DB_URL", "PROFILE_DB_URL"], type: "postgres", version: "16.4", planId: "small", bundleId: "basic" },
+          signal, { read: new LiaraDatabaseReadClient(bound.config, "b".repeat(24), deny) }), error => error instanceof AppError && error.code === "DATABASE_BUILD_TARGET_MISMATCH");
+        const incompatible = new LiaraDatabaseCredentialsClient(bound.config, async url => {
+          const response = await bound.credentials.send(url, { method: "GET" }); const value = await response.json(); value.database.version = "17.10"; return Response.json(value);
+        });
+        await assert.rejects(proposeDatabaseAttachment(bound.config, f.store, f.session.actorId, { ...common, databaseId: "e".repeat(24) }, signal, { read: bound.read, account: bound.account, credentials: incompatible }),
+          error => error instanceof AppError && error.code === "DATABASE_BUILD_VERSION_MISMATCH");
+        assert.equal(f.store.db.prepare("SELECT count(*) n FROM actions").get()?.n, before);
+        assert.equal((await fullstackVerification(f.store, f.config.stateDir, f.session.actorId, selected, bound.config.sessionSecret)).outputArtifactHash, evidence.verification.outputArtifactHash);
+        assert.equal(bound.actions.length, 2); assert.equal(f.store.db.prepare("SELECT count(*) n FROM actions").get()?.n, 4);
+        const published = await publishDataArtifact(f, bound.config, selected, result.repair, bound.values), first = databases[0]; assert.ok(first);
+        const observer = new PostgresObserver({ resolve: async () => [{ address: first.address, family: 4 }] });
+        await checkDataArtifact(f, bound, published, observer, first.restart, async () => { await first.sql(`UPDATE public.entries SET note='${randomUUID()}' WHERE id=7;`); });
+        assert.equal(f.store.db.prepare("SELECT count(*) n FROM actions").get()?.n, 5);
+      } finally { for (const database of databases.reverse()) await database.close(); }
+    }
+    assert.ok((await readFile(join(f.project, "migrate.cjs"))).equals(original)); assert.ok((await readFile(join(f.project, "oracle.test.cjs"))).equals(oracle));
+  } finally { f.close(); }
+});

@@ -21,7 +21,7 @@
 .shell .navigation button.tabButton {
   position: relative;
   flex: 1;
-  min-block-size: 1.875rem;
+  min-block-size: var(--control-height);
   padding: 2px var(--space-2);
   border-radius: var(--radius-md);
   font-size: var(--text-xs);
@@ -37,7 +37,10 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  transition: all var(--motion-feedback) var(--ease-standard);
+  transition: background var(--motion-feedback) var(--ease-standard),
+    color var(--motion-feedback) var(--ease-standard),
+    border-color var(--motion-feedback) var(--ease-standard),
+    box-shadow var(--motion-feedback) var(--ease-standard);
 }
 .shell .navigation button.tabButton:hover:not(:disabled) {
   color: var(--color-ink);

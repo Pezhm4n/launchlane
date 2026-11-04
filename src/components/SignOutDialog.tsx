@@ -1,17 +1,21 @@
 "use client";
 import { useEffect, useRef } from "react";
 import { WorkspaceGlyph } from "./WorkspaceGlyph.tsx";
+import { useDialogExit } from "./useDialogExit.ts";
 
 export function SignOutDialog({
   open,
+  authMode,
   onConfirm,
   onCancel,
 }: {
   open: boolean;
+  authMode: "operator" | "liara";
   onConfirm: () => void;
   onCancel: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const exit = useDialogExit(dialog);
 
   useEffect(() => {
     const node = dialog.current;
@@ -24,25 +28,7 @@ export function SignOutDialog({
   }, [open]);
 
   function handleDismiss() {
-    const node = dialog.current;
-    if (!node) {
-      onCancel();
-      return;
-    }
-    node.dataset.closing = "true";
-    const timer = setTimeout(() => {
-      delete node.dataset.closing;
-      onCancel();
-    }, 200);
-    node.addEventListener(
-      "transitionend",
-      () => {
-        clearTimeout(timer);
-        delete node.dataset.closing;
-        onCancel();
-      },
-      { once: true }
-    );
+    exit(onCancel);
   }
 
   if (!open) return null;
@@ -72,11 +58,13 @@ export function SignOutDialog({
         </button>
       </div>
       <p style={{ marginBlock: "var(--space-3)", lineHeight: "1.8" }}>
-        آیا از خروج از میز کار اطمینان دارید؟ پیشرفت کار، تنظیمات و پروژه‌های شما روی این رایانه
+        آیا از خروج از میز کار اطمینان دارید؟ پیشرفت ذخیره‌شده، تنظیمات و پروژه‌های شما
         محفوظ می‌مانند و تغییری در برنامه‌های فعال لیارا ایجاد نمی‌شود.
       </p>
       <p className="hint" style={{ marginBlockEnd: "var(--space-5)" }}>
-        برای ورود مجدد، کلید دسترسی محلی همین نصب مورد نیاز خواهد بود.
+        {authMode === "liara"
+          ? "برای ادامه، دوباره با حساب لیارای خود وارد شوید."
+          : "برای ورود مجدد، کلید دسترسی محلی همین نصب مورد نیاز خواهد بود."}
       </p>
       <div className="button-row" style={{ display: "flex", gap: "var(--space-3)", justifyContent: "flex-end" }}>
         <button

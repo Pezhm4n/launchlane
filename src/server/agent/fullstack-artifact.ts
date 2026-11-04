@@ -13,6 +13,8 @@ import { prepareArchive } from "../application/prepare-source.ts";
 import { readBuildOutput } from "./build-output-store.ts";
 import { validateBuildOutput } from "./build-output.ts";
 import { assertCompiledLifecycle } from "./fullstack-preparation.ts";
+import { preparesDatabaseArtifact } from "../../contracts/test-database.ts";
+import { parsePostgresRunnerTestReceipt, type PostgresRunnerTestReceipt } from "../../contracts/postgres-runner-test.ts";
 
 export const compiledProofPath = "/launchlane-build-proof.json";
 export function compiledProof(binding: Readonly<{ testedSourceHash: string; planHash: string; outputArtifactHash: string }>): string {
@@ -34,9 +36,16 @@ console.log('Launchlane: exact compiled frontend verified');\n`;
 
 export async function assembleFullstackArtifact(input: Readonly<{
   stateDir: string; store: Store; actorId: string; workspace: string; sourceHash: string;
-  plan: FullstackBuildPlan; receipt: BuildOutputReceipt; signal: AbortSignal; secrets: readonly string[];
+  plan: FullstackBuildPlan; receipt: BuildOutputReceipt; signal: AbortSignal; secrets: readonly string[]; databaseRunner?: PostgresRunnerTestReceipt;
 }>): Promise<{ artifact: NonNullable<CodeRepairJob["artifact"]>; publication: NonNullable<CodeRepairJob["publication"]>; changedPaths: string[] }> {
-  ensure(!input.plan.testDatabase,"COMPATIBILITY_ARTIFACT_NOT_PUBLISHABLE","خروجی آزمون با دادهٔ ساختگی مجوز انتشار ندارد.",409);
+  ensure(!input.plan.testDatabase || preparesDatabaseArtifact(input.plan.testDatabase),"COMPATIBILITY_ARTIFACT_NOT_PUBLISHABLE","خروجی آزمون با دادهٔ ساختگی مجوز انتشار ندارد.",409);
+  if (input.plan.testDatabase?.version === 4) {
+    ensure(input.databaseRunner, "MIGRATION_RUNNER_RECEIPT_INVALID", "ساخت بسته به رسید مستقل runner و تمام اهداف داده نیاز دارد.", 409);
+    const proof = parsePostgresRunnerTestReceipt(input.databaseRunner), plan = input.plan.testDatabase;
+    ensure(proof.sourceHash === input.sourceHash && proof.planHash === fingerprint(plan) && proof.runnerHash === plan.runner.sha256 &&
+      fingerprint(proof.targets) === fingerprint(plan.targets.map(target => ({ id: target.id, columnChecks: target.oracle.columns.length, rowChecks: target.oracle.rows.length, persistenceChecks: target.oracle.persistence.length }))),
+      "MIGRATION_RUNNER_RECEIPT_INVALID", "رسید داده باید به source، برنامه و تمام معیارهای همین بسته تعلق داشته باشد.", 409);
+  }
   const planHash = fingerprint(input.plan), exported = await readBuildOutput(input.stateDir, input.receipt, { sourceHash: input.sourceHash, planHash });
   const publication = { version: 1 as const, testedSourceHash: input.sourceHash, planHash, outputArtifactHash: input.receipt.artifactHash };
   const proofName = compiledProofPath.slice(1), proofBytes = Buffer.from(compiledProof(publication));

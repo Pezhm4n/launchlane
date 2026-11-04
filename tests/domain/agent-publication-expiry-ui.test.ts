@@ -1,20 +1,12 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
 import { test } from "node:test";
-import { pathToFileURL } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { JsxEmit, ModuleKind, transpileModule } from "typescript";
+import { componentUrl } from "../helpers/react-component.ts";
 import type { Action } from "../../src/contracts/domain.ts";
 import type * as PublicationModule from "../../src/components/AgentPublication.tsx";
 
-const source = await readFile(resolve("src/components/AgentPublication.tsx"), "utf8");
-const code = transpileModule(source, { compilerOptions: { module: ModuleKind.ESNext, jsx: JsxEmit.ReactJSX } }).outputText
-  .replace('"react/jsx-runtime"', JSON.stringify(import.meta.resolve("react/jsx-runtime")))
-  .replace('"react"', JSON.stringify(import.meta.resolve("react")))
-  .replace('"../contracts/deployment.ts"', JSON.stringify(pathToFileURL(resolve("src/contracts/deployment.ts")).href));
-const { AgentPublication }: typeof PublicationModule = await import(`data:text/javascript;base64,${Buffer.from(code).toString("base64")}`);
+const { AgentPublication }: typeof PublicationModule = await import(await componentUrl("src/components/AgentPublication.tsx"));
 
 function action(state: Action["state"]): Action {
   return { id: "expired-publication", actorId: "synthetic-actor", hash: "a".repeat(64), state,
@@ -27,7 +19,7 @@ function action(state: Action["state"]): Action {
     } };
 }
 function render(state: Action["state"], waiting = true, disabled = false) {
-  return renderToStaticMarkup(createElement(AgentPublication, { action: action(state), waiting, disabled, onDecision: () => {}, onObserve: () => {} }));
+  return renderToStaticMarkup(createElement(AgentPublication, { action: action(state), csrf: "synthetic-csrf", waiting, disabled, onDecision: () => {}, onObserve: () => {} }));
 }
 
 test("an expired pending publication can be closed in the guided flow while approval remains unavailable", () => {

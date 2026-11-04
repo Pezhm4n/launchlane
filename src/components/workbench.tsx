@@ -12,6 +12,7 @@ import {
 } from "../contracts/project-flow.ts";
 import { object } from "../contracts/validation.ts";
 import { api, ClientError } from "./api.ts";
+import { DatabaseDataCheck } from "./DatabaseDataCheck.tsx";
 import { WorkspaceIntro } from "./WorkspaceIntro.tsx";
 import { WorkspaceGlyph } from "./WorkspaceGlyph.tsx";
 import { FolderIcon, FolderPicker } from "./FolderPicker.tsx";
@@ -328,6 +329,7 @@ function Proposal({
           ) : null}
         </div>
       ) : null}
+      {state === "succeeded" && action.spec.version === 23 ? <DatabaseDataCheck key={action.id} actionId={action.id} csrf={workspace.session.csrfToken} disabled={busy || expired} /> : null}
       <details className="technical-details">
         <summary>جزئیات برای بررسی تخصصی</summary>
         <p>
@@ -366,6 +368,8 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
   const [confirmSignOut, setConfirmSignOut] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const libraryTrigger = useRef<HTMLButtonElement>(null);
+  const signOutTrigger = useRef<HTMLButtonElement>(null);
+  const signOutReturnTarget = useRef<HTMLButtonElement | null>(null);
   const [token, setToken] = useState(""),
     [manualDirectory, setManualDirectory] = useState(""),
     [port, setPort] = useState("");
@@ -949,7 +953,7 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
           </a>
           {workspace ? (
             <div className="header-actions">
-              <button type="button" className="button-quiet" ref={libraryTrigger} disabled={busy !== null || expired} onClick={() => setLibraryOpen(true)}><FolderIcon />پروژه‌های من</button>
+              <button type="button" className="button-quiet header-library" aria-label="پروژه‌های من" title="پروژه‌های من" ref={libraryTrigger} disabled={busy !== null || expired} onClick={() => setLibraryOpen(true)}><FolderIcon /><span className="header-library-label">پروژه‌های من</span></button>
               <button
                 type="button"
                 className="button-quiet"
@@ -962,8 +966,9 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
               <button
                 type="button"
                 className="button-quiet header-signout"
+                ref={signOutTrigger}
                 disabled={busy !== null}
-                onClick={() => setConfirmSignOut(true)}
+                onClick={() => { signOutReturnTarget.current = signOutTrigger.current; setConfirmSignOut(true); }}
               >
                 خروج
               </button>
@@ -1712,6 +1717,7 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
                   restoreFocus.current = "accounts";
                 }}
                 onSignOut={() => {
+                  signOutReturnTarget.current = accountReturnTarget.current?.isConnected ? accountReturnTarget.current : accountsTrigger.current;
                   setAccountsOpen(false);
                   setConfirmSignOut(true);
                 }}
@@ -1721,11 +1727,15 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
             {confirmSignOut ? (
               <SignOutDialog
                 open={confirmSignOut}
+                authMode={authMode}
                 onConfirm={() => {
                   setConfirmSignOut(false);
                   void signOut();
                 }}
-                onCancel={() => setConfirmSignOut(false)}
+                onCancel={() => {
+                  setConfirmSignOut(false);
+                  requestAnimationFrame(() => signOutReturnTarget.current?.focus());
+                }}
               />
             ) : null}
             <AccordionMotion />

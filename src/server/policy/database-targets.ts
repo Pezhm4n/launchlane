@@ -1,5 +1,5 @@
 import type { Action, ProjectProfile } from "../../contracts/domain.ts";
-import { databaseBindingKeys, isDatabaseProvisionSpec, parseDatabaseBindingKeys, type DatabaseProvisionSpec } from "../../contracts/database-provision.ts";
+import { databaseBindingKeys, isDatabaseResourceSpec, parseDatabaseBindingKeys, type DatabaseResourceSpec } from "../../contracts/database-provision.ts";
 import { isApplicationEnvironmentKey } from "../../contracts/environment.ts";
 import { ensure } from "../errors.ts";
 
@@ -14,13 +14,16 @@ export function sourceDatabaseBindingKeys(profile: ProjectProfile, consumerRoot:
 }
 
 /** Called inside the existing action transaction: a new request cannot reserve an occupied connection. */
-export function assertDatabaseBindingAvailable(spec: DatabaseProvisionSpec, existing: readonly Action[], now = Date.now()): void {
+export function assertDatabaseBindingAvailable(spec: DatabaseResourceSpec, existing: readonly Action[], now = Date.now()): void {
   const keys = databaseBindingKeys(spec);
   for (const action of existing) {
     const prior = action.spec;
-    if (!isDatabaseProvisionSpec(prior) || prior.accountId !== spec.accountId || prior.targetAppId !== spec.targetAppId || prior.scope.teamId !== spec.scope.teamId ||
+    if (!isDatabaseResourceSpec(prior) || prior.accountId !== spec.accountId || prior.targetAppId !== spec.targetAppId || prior.scope.teamId !== spec.scope.teamId ||
       action.state === "cancelled" || action.state === "expired" || action.state === "failed" && !action.database?.databaseId) continue;
     if (!action.attemptId && ["awaiting_approval", "approved"].includes(action.state) && (action.expiresAt <= now || prior.cost.expiresAt <= now)) continue;
+    // Rebinding the identical observed resource preserves its data; it cannot adopt an unresolved request.
+    if (spec.version === 29 && action.state === "succeeded" && action.database?.observation?.outcome === "identity_verified" &&
+      action.database.databaseId === spec.databaseId && prior.database.type === spec.database.type && prior.consumerRoot === spec.consumerRoot && JSON.stringify(databaseBindingKeys(prior)) === JSON.stringify(keys)) continue;
     ensure(!databaseBindingKeys(prior).some(key => keys.includes(key)), "DATABASE_BINDING_ALREADY_RESERVED", "برای این ورودی، منبع یا درخواست دیگری ثبت شده است؛ همان منبع و رسید را بررسی کنید و دیتابیس تکراری نسازید.", 409);
   }
 }

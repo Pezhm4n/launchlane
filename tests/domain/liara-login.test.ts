@@ -1,6 +1,6 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readConfig } from "../../src/server/config.ts";
@@ -42,9 +42,9 @@ function fixture(options: { twoFactor?: boolean; malformed?: boolean; status?: n
 }
 const signIn = (store: Store, email = "alice@example.test", send = fixture()) => liaraSignIn(config, store, { operation: "login", email, password }, AbortSignal.timeout(2000), send);
 
-test("hosted config accepts HTTPS without operator key and removes every install-owner source/cloud fallback", async () => {
+test("hosted config accepts HTTPS, keeps the managed CLI path and removes install-owner source/cloud scope", async () => {
   assert.equal(config.authConfigured, true); assert.equal(config.authMode, "liara");
-  assert.equal(config.operatorToken, ""); assert.equal(config.liaraToken, ""); assert.equal(config.teamId, ""); assert.deepEqual(config.apps, []); assert.equal(config.workspaceRoot, null); assert.equal(config.githubCliPath, "");
+  assert.equal(config.operatorToken, ""); assert.equal(config.liaraToken, ""); assert.equal(config.teamId, ""); assert.deepEqual(config.apps, []); assert.equal(config.workspaceRoot, null); assert.equal(config.githubCliPath, resolve("owner-gh"));
   assert.throws(() => readConfig({ LAUNCHLANE_ORIGIN: config.origin }), code("CONFIG_INVALID"));
   assert.throws(() => readConfig({ LAUNCHLANE_AUTH_MODE: "liara", LAUNCHLANE_ORIGIN: "http://public.example.test" }), code("CONFIG_INVALID"));
   await assert.rejects(githubEnvironment(config, "actor", "cli_system"), code("GITHUB_SCOPE_DENIED"));

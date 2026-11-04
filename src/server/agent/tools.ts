@@ -55,10 +55,14 @@ import { projectFileReadRange, projectFileText } from "./project-file-read.ts";
 import { compareSelectedSource } from "./source-comparison.ts";
 import { proposeRollback, readPublicationHistory } from "../application/rollback.ts";
 import type { ProjectFlow } from "../../contracts/project-flow.ts";
-import { proposeDatabase } from "../application/databases.ts";
+import { proposeDatabase, proposeDatabaseAttachment } from "../application/databases.ts";
 import { parseDatabaseBindingKeys } from "../../contracts/database-provision.ts";
 import { parsePublicationWorkloadRead } from "../../contracts/publication-workload.ts";
 import { readPublicationWorkload } from "../application/publication-workload.ts";
+import type { LiaraDatabaseCredentialsClient } from "../liara/database-credentials.ts";
+import { observeDatabaseData } from "../application/database-data.ts";
+import { dataObservationId } from "../../contracts/database-data.ts";
+import type { PostgresObserver } from "../liara/postgres-observer.ts";
 
 export function privateValues(c: Config): string[] {
   return [c.liaraToken, c.modelKey, c.operatorToken, c.sessionSecret, ...c.projectSecretValues].filter(Boolean);
@@ -232,10 +236,11 @@ const repairTool: ToolDefinition = {
 function registeredTools(config: Config): readonly ToolDefinition[] {
   return [...agentTools, ...(config.enableLocalRepair ? [repairTool, preparationTool, buildTool] : []),
     ...(config.enableLiveLiara ? catalogTools : []),
-    ...(config.enableMutations && config.enableLiveLiara ? [publicationTool, destinationTool, networkTool, diskTool, rollbackTool, databaseTool] : [])];
+    ...(config.enableLiveLiara && config.enableDatabaseDataReads ? [databaseDataTool] : []),
+    ...(config.enableMutations && config.enableLiveLiara ? [publicationTool, destinationTool, networkTool, diskTool, rollbackTool, databaseTool, databaseAttachmentTool] : [])];
 }
 export function toolsForConversation(config: Config): readonly ToolDefinition[] {
-  return [...agentTools, ...(config.enableLiveLiara ? catalogTools : [])];
+  return [...agentTools, ...(config.enableLiveLiara ? catalogTools : []), ...(config.enableLiveLiara && config.enableDatabaseDataReads ? [databaseDataTool] : [])];
 }
 export function toolsForAgent(config: Config, preparation: "native" | "build" | "fullstack" | "framework" | "compiled" | "docker" = "native", hasTarget = true, publicationProgram = false, persistentStorage = false, managedDatabase = false): readonly ToolDefinition[] {
   // Offer the applicable preparation path without two competing tools for the same task.
@@ -244,8 +249,9 @@ export function toolsForAgent(config: Config, preparation: "native" | "build" | 
   return registeredTools(config).filter(tool => tool.function.name !== omitted && tool.function.name !== (hasTarget ? "propose_network" : "read_metrics") &&
     (tool.function.name !== "propose_rollback" || hasTarget && !publicationProgram && !persistentStorage) &&
     (tool.function.name !== "read_publications" || hasTarget && !publicationProgram) &&
+    (tool.function.name !== "read_database_data" || hasTarget) &&
     (tool.function.name !== "propose_disk" || hasTarget && persistentStorage) &&
-    (tool.function.name !== "propose_database" || hasTarget && managedDatabase) &&
+    (!["propose_database", "propose_database_attachment"].includes(tool.function.name) || hasTarget && managedDatabase) &&
     (!managedDatabase || !["read_publications", "propose_rollback", "read_metrics"].includes(tool.function.name)) &&
     !(publicationProgram && !hasTarget && (tool.function.name === "propose_publication" || !localBuild && tool.function.name === "propose_project_build")));
 }
@@ -281,6 +287,13 @@ const catalogTools: readonly ToolDefinition[] = [
       properties: { planId: { type: "string", maxLength: 63 }, bundleId: { type: "string", maxLength: 63 } } },
   } },
 ];
+const databaseDataTool: ToolDefinition = { type: "function", function: {
+  name: "read_database_data",
+  description: "Independently read PostgreSQL connectivity, schema and selected fixed rows/cells for one exact succeeded publication prepared with a v4 data-tested artifact. Supply actionId from this app's publication receipt and optionally a prior data observation baselineId for the SAME publication/binding. Host derives all SQL, resources and private connection keys from the original tested plan and approved resource/env receipts, rechecks current release/account/network/env before and after, opens fresh READ ONLY sessions and saves a sanitized observation. No SQL, URL, table, role or credential arguments accepted. Values and private comparison digests never returned. For each bound database, serverComparison distinguishes a fresh session on the same server start from selected cells retained or changed after a newer PostgreSQL start. Legacy baselines or overlapping clocks can be inconclusive. This cannot attribute an application write, migration, restart request or backup restoration. No cloud or data writes. Needs the installation's explicit private-network data-read capability; never enable public network or substitute an Inspector endpoint.",
+  parameters: { type: "object", additionalProperties: false, required: ["actionId"], properties: {
+    actionId: { type: "string", pattern: "^[a-f0-9-]{36}$", maxLength: 36 }, baselineId: { type: "string", pattern: "^[a-f0-9-]{36}$", maxLength: 36 },
+  } },
+} };
 const destinationTool: ToolDefinition = { type: "function", function: {
   name: "propose_destination",
   description: "Propose a native Node, Python, Next, React, Vue, Angular, Docker or plain Static destination matching the selected inspected project; the host selects the platform from source, never from a model guess. Supply a unique app name, an available plan/bundle from the actual catalog and an existing team network from read_networks. User approval is mandatory before any create. Creation does not publish, resize, set env or prove workload health. For publication with no app, propose this step instead of sending the user to select a nonexistent app. Capacity is unmeasured. Only Iran-region plans and existing networks are implemented.",
@@ -305,6 +318,14 @@ const databaseTool: ToolDefinition = { type: "function", function: {
     consumerRoot: { type: "string", maxLength: 512 }, type: { type: "string", maxLength: 63 }, version: { type: "string", maxLength: 64 },
     bindingKeys: { type: "array", minItems: 1, maxItems: 4, items: { type: "string", maxLength: 128 } },
     planId: { type: "string", maxLength: 63 }, bundleId: { type: "string", maxLength: 63 },
+  } },
+} };
+const databaseAttachmentTool: ToolDefinition = { type: "function", function: {
+  name: "propose_database_attachment",
+  description: "Propose reusing an existing managed database, selected by its exact ID from read_database_resources inventory. Supply only source-declared consumerRoot and private bindingKeys, plus databaseId. The host privately checks exact identity, actual engine/version/plan/bundle and the consumer's same private network. A separate human decision selects this resource; then configure_env offers its private credential binding with a separate approval. This tool never creates, clones, resizes, migrates, queries or changes data. Existing data compatibility, connectivity and persistence remain unverified. Never adopt an uncertain create by hostname or substitute services.",
+  parameters: { type: "object", additionalProperties: false, required: ["consumerRoot", "bindingKeys", "databaseId"], properties: {
+    consumerRoot: { type: "string", maxLength: 512 }, databaseId: { type: "string", pattern: "^[a-f0-9]{24}$" },
+    bindingKeys: { type: "array", minItems: 1, maxItems: 4, items: { type: "string", maxLength: 128 } },
   } },
 } };
 const publicationTool: ToolDefinition = {
@@ -339,7 +360,7 @@ const runnerOracleSchema = { type: "object", additionalProperties: false, requir
 } };
 const buildTool: ToolDefinition = { type: "function", function: {
   name: "propose_project_build",
-  description: "For pnpm, componentRoot selects an original workspace member for a v9 compiled component artifact: unchanged root build, selected member original tests, exact installed production closure and independent start/API checks. componentPort is the source-backed internal API port (default3000). Supply apiChecks for a node component. The host derives static versus compiled Node start; unsupported CLI/hooks fail explicitly. Other components, root data tests and whole-application acceptance remain unverified. No rebuild/install occurs at the approved Docker destination. Propose a host-reviewed install/build/start and independent workload check in an isolated Node20, Node22, Node24 or Python3.12 container selected by the host from the source version constraints. A source-pinned pnpm11.19 workspace uses ProjectBuildPlan8 with its unchanged root pnpm-lock.yaml and every workspace importer. With no root start, it proposes compile-only execution of the original root build: no original test, start, database, artifact or publication is claimed. A root with an existing start can execute original build/test/start/workload. Never replace the lock with npm or flatten a workspace. Other Node uses npm v3 lockfiles; only a package with zero declared dependencies and no lockfile skips install, as verified by the host. Flask/Django with explicit Python3.12/port/native configuration and pinned gunicorn use plan10: original unittest discovery or manage.py test, production Gunicorn start, no source repair or implicit migration/collectstatic/settings edits. For Python, root requirements.txt must pin all packages; the host verifies binary-wheel hashes, installs offline, compiles source and probes the actual start command. Read package/lock/source first; supply the original path/status/text or JSON assertion. Commands and port come from actual source, never invented. The user approves before any install/script runs. No code changes or cloud writes. An npm monorepo still requires its actual leaf; a supported pnpm workspace retains its root. Builds needing undeclared network or secrets fail explicitly. For a Node fullstack source that uses PostgreSQL, compatibilityDatabase can request disposable synthetic-data testing: supply source-proven connection environment key names and public relation names. Optional migration takes an ordered sqlFiles list plus independent columns (relation/name/type/nullable), synthetic row expectations (relation/key/values), and persistence targets (relation/key/column). rows contains fixed values that must remain true throughout the test. Never put a changing persistence column in rows, even with its initial null value; the host independently reads its baseline. The unchanged original test must write a fresh non-null persistence value through the application; the host hashes real database readbacks and requires that exact value after the second worker. An echo, unchanged seed or memory-only state cannot pass. The host binds actual SQL hashes, uses a non-superuser, executes transactionally, independently reads schema/data with psql and reruns the original application/tests in a fresh worker on the same disposable data. It adds no hidden environment flags in migration mode. No production migration or database restart is verified. The host fixes the image and purpose, excludes stored real environment values and creates no publication artifact. This mode neither provisions a real database nor authorizes publication. The pinned database image must already be cached; it is never pulled automatically. Alternatively, use runnerScript plus targets (instead of environmentKeys/requiredRelations/migration) to run an existing root package.json migration script, including its declared pre/post hooks, against one to four independent disposable databases. Each target has id, source-proven environmentKeys, requiredRelations, and oracle with columns/rows/persistence. In runner mode rows may be empty for schema-only migrations. A persistence key may initially be absent, but after the first original application test it must identify one actual row with a fresh non-null value; absence in any later read fails. The host derives the exact script chain/hash and database/role identities. The original runner owns transactions and its ledger; SQL is never rewritten or wrapped by the host. Independent read-only checks verify built-in scalar columns, fixed rows, fresh API writes, unchanged selected data immediately after runner replay, and the same data after the second application. Both runner invocations and both applications run in fresh isolated workers. This is logical database separation on one temporary PostgreSQL server, not separate provider resources or production migration.",
+  description: "For pnpm, componentRoot selects an original workspace member for a v9 compiled component artifact: unchanged root build, selected member original tests, exact installed production closure and independent start/API checks. componentPort is the source-backed internal API port (default3000). Supply apiChecks for a node component. The host derives static versus compiled Node start; unsupported CLI/hooks fail explicitly. Other components, root data tests and whole-application acceptance remain unverified. No rebuild/install occurs at the approved Docker destination. Propose a host-reviewed install/build/start and independent workload check in an isolated Node20, Node22, Node24 or Python3.12 container selected by the host from the source version constraints. A source-pinned pnpm11.19 workspace uses ProjectBuildPlan8 with its unchanged root pnpm-lock.yaml and every workspace importer. With no root start, it proposes compile-only execution of the original root build: no original test, start, database, artifact or publication is claimed. A root with an existing start can execute original build/test/start/workload. Never replace the lock with npm or flatten a workspace. Other Node uses npm v3 lockfiles; only a package with zero declared dependencies and no lockfile skips install, as verified by the host. Flask/Django with explicit Python3.12/port/native configuration and pinned gunicorn use plan10: original unittest discovery or manage.py test, production Gunicorn start, no source repair or implicit migration/collectstatic/settings edits. For Python, root requirements.txt must pin all packages; the host verifies binary-wheel hashes, installs offline, compiles source and probes the actual start command. Read package/lock/source first; supply the original path/status/text or JSON assertion. Commands and port come from actual source, never invented. The user approves before any install/script runs. No code changes or cloud writes. An npm monorepo still requires its actual leaf; a supported pnpm workspace retains its root. Builds needing undeclared network or secrets fail explicitly. For a Node fullstack source that uses PostgreSQL, compatibilityDatabase can request disposable synthetic-data testing: supply source-proven connection environment key names and public relation names. Optional migration takes an ordered sqlFiles list plus independent columns (relation/name/type/nullable), synthetic row expectations (relation/key/values), and persistence targets (relation/key/column). rows contains fixed values that must remain true throughout the test. Never put a changing persistence column in rows, even with its initial null value; the host independently reads its baseline. The unchanged original test must write a fresh non-null persistence value through the application; the host hashes real database readbacks and requires that exact value after the second worker. An echo, unchanged seed or memory-only state cannot pass. The host binds actual SQL hashes, uses a non-superuser, executes transactionally, independently reads schema/data with psql and reruns the original application/tests in a fresh worker on the same disposable data. It adds no hidden environment flags in migration mode. No production migration or database restart is verified. The host fixes the image and purpose, excludes stored real environment values and creates no publication artifact. This mode neither provisions a real database nor authorizes publication. The pinned database image must already be cached; it is never pulled automatically. Alternatively, use runnerScript plus targets (instead of environmentKeys/requiredRelations/migration) to run an existing root package.json migration script, including its declared pre/post hooks, against one to four independent disposable databases. Each target has id, source-proven environmentKeys, requiredRelations, and oracle with columns/rows/persistence. In runner mode rows may be empty for schema-only migrations. A persistence key may initially be absent, but after the first original application test it must identify one actual row with a fresh non-null value; absence in any later read fails. The host derives the exact script chain/hash and database/role identities. The original runner owns transactions and its ledger; SQL is never rewritten or wrapped by the host. Independent read-only checks verify built-in scalar columns, fixed rows, fresh API writes, unchanged selected data immediately after runner replay, and the same data after the second application. Both runner invocations and both applications run in fresh isolated workers. This is logical database separation on one temporary PostgreSQL server, not separate provider resources or production migration. For original-runner mode only, prepareArtifact:true requests a fresh reviewed preparation that retains all these independent oracles and exports the tested compiled bytes into the existing immutable fullstack artifact. Temporary addresses/data and real credentials are excluded. This v4 mode may be chosen initially, or after the exact successful v3 oracle with a new decision. The resulting artifact can be selected and used for destination/resource planning; cloud publication still requires approved real bindings for every separate tested database purpose and its own decision. It never authorizes production migration or claims live data health.",
   parameters: { ...publicationTool.function.parameters, properties: { ...publicationTool.function.parameters.properties,
     componentRoot: { type: "string", maxLength: 240 }, componentPort: { type: "integer", minimum: 1024, maximum: 65535 },
     apiChecks: { type: "array", minItems: 1, maxItems: 8, items: { type: "object", additionalProperties: false, required: ["path", "status", "assertions"], properties: {
@@ -349,10 +370,11 @@ const buildTool: ToolDefinition = { type: "function", function: {
         } } },
     } } },
     compatibilityDatabase: { type: "object", additionalProperties: false, oneOf: [
-      { required: ["environmentKeys", "requiredRelations"], not: { anyOf: [{ required: ["runnerScript"] }, { required: ["targets"] }] } },
+      { required: ["environmentKeys", "requiredRelations"], not: { anyOf: [{ required: ["runnerScript"] }, { required: ["targets"] }, { required: ["prepareArtifact"] }] } },
       { required: ["runnerScript", "targets"], not: { anyOf: [{ required: ["environmentKeys"] }, { required: ["requiredRelations"] }, { required: ["migration"] }] } },
     ], properties: {
       runnerScript: { type: "string", minLength: 1, maxLength: 64 },
+      prepareArtifact: { const: true },
       targets: { type: "array", minItems: 1, maxItems: 4, items: { type: "object", additionalProperties: false, required: ["id", "environmentKeys", "requiredRelations", "oracle"], properties: {
         id: { type: "string", maxLength: 32 }, environmentKeys: { type: "array", minItems: 1, maxItems: 4, items: { type: "string", maxLength: 128 } },
         requiredRelations: { type: "array", minItems: 1, maxItems: 16, items: { type: "string", maxLength: 70 } }, oracle: runnerOracleSchema,
@@ -396,10 +418,12 @@ export const toolLabels: Readonly<Record<string, string>> = {
   quote_resource_plan: "بررسی هزینه پایه و گزینه‌های پلن",
   read_networks: "بررسی شبکه‌های موجود همین حساب",
   read_database_resources: "بررسی مشخصات و قیمت دیتابیس‌های همین حساب",
+  read_database_data: "سنجش مستقل اتصال و دادهٔ دیتابیس‌های همان انتشار",
   propose_destination: "آماده‌کردن مقصد تازه و هزینه پایه آن",
   propose_network: "آماده‌کردن تصمیم ساخت شبکه موردنیاز",
   propose_disk: "آماده‌کردن فضای پایدار موردنیاز همین نسخه",
   propose_database: "آماده‌کردن دیتابیس موردنیاز همین بخش برنامه",
+  propose_database_attachment: "انتخاب دیتابیس موجود برای همین بخش برنامه",
   propose_project_preparation: "آماده‌کردن فرمان اجرا و پورت برای تصمیم شما",
   propose_project_build: "آماده‌کردن نصب قفل‌شده و بررسی ساخت و اجرای برنامه",
   read_workload: "خواندن پاسخ تازه همان صفحه سایت",
@@ -417,6 +441,8 @@ export type AgentToolContext = {
   read?: LiaraReadClient;
   account?: LiaraAccountClient;
   database?: LiaraDatabaseReadClient;
+  databaseCredentials?: LiaraDatabaseCredentialsClient;
+  postgresObserver?: PostgresObserver;
   probe?: WorkloadProbe;
   mission?: PublicationMission | null;
   publicationExpectation?: WorkloadContract;
@@ -478,6 +504,15 @@ export async function executeAgentTool(
   const buildReleaseId = name === "read_build_logs" ? providerObjectId(args.releaseId) : null,
     buildSince = name === "read_build_logs" && args.since !== undefined ? string(args.since, 64) : null;
   ensure(buildSince === null || explicitIsoTime(buildSince) !== null, "INVALID_INPUT", "زمان آغاز گزارش ساخت باید تاریخ معتبر باشد.");
+  if (name === "read_database_data") {
+    ensure(c.context.target && c.context.projectId, "DATABASE_CONTEXT_REQUIRED", "پروژه و مقصد همین انتشار را انتخاب کنید.", 409);
+    const result = await observeDatabaseData(c.config, c.store, c.actorId, dataObservationId(args.actionId),
+      args.baselineId === undefined ? null : dataObservationId(args.baselineId), c.signal, { budget: c.budget,
+        ...(c.read ? { read: c.read } : {}), ...(c.database ? { database: c.database } : {}), ...(c.databaseCredentials ? { credentials: c.databaseCredentials } : {}),
+        ...(c.account ? { account: c.account } : {}), ...(c.environment ? { environment: c.environment } : {}), ...(c.postgresObserver ? { observer: c.postgresObserver } : {}) });
+    assertAgentContext(c.config, c.store, c.actorId, c.context);
+    return result;
+  }
   if (name === "read_database_resources") {
     ensure(c.context.account, "LIARA_AUTH_REQUIRED", "ابتدا حساب مقصد را متصل کنید.", 409);
     const view = string(args.view, 24);
@@ -549,8 +584,10 @@ export async function executeAgentTool(
       const testDatabase = args.compatibilityDatabase === undefined ? undefined : (() => {
         const possibleRunner = object(args.compatibilityDatabase);
         if (possibleRunner.runnerScript !== undefined || possibleRunner.targets !== undefined) {
-          exactKeys(possibleRunner, ["runnerScript", "targets"]); const targets = parsePostgresRunnerTargets(possibleRunner.targets);
-          return validateTestDatabaseSource(captured.files, flow.profile, parseDisposableTestDatabase({ version: 3, kind: "postgresql", purpose: "compatibility_test", image: postgresTestImage,
+          exactKeys(possibleRunner, ["runnerScript", "targets", "prepareArtifact"]);
+          ensure(possibleRunner.prepareArtifact === undefined || possibleRunner.prepareArtifact === true, "TEST_DATABASE_INVALID", "آماده‌سازی artifact باید صریحاً انتخاب شود.", 409);
+          const targets = parsePostgresRunnerTargets(possibleRunner.targets), artifact = possibleRunner.prepareArtifact === true;
+          return validateTestDatabaseSource(captured.files, flow.profile, parseDisposableTestDatabase({ version: artifact ? 4 : 3, kind: "postgresql", purpose: artifact ? "prepare_artifact" : "compatibility_test", image: postgresTestImage,
             environmentKeys: targets.flatMap(target => target.environmentKeys).sort(), requiredRelations: [...new Set(targets.flatMap(target => target.requiredRelations))].sort(), targets, runner: sourceMigrationRunner(captured.files, possibleRunner.runnerScript) }));
         }
         const input = object(args.compatibilityDatabase); exactKeys(input, ["environmentKeys", "requiredRelations", "migration"]);
@@ -574,6 +611,10 @@ export async function executeAgentTool(
         migrationSelectionChanged = fingerprint(files) !== fingerprint(previousFiles);
         ensure(!migrationSelectionChanged || c.buildJob?.state === "failed" && ["MIGRATION_EXECUTION_FAILED", "MIGRATION_ORACLE_FAILED"].includes(c.buildJob.errorCode ?? ""),
           "MIGRATION_SELECTION_REVIEW_REQUIRED", "تغییر انتخاب SQL فقط پس از شکست همان migration و با تصمیم تازه مجاز است.", 409);
+      } else if (previousDatabase?.version === 3 && testDatabase?.version === 4) {
+        const { version: _oldVersion, purpose: _oldPurpose, ...prior } = previousDatabase, { version: _version, purpose: _purpose, ...next } = testDatabase;
+        ensure(c.buildJob?.state === "succeeded" && c.buildJob.afterTest?.passed && c.buildJob.afterTest.databaseRunner?.planHash === fingerprint(previousDatabase) && fingerprint(prior) === fingerprint(next),
+          "MISSION_EXPECTATION_CHANGED", "آماده‌سازی باید همان runner و معیارهای آزمون موفق قبلی را با تصمیم تازه حفظ کند.", 409);
       } else if (previousDatabase) ensure(fingerprint(testDatabase ?? null) === fingerprint(previousDatabase), "MISSION_EXPECTATION_CHANGED", "محدودهٔ دادهٔ آزمون قبلی بدون تغییر شواهد عوض نمی‌شود.", 409);
       const component = args.componentRoot === undefined ? undefined : sourcePnpmComponent(captured.files, flow.profile.pnpmWorkspace ?? (() => { throw new AppError("COMPONENT_WORKSPACE_REQUIRED", "component باید در workspace شناسایی‌شده باشد.", 409); })(), string(args.componentRoot, 240), args.componentPort === undefined ? 3000 : integer(args.componentPort, 1024, 65535));
       const compileWorkspace = !component && !!flow.profile.pnpmWorkspace && !flow.profile.start;
@@ -625,7 +666,8 @@ export async function executeAgentTool(
       const verification = await fullstackVerification(c.store, c.config.stateDir, c.actorId, flow, c.config.sessionSecret);
       const row = c.store.db.prepare("SELECT data_json FROM code_repair_jobs WHERE id=? AND actor_id=?").get(verification.buildJobId, c.actorId);
       const job = parseCodeRepairJob(object(object(JSON.parse(string(row?.data_json, 1024 * 1024))).job));
-      ensure(job.build && sameBuildWorkload(job.build, parseProjectBuildPlan({ ...job.build, workload }).workload) && matchesPublishedBuildEnvironment(c.config, c.store, c.actorId, flow.id, job.build),
+      // The shared verifier above already checks either the exact build inputs or every real database binding.
+      ensure(job.build?.version === 7 && sameBuildWorkload(job.build, parseProjectBuildPlan({ ...job.build, workload }).workload),
         "PROJECT_BUILD_REQUIRED", "معیار صفحه یا تنظیمات امن با همان ساخت کامل برابر نیستند.", 409);
     } else if (flow.profile.runtime !== "static" && (c.mission || requiresProjectBuild(captured.files))) {
       const rows = c.store.db.prepare("SELECT state,data_json FROM code_repair_jobs WHERE actor_id=? AND state='succeeded' AND json_extract(data_json,'$.job.artifact.sourceHash')=? ORDER BY updated_at DESC LIMIT 10").all(c.actorId, c.context.sourceHash);
@@ -656,6 +698,15 @@ export async function executeAgentTool(
       { budget: c.budget, agentRunId: c.parentRunId, ...(c.disk ? { client: c.disk } : {}) });
     assertAgentContext(c.config, c.store, c.actorId, c.context);
     return { diskProposal: action };
+  }
+  if (name === "propose_database_attachment") {
+    ensure(c.context.projectId && c.context.target && c.parentRunId, "AGENT_PROJECT_REQUIRED", "پروژه، مقصد و مأموریت انتشار لازم است.", 409);
+    const action = await proposeDatabaseAttachment(c.config, c.store, c.actorId, {
+      flowId: c.context.projectId, agentRunId: c.parentRunId, requestKey: randomUUID(), consumerRoot: string(args.consumerRoot, 512),
+      databaseId: providerObjectId(args.databaseId), bindingKeys: parseDatabaseBindingKeys(args.bindingKeys),
+    }, c.signal, { budget: c.budget, ...(c.database ? { read: c.database } : {}), ...(c.account ? { account: c.account } : {}), ...(c.databaseCredentials ? { credentials: c.databaseCredentials } : {}) });
+    assertAgentContext(c.config, c.store, c.actorId, c.context);
+    return { databaseProposal: action };
   }
   if (name === "propose_database") {
     ensure(c.context.projectId && c.context.target && c.parentRunId, "AGENT_PROJECT_REQUIRED", "پروژه، مقصد و مأموریت انتشار لازم است.", 409);

@@ -46,6 +46,154 @@ AC19/26/28/31/32: ProjectBuildPlan8 retains the source-pinned pnpm11.19.0, root 
 Validation completed2026-10-29: r11 domain791/HTTP48; r12 focused5, lint/typecheck/Webpack build, actual web-to-worker5layouts/replay409/reload, review6layouts/keyboard, guided54states and actual container13/13. Snapshots and the preserved pre-container failure are recorded separately in the evidence; no live model/provider acceptance is inferred.
 
 
+## AC14/15/31 — بازسازی رابط اتصال MCP؛ ۲۰۲۶-۱۱-۰۴
+
+پنجرهٔ اتصال، انتخاب ابزار/دسترسی، دانلود خصوصی و راهنمای واقعی تنظیم و بررسی را یکپارچه می‌کند. خواندن پیش‌فرض، مجوز مأموریت انتخابی، متن کپی‌شدنی بدون token، انقضا، لغو/خطا و بازگشت فوکوس پیاده‌اند. حداقل اندازهٔ grid در متن۲۰۰٪ و دیده‌شدن کنترل دارای فوکوس زیر سربرگ اصلاح شدند. موتور یا مجوز جدا اضافه نشده است. snapshot r6 بر پایهٔf8fcc99، build/typecheck/lint با صفرerror و48warning/22info، domain14/14، HTTP/HTTPS/stdio14/14 و مرورگر24حالت را گذراند؛ مدل/provider مصنوعی و grant/دانلود/لغو محلی واقعی‌اند. نصب زندهٔ همه میزبان‌ها، inventory دائمی grant و انتشار آنلاین از این برش نتیجه نمی‌شوند. [شاهد و فرمان‌ها](docs/evidence/mcp-connection-ui.md).
+
+## AC14 — پخش صریح تصویر در حالت کاهش حرکت؛ ۲۰۲۶-۱۱-۰۴
+
+گزارش ثابت‌ماندن تصویر با تنظیم کاهش حرکت در Chromium بازتولید شد؛ شرط JS و CSS قبلی، کلیک را نیز به تأکید ثابت تبدیل می‌کردند. کلیک/کیبورد/لمس اکنون یک پخش محدود مسیر دارند؛ شناوری، tilt و حرکت لایه‌ها در کاهش حرکت خاموش‌اند و ترجیح تازه حین پخش آن را لغو می‌کند. متن زیر تصویر حذف شد. snapshot مستقل بر پایهٔ4e4585e، بدون تغییرات هم‌زمان دیتابیس، build Webpack، typecheck، lint با صفرerror/48warning/22info و مرورگر تصویر10حالت/استودیو43حالت را گذراند؛ حرکت واقعی، replay، کیبورد و لمس در هر دو ترجیح بررسی شدند. نتیجهٔ کامل و حدود در [شاهد تصویر](docs/evidence/interactive-launch-artwork.md) ثبت شده‌اند. پذیرش محصول منتشرشده از این آزمون محلی نتیجه نمی‌شود.
+
+## AC24/26/32/34 — اتصال اهداف آزموده‌شده و مقایسهٔ داده؛ ۲۰۲۶-۱۱-۰۴
+
+مسیر مشترک Agent/web/MCP و Store، رسید کامل artifact انتخاب‌شده را برای اتصال
+اهداف PostgreSQL می‌پذیرد، حتی وقتی تحلیل ایستا ساخت pool را unknown تشخیص می‌دهد.
+کلیدهای هر هدف و major نسخه پیش از پیشنهاد/اجرای منبع و انتشار کنترل می‌شوند.
+مقایسهٔ خواندن‌ها زمان شروع PostgreSQL را خصوصی ثبت می‌کند و اعداد بزرگ با متن
+JSONB دقیق مقایسه می‌شوند. رسیدهای تاریخی خوانا هستند و baseline قدیمی قابل قیاس نیست.
+
+candidate db-nov4-r5 بر پایهٔ7d37279، Node24.18.0 و lockfile جاری، typecheck،
+lint با صفر error و48warning/22info، build Webpack، domain823/823، HTTP49/49،
+مرورگر داده10حالت، guided57حالت، PostgreSQL observer واقعی1/1 و worker/artifact2/2
+را گذراند. مدل و provider آزمون مصنوعی‌اند؛ SQL، build، worker و restart محلی واقعی‌اند.
+اجرای قبلی در رد خروجی حساس CANCELLED شد؛ تکرار نهایی همان oracle را گذراند.
+منبع/دادهٔ مقصد واقعی، migration تولید و ماندگاری لیارا هنوز پذیرش ندارند.
+جست‌وجوی کامل فایل‌ها، DDL تاریخی users را در backup محلی پیدا کرد. استخراج فقط
+DDL/کلید اصلی، بدون دادهٔ ذخیره‌شده، اجرای runner، API write با principal ساختگی،
+SQL مستقل و حفظ همان ردیف پس از restart واقعی PostgreSQL/backend گذشت. این آزمون
+مستقیم backend از پذیرش مسیر کامل وب/مدل/لیارا جداست. اقدام بعدی، intake امن baseline
+در خود محصول و مجوز مستقل runner برای مقصد آزمایشی است.
+
+
+## AC15/24 — همگامی حالت native دیالوگ هنگام resize؛ ۲۰۲۶-۱۱-۰۱
+
+Actions نسخهٔ19a4388 پس از domain820/HTTP49/build و۱۰runner، در assertion فوری حالت
+چت پس از resize شکست خورد. آماده‌شدن CSS با پایان handler حالت modal یکی نیست.
+probe اکنون حالت native و هندسهٔ visual viewport را انتظار می‌کشد؛ assertion/timeout
+و کد محصول ثابت‌اند. r7 با app/build همان r5، lint دو فایل، سه chat13 و responsive47
+را گذراند. اعضای۱۴تایی core ثابت‌اند؛ responsive/chat برای بازخورد زودتر ابتدا هستند.
+CI کامل روی commit جدید پیگیری می‌شود؛ این برش build/domain تازهٔ محلی ندارد.
+
+## AC15/24 — همگامی تست بازگشت focus روی Linux؛ ۲۰۲۶-۱۱-۰۱
+
+Actions نسخهٔ05eea02، domain820/HTTP49/build و۱۳runner اصلی را گذراند، اما تست جدید
+پس از unmount کتابخانه زودتر از rAF بازگشت focus، assertion می‌گرفت. تست اکنون
+منتظر همان کنترل فعال می‌ماند؛ assertion و timeout و کد محصول تغییر نکرده‌اند.
+r6 با همان app/build آزموده‌شدهٔr5، lint فایل و سه اجرای پیاپی responsive47 را گذراند.
+این اجرا build/domain/HTTP تازه نیست؛ CI کامل روی commit بعدی پیگیری می‌شود.
+
+## AC15/24 — تکمیل توکن‌های مشترک رابط؛ ۲۰۲۶-۱۱-۰۱
+
+پنج توکن استفاده‌شدهٔ بدون تعریف، شکل کارت پروژه، hover پلن و shadow انتخاب/پنجره
+را بی‌صدا از کار می‌انداختند. در همان تم تعریف شدند؛ guard ارجاع CSS و بررسی مقدار
+محاسبه‌شدهٔ radius/shadow و hover واقعی اضافه شد. candidate r5 برابر runtime کامیت
+259fe85 به‌اضافهٔ این patch است؛ lint صفرerror/48warning/22info، typecheck/build و
+responsive47/plans14/chat13/guided57/login10 گذشتند. domain820/HTTP49 و۲۷runner کامل
+متعلق به r4/259fe85 هستند و برای r5 تکرار محلی ادعا نمی‌شوند. مدل/provider مصنوعی و
+هزینه/نوشتن واقعی صفر. [شاهد و حدود](docs/evidence/responsive-ui.md#shared-theme-follow-up).
+پیگیری: نتیجهٔ CI همان HEAD و سپس browser engine/دستگاه واقعیِ خارج از این ماتریس.
+
+## AC15/24 — پایداری رابط، متن بزرگ و کیبورد؛ ۲۰۲۶-۱۱-۰۱
+
+سربرگ۲۸۰px، نام بلند مخزن، هدف لمس کنترل‌ها، رضایت عامل، راهنمای واقعی خروج، لغو و
+بازگشت focus اصلاح شدند. دسکتاپ non-modal باقی است و بازگشت focus، پوشش بزرگ دستیار
+را جمع می‌کند. در ارتفاع حداکثر۴۸۰، سربرگ/launcher در جریان صفحه‌اند و فاصله‌های توکار
+و scroll برای متن۲۰۰٪ تنظیم شده‌اند. oracle خوانایی/قیمت/approval حفظ شد؛ teardown
+polling پیش از بسته‌شدن context منتظر handler می‌ماند. `test:responsive` و اجرای
+کامل core browser در CI اضافه شدند. snapshot مستقل r4 بر پایهٔ15f2912 با Node24.18.0:
+domain820، HTTP49، هر۲۷runner مرورگر، typecheck/build و lint صفرerror/48warning/22info.
+مرورگر/سرور واقعی، مدل/provider مصنوعی و هزینهٔ مدل/نوشتن ابری صفر است. شرح revision،
+شکست‌های میانی و حدود در [شاهد رابط](docs/evidence/responsive-ui.md) ثبت‌اند. پیگیری:
+پیگیری توکن‌ها در برش بالا بسته شد؛ مرورگرهای دیگر/دستگاه واقعی بازند.
+
+## AC15/24 — محدودکردن عرض کنترل عامل اصلاح؛ ۲۰۲۶-۱۰-۳۰
+
+اجرای واقعی Linux روی `624c401` همچنان در consent ساختِ عرض۳۲۰ overflow داشت، با وجود
+عبور domain/build/HTTP. انتخاب‌گر بومی در همین صفحه عرض/فونت محدود نداشت؛ رگرسیون
+متن۲۰۰٪ در Windows عرض۵۱۵px با parent258px را ثبت کرد. فونت ارثی و عرض محدود به کارت
+اضافه شد؛ گزینه‌ها، انتخاب، هزینه/تأیید و رفتار برنامه تغییر نکردند. معیار مرورگر
+حفظ شد و یک حالت۲۰۰٪ و لاگ هندسی محدودِ بدون متن/مقدار برای failure اضافه شدند.
+candidate `mobile-agent-r2` با build/typecheck، lint صفرerror/48warning/22info، guided55
+و HTTP49/49 در Windows/Node24.18.0 گذشت؛ screenshot320 دیده شد. اجرای نخست build محلی
+پیش از oracle قطع شد و اجرای نهایی روی همان ورودی‌ها جدا ثبت است. آماده‌سازی Linux
+Docker پیش از اجرای برنامه با خطای403 منطقه‌ای CDN مرورگر شکست خورد؛ pass نیست.
+تأیید Linux از Actions همان commit دنبال می‌شود؛ provider/model مصنوعی باقی می‌مانند.
+
+## AC15/22/24 — شکست واقعی Linux در کارت کلیدهای محیطی؛ ۲۰۲۶-۱۰-۳۰
+
+اجرای واقعی Actions روی `b2c17fa`، domain820، build و HTTP49 را گذراند؛ guided در
+`environment-bound-build-consent` به overflow رسید. fixture با نام بلندِ معتبر این
+نقص را روی Windows نیز در مرور امن تنظیمات بازتولید کرد: ستون حدود397.7px در viewport320.
+ستون grid این فرم به `minmax(0,1fr)` محدود و شکستن خط نام‌ها/هشدارها فعال شد؛ نام یا
+مقدار/authority عوض یا پنهان نشده است. regression، کلیدهای قبلی را نگه می‌دارد و یک
+کلید عمومی بلند اضافه می‌کند؛ oracle overflow/axe و timeout قبلی حفظ‌اند و فهرست
+کامل کلیدهای تصمیم کنترل می‌شود. candidate مستقل `mobile-env-r1` بر پایهٔ `b2c17fa`
+با build/typecheck/lint صفرerror/48warning/22info، guided54 در پنج عرض و HTTP49/49
+گذشت؛ screenshot320 مرور/تصمیم نیز دیده شد. مدل/provider مصنوعی و مرورگر/سرور واقعی
+هستند. نتیجهٔ Linux باید از Actions همان commit خوانده شود؛ تغییر runtime/backend،
+هزینهٔ مدل، SQL یا عملیات لیارا در این برش نیست.
+
+## AC15 — پیش‌نیاز مرورگر در CI و توقف PRهای معمول نسخه‌ها؛ ۲۰۲۶-۱۰-۳۰
+
+علت شکست CI پایهٔ `37cd6af`، نصب Chromium پس از `test:http` بود؛ خود suite در مسیر
+HTTPS/MCP مرورگر واقعی اجرا می‌کند. fail دوم، شکست گروه والد همان تست بود، نه خطای
+مستقل. نصب `--with-deps chromium` به بعد از `npm ci` و پیش از تست‌ها منتقل شد؛ تست،
+oracle و timeout تغییر نکردند. راهنماهای هر دو زبان و مشارکت/AGENTS پیش‌نیاز مرورگر
+و OpenSSL را صریح می‌کنند. طبق درخواست مالک، PRهای معمول npm/Actions با limit صفر
+متوقف و پنج PR باز Dependabot بدون merge بسته شدند؛ هشدارها/تنظیم امنیتی تغییر نکردند.
+روی Windows/Node24.18.0 و build جداگانه با تطبیق۵۵۱فایل runtime/test/config و ورودی
+dependency فعلی، نصب Chromium، HTTP49/49 و guided54 در پنج عرض گذشت؛ transport مدل و
+provider مصنوعی بود. lint صفرerror/48warning/22info، YAML/ترتیب مراحل و checker دو
+README گذشت. نتیجهٔ Linux باید از Actions همان SHA خوانده شود؛ این بررسی محلی جای
+آن نیست. هیچ dependency، state تولیدی، مجوز یا بودجهٔ مدل تغییر نکرد.
+
+## AC15/16 — آماده‌سازی مخزن عمومی و README دو‌زبانه؛ ۲۰۲۶-۱۰-۳۰
+
+بر پایهٔ `32bb2aa`، README فارسی بازنویسی و نسخهٔ هم‌سطح انگلیسی اضافه شد؛ نشان موجود،
+تصویر واقعی رابط با دادهٔ آزمایشی و نمودار در هر دو زبان قرار گرفت. راه‌اندازی به
+راهنمای مشخص منتقل شد؛ دفتر انباشتهٔ اعتبارسنجی با حفظ محتوا و اصلاح لینک‌ها به
+آرشیو رفت و فهرست کوتاه جای آن نشست. سه یادداشت/پرامپت خصوصیِ untracked از ریشه به
+آرشیو محلی رفتند. فایل‌های مشارکت، گزارش امنیت، رفتار اجتماعی، فرم Issue/PR، CI با
+SHA ثابت و توکن فقط‌خواندنی، Dependabot، MIT مصوب مالک، notices و ignoreهای state/output
+اضافه شدند؛ runtime و زیرساخت تغییر نکردند. checker هر دو README بدون error/warning،
+لینک‌های محلی بدون شکست،۵YAML معتبر، preview محلی۸حالت با Mermaid واقعی، setup دو بار
+در فضای موقت با حفظ کلیدها/gateهای خاموش، و lint صفرerror/48warning/22info گذشت.
+بررسی۲۵۱۶blob تاریخچهٔ HEAD با الگوهای محدود و secretهای شناخته‌شده فقط marker ساختگی
+تست را یافت؛ audit جامع امنیت نیست. build/domain/provider تازه اجرا نشدند. مالک مجوز
+بازتوزیع IRANYekan را تأیید کرده و فایل مدرک را بعداً می‌افزاید.
+[گام‌های باقی‌ماندهٔ انتشار مخزن](docs/publishing.md): سند فونت، مجوز push/visibility،
+تنظیمات GitHub و اولین CI واقعی؛ هیچ push یا rollout انجام نشده است.
+
+## A14 / AC24/26/32/34 — بررسی مستقل دادهٔ همان انتشار؛ ۲۰۲۶-۱۰-۲۹
+
+مسیر مشترک وب/Agent/MCP اکنون اتصال PostgreSQL و schema/ردیف/state انتخاب‌شدهٔ همان artifact v4 را با درایور مستقل و نشست فقط‌خواندنی می‌سنجد. شناسهٔ منابع، مسیر خصوصیِ مجازِ حساب/تیم/شبکه، اتصال، نسخهٔ جاری و env پیش از ثبت شاهد دوباره کنترل می‌شوند. reload فقط receipt محلی را می‌خواند؛ raw data/credential/digest خصوصی وارد UI/model نمی‌شوند. دو مشاهده فقط مقدارهای انتخاب‌شده را مقایسه می‌کنند و mission را کامل نمی‌کنند. snapshot نهایی `data-read-r8` با domain820/820، HTTP49/49، UI داده10، guided54، typecheck/lint/build، درایور واقعی1/1 و مسیر واقعی artifact/دو مقصد داده2/2 گذشت؛ مدل/provider مصنوعی و SQL/Docker محلی واقعی‌اند. runtime پس از تکمیل cache روی همان بایت‌ها دوباره اجرا شد؛ شکست‌های قبلی جدا ثبت‌اند. [تصمیم](docs/decisions/0038-independent-postgres-data-observation.md)، [snapshot و مرزهای شاهد](docs/evidence/postgres-data-observation.md). مانع زنده: تیم انتخاب‌شده در خواندن تازه دیتابیس نداشت؛ انتخاب تیم فقط مجوز metadata read بود. مرحلهٔ بعد اجرای مصوب runner اصلی روی مقصد، نوشتن برنامه و ماندگاری مستقل است. مصرف تازهٔ مدل ممنوع می‌ماند.
+
+## A14 / AC24/26/32/34 — نتیجهٔ انتشار از دادهٔ مقصد جداست؛ ۲۰۲۶-۱۰-۲۹
+
+مسیر ابزار Agent، کنترل تکراریِ env قدیمی را با verifier مشترک جایگزین می‌کند تا binding واقعیِ تأییدشده با env خالی آزمون موقت مقایسه نشود. پس از موفقیت release و HTTP/API، میزبان receipt همان job و hashهای source/build/output را بازخوانی می‌کند. اگر بسته با دادهٔ موقت v4 آماده شده باشد، مأموریت `partially_completed` می‌ماند و مرحلهٔ دادهٔ واقعی را صریح نشان می‌دهد؛ مدل یا ۲۰۰ API نمی‌تواند production data receipt بسازد. actor یا provenance جابه‌جا، رد می‌شوند؛ budget/approval/journal قبلی حفظ‌اند. snapshot مستقل `data-outcome-r5` با domain799، HTTP48، guided54، typecheck/lint/build و دو worker case واقعی گذشت؛ case مثبت، artifact واقعی را از approval/journal تا release/proof/assets/API مصنوعی می‌برد و نتیجهٔ جزئی و بازیابی پایدار را می‌سنجد. مدل/provider مصنوعی و SQL/Docker محلی واقعی‌اند؛ هزینهٔ مدل، cloud write، production SQL و rollout تازه صفر. مرز بعدی migration و سنجش مستقل دادهٔ مقصد است؛ [شاهد و حدود](docs/evidence/data-tested-artifact.md#publication-outcome-follow-up).
+
+## A14 / AC17/19/22/24/26/32/34 — artifact پس از آزمون مستقل داده؛ ۲۰۲۶-۱۰-۲۹
+
+`prepareArtifact:true` در همان ابزار ساخت، تصمیم جدا و قرارداد دادهٔ v4 می‌گیرد. runner/hook و oracle اصلی حفظ می‌شوند؛ پس از سنجش مستقل تمام دیتابیس‌ها، بایت‌های compiled به archive موجود متصل و انتخاب می‌شوند. v1–v3 همچنان artifact ندارند. انتشار به منبع واقعی مستقل و binding خصوصی معتبر برای هر target نیاز دارد؛ تحلیل «نامعلوم» نیاز سورس، این کنترل را دور نمی‌زند. [شاهد فرمان‌ها، snapshot و حدود](docs/evidence/data-tested-artifact.md)، [ADR0037](docs/decisions/0037-data-tested-prepared-artifacts.md). snapshot مستقل r9 با domain799، HTTP48، worker جدید2/2، رگرسیون SQL/runner قبلی6/6، وب واقعی تا worker در۱۰چیدمان، اتصال منابع موجود در۸چیدمان، guided54، typecheck/lint/build گذشت. مدل/provider مصنوعی، SQL/worker محلی واقعی‌اند. migration تولیدی و اثر دادهٔ مقصد بازند؛ قدم بعدی نیز جلوگیری از پایان کامل مأموریت v4 صرفاً پس از HTTP/API است. مصرف تازهٔ مدل مجاز نیست.
+
+## A14 / AC17/22/23/24/32/34 — انتخاب دیتابیس موجود و اتصال خصوصی؛ ۲۰۲۶-۱۰-۲۸
+
+ابزار مشترک `propose_database_attachment`، شناسهٔ inventory و کلیدهای خصوصی همان consumer را به approval v29 می‌بندد. host، نوع/نسخه/پلن/باندل و شبکهٔ خصوصی را از پاسخ adapter می‌خواند و پس از تصمیم دوباره کنترل می‌کند؛ انتخاب منبع هیچ create یا SQL ارسال نمی‌کند و receipt آن `selected` است. credential از همان proposal رمز‌شده و تصمیم جداگانهٔ env v9 عبور می‌کند. بازتنظیم همان شناسه و همان purpose مجاز است؛ تعویض منبع، binding قبلی را تأیید نمی‌کند. migration21 فقط index مشترک درخواست را اضافه می‌کند. [تصمیم](docs/decisions/0036-existing-managed-database-selection.md)، [شاهد و validation دقیق](docs/evidence/existing-managed-database.md).
+
+snapshot نهایی `database-attachment-r9` بر پایهٔ `fc01252` با runtime/package SHA256 `170d2b905a1247d5375b0a60daa946ec006621c6522d87bb869a9ef247a35cad`: domain795/795، HTTP48/48، guided54، typecheck/build Webpack و lint صفرerror/48warning/22info گذشتند. مسیر واقعی وب/API دو دیتابیس موجود در۸چیدمانِ جزئیات باز، دو تصمیم انتخاب و دو تصمیم env را با صفر create، replay409 و reload بدون مصرف/عملیات تازه گذراند؛ regression دو دیتابیس تازه نیز در۸چیدمان گذشت. مدل/provider مصنوعی‌اند؛ نتایج snapshotهای اولیه جدا و failureها در شاهد حفظ‌اند.
+
+مهاجرت و صحت داده همچنان قرارداد مستقل می‌خواهند. اقدام بعد، اتصال runner اصلی پروژه به محیط مجاز مقصد و artifact آزموده‌شده، سپس سنجش مستقل اثر schema/data و رفتار/ماندگاری همان release است. مدل/provider آزمون این برش مصنوعی‌اند؛ مصرف تازهٔ مدل، تمدید ledger، write واقعی زیرساخت و rollout انجام نمی‌شود. مسیر runtime/componentها در worktree مستقل ایجنت دوم ادامه دارد.
+
 ## A14 / AC17/22/23/24/32/34 — منابع دادهٔ نام‌دار در همان مأموریت؛ ۲۰۲۶-۱۰-۲۸
 
 پیشنهاد Agent از v28 استفاده می‌کند و `bindingKeys` را پیش از ساخت، از نیاز همان consumer/source به approval می‌بندد. اتصال امن دیگر به دو نام پیش‌فرض محدود نیست؛ هر منبع به کلیدهای مصوب خودش متصل می‌شود. رزرو اتمیک Store، کلید مصرف‌شده را به دیتابیس دوم نمی‌دهد و uncertainty تیم میان v27/v28 حفظ است. پس از ساخت و binding تأییدشده، همان مأموریت با همان budget می‌تواند منبع مستقل بعدی را پیشنهاد کند؛ اتصال اول هنگام merge دوم حفظ می‌شود. فرم وب، موفقیت تنظیمات منبع اول را به‌جای تنظیم منبع دوم نشان نمی‌دهد. v27 و migrationهای۱–۱۹ بازنویسی نشده‌اند؛ index مشترک فقط در migration20 افزوده است.

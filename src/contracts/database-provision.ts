@@ -23,18 +23,23 @@ type LegacyDatabaseProvisionSpec = Readonly<{
   cost: Readonly<{ planHourlyToman: number; bundleHourlyToman: number; combinedTotal: "not_computed"; extras: "unknown"; expiresAt: number }>;
 }>;
 export type DatabaseProvisionSpec = LegacyDatabaseProvisionSpec | (Omit<LegacyDatabaseProvisionSpec, "version"> & Readonly<{ version: 28; bindingKeys: readonly string[] }>);
+export type DatabaseAttachmentSpec = Omit<Extract<DatabaseProvisionSpec, { version: 28 }>, "version" | "operation"> & Readonly<{
+  version: 29; operation: "attach_database"; databaseId: string;
+}>;
+export type DatabaseResourceSpec = DatabaseProvisionSpec | DatabaseAttachmentSpec;
 export function isDatabaseProvisionSpec(value: Action["spec"]): value is DatabaseProvisionSpec { return value.version === 27 || value.version === 28; }
+export function isDatabaseResourceSpec(value: Action["spec"]): value is DatabaseResourceSpec { return isDatabaseProvisionSpec(value) || value.version === 29; }
 export function parseDatabaseBindingKeys(value: unknown): readonly string[] {
   ensure(Array.isArray(value) && value.length > 0 && value.length <= 4, "DATABASE_BINDING_KEYS_INVALID", "یک تا چهار نام ورودی اتصال لازم است.", 409);
   const keys = value.map(environmentKey);
   ensure(new Set(keys).size === keys.length && keys.every(key => !isPublicClientEnvironmentKey(key)), "DATABASE_BINDING_KEYS_INVALID", "نام اتصال باید یکتا و خصوصی باشد.", 409);
   return [...keys].sort();
 }
-export function databaseBindingKeys(spec: DatabaseProvisionSpec): readonly string[] {
-  return spec.version === 28 ? spec.bindingKeys : [spec.database.type === "redis" ? "REDIS_URL" : "DATABASE_URL"];
+export function databaseBindingKeys(spec: DatabaseResourceSpec): readonly string[] {
+  return spec.version !== 27 ? spec.bindingKeys : [spec.database.type === "redis" ? "REDIS_URL" : "DATABASE_URL"];
 }
 export type DatabaseProvisionProgress = Readonly<{
-  stage: "claimed" | "request_started" | "accepted" | "created";
+  stage: "claimed" | "request_started" | "accepted" | "created" | "selected";
   acceptedAt: number | null;
   databaseId: string | null;
   observation: Readonly<{ outcome: "identity_verified" | "inconclusive" | "not_started" | "changed"; code: string; checkedAt: number }> | null;
@@ -70,13 +75,22 @@ export function parseDatabaseProvisionSpec(value: unknown): DatabaseProvisionSpe
     cost: { planHourlyToman: amount(cost.planHourlyToman), bundleHourlyToman: amount(cost.bundleHourlyToman), combinedTotal: "not_computed", extras: "unknown",
       expiresAt: integer(cost.expiresAt, 0, Number.MAX_SAFE_INTEGER) } };
 }
+export function parseDatabaseResourceSpec(value: unknown): DatabaseResourceSpec {
+  const row = object(value);
+  if (row.version !== 29) return parseDatabaseProvisionSpec(row);
+  const { databaseId, ...rest } = row;
+  ensure(row.operation === "attach_database", "INVALID_DATABASE_PROPOSAL", "قرارداد انتخاب دیتابیس معتبر نیست.", 409);
+  const base = parseDatabaseProvisionSpec({ ...rest, version: 28, operation: "create_database" });
+  ensure(base.version === 28, "INVALID_DATABASE_PROPOSAL", "کلیدهای اتصال دیتابیس لازم است.", 409);
+  return { ...base, version: 29, operation: "attach_database", databaseId: providerObjectId(databaseId) };
+}
 export function parseDatabaseProvisionProgress(value: unknown): DatabaseProvisionProgress {
   const row = object(value), stage = row.stage;
   exactKeys(row, ["stage", "acceptedAt", "databaseId", "observation"]);
-  ensure(stage === "claimed" || stage === "request_started" || stage === "accepted" || stage === "created", "STORAGE_INVALID", "مرحله دیتابیس معتبر نیست.", 503);
+  ensure(stage === "claimed" || stage === "request_started" || stage === "accepted" || stage === "created" || stage === "selected", "STORAGE_INVALID", "مرحله دیتابیس معتبر نیست.", 503);
   const acceptedAt = row.acceptedAt === null ? null : integer(row.acceptedAt, 0, Number.MAX_SAFE_INTEGER),
     databaseId = row.databaseId === null ? null : providerObjectId(row.databaseId);
-  ensure((stage !== "created" || databaseId !== null && acceptedAt !== null) && (stage !== "accepted" || acceptedAt !== null), "STORAGE_INVALID", "رسید دیتابیس کامل نیست.", 503);
+  ensure((stage !== "created" && stage !== "selected" || databaseId !== null && acceptedAt !== null) && (stage !== "accepted" || acceptedAt !== null), "STORAGE_INVALID", "رسید دیتابیس کامل نیست.", 503);
   let observation: DatabaseProvisionProgress["observation"] = null;
   if (row.observation !== null) {
     const raw = object(row.observation), outcome = raw.outcome;
@@ -87,5 +101,5 @@ export function parseDatabaseProvisionProgress(value: unknown): DatabaseProvisio
   return { stage, acceptedAt, databaseId, observation };
 }
 export function canReadDatabaseResult(action: Action): boolean {
-  return isDatabaseProvisionSpec(action.spec) && !!action.database && (action.state === "observing" || action.state === "uncertain");
+  return isDatabaseResourceSpec(action.spec) && !!action.database && (action.state === "observing" || action.state === "uncertain");
 }

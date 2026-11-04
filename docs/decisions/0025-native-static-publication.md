@@ -4,7 +4,7 @@
 
 ## مسئله و مسیر
 
-پروژهٔ واقعی `I:\Computer\dev\Web\Login`، HTML/CSS/JavaScript مرورگر است؛ package/start یا runtime Node ندارد. پیشنهاد مقصد قبلی با PROJECT_INCOMPLETE رد شد و مدل با سؤال Static یا Node و port، allowance را مصرف کرد. محدودیت مقصد Node/Python باید در implementation برطرف شود، نه به کاربر عادی منتقل شود.
+پروژهٔ واقعی `<owner-provided-static-project>`، HTML/CSS/JavaScript مرورگر است؛ package/start یا runtime Node ندارد. پیشنهاد مقصد قبلی با PROJECT_INCOMPLETE رد شد و مدل با سؤال Static یا Node و port، allowance را مصرف کرد. محدودیت مقصد Node/Python باید در implementation برطرف شود، نه به کاربر عادی منتقل شود.
 
 پلتفرم بومی Static لیارا، با پورت80 و Nginx مدیریت‌شده، مسیر انتخابی است. [مستند رسمی](https://docs.liara.ir/paas/static/getting-started/) و [port CLI](https://github.com/liara-cloud/cli/blob/master/src/utils/get-port.ts)، به‌همراه [deploy CLI](https://github.com/liara-cloud/cli/blob/master/src/commands/deploy.ts) در تاریخ تصمیم بررسی شدند. release از `type=static` و `platformConfig={}` استفاده می‌کند؛ نسخهٔ زبان اختراع نمی‌شود. wrapper Node یا Docker worker، شاهد انتشار بومی Static نیست و این تصمیم از آن‌ها استفاده نمی‌کند.
 

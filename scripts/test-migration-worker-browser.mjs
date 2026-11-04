@@ -10,11 +10,11 @@ import { AgentRepository } from "../src/server/agent/store.ts";
 
 // Real browser -> authenticated HTTP -> Agent/job -> real Docker/PostgreSQL -> UI.
 // Only the model transport is synthetic. There is no request/decision/receipt interception.
-const runnerMode = process.env.LAUNCHLANE_TEST_RUNNER_BROWSER === "true", expectedText = runnerMode ? "Runner lifecycle" : "Migration lifecycle",
+const artifactMode = process.env.LAUNCHLANE_TEST_DATA_ARTIFACT_BROWSER === "true", runnerMode = artifactMode || process.env.LAUNCHLANE_TEST_RUNNER_BROWSER === "true", expectedText = runnerMode ? "Runner lifecycle" : "Migration lifecycle",
   retainedText = runnerMode ? "همان داده در همهٔ دیتابیس‌ها پس از اجرای دوبارهٔ runner و برنامه حفظ شد." : "همان داده پس از اجرای دوبارهٔ برنامه حفظ شد.";
 const server = await startTestServer({ agentFixture: true }), browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ locale: "fa-IR", reducedMotion: "reduce" }), page = await context.newPage();
-const output = resolve(runnerMode ? ".artifacts/runner-worker" : ".artifacts/migration-worker", new Date().toISOString().replaceAll(":", "-"));
+const output = resolve(artifactMode ? ".artifacts/data-artifact-worker" : runnerMode ? ".artifacts/runner-worker" : ".artifacts/migration-worker", new Date().toISOString().replaceAll(":", "-"));
 await mkdir(output, { recursive: true }); const errors = [], external = []; let store, decision, decisionUrl, csrf;
 page.on("pageerror", error => errors.push(error.message));
 page.on("request", async request => {
@@ -64,11 +64,14 @@ try {
   assert.ok(proof && result?.repair); assert.equal(result.state, "partially_completed"); assert.equal(result.repair.state, "succeeded");
   assert.equal(result.repair.baseRevision, flow.profile.sourceHash); assert.equal(proof.sourceHash, result.repair.postgresFixtureSourceHash);
   if (runnerMode) {
-    assert.equal(result.repair.build.testDatabase.version, 3); assert.equal(proof.runnerHash, result.repair.build.testDatabase.runner.sha256); assert.equal(proof.runnerRuns, 2);
+    assert.equal(result.repair.build.testDatabase.version, artifactMode ? 4 : 3); assert.equal(proof.runnerHash, result.repair.build.testDatabase.runner.sha256); assert.equal(proof.runnerRuns, 2);
     assert.deepEqual(proof.targets, [{ id: "auth", columnChecks: 5, rowChecks: 2, persistenceChecks: 1 }, { id: "profile", columnChecks: 5, rowChecks: 2, persistenceChecks: 1 }]);
   } else { assert.equal(proof.files[0].sha256, createHash("sha256").update(originals[0]).digest("hex")); assert.equal(proof.columnChecks, 3); assert.equal(proof.rowChecks, 1); assert.equal(proof.persistenceChecks, 1); }
   assert.equal(proof.applicationRuns, 2);
-  assert.equal(proof.production, false); assert.equal(proof.databaseRestartVerified, false); assert.equal(result.repair.artifact, null); assert.equal(result.publication, null); assert.equal(result.effect, "no_remote_changes");
+  assert.equal(proof.production, false); assert.equal(proof.databaseRestartVerified, false);
+  if (artifactMode) { assert.ok(result.repair.artifact && result.repair.publication && result.repair.afterTest.buildOutput); const selected = store.getProjectFlow(actor); assert.equal(selected?.selection.kind, "repair"); assert.equal(selected?.artifact?.archiveHash, result.repair.artifact.archiveHash); }
+  else assert.equal(result.repair.artifact, null);
+  assert.equal(result.publication, null); assert.equal(result.effect, "no_remote_changes");
   assert.equal(result.repair.containerIds.length, runnerMode ? 5 : 3); assert.equal(new Set(result.repair.containerIds).size, runnerMode ? 5 : 3); assert.equal(result.repair.postgresExecutionStarted, undefined);
   assert.equal(store.db.prepare("SELECT count(*) n FROM actions").get().n, 0); assert.equal(await calls(), 2);
   assert.ok(decision && decisionUrl && csrf); assert.equal(decision.decision, "approve");

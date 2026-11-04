@@ -32,6 +32,13 @@ try {
   await mkdir(output, { recursive: true }); await page.goto(server.origin);
   await page.getByRole("heading", { name: "ورود با حساب لیارا", exact: true }).waitFor();
   for (const width of [280, 320, 390, 768, 1280]) await layout(width, "login");
+  await page.evaluate(() => document.documentElement.style.fontSize = "200%");
+  await layout(320, "login-text-200");
+  await page.evaluate(() => document.documentElement.style.fontSize = "");
+  await page.setViewportSize({ width: 320, height: 540 });
+  const reveal = page.getByRole("button", { name: "نمایش رمز عبور", exact: true });
+  const revealBounds = await reveal.boundingBox();
+  assert.ok(revealBounds.width >= 44 && revealBounds.height >= 44, "Password visibility has a full touch target");
   assert.equal(await page.getByText("کلید ورود محلی", { exact: true }).count(), 0); assert.equal((await page.content()).includes("operator-access.txt"), false);
   const remember = page.getByRole("checkbox", { name: "مرا به خاطر بسپار", exact: true });
   assert.equal(await remember.isChecked(), false); await remember.focus(); await page.keyboard.press("Space");
@@ -62,7 +69,17 @@ try {
   const restored = await browser.newContext({ storageState: await context.storageState() });
   try {
     const response = await restored.request.get(server.origin + "/api/workspace"); assert.equal(response.status(), 200);
-    await signOut();
+    await page.getByRole("button", { name: "خروج", exact: true }).click();
+    const signOutDialog = page.getByRole("dialog", { name: "خروج از میز کار", exact: true });
+    await signOutDialog.getByText("برای ادامه، دوباره با حساب لیارای خود وارد شوید.", { exact: true }).waitFor();
+    assert.doesNotMatch(await signOutDialog.textContent(), /کلید دسترسی محلی|روی این رایانه/);
+    await layout(280, "hosted-signout");
+    await signOutDialog.getByRole("button", { name: "انصراف", exact: true }).click();
+    await signOutDialog.waitFor({ state: "detached" });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.getByRole("button", { name: "خروج", exact: true }).click();
+    await signOutDialog.getByRole("button", { name: "بله، خارج شو", exact: true }).click();
+    await page.getByRole("heading", { name: "ورود با حساب لیارا", exact: true }).waitFor();
     assert.equal((await restored.request.get(server.origin + "/api/workspace")).status(), 401);
   } finally { await restored.close(); }
   await credentials("bob@example.test"); await page.getByRole("button", { name: "فضای باب", exact: true }).click();

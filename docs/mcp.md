@@ -7,6 +7,40 @@ Publication route observation, 2026-10-29: read_workload retains path/assets and
 
 Pnpm workspace delta, 2026-10-28: inspect_project exposes the source-bound package roots, exact package-manager pin, importer evidence and common Node constraints. The same mission registry proposes ProjectBuildPlan8 through propose_project_build; it adds no MCP execution/approval tool or separate Store. Compile-only results grant no artifact/publication/data authority. A new independent external-host run for this slice is UNCONFIRMED. [Evidence](evidence/pnpm-workspaces.md).
 
+## راهنمای تعاملی در تنظیمات حساب
+
+از «حساب‌ها ← اتصال MCP» ابزار خود را انتخاب کنید: Codex، Claude Code یا OpenCode.
+خواندن پروژه و وضعیت کار، دسترسی پیش‌فرض است؛ شروع/ادامه/توقف مأموریت را فقط در
+صورت نیاز فعال کنید. این اجازه می‌تواند در مأموریت بعدی از بودجهٔ موجود استفاده کند؛
+ساخت فایل و بازکردن راهنما مدل یا انتشار را شروع نمی‌کند.
+
+پس از صدور، فایل را دانلود کنید. راهنمای همان پنجره، فرمان مخصوص نشانی واقعی این نصب
+و یک خروجی تازه زیر `.local` می‌دهد. آن را از پوشهٔ نصب Launchlane روی رایانهٔ ابزار
+با Node24 اجرا کنید؛ این پوشه، پروژهٔ ورودی انتشار نیست. مسیر پیش‌فرض دانلود در فرمان،
+پوشهٔ Downloads حساب سیستم‌عامل است؛ اگر نام یا پوشهٔ فایل عوض شده، `--from-file` را
+اصلاح کنید. انتخاب PowerShell یا macOS/Linux، نقل‌قول امن همان ترمینال را رعایت می‌کند.
+
+پس از تأیید CLI، ورودی Launchlane را از فایل تولیدشده به تنظیم فعلی میزبان اضافه کنید.
+راهنما با انتخاب ابزار، مسیر فایل تولیدشده و مقصد ادغام را عوض می‌کند؛ تنظیمات موجود
+را جایگزین نکنید. مسیرهای راهنما با مستندات رسمی
+[Codex](https://learn.chatgpt.com/docs/extend/mcp)،
+[Claude Code](https://code.claude.com/docs/en/mcp) و
+[OpenCode](https://opencode.ai/docs/mcp-servers/) تطبیق داده شده‌اند.
+در پایان درخواست آمادهٔ `launchlane_context` را از همان راهنما کپی کنید تا پاسخ پروژه
+و scope را در خود ابزار ببینید؛ فایل صادرشده به‌تنهایی اتصال فعال میزبان نیست.
+
+دسترسی حداکثر یک ساعت و تا پایان نشست والد معتبر است. پنجره، انقضا را نشان می‌دهد و
+دانلود فایل قدیمی را متوقف می‌کند. لغو همان فایل از تأیید درون پنجره انجام می‌شود؛
+لغو ناموفق همچنان خطا است. token فقط در فایل خصوصی دانلود می‌شود و در متن راهنما،
+Clipboard یا storage قرار نمی‌گیرد. فهرست دائمی grantها و بازیابی token پس از بستن
+پنجره در این مسیر وجود ندارد؛ برای قطع دسترسی‌های نشست پس از بستن پنجره، از حساب خارج شوید.
+
+افزودهٔ ۲۰۲۶-۱۰-۲۹: registry مشترک، هنگام فعال‌بودن gate خواندن داده، ابزار `read_database_data {actionId,baselineId?}` را عرضه می‌کند. host تنها oracle بستهٔ آزموده‌شده و اتصال خصوصی مصوب را می‌پذیرد؛ SQL/URL/credential ورودی ابزار نیستند. همان مسیر وب نتیجهٔ مستقل و محدود را ذخیره می‌کند. [شاهد و حدود](evidence/postgres-data-observation.md) شامل پذیرش زنده از میزبان MCP واقعی یا migration تولیدی نیست.
+
+افزودهٔ v4 داده، ۲۰۲۶-۱۰-۲۹: `propose_project_build` در شکل runner، `prepareArtifact:true` را برای تصمیم تازهٔ آماده‌سازی می‌پذیرد. همان registry/job پس از proof مستقل داده، بستهٔ compiled دقیق را انتخاب می‌کند؛ v1–v3 همچنان فقط compatibility هستند. publication به binding خصوصی تمام منابع مستقل نیاز دارد؛ این گزینه ابزار SQL تولیدی یا اختیار approve ایجاد نمی‌کند. [شاهد](evidence/data-tested-artifact.md) اجرای تازه از میزبان MCP واقعی نیست.
+
+افزودهٔ v29، ۲۰۲۶-۱۰-۲۸: `propose_database_attachment {consumerRoot,bindingKeys,databaseId}` در همان registry و اجرای Agent وب/MCP قرار دارد. host، هویت و شبکهٔ خصوصی منبع موجود را بررسی و پیشنهاد انتخاب انسانی ایجاد می‌کند؛ این ابزار مجوز ساخت، credential عمومی یا SQL نمی‌دهد. `configure_env` به همان فرم خصوصی و تصمیم جداگانه وصل است. [شواهد](evidence/existing-managed-database.md) شامل اجرای تازه از میزبان MCP واقعی نیست.
+
 افزودهٔ منابع نام‌دار، ۲۰۲۶-۱۰-۲۸: `propose_database` مشترک به `consumerRoot/bindingKeys/type/version/planId/bundleId` نیاز دارد. host، کلیدهای خصوصی همان source را در v28 و تصمیم ساخت می‌بندد؛ هر پیشنهاد یک منبع است و چند کلیدِ یک پیشنهاد صریحاً alias همان منبع‌اند. پس از binding خصوصیِ تأییدشده، همان mission می‌تواند منبع مستقل بعدی را با تصمیم تازه پیشنهاد کند. v27 و journal/uncertainty قبلی حفظ‌اند؛ ابزار عمومی credential، approve یا SQL افزوده نشده است. [شواهد مشترک](evidence/managed-database-targets.md) جای آزمون تازه از میزبان MCP واقعی را نمی‌گیرد.
 
 افزودهٔ runner داده، ۲۰۲۶-۱۰-۲۸: همان `propose_project_build` اکنون شکل `compatibilityDatabase: { runnerScript, targets }` هم دارد. هر target شامل `id/environmentKeys/requiredRelations/oracle` است؛ oracle از `columns/rows/persistence` تشکیل می‌شود و `rows` برای schema-only می‌تواند خالی باشد. host زنجیره و hash script/hook موجود، image، DB/role و خلاصهٔ اتصال را می‌سازد؛ مدل نمی‌تواند URL واقعی، role، SQL میزبان یا رسید موفق بسازد. تصمیم همچنان در وب و execution در job مشترک است. [شاهد مسیر مشترک](evidence/project-migration-runners.md) اجرای تازه از میزبان MCP واقعی یا اختیار SQL روی provider نیست.
@@ -58,22 +92,22 @@ Codex، در config TOML موجود:
 ```toml
 [mcp_servers.launchlane]
 command = "node"
-args = ["I:/Computer/dev/starcoach/launchlane/scripts/mcp-stdio.mjs"]
+args = ["/absolute/path/to/launchlane/scripts/mcp-stdio.mjs"]
 [mcp_servers.launchlane.env]
-LAUNCHLANE_MCP_ACCESS_FILE = "I:/Computer/dev/starcoach/launchlane/.local/mcp-access.json"
+LAUNCHLANE_MCP_ACCESS_FILE = "/absolute/path/to/launchlane/.local/mcp-access.json"
 LAUNCHLANE_MCP_ORIGIN = "http://127.0.0.1:3000"
 ```
 
 Claude Code، entry در `mcpServers` پیکربندی موردنظر:
 
 ```json
-{"mcpServers":{"launchlane":{"type":"stdio","command":"node","args":["I:/Computer/dev/starcoach/launchlane/scripts/mcp-stdio.mjs"],"env":{"LAUNCHLANE_MCP_ACCESS_FILE":"I:/Computer/dev/starcoach/launchlane/.local/mcp-access.json","LAUNCHLANE_MCP_ORIGIN":"http://127.0.0.1:3000"}}}}
+{"mcpServers":{"launchlane":{"type":"stdio","command":"node","args":["/absolute/path/to/launchlane/scripts/mcp-stdio.mjs"],"env":{"LAUNCHLANE_MCP_ACCESS_FILE":"/absolute/path/to/launchlane/.local/mcp-access.json","LAUNCHLANE_MCP_ORIGIN":"http://127.0.0.1:3000"}}}}
 ```
 
 OpenCode، entry در `mcp` پیکربندی موجود:
 
 ```json
-{"mcp":{"launchlane":{"type":"local","command":["node","I:/Computer/dev/starcoach/launchlane/scripts/mcp-stdio.mjs"],"environment":{"LAUNCHLANE_MCP_ACCESS_FILE":"I:/Computer/dev/starcoach/launchlane/.local/mcp-access.json","LAUNCHLANE_MCP_ORIGIN":"http://127.0.0.1:3000"},"enabled":true,"timeout":150000}}}
+{"mcp":{"launchlane":{"type":"local","command":["node","/absolute/path/to/launchlane/scripts/mcp-stdio.mjs"],"environment":{"LAUNCHLANE_MCP_ACCESS_FILE":"/absolute/path/to/launchlane/.local/mcp-access.json","LAUNCHLANE_MCP_ORIGIN":"http://127.0.0.1:3000"},"enabled":true,"timeout":150000}}}
 ```
 
 شکل configها با [مستند Codex](https://learn.chatgpt.com/docs/extend/mcp?surface=cli)، [مستند Claude Code](https://code.claude.com/docs/en/mcp) و [مستند OpenCode](https://opencode.ai/docs/mcp-servers/) تطبیق داده شده است؛ اجرای زنده دو میزبان آخر هنوز UNCONFIRMED است. برای Codex، CLI0.163.0-alpha.11.2 و app-server واقعی با snippet تولیدشده آزموده شدند. استفاده مستقیم HTTP/HTTPS در `/api/mcp` نیز SDK-tested است؛ header احراز هویت آن bearer همین token محدود است. stdio توصیهٔ این نصب است تا token در config میزبان کپی نشود.

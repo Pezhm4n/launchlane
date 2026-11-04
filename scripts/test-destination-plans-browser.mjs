@@ -30,7 +30,7 @@ async function layout(width, label) {
     assert.ok(shell.hostWidth >= shell.contentWidth - 48, JSON.stringify(shell));
     assert.equal(shell.horizontalOverflow, false);
     for (const button of await dialog.getByRole("button", { name: /^(گفت‌وگو و راهنمایی|پیگیری انتشار و انتخاب پلن)$/ }).all())
-      assert.ok((await button.boundingBox()).height <= 120, "Mode controls must remain compact above the scrollable publication");
+      { const bounds = await button.boundingBox(); assert.ok(bounds.height >= 44 && bounds.height <= 120, "Mode controls remain touchable and compact above the scrollable publication"); }
   }
   const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
   assert.deepEqual(axe.violations.map(item => ({ id: item.id, nodes: item.nodes.map(node => node.target) })), [], label);
@@ -48,8 +48,15 @@ try {
   if (!baseline) {
     const starter = card.locator("label").filter({ has: page.getByRole("radio", { name: /^starter/ }) });
     await starter.getByText("۱۲٬۹۶۰ تومان", { exact: true }).waitFor();
+    assert.notEqual(await starter.evaluate(node => getComputedStyle(node).boxShadow), "none", "Selected plan has its declared focus/selection surface");
+    const alternative = card.locator("label").filter({ has: page.getByRole("radio", { name: /^growth/ }) });
+    const resting = await alternative.evaluate(node => getComputedStyle(node).backgroundColor);
+    await alternative.hover();
+    await page.waitForFunction(({ resting }) => [...document.querySelectorAll("label")].some(node => node.matches(":hover") && node.querySelector('input[aria-label^="growth"]') && getComputedStyle(node).backgroundColor !== resting), { resting });
+    await page.mouse.move(0, 0);
     await starter.getByText("۳۸۸٬۸۰۰ تومان", { exact: true }).waitFor();
     assert.doesNotMatch(await starter.getByText("۵۴۰", { exact: true }).evaluate(node => getComputedStyle(node).fontFamily), /Consolas|monospace/i);
+    assert.doesNotMatch(await starter.textContent() ?? "", /حدود|تومن|هزار|میلیون/);
     await card.getByText("مبلغ دقیق پلن‌ها", { exact: true }).click();
     await card.getByText("۱۲٬۹۶۰", { exact: true }).waitFor();
     await card.getByText("۳۸۸٬۸۰۰", { exact: true }).waitFor();
@@ -148,4 +155,8 @@ try {
   assert.deepEqual(errors, []); assert.deepEqual(external, []);
   await writeFile(join(output, "results.json"), JSON.stringify({ baseline, results, errors, external, providerWrites: 0, modelCalls: 0 }, null, 2));
   console.log(JSON.stringify({ states: results.length, output, baseline, providerWrites: 0, modelCalls: 0 }));
-} finally { fixture?.store.close(); await context.close(); await browser.close(); await server.close(); }
+} finally {
+  // Finish polling interceptors before closing their response context/store.
+  await page.unrouteAll({ behavior: "wait" });
+  await context.close(); await browser.close(); fixture?.store.close(); await server.close();
+}

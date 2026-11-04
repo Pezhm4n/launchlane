@@ -1,4 +1,34 @@
 # معیارهای پذیرش محصول
+افزودهٔ AC24/26/32/34، ۲۰۲۶-۱۱-۰۴. اتصال منابع برای artifact آزموده‌شده با تشخیص
+ایستای unknown و مقایسهٔ مستقل داده پس از شروع تازهٔ PostgreSQL در مسیر مشترک
+محصول اعتبارسنجی شد. [شواهد](evidence/postgres-data-observation.md) و
+[آزمون snapshot](verification.md) حدود local/synthetic را ثبت می‌کنند.
+اجرای migration و پذیرش دادهٔ مقصد واقعی همچنان باز است.
+
+
+افزودهٔ AC15/24؛ ۲۰۲۶-۱۱-۰۱
+
+[پایداری رابط](evidence/responsive-ui.md) با مسیرهای اصلی انتشار/بررسی، منابع،
+پنجره‌ها، متن۲۰۰٪، ارتفاع کوتاه و keyboard آزموده شد. candidate r4 بر پایهٔ15f2912
+با domain820، HTTP49 و۲۷runner مرورگر و type/lint/build گذشت. این پذیرشِ رابط با
+provider/model مصنوعی است؛ سلامت یا انتشار زنده، داده، همهٔ runtimeها و همهٔ دستگاه‌ها
+از آن نتیجه نمی‌شوند. پیگیری پنج توکن سطح کارت در r5 با type/lint/build و پنج
+مجموعهٔ مرتبطِ دوباره‌آزموده‌شده بسته شد؛ ماتریس کامل r4 به r5 تعمیم داده نمی‌شود.
+
+افزودهٔ AC15/16، ۲۰۲۶-۱۰-۳۰: ورودی فارسی/انگلیسی مخزن، setup و gateهای نمونه، notices،
+فایل‌های مشارکت/امنیت و CI بدون credential آماده شدند. ساختار و لینک‌ها، preview
+محلی۸حالت، Mermaid، YAML و setup موقت سنجیده شدند؛ این preview، رندر خود GitHub نیست.
+CI میزبان تا push و اجرای واقعی تأیید نشده است؛ [چک‌لیست انتشار](publishing.md)
+سند فونتِ تأییدشدهٔ مالک و تنظیمات حساب را باز نگه می‌دارد. این برش مستندات، پذیرش
+runtime، امنیت جامع، محصول کامل یا انتشار زندهٔ تازه نیست.
+
+افزودهٔ AC24/26/32/34، ۲۰۲۶-۱۰-۲۹: [بررسی مستقل PostgreSQL همان انتشار](evidence/postgres-data-observation.md) اتصال، schema و معیارهای دادهٔ بستهٔ آزموده‌شده را از host فقط‌خواندنی می‌سنجد؛ readback منبع/env/release و محدودهٔ خصوصیِ سرور شرط ثبت شاهد است. snapshot نهایی r8 با domain820، HTTP49، UI داده10/guided54، type/lint/build و3case واقعی Docker/SQL گذشت. شکست و اجرای دوبارهٔ runtime روی همان بایت‌ها جدا ثبت‌اند. migration یا نوشتن برنامه یا ماندگاری پس از restart پذیرفته نمی‌شود و mission v4 همچنان partial است. شواهد synthetic، Docker واقعی و provider read زنده تفکیک شده‌اند.
+
+افزودهٔ AC24/26/32/34، ۲۰۲۶-۱۰-۲۹: پایان‌بندی میزبان برای artifact دادهٔ v4، حتی پس از release/HTTP/API موفق، partial می‌ماند. receipt محلی و provenance انتشار باید همان actor/job/source/build/output باشند؛ این بررسی، receipt دادهٔ مقصد نمی‌سازد. [شاهد مستقل](evidence/data-tested-artifact.md#publication-outcome-follow-up). اجرای migration و دادهٔ واقعی مقصد همچنان برای پذیرش کامل لازم‌اند.
+
+افزودهٔ AC17/19/22/24/26/32/34، ۲۰۲۶-۱۰-۲۹: [آماده‌سازی artifact پس از proof داده](evidence/data-tested-artifact.md) حالت صریح v4 را به runner موجود اضافه می‌کند؛ تصمیم، اجرای تازه و همان oracle مستقل لازم‌اند. artifact دقیق در مسیر انتشار انتخاب می‌شود، اما publication بدون binding خصوصی همهٔ منابع مستقل رد می‌شود. v1–v3 تاریخی مجوز artifact نمی‌گیرند. این برش، migration تولیدی، صحت دادهٔ موجود، اتصال SQL مقصد، persistence provider یا تمام۱۴خانواده را نمی‌پذیرد؛ AC23/28/34 همچنان کامل نیستند.
+
+افزودهٔ A14/AC17/22/23/24/32/34، ۲۰۲۶-۱۰-۲۸: [انتخاب دیتابیس موجود](evidence/existing-managed-database.md) با شناسهٔ دقیق، source purpose و شبکه/نسخهٔ بازخوانی‌شده در approval v29 پیاده شد؛ انتخاب منبع create یا SQL نمی‌فرستد و «ساخته‌شده» گزارش نمی‌شود. اتصال credential همچنان به تصمیم جداگانهٔ env v9 و readback نیاز دارد. تغییر منبع و proof صرفاً inventory، پذیرش نمی‌گیرند؛ بازتنظیم همان منبع با purpose یکسان امکان‌پذیر است. این capability مشترک، پذیرش live adoption، migration، سازگاری داده، connectivity یا persistence نیست و AC23/34 کامل اعلام نمی‌شوند.
 
 .NET/Docker, 2026-11-04 (AC19/24/26/28/31/32). Original locked ASP.NET10 now runs through Agent/web Docker6 before destination selection. Original SDK/tests/publish, public NuGet.Config and .slnx survive intake. Publication21 rebuilds the same source archive at Docker. [Scope and evidence](evidence/dotnet-docker.md). Native projects without Dockerfile, external NuGet packages, exact DLL delivery, data and complete14 remain open.
 

@@ -19,3 +19,13 @@ playwright-report/
 test-results/
 .vercel/
 .liara/
+
+# Private runtime artifacts and disposable browser/build output in every clone.
+.local/
+.artifacts/
+output/
+.codebase-memory/
+*.pem
+*.key
+*.p12
+*.pfx

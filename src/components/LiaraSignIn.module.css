@@ -16,7 +16,7 @@
 .form input { min-inline-size:0; inline-size:100%; margin-block-end:var(--space-3); }
 .password { position:relative; display:flex; }
 .password input { padding-inline-end:var(--space-12); }
-.password button { position:absolute; inset-inline-start:var(--space-1); inset-block-start:var(--space-1); padding:var(--space-2); min-block-size:var(--space-8); box-shadow:none; }
+.password button { position:absolute; inset-inline-start:0; inset-block-start:0; padding:var(--space-2); min-inline-size:var(--control-height); min-block-size:var(--control-height); box-shadow:none; }
 .password svg { inline-size:var(--space-5); block-size:var(--space-5); stroke:currentColor; fill:none; stroke-width:1.7; }
 .form .submit { margin-block-start:var(--space-2); inline-size:100%; }
 .form .submit:disabled { background:var(--color-primary-soft); color:var(--color-primary); }

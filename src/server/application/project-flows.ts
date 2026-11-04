@@ -86,7 +86,7 @@ export async function prepareProjectFlow(
       const row=store.db.prepare("SELECT data_json,state FROM code_repair_jobs WHERE actor_id=? AND id=?").get(actorId,selection.jobId);
       ensure(row,"REPAIR_NOT_FOUND","نسخه اصلاح‌شده در دسترس نیست.",404);
       const record=object(JSON.parse(string(row.data_json,512*1024))),job=parseCodeRepairJob({...object(record.job),state:row.state});
-      ensure(!(job.build?.version===7 && job.build.testDatabase),"COMPATIBILITY_ARTIFACT_NOT_PUBLISHABLE","نسخهٔ آزمون ساختگی قابل انتخاب برای انتشار نیست.",409);
+      ensure(!(job.build?.version===7 && job.build.testDatabase && job.build.testDatabase.version !== 4),"COMPATIBILITY_ARTIFACT_NOT_PUBLISHABLE","نسخهٔ آزمون ساختگی قابل انتخاب برای انتشار نیست.",409);
       ensure(job.state==="succeeded"&&job.artifact?.archiveHash===selection.artifactHash,"REPAIR_UNVERIFIED","فقط اصلاحی که آزمون و بسته معتبر دارد قابل انتخاب است.",409);
       if (job.publication) {
         ensure((job.build?.version === 7 || job.build?.version === 9 || job.build?.version === 11 || job.build?.version === 12) && job.afterTest?.passed && job.afterTest.buildOutput?.artifactHash === job.publication.outputArtifactHash,
@@ -246,7 +246,7 @@ export async function validateProjectAction(
   spec: ActionSpec,
   signal: AbortSignal,
 ): Promise<void> {
-  if (spec.version !== 3 && spec.version !== 4 && spec.version !== 5 && (spec.version !== 7 && spec.version !== 10 && (spec.version !== 11 && spec.version !== 41) && spec.version !== 15 && spec.version !== 17 && spec.version !== 19 && (spec.version !== 21 && spec.version !== 40 && spec.version !== 43 && spec.version !== 44) && (spec.version !== 23 && spec.version !== 26)) && (spec.version !== 8 && (spec.version !== 12 && spec.version !== 42) && spec.version !== 16 && spec.version !== 18 && spec.version !== 20 && spec.version !== 22) && spec.version !== 9 && spec.version !== 13 && spec.version !== 25 && (spec.version !== 27 && spec.version !== 28)) return;
+  if (spec.version !== 3 && spec.version !== 4 && spec.version !== 5 && (spec.version !== 7 && spec.version !== 10 && (spec.version !== 11 && spec.version !== 41) && spec.version !== 15 && spec.version !== 17 && spec.version !== 19 && (spec.version !== 21 && spec.version !== 40 && spec.version !== 43 && spec.version !== 44) && (spec.version !== 23 && spec.version !== 26)) && (spec.version !== 8 && (spec.version !== 12 && spec.version !== 42) && spec.version !== 16 && spec.version !== 18 && spec.version !== 20 && spec.version !== 22) && spec.version !== 9 && spec.version !== 13 && spec.version !== 25 && (spec.version !== 27 && spec.version !== 28 && spec.version !== 29)) return;
   const flow = await restoreProjectFlow(config, store, actorId, signal, spec.projectFlowId);
   ensure(
     flow?.status === "ready",

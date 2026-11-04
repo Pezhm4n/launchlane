@@ -185,6 +185,7 @@
   .assistant-close-label { display: inline; font-size: var(--text-xs); }
 }
 @media (min-width: 768px) {
+  .assistant-float .assistant-float-heading { padding-block: var(--space-1); }
   .assistant-expand { display: inline-flex; }
   .assistant-float[open][data-expanded="true"] {
     left: var(--space-4);
