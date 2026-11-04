@@ -4,6 +4,8 @@ import { executablePort } from "../../contracts/go-runtime.ts";
 import { sourcePnpmComponent } from "./pnpm-component.ts";
 import { executableVerification, assertExecutableJob } from "../application/executable-verification.ts";
 import { componentVerification, assertComponentJob, localComponentVerification } from "../application/component-verification.ts";
+import { applicationSourcePath } from "../../contracts/application-requirements.ts";
+import { importedBaseline, listDatabaseBaselines } from "../application/database-baselines.ts";
 import { object, exactKeys, identifier, integer, string, text } from "../../contracts/validation.ts";
 import type { Config } from "../config.ts";
 import { connectedLiaraConfig, connectedLiaraAccountConfig } from "../connections/liara.ts";
@@ -378,6 +380,11 @@ const buildTool: ToolDefinition = { type: "function", function: {
       targets: { type: "array", minItems: 1, maxItems: 4, items: { type: "object", additionalProperties: false, required: ["id", "environmentKeys", "requiredRelations", "oracle"], properties: {
         id: { type: "string", maxLength: 32 }, environmentKeys: { type: "array", minItems: 1, maxItems: 4, items: { type: "string", maxLength: 128 } },
         requiredRelations: { type: "array", minItems: 1, maxItems: 16, items: { type: "string", maxLength: 70 } }, oracle: runnerOracleSchema,
+        bootstrap: { type: "object", additionalProperties: false, required: ["sqlFiles", "schemas", "roles"], properties: {
+          sqlFiles: { type: "array", maxItems: 8, items: { type: "string", maxLength: 512 } },
+          schemas: { type: "array", maxItems: 8, items: { type: "string", maxLength: 32 } },
+          roles: { type: "array", maxItems: 8, items: { type: "string", maxLength: 32 } },
+        } },
       } } },
       environmentKeys: { type: "array", minItems: 1, maxItems: 8, items: { type: "string", maxLength: 128 } },
       requiredRelations: { type: "array", minItems: 1, maxItems: 16, items: { type: "string", maxLength: 70 } },
@@ -586,7 +593,22 @@ export async function executeAgentTool(
         if (possibleRunner.runnerScript !== undefined || possibleRunner.targets !== undefined) {
           exactKeys(possibleRunner, ["runnerScript", "targets", "prepareArtifact"]);
           ensure(possibleRunner.prepareArtifact === undefined || possibleRunner.prepareArtifact === true, "TEST_DATABASE_INVALID", "آماده‌سازی artifact باید صریحاً انتخاب شود.", 409);
-          const targets = parsePostgresRunnerTargets(possibleRunner.targets), artifact = possibleRunner.prepareArtifact === true;
+          ensure(Array.isArray(possibleRunner.targets) && possibleRunner.targets.length <= 4, "MIGRATION_TARGETS_INVALID", "اهداف داده باید محدود باشند.", 409);
+          const targets = parsePostgresRunnerTargets(possibleRunner.targets.map(value => {
+            const target = object(value);
+            if (target.bootstrap === undefined) return target;
+            const setup = object(target.bootstrap); exactKeys(setup, ["sqlFiles", "schemas", "roles"]);
+            ensure(Array.isArray(setup.sqlFiles) && setup.sqlFiles.length <= 8, "DATABASE_BOOTSTRAP_INVALID", "فایل‌های baseline باید مشخص باشند.", 409);
+            const imports = [], files = [];
+            for (const value of setup.sqlFiles) {
+              const path = applicationSourcePath(value), imported = importedBaseline(c.config, c.store, c.actorId, flow.id, flow.profile.sourceHash, path);
+              if (imported) { imports.push(imported); continue; }
+              const file = flow.profile.manifest.find(file => file.path === path);
+              ensure(file, "DATABASE_BASELINE_SOURCE_REQUIRED", "baseline باید فایل بررسی‌شدهٔ همین source یا ساختار واردشدهٔ همین پروژه باشد.", 409);
+              files.push({ path, sha256: file.sha256 });
+            }
+            return { ...target, bootstrap: { files, schemas: setup.schemas, roles: setup.roles, ...(imports.length ? { imports } : {}) } };
+          })), artifact = possibleRunner.prepareArtifact === true;
           return validateTestDatabaseSource(captured.files, flow.profile, parseDisposableTestDatabase({ version: artifact ? 4 : 3, kind: "postgresql", purpose: artifact ? "prepare_artifact" : "compatibility_test", image: postgresTestImage,
             environmentKeys: targets.flatMap(target => target.environmentKeys).sort(), requiredRelations: [...new Set(targets.flatMap(target => target.requiredRelations))].sort(), targets, runner: sourceMigrationRunner(captured.files, possibleRunner.runnerScript) }));
         }
@@ -615,6 +637,11 @@ export async function executeAgentTool(
         const { version: _oldVersion, purpose: _oldPurpose, ...prior } = previousDatabase, { version: _version, purpose: _purpose, ...next } = testDatabase;
         ensure(c.buildJob?.state === "succeeded" && c.buildJob.afterTest?.passed && c.buildJob.afterTest.databaseRunner?.planHash === fingerprint(previousDatabase) && fingerprint(prior) === fingerprint(next),
           "MISSION_EXPECTATION_CHANGED", "آماده‌سازی باید همان runner و معیارهای آزمون موفق قبلی را با تصمیم تازه حفظ کند.", 409);
+      } else if ((previousDatabase?.version === 3 || previousDatabase?.version === 4) && testDatabase?.version === previousDatabase.version) {
+        const withoutBootstrap = (plan: typeof previousDatabase) => ({ ...plan, targets: plan.targets.map(({ bootstrap: _bootstrap, ...target }) => target) });
+        ensure(fingerprint(withoutBootstrap(previousDatabase)) === fingerprint(withoutBootstrap(testDatabase)), "MISSION_EXPECTATION_CHANGED", "runner و معیارهای مستقل قبلی باید حفظ شوند.", 409);
+        migrationSelectionChanged = fingerprint(previousDatabase) !== fingerprint(testDatabase);
+        ensure(!migrationSelectionChanged || c.buildJob?.state === "failed", "DATABASE_BASELINE_REVIEW_REQUIRED", "تغییر baseline فقط پس از شکست و با تصمیم تازه مجاز است.", 409);
       } else if (previousDatabase) ensure(fingerprint(testDatabase ?? null) === fingerprint(previousDatabase), "MISSION_EXPECTATION_CHANGED", "محدودهٔ دادهٔ آزمون قبلی بدون تغییر شواهد عوض نمی‌شود.", 409);
       const component = args.componentRoot === undefined ? undefined : sourcePnpmComponent(captured.files, flow.profile.pnpmWorkspace ?? (() => { throw new AppError("COMPONENT_WORKSPACE_REQUIRED", "component باید در workspace شناسایی‌شده باشد.", 409); })(), string(args.componentRoot, 240), args.componentPort === undefined ? 3000 : integer(args.componentPort, 1024, 65535));
       const compileWorkspace = !component && !!flow.profile.pnpmWorkspace && !flow.profile.start;
@@ -645,7 +672,7 @@ export async function executeAgentTool(
         buildCommand: flow.profile.build, testCommand: flow.profile.pythonRuntime?.kind === "flask" ? "python3 -m unittest discover" : flow.profile.pythonRuntime?.kind === "django" ? "python3 manage.py test" : projectTestCommand(captured.files), startCommand: flow.profile.start, port: flow.profile.port, workload,
         environment, ...(sourceEnvironment ? { sourceEnvironment } : {}) });
       const job = await new CodeRepairAdapter(c.config, c.store).propose(c.actorId, {
-        projectId: flow.id, expectedSourceHash: c.context.sourceHash, goal: build.version === 12 ? "نصب Composer با lock اصلی، PHPUnit و بررسی Apache تازه؛ بسته‌بندی vendor دقیق برای Docker" : build.version === 11 ? "ساخت Go با تست‌های اصلی و بررسی باینری در محیط تازه؛ بسته‌بندی برای مقصد Docker" : component ? `ساخت و بررسی مستقل ${component.name}؛ artifact دقیق compiled، بدون پذیرش سایر اجزا یا داده` : compileWorkspace ? `ساخت بسته‌های workspace با pnpm ${pnpmTool.version} و lock اصلی؛ بدون تست داده، شروع سرویس یا مجوز انتشار` : testDatabase ? "آزمون سازگاری با دیتابیس موقت و دادهٔ ساختگی؛ بدون تنظیمات واقعی و بدون فایل قابل انتشار" : build.version !== 2 && build.version !== 10 && build.version !== 6 && build.install === "none" ? "بررسی ساخت و پاسخ برنامهٔ بدون وابستگی در محیط ایزوله؛ نصب لازم نیست" : "ساخت و بررسی پاسخ همان برنامه در محیط ایزوله",
+        projectId: flow.id, expectedSourceHash: c.context.sourceHash, goal: build.version === 12 ? "نصب Composer با lock اصلی، PHPUnit و بررسی Apache تازه؛ بسته‌بندی vendor دقیق برای Docker" : build.version === 11 ? "ساخت Go با تست‌های اصلی و بررسی باینری در محیط تازه؛ بسته‌بندی برای مقصد Docker" : component ? `ساخت و بررسی مستقل ${component.name}؛ artifact دقیق compiled، بدون پذیرش سایر اجزا یا داده` : compileWorkspace ? `ساخت بسته‌های workspace با pnpm ${pnpmTool.version} و lock اصلی؛ بدون تست داده، شروع سرویس یا مجوز انتشار` : testDatabase ? testDatabase.version === 4 ? "آماده‌سازی بستهٔ آزموده‌شده با دیتابیس موقت و دادهٔ ساختگی؛ اتصال و migration مقصد تأیید نشده است" : "آزمون سازگاری با دیتابیس موقت و دادهٔ ساختگی؛ بدون تنظیمات واقعی و بدون فایل قابل انتشار" : build.version !== 2 && build.version !== 10 && build.version !== 6 && build.install === "none" ? "بررسی ساخت و پاسخ برنامهٔ بدون وابستگی در محیط ایزوله؛ نصب لازم نیست" : "ساخت و بررسی پاسخ همان برنامه در محیط ایزوله",
         ...(c.parentRunId ? { parentRunId: c.parentRunId } : {}),
         allowedPaths: preparation ? preparationPaths(captured.files, preparation) : [], testFiles: [], execution: "container", build,
         ...(preparation ? { preparation } : { validationOnly: true }),
@@ -871,6 +898,7 @@ export async function executeAgentTool(
         ...(flow.profile.pnpmComponent ? { pnpmComponent: flow.profile.pnpmComponent } : {}),
         ...(flow.profile.fullstack?.workerSqlite ? { persistentStorage: { state: currentDiskBinding(c.store, c.actorId, flow) ? "configuration_verified" : "required", workloadPersistenceVerified: false } } : {}),
         ...(flow.profile.applicationRequirements ? { applicationRequirements: flow.profile.applicationRequirements } : {}),
+        ...(flow.profile.applicationRequirements?.requirements.some(row => row.kind === "postgresql") && flow.status === "ready" && flow.artifact ? { databaseBaselines: listDatabaseBaselines(c.config, c.store, c.actorId, flow.id) } : {}),
         ...(flow.profile.sourceFixtureReviews ? { sourceFixtureReviews: flow.profile.sourceFixtureReviews } : {}),
         start: flow.profile.start,
         build: flow.profile.build,
@@ -891,6 +919,9 @@ export async function executeAgentTool(
       };
     }
     const path = string(args.path, 512);
+    const baseline = importedBaseline(c.config, c.store, c.actorId, flow.id, flow.profile.sourceHash, path);
+    if (baseline) return { path, ...projectFileText(Buffer.from(baseline.sql), fileRange, privateValues(c.config)),
+      trust: "untrusted_source", sourceHash: c.context.sourceHash, baselineHash: baseline.sha256, dataImported: false };
     ensure(
       flow.profile.manifest.some((entry) => entry.path === path),
       "SOURCE_PATH_DENIED",

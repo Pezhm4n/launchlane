@@ -1,4 +1,6 @@
 "use client";
+
+import { DatabaseBaselineSetup } from "./DatabaseBaselineSetup.tsx";
 import Image from "next/image";
 
 import { canReadDeploymentResult, isDeploymentSpec, isWorkloadDeploymentSpec } from "../contracts/deployment.ts";
@@ -1308,6 +1310,7 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
                   </form>
                 </details>
               </section>
+              {workspace && flow && profile?.applicationRequirements?.requirements.some(row => row.kind === "postgresql") ? <DatabaseBaselineSetup key={flow.id} projectId={flow.id} csrf={workspace.session.csrfToken} disabled={disabled} /> : null}
               {flow && profile ? (
                 <details className="project-technical"><summary>جزئیات پروژه و فایل‌های قابل ارسال</summary>
                 <div className="workbench-grid project-review">

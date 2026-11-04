@@ -155,6 +155,14 @@ globalThis.fetch = async (input, init) => {
     throw Error("Unexpected pnpm workspace worker fixture transition");
   }
   if (first.includes('نشانه الزامی صفحه: "Runner lifecycle"')) {
+    if (process.env.LAUNCHLANE_TEST_BASELINE_BROWSER === "true") {
+      if (body.messages.some(message => message.role === "user" && message.content.startsWith("Host disposable compatibility receipt")))
+        return final("reply", null, "baseline و runner و داده در دیتابیس موقت بررسی شدند؛ دادهٔ مقصد تأیید نشده است.");
+      const inspection = body.messages.filter(message => message.role === "tool").map(message => { try { return JSON.parse(message.content); } catch { return null; } }).find(row => row?.data?.databaseBaselines?.length);
+      if (!inspection) return reply("inspect_project");
+      const input = await runnerBuildInput(), baseline = inspection.data.databaseBaselines[0];
+      return reply("propose_project_build", { ...input, compatibilityDatabase: { ...input.compatibilityDatabase, targets: input.compatibilityDatabase.targets.map(target => ({ ...target, bootstrap: { sqlFiles: [baseline.path], schemas: ["private"], roles: ["anon", "authenticated", "postgres"] } })) } });
+    }
     if (process.env.LAUNCHLANE_TEST_DATA_ARTIFACT_BROWSER === "true") {
       if (body.messages.some(message => message.role === "user" && message.content.startsWith("Host local preparation receipt")))
         return final("reply", null, "بستهٔ آزموده‌شده انتخاب شد؛ اتصال، migration و دادهٔ مقصد هنوز تأیید نشده‌اند.");

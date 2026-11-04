@@ -987,6 +987,36 @@ fallback passed with no browser errors or external UI requests. Concurrent datab
 work, production state, active servers and host configs were preserved. No public
 deployment or all-host live acceptance is claimed. [Evidence and retained failures](evidence/mcp-connection-ui.md).
 
+## Schema baseline and original Golestan runner — 2026-11-04
+
+The completed r4 snapshot on f8fcc99 passed Node24.18.0 / pinned-lock domain831,
+HTTP50, typecheck, lint (zero errors,48warnings/22infos), Webpack build, real PG bootstrap
+and fifteen actual guided browser states across five widths. Shared product approval,
+original Golestan runner/twelve SQL files, independent ledger/schema/fresh-write/replay
+checks and selected artifact passed with synthetic API/model inputs. No live database,
+model spending or provider write is included. [Exact evidence](evidence/schema-baseline-intake.md).
+
+Final r6 source manifest: `f25aba536cb0301be6b44f7f37ffc02c3dffc597ca24e7d10b70616c4376eca0`.
+It includes later unsupported-dependent-DDL guards and interrupted-browser cleanup
+improvements and excludes concurrent MCP settings work. R6 typecheck, lint (zero errors,48warnings/22infos) and domain832/832 passed.
+Earlier r4/r5 checks do not become a combined r6 pass.
+A Chromium target crash and Docker startup/cleanup failures are retained as failures;
+no oracle or timeout was weakened. Both exact crashed-test containers were reconciled,
+removed and confirmed absent. Heavy scripts never terminate the manual lock owner.
+
+R7 on72bebaf, source/root package manifest
+`8f25ff9203692000f844f0431413f8a26124a7bcf0ac26cc9414dc0685e4a1ea`, passed typecheck,
+lint (zero errors,48warnings/22infos), domain835/835, Webpack build, HTTP50/50 and
+guided Chromium57states. Its fresh PostgreSQL attempt failed during Docker start
+before SQL; exact owned-container cleanup and absence were confirmed. Eleven other
+running containers remained untouched. No fresh r7 SQL/worker pass is claimed.
+
+R8 on9c38849, manifest
+`a8c04d9e85e1e558a2c9952e4f0a97afb8fc6dec9b8787523c80b77a74304143`, adds a known-secret
+fence around imported schema and passed focused domain10/10. Its combined gates and
+added HTTP/UI privacy cases await the coordinated integration snapshot. R7 totals
+are not a full r8 pass. See the linked evidence for the exact start timing and limits.
+
 ## Explicit artwork playback with reduced motion — 2026-11-04
 
 The frozen `artwork-fix-20261104/candidate1` uses `4e4585e` plus only the artwork

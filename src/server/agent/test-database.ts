@@ -1,3 +1,4 @@
+import { baselineSource } from "./postgres-baseline.ts";
 import { isRunnerTestDatabase, parseDisposableTestDatabase, type DisposableTestDatabase } from "../../contracts/test-database.ts";
 import type { ProjectProfile } from "../../contracts/domain.ts";
 import type { SourceFile } from "../workspace/inspect.ts";
@@ -22,6 +23,9 @@ export function validateTestDatabaseSource(files: readonly SourceFile[], profile
   const declarations = new Set(files.filter(file => /\.(?:sql|[cm]?[jt]s)$/.test(file.path)).flatMap(file => [...file.content.toString("utf8").matchAll(/\bCREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(public\.[a-z_][a-z0-9_]*)\b/gi)].map(match => match[1]?.toLowerCase())));
   if (!isRunnerTestDatabase(plan)) ensure(plan.requiredRelations.every(name => declarations.has(name)),"TEST_DATABASE_SOURCE_REQUIRED","جدول آزمون باید در schema همین source تعریف شده باشد.",409);
   if (plan.version === 2) migrationSource(files, plan.migration);
+  if (isRunnerTestDatabase(plan)) {
+    for (const target of plan.targets) if (target.bootstrap) baselineSource(files, target.bootstrap);
+  }
   if (isRunnerTestDatabase(plan)) ensure(fingerprint(sourceMigrationRunner(files, plan.runner.script)) === fingerprint(plan.runner), "MIGRATION_RUNNER_CHANGED", "script و hookهای migration با source برابر نیستند.", 409);
   return plan;
 }

@@ -1,3 +1,4 @@
+import { baselineSource } from "./postgres-baseline.ts";
 import { createHash } from "node:crypto";
 import { object } from "../../contracts/validation.ts";
 import { runnerScriptName, parsePostgresMigrationRunner, parsePostgresRunnerTestReceipt, type PostgresMigrationRunner, type PostgresRunnerTarget, type PostgresRunnerTestReceipt } from "../../contracts/postgres-runner-test.ts";
@@ -58,6 +59,13 @@ export async function runPostgresRunnerTest<T extends CommandResult>(options: {
     }
     return result;
   };
+  // Resolve all source bytes before the first bootstrap side effect. No raw dump or model SQL is accepted.
+  const baselines = plan.targets.flatMap(target => target.bootstrap ? [{ target, setup: target.bootstrap, sql: baselineSource(options.files, target.bootstrap) }] : []);
+  for (const baseline of baselines) {
+    ensure(sql.bootstrap, "DATABASE_BOOTSTRAP_UNAVAILABLE", "اجرای baseline در این worker در دسترس نیست.", 409);
+    take(); const prepared = await sql.bootstrap(baseline.target.id, baseline.setup, baseline.sql, signal);
+    if (prepared.exitCode !== 0 || prepared.signal) ensure(false, "DATABASE_BASELINE_FAILED", "اجرای baseline موفق نبود؛ runner و برنامه شروع نشدند.", 409);
+  }
   take(); const migrated = await options.run("runner"); if (migrated.exitCode !== 0 || migrated.signal) return migrated;
   const baseline = await observe(true);
   take(); const first = await options.run("application"); if (first.exitCode !== 0 || first.signal) return first;

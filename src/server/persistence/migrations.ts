@@ -267,4 +267,16 @@ CREATE TABLE database_data_observations (
 CREATE INDEX database_data_action ON database_data_observations(actor_id,action_id,checked_at);
 `,
   },
+  {
+    version: 23,
+    sql: `
+CREATE TABLE database_baselines (
+ id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, flow_id TEXT NOT NULL REFERENCES project_flows(id),
+ source_hash TEXT NOT NULL, request_key TEXT NOT NULL, sql_text TEXT NOT NULL, schema_hash TEXT NOT NULL,
+ tables_json TEXT NOT NULL, statements INTEGER NOT NULL, created_at INTEGER NOT NULL,
+ UNIQUE(actor_id,flow_id,request_key)
+) STRICT;
+CREATE INDEX database_baseline_scope ON database_baselines(actor_id,flow_id,source_hash);
+`,
+  },
 ] as const;

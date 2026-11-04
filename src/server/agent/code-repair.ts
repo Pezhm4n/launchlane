@@ -8,6 +8,7 @@ import { persistExecutableOutput, executableOutputBytes } from "./build-output-s
 import { goToolchain } from "../../contracts/go-runtime.ts";
 import { assembleComponentArtifact } from "./component-artifact.ts";
 import { persistComponentOutput, readComponentOutput } from "./build-output-store.ts";
+import { assertBaselineImports } from "../application/database-baselines.ts";
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { assertMissionJobExecution } from "../policy/mission-authority.ts";
@@ -671,6 +672,7 @@ export class CodeRepairAdapter {
         await withSandboxCapacity(bounded, async () => {
         checkParent();
         if (!(build.version === 7 && build.testDatabase)) buildEnvironmentValues(this.config, this.store, actor, record.job.projectId, build.environment, buildSourceEnvironment(build));
+        if (build.version === 7) assertBaselineImports(this.config, this.store, actor, record.job.projectId, record.job.baseRevision, build.testDatabase);
         validateBuildPlan(base.files, base.profile, build);
         if (build.version === 12) await preparePhpDependencies(base.files, tarballs, this.config.stateDir, bounded, () => budget.take("tool", bounded), this.phpReader);
         else if (build.version === 11) await prepareGoDependencies(base.files, tarballs, this.config.stateDir, bounded, () => budget.take("tool", bounded), this.goReader);
@@ -726,6 +728,7 @@ export class CodeRepairAdapter {
                     async(fixture,fixtureSignal,sql)=>{
                       const run = (phase?: "runner" | "application") => runContainerBuild(record.workspace,tarballs,build,fixtureSignal,onCreated,[],
                         {command,endpoint,fixture,expectedJobId:record.job.id,expectedSourceHash:source.profile.sourceHash, ...(phase === "runner" ? { runnerPhase: true } : {})});
+                      assertBaselineImports(this.config, this.store, actor, record.job.projectId, record.job.baseRevision, build.testDatabase);
                       if (isRunnerTestDatabase(build.testDatabase)) return runPostgresRunnerTest({ files: source.files, plan: build.testDatabase, fixture, sql, signal: fixtureSignal, take: () => budget.take("tool", fixtureSignal), run });
                       return build.testDatabase?.version === 2 ? runPostgresMigrationTest({ files: source.files, plan: build.testDatabase.migration, fixture, sql, signal: fixtureSignal,
                         take: () => budget.take("tool", fixtureSignal), run: () => { budget.take("tool", fixtureSignal); return run(); } }) : run();

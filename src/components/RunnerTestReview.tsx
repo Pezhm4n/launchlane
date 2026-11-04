@@ -10,6 +10,16 @@ export function RunnerTestReview({ database, receipt }: { database: Extract<Disp
     <p className="note">{number.format(database.targets.length)} دیتابیس با role و ورودی اتصال جدا روی یک PostgreSQL موقت ساخته می‌شوند. این تصمیم فقط دادهٔ ساختگی همین آزمون را پوشش می‌دهد؛ ساخت منابع واقعی، migration تولیدی و انتشار تصمیم جدا دارند.</p>
     <p>پس از خواندن مستقل schema و داده، آزمون اصلی برنامه باید در هر دیتابیس مقدار تازه بنویسد. اجرای دوبارهٔ runner باید همان مقدار را حفظ کند؛ سپس یک برنامهٔ تازه نیز همان داده را می‌خواند.</p>
     <ul>{database.targets.map(target => <li key={target.id}><bdi>{target.id}</bdi> — {target.environmentKeys.map(key => <bdi key={key}> {key} </bdi>)}</li>)}</ul>
+    {database.targets.some(target => target.bootstrap) ? <section aria-label="پیش‌نیازهای دیتابیس آزمایشی">
+      <h5>ساختار اولیهٔ داده</h5>
+      <p>فقط فایل‌های ساختار انتخاب‌شده پیش از runner اصلی به هدف خودشان اعمال می‌شوند. نقش‌های کمکی ورود ندارند و به همین محیط دورریختنی محدودند.</p>
+      <ul>{database.targets.filter(target => target.bootstrap).map(target => <li key={target.id}>
+        <bdi>{target.id}</bdi>
+        <ul>{target.bootstrap?.files.map(file => <li key={file.path}><bdi>{file.path}</bdi></li>)}{target.bootstrap?.imports?.map(row => <li key={row.id}><bdi>{`baseline-${row.id}.sql`}</bdi><span> — ساختار انتخاب‌شده، بدون داده</span></li>)}</ul>
+        {target.bootstrap?.schemas.length ? <p>runner اجازهٔ ساخت schema در همین دیتابیس آزمایشی را می‌گیرد. schemaهای اولیه <bdi>{target.bootstrap.schemas.join("، ")}</bdi></p> : null}
+        {target.bootstrap?.roles.length ? <p>نقش‌های کمکی <bdi>{target.bootstrap.roles.join("، ")}</bdi></p> : null}
+      </li>)}</ul>
+    </section> : null}
     <details><summary>فرمان و hookها، معیار هر دیتابیس و هویت نسخه</summary>
       <pre dir="ltr"><code>{JSON.stringify({ runner: database.runner, targets: database.targets }, null, 2)}</code></pre>
     </details>
