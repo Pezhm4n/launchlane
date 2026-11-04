@@ -161,7 +161,7 @@ try {
   }
   await revoke(); await page.keyboard.press("Escape"); await dialog.waitFor({ state: "detached" });
   await page.waitForFunction(() => document.activeElement?.textContent === "اتصال MCP");
-  assert.equal(await page.getByRole("dialog", { name: "حساب‌ها و دسترسی", exact: true }).isVisible(), true);
+  assert.equal(await page.getByRole("region", { name: "حساب‌ها و دسترسی", exact: true }).isVisible(), true);
   await page.getByRole("button", { name: "اتصال MCP", exact: true }).click(); mode = "auth"; await create().click();
   await page.getByLabel("کلید ورود محلی", { exact: true }).waitFor();
   assert.deepEqual(errors, []); assert.deepEqual(external, []);

@@ -174,9 +174,9 @@ try {
   const connection = panel.getByRole("button", { name: "اتصال حساب", exact: true });
   await connection.focus();
   await connection.press("Enter");
-  const accounts = page.getByRole("dialog", { name: "حساب‌ها و دسترسی", exact: true });
+  const accounts = page.getByRole("region", { name: "حساب‌ها و دسترسی", exact: true });
   await accounts.waitFor();
-  await accounts.press("Escape");
+  await accounts.getByRole("button", { name: "بازگشت به فضای پروژه", exact: true }).click();
   await accounts.waitFor({ state: "detached" });
   assert.equal(await connection.evaluate((node) => node === document.activeElement), true);
   await layout(360, "tool-result-and-reload-without-replay");

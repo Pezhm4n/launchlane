@@ -130,9 +130,9 @@ try {
   assert.equal(await region.getByText("shop.example.ir.liara.run", { exact: true }).count(), 0);
   const connect = region.getByRole("button", { name: "بررسی اتصال لیارا", exact: true });
   await connect.press("Enter");
-  const dialog = page.getByRole("dialog", { name: "حساب‌ها و دسترسی", exact: true });
+  const dialog = page.getByRole("region", { name: "حساب‌ها و دسترسی", exact: true });
   await dialog.waitFor();
-  await dialog.press("Escape");
+  await dialog.getByRole("button", { name: "بازگشت به فضای پروژه", exact: true }).click();
   await dialog.waitFor({ state: "detached" });
   assert.equal(await page.locator(":focus").textContent(), "بررسی اتصال لیارا");
   await layout(360, "general-guide-and-focus-return");

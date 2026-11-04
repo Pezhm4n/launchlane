@@ -65,12 +65,12 @@ try {
   }
   for (const width of [320, 390, 768, 1280]) await layout(width, "plan-choice");
   await page.getByRole("button", { name: "حساب‌ها", exact: true }).click();
-  const accounts = page.getByRole("dialog", { name: "حساب‌ها و دسترسی", exact: true }); await accounts.waitFor();
+  const accounts = page.getByRole("region", { name: "حساب‌ها و دسترسی", exact: true }); await accounts.waitFor();
   await layout(390, "empty-account"); await layout(1280, "empty-account");
   if (!baseline) {
     assert.equal(await accounts.getByText(/Launchlane در این مرحله برنامه جدید ایجاد نمی‌کند/).count(), 0);
     await accounts.getByRole("button", { name: "ادامه با پیشنهاد مقصد و پلن", exact: true }).click();
-  } else await accounts.getByRole("button", { name: "بستن", exact: true }).click();
+  } else await accounts.getByRole("button", { name: "بازگشت به فضای پروژه", exact: true }).click();
   await accounts.waitFor({ state: "detached" });
   if (!baseline) {
     await page.getByRole("button", { name: "باز کردن دستیار هوشمند", exact: true }).click();

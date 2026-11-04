@@ -1,5 +1,15 @@
 # شواهد اعتبارسنجی Launchlane
 
+## Account settings page — 2026-11-04
+
+Frozen r4 on199cd76 plus fifteen UI/test paths passed Webpack build, typecheck and
+lint (0 errors,46 warnings/22 infos), targeted domain14/14, accounts13 states,
+responsive47 states and MCP24 states. Workbench75, domain-guide22, guided57, plans14 and HTTP33 also passed. The historical assistant-first suite failed before the changed path against its obsolete heading; it is retained separately.
+Actual browser/session/history/source inspection and local access actions are
+separate from synthetic connection failures and provider/model transports.
+Retained cross-drive build and retry-effect lint failures, exact commands and
+unified-runtime integration boundary: [evidence](evidence/accounts-page.md).
+
 ## Publication UI and actual local runtime — 2026-11-04
 
 Main72bebaf plus owned UI/config paths passed build/typecheck/lint (0 errors,

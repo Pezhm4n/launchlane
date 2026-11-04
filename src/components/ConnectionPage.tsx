@@ -1,13 +1,14 @@
 "use client";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import type { WorkspaceView } from "../contracts/domain.ts";
 import { parseConnection } from "../contracts/connections.ts";
 import { object } from "../contracts/validation.ts";
 import { api, ClientError } from "./api.ts";
-import { useDialogExit } from "./useDialogExit.ts";
+import { WorkspaceGlyph } from "./WorkspaceGlyph.tsx";
+import styles from "./ConnectionPage.module.css";
 import { McpConnectionDialog } from "./McpConnectionDialog.tsx";
 
-export function ConnectionDialog({
+export function ConnectionPage({
   workspace,
   purpose,
   onRefresh,
@@ -19,17 +20,20 @@ export function ConnectionDialog({
   workspace: WorkspaceView;
   purpose: "source" | "incident";
   onRefresh: () => Promise<unknown>;
-  onGitHub: () => void;
+  onGitHub: (trigger: HTMLButtonElement | null) => void;
   onClose: () => void;
-  onSignOut: () => void;
+  onSignOut: (trigger: HTMLButtonElement | null) => void;
   onSessionExpired: () => void;
 }) {
-  const dialog = useRef<HTMLDialogElement>(null),
+  const heading = useRef<HTMLHeadingElement>(null),
+    githubTrigger = useRef<HTMLButtonElement>(null),
+    sessionTrigger = useRef<HTMLButtonElement>(null),
     errorBox = useRef<HTMLDivElement>(null),
     disconnectTrigger = useRef<HTMLButtonElement>(null),
     disconnectConfirm = useRef<HTMLButtonElement>(null),
     githubDisconnectTrigger = useRef<HTMLButtonElement>(null),
     githubDisconnectConfirm = useRef<HTMLButtonElement>(null),
+    metadataPending = useRef<AbortController | null>(null),
     pending = useRef<AbortController | null>(null);
   const [key, setKey] = useState(""),
     [busy, setBusy] = useState<string | null>(null),
@@ -40,14 +44,14 @@ export function ConnectionDialog({
     >(null),
     [confirmDisconnect, setConfirmDisconnect] = useState(false),
     [confirmGitHubDisconnect, setConfirmGitHubDisconnect] = useState(false);
-  const exit = useDialogExit(dialog);
   const [mcpOpen, setMcpOpen] = useState(false);
   const mcpTrigger = useRef<HTMLButtonElement>(null);
-  const dismiss = () => { pending.current?.abort(); exit(onClose); };
+  const dismiss = () => { pending.current?.abort(); onClose(); };
   const [metadata, setMetadata] = useState<{
     configuredKey: boolean;
     teamConfigured: boolean;
   } | null>(null);
+  const [metadataLoading, setMetadataLoading] = useState(true);
   const [enterKey, setEnterKey] = useState(false);
   const [pendingApp, setPendingApp] = useState<string | null>(null);
   const [site, setSite] = useState(workspace.features.probeOrigin || "");
@@ -57,10 +61,15 @@ export function ConnectionDialog({
     setSite(liara?.selectedApp ? workspace.features.probeOrigin || "" : "");
   }, [workspace.features.probeOrigin, liara?.selectedApp]);
   useEffect(() => {
-    const node = dialog.current;
-    node?.showModal();
+    heading.current?.focus();
+  }, []);
+  const readMetadata = useCallback(() => {
+    if (metadataPending.current) return;
     const controller = new AbortController();
-    api(
+    metadataPending.current = controller;
+    setMetadataLoading(true);
+    setError(null);
+    void api(
       "/api/connections/liara",
       (value) => {
         const row = object(value);
@@ -71,19 +80,26 @@ export function ConnectionDialog({
       },
       { signal: controller.signal },
     )
-      .then(setMetadata)
+      .then(value => { if (!controller.signal.aborted) setMetadata(value); })
       .catch((error: unknown) => {
         if (!controller.signal.aborted && error instanceof ClientError) {
           setError(error);
           if (error.code === "AUTH_REQUIRED") onSessionExpired();
         }
+      })
+      .finally(() => {
+        if (metadataPending.current === controller) metadataPending.current = null;
+        if (!controller.signal.aborted) setMetadataLoading(false);
       });
-    return () => {
-      controller.abort();
-      pending.current?.abort();
-      node?.close();
-    };
   }, [onSessionExpired]);
+  useEffect(() => {
+    readMetadata();
+    return () => {
+      metadataPending.current?.abort();
+      metadataPending.current = null;
+      pending.current?.abort();
+    };
+  }, [readMetadata]);
   useEffect(() => {
     if (error) errorBox.current?.focus();
   }, [error]);
@@ -110,6 +126,7 @@ export function ConnectionDialog({
       await onRefresh();
       setNotice("اتصال GitHub از Launchlane حذف شد. دسترسی قبلی پاک شد.");
     } catch (error) {
+      if (controller.signal.aborted) return;
       if (error instanceof ClientError && error.code === "AUTH_REQUIRED") onSessionExpired();
       else
         setError(
@@ -195,28 +212,33 @@ export function ConnectionDialog({
     void act("connect", undefined, value);
   }
   return (
-    <dialog
-      className="folder-dialog account-dialog"
-      ref={dialog}
-      aria-labelledby="accounts-title"
-      onCancel={(event) => {
-        event.preventDefault();
-        dismiss();
-      }}
-    >
-      <div className="section-heading">
-        <h2 id="accounts-title">حساب‌ها و دسترسی</h2>
+    <section className={styles.page} aria-labelledby="accounts-title">
+      <header className={styles.heading}>
         <button type="button" className="button-quiet" onClick={dismiss}>
-          بستن
+          <WorkspaceGlyph name="arrow" /> بازگشت به فضای پروژه
         </button>
-      </div>
-      <p>
-        ورود به این برنامه، اتصال حساب لیارا و اتصال GitHub سه دسترسی جدا هستند. اتصال حساب به‌تنهایی
-        چیزی را منتشر یا تغییر نمی‌دهد.
-      </p>
-      <section aria-labelledby="liara-account-title" aria-busy={busy !== null}>
+        <div className={styles.titleRow}>
+          <span className={styles.emblem}><WorkspaceGlyph name="shield" /></span>
+          <div><p className={styles.eyebrow}>تنظیمات فضای کار</p>
+            <h1 id="accounts-title" ref={heading} tabIndex={-1}>حساب‌ها و دسترسی</h1>
+          </div>
+        </div>
+        <p className={styles.intro}>حساب مقصد، مخزن کد و ابزار کدنویسی را از یک جا مدیریت کنید. اتصال حساب به‌تنهایی انتشار یا تغییری را شروع نمی‌کند.</p>
+      </header>
+      <div className={styles.layout}>
+        <aside className={styles.rail}>
+          <nav aria-label="تنظیمات حساب‌ها">
+            <a href="#liara-account-title"><WorkspaceGlyph name="cloud" /><span>حساب لیارا</span></a>
+            <a href="#github-account-title"><WorkspaceGlyph name="branch" /><span>مخزن‌های GitHub</span></a>
+            <a href="#mcp-account-title"><WorkspaceGlyph name="code" /><span>ابزار کدنویسی</span></a>
+            <a href="#session-title"><WorkspaceGlyph name="shield" /><span>نشست و خروج</span></a>
+          </nav>
+          <p className={styles.railHint}>دسترسی‌ها مستقل‌اند. قطع اتصال یک سرویس، پروژه‌های شما را از آن سرویس حذف نمی‌کند.</p>
+        </aside>
+        <div className={styles.content}>
+      <section className={styles.primary} aria-labelledby="liara-account-title" aria-busy={busy !== null}>
         <div className="section-heading">
-          <h3 id="liara-account-title">حساب لیارا</h3>
+          <h2 id="liara-account-title">حساب لیارا</h2>
           <span className={`badge ${liara?.status === "connected" ? "badge-ok" : "badge-warning"}`}>
             {busy
               ? "در حال بررسی…"
@@ -399,7 +421,10 @@ export function ConnectionDialog({
             ) : null}
           </>
         ) : metadata === null ? (
-          <p role="status">در حال بررسی تنظیمات اتصال…</p>
+          <div>
+            <p role="status">{metadataLoading ? "در حال بررسی تنظیمات اتصال…" : "تنظیمات اتصال دریافت نشد. دوباره بررسی کنید."}</p>
+            {!metadataLoading ? <button type="button" className="button-secondary" onClick={readMetadata}>بررسی دوباره تنظیمات اتصال</button> : null}
+          </div>
         ) : !metadata.teamConfigured ? (
           <p className="note">
             تیم مجاز این نصب هنوز تعیین نشده است. مسئول راه‌اندازی باید تیم مقصد را مشخص کند؛
@@ -463,7 +488,7 @@ export function ConnectionDialog({
           </>
         )}
       </section>
-      <div role="status" aria-live="polite" className="hint">
+      <div role="status" aria-live="polite" className={lastAction !== "select" && notice ? "hint" : "sr-only"}>
         {lastAction === "select" ? "" : notice}
       </div>
       {error ? (
@@ -484,9 +509,9 @@ export function ConnectionDialog({
           ) : null}
         </div>
       ) : null}
-      <section className="account-secondary" aria-labelledby="github-account-title">
+      <section className={styles.secondary} aria-labelledby="github-account-title">
         <div className="section-heading">
-          <h3 id="github-account-title">GitHub</h3>
+          <h2 id="github-account-title">GitHub</h2>
           <span className={`badge ${github?.status === "connected" ? "badge-ok" : "badge-quiet"}`}>
             {github?.status === "connected"
               ? "متصل"
@@ -510,7 +535,8 @@ export function ConnectionDialog({
                   type="button"
                   className="button-secondary"
                   disabled={busy !== null}
-                  onClick={() => exit(onGitHub)}
+                  ref={githubTrigger}
+                  onClick={() => onGitHub(githubTrigger.current)}
                 >
                   مخزن‌ها و انتخاب پروژه
                 </button>
@@ -565,22 +591,23 @@ export function ConnectionDialog({
             type="button"
             className="button-secondary"
             disabled={busy !== null}
-            onClick={() => exit(onGitHub)}
+            ref={githubTrigger}
+                  onClick={() => onGitHub(githubTrigger.current)}
           >
             {github ? "نیاز به اتصال دوباره به GitHub" : "اتصال به GitHub و انتخاب مخزن"}
           </button>
         )}
       </section>
-      <section className="account-secondary" aria-labelledby="mcp-account-title">
-        <h3 id="mcp-account-title">اتصال ابزار کدنویسی</h3>
+      <section className={styles.secondary} aria-labelledby="mcp-account-title">
+        <h2 id="mcp-account-title">اتصال ابزار کدنویسی</h2>
         <p className="hint">از ابزار کدنویسی خود، پروژه و مأموریت همین حساب را در Launchlane دنبال کنید.</p>
         <button type="button" className="button-secondary" ref={mcpTrigger} disabled={busy !== null} onClick={() => setMcpOpen(true)}>اتصال MCP</button>
       </section>
       {mcpOpen ? <McpConnectionDialog csrf={workspace.session.csrfToken} onSessionExpired={onSessionExpired}
         onClose={() => { setMcpOpen(false); requestAnimationFrame(() => mcpTrigger.current?.focus()); }} /> : null}
-      <section className="account-secondary session-actions" aria-labelledby="session-title">
+      <section className={styles.session} aria-labelledby="session-title">
         <div className="section-heading">
-          <h3 id="session-title">نشست این مرورگر</h3>
+          <h2 id="session-title">نشست این مرورگر</h2>
         </div>
         <p className="hint">
           اگر روی رایانه مشترک کار می‌کنید، در پایان خارج شوید. پیشرفت ذخیره‌شده از بین نمی‌رود.
@@ -589,11 +616,14 @@ export function ConnectionDialog({
           type="button"
           className="button-secondary"
           disabled={busy !== null}
-          onClick={() => exit(onSignOut)}
+          ref={sessionTrigger}
+          onClick={() => onSignOut(sessionTrigger.current)}
         >
           خروج از میز کار
         </button>
       </section>
-    </dialog>
+        </div>
+      </div>
+    </section>
   );
 }

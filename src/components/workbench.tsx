@@ -19,7 +19,7 @@ import { WorkspaceIntro } from "./WorkspaceIntro.tsx";
 import { WorkspaceGlyph } from "./WorkspaceGlyph.tsx";
 import { FolderIcon, FolderPicker } from "./FolderPicker.tsx";
 import { IncidentIcon, PublishIcon } from "./icons.tsx";
-import { ConnectionDialog } from "./ConnectionDialog.tsx";
+import { ConnectionPage } from "./ConnectionPage.tsx";
 import { GitHubProjectPicker } from "./GitHubProjectPicker.tsx";
 import { IncidentWorkbench } from "./IncidentWorkbench.tsx";
 import { DomainGuidePanel } from "./DomainGuidePanel.tsx";
@@ -393,6 +393,7 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
     sampleTrigger = useRef<HTMLButtonElement>(null),
     manualTrigger = useRef<HTMLButtonElement>(null);
   const accountReturnTarget = useRef<HTMLButtonElement | null>(null);
+  const githubAccountReturn = useRef<HTMLButtonElement | null>(null);
   const projectReturnTarget=useRef<HTMLButtonElement|null>(null);
   const resultHeading = useRef<HTMLHeadingElement>(null),
     chooseProjectHeading = useRef<HTMLHeadingElement>(null),
@@ -474,12 +475,14 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
     activeFlow.current = data.flow?.id ?? null;
   }, []);
   const writeLocation = useCallback(
-    (nextMode: WorkbenchMode, project: string | null, replace = false) => {
+    (nextMode: WorkbenchMode, project: string | null, replace = false, accounts = false) => {
       const url = new URL(window.location.href);
       const incident = url.searchParams.get("incident");
       const incidentMode = url.searchParams.get("incident_mode");
       url.search = "";
-      url.searchParams.set("view", nextMode === "source" ? "publish" : nextMode);
+      url.searchParams.set("view", accounts ? "accounts" : nextMode === "source" ? "publish" : nextMode);
+      if (accounts) url.searchParams.set("from", nextMode === "source" ? "publish" : nextMode);
+      url.hash = "";
       if (project) url.searchParams.set("project", project);
       if (incident && /^[a-f0-9-]{36}$/.test(incident)) url.searchParams.set("incident", incident);
       if (incidentMode === "live" || incidentMode === "sample")
@@ -491,13 +494,14 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
   const syncAgentProject=useCallback(async(projectId:string)=>{
     const saved=await api(`/api/project-flows?id=${projectId}`,decodeFlow);
     applyFlow(saved);
-    writeLocation(locationState().mode,projectId,true);
+    writeLocation(locationState().mode,projectId,true,locationState().accounts);
     await refresh();
   },[applyFlow,writeLocation,refresh]);
   useEffect(() => {
     const controller = new AbortController(),
       state = locationState();
     setMode(state.mode);
+    setAccountsOpen(state.accounts);
     void Promise.allSettled([
       api("/api/workspace", decodeWorkspace, { signal: controller.signal }),
       api(`/api/project-flows${state.project ? `?id=${state.project}` : ""}`, decodeFlow, {
@@ -509,7 +513,7 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
         setWorkspace(session.value);
         if (saved.status === "fulfilled") {
           applyFlow(saved.value);
-          writeLocation(state.mode, saved.value.flow?.id ?? null, true);
+          writeLocation(state.mode, saved.value.flow?.id ?? null, true, state.accounts);
         } else fail(saved.reason);
       } else if (
         !(session.reason instanceof ClientError && session.reason.code === "AUTH_REQUIRED")
@@ -533,14 +537,17 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
       ? "Launchlane"
       : !workspace
         ? "ورود به میز کار — Launchlane"
+        : accountsOpen
+          ? "حساب‌ها و دسترسی — Launchlane"
         : flow
           ? `${modeNames[mode]} · ${projectName(flow)} — Launchlane`
           : `${modeNames[mode]} — Launchlane`;
-  }, [loading, workspace, flow, mode]);
+  }, [loading, workspace, flow, mode, accountsOpen]);
   useEffect(() => {
     function pop() {
       const state = locationState();
       setMode(state.mode);
+      setAccountsOpen(state.accounts);
       setError(null);
       setProjectError(null);
       if (!workspace || state.project === activeFlow.current) return;
@@ -627,7 +634,8 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
       setWorkspace(data);
       try { sessionStorage.setItem("launchlane_cached_auth", "true"); } catch {}
       applyFlow(saved);
-      writeLocation(mode, saved.flow?.id ?? null, true);
+      setAccountsOpen(state.accounts);
+      writeLocation(state.mode, saved.flow?.id ?? null, true, state.accounts);
       setNotice(
         saved.flow
           ? "پروژه ذخیره‌شده بازیابی شد. فایل‌ها دوباره بررسی شدند."
@@ -652,6 +660,7 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
       setNotice("از این نصب خارج شدید. برای ادامه دوباره وارد شوید.");
       writeLocation("source", null, true);
       setMode("source");
+      setAccountsOpen(false);
     } catch (error) {
       fail(error);
     } finally {
@@ -688,6 +697,7 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
       applyFlow(result);
       writeLocation("source", result.flow?.id ?? null);
       setMode("source");
+      setAccountsOpen(false);
       setNotice("فایل‌ها بررسی و نتیجه ذخیره شد. هیچ فایلی به لیارا ارسال نشده است.");
       return true;
     } catch (error) {
@@ -883,7 +893,8 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
     };
   }, [busy, executingActionId]);
   function navigate(next: WorkbenchMode) {
-    if (busy || mode === next) return;
+    if (busy || (mode === next && !accountsOpen)) return;
+    setAccountsOpen(false);
     setMode(next);
     setError(null);
     setProjectError(null);
@@ -896,8 +907,12 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
     if (flow?.id) params.set("project", flow.id);
     return `?${params.toString()}`;
   }
-  function openAccounts() {
-    accountReturnTarget.current = null;
+  function openAccounts(returnTarget: HTMLButtonElement | null = null) {
+    accountReturnTarget.current = returnTarget;
+    setError(null);
+    setProjectError(null);
+    setNotice("");
+    if (!accountsOpen) writeLocation(mode, flow?.id ?? null, false, true);
     setAccountsOpen(true);
     restoreFocus.current = "accounts";
   }
@@ -960,8 +975,9 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
                 type="button"
                 className="button-quiet"
                 ref={accountsTrigger}
+                aria-current={accountsOpen ? "page" : undefined}
                 disabled={disabled}
-                onClick={openAccounts}
+                onClick={() => openAccounts()}
               >
                 حساب‌ها
               </button>
@@ -997,7 +1013,7 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
                 </span>
               ) : null}
             </p>
-            <WorkbenchNavigation activeKey={mode}>
+            <WorkbenchNavigation activeKey={accountsOpen ? "accounts" : mode}>
               {workbenchModes.map((item) => {
                 const ModeIcon = modeIcons[item];
                 return (
@@ -1006,7 +1022,7 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
                     className="app-nav-link"
                     href={modeHref(item)}
                     aria-label={modeNames[item]}
-                    aria-current={mode === item ? "page" : undefined}
+                    aria-current={!accountsOpen && mode === item ? "page" : undefined}
                     aria-disabled={busy !== null || undefined}
                     onClick={(event) => {
                       event.preventDefault();
@@ -1027,7 +1043,7 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
         id="main-content"
         className="app-main task-main"
       >
-        {workspace || authMode === "operator" ? <WorkspaceIntro authenticated={Boolean(workspace)} projectName={flow ? projectName(flow) : null} mode={mode} loading={loading} /> : null}
+        {!accountsOpen && (workspace || authMode === "operator") ? <WorkspaceIntro authenticated={Boolean(workspace)} projectName={flow ? projectName(flow) : null} mode={mode} loading={loading} /> : null}
         <div
           className="live-message compact-status"
           role="status"
@@ -1134,7 +1150,7 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
                 {projectError.requestId ? <details><summary>شناسه پیگیری</summary><code>{projectError.requestId}</code></details> : null}
               </div>
             ) : null}
-            <WorkbenchView active={mode === "source"} kind="source">
+            <WorkbenchView active={!accountsOpen && mode === "source"} kind="source">
               {flow && !editingProject && !folderOpen && !githubOpen ? (
                 <section className="panel project-summary" aria-label="پروژه انتخاب‌شده">
                   <div className="section-heading project-summary-heading">
@@ -1454,7 +1470,7 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
                         {!connected || !liara?.selectedApp ? (
                           <>
                             <p>فایل‌ها آماده‌اند. برای پیشنهاد مشخص، حساب و برنامه مقصد لازم است.</p>
-                            <button type="button" disabled={disabled} onClick={openAccounts}>
+                            <button type="button" disabled={disabled} onClick={() => openAccounts()}>
                               {connected ? "انتخاب برنامه در لیارا" : "اتصال حساب لیارا"}
                             </button>
                           </>
@@ -1616,7 +1632,7 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
                           type="button"
                           className="button-secondary destination-action"
                           disabled={disabled}
-                          onClick={openAccounts}
+                          onClick={() => openAccounts()}
                         >
                           بررسی یا تغییر مقصد
                         </button>
@@ -1630,9 +1646,7 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
                     workspace={workspace}
                     disabled={disabled}
                     onConnect={(trigger) => {
-                      accountReturnTarget.current = trigger;
-                      setAccountsOpen(true);
-                      restoreFocus.current = "accounts";
+                      openAccounts(trigger);
                     }}
                     onRefresh={refresh}
                     onSessionExpired={onSessionExpired}
@@ -1654,8 +1668,8 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
                 csrf={workspace.session.csrfToken}
                 enabled={workspace.features.analysis}
                 disabled={busy !== null || expired}
-                activeView={mode === "source"}
-                onAccounts={(trigger)=>{accountReturnTarget.current=trigger;setAccountsOpen(true);restoreFocus.current="accounts";}}
+                activeView={!accountsOpen && mode === "source"}
+                onAccounts={openAccounts}
                 onChooseProject={(trigger)=>{projectReturnTarget.current=trigger;restoreFocus.current="folder";setEditingProject(true);setFolderOpen(true);}}
                 onGitHub={(trigger)=>{projectReturnTarget.current=trigger;restoreFocus.current="github";setEditingProject(true);setGitHubOpen(true);}}
                 onReview={() => {navigate("source");requestAnimationFrame(()=>resultHeading.current?.focus());}}
@@ -1663,11 +1677,11 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
                 onExpired={onSessionExpired}
                 onProjectChanged={syncAgentProject}
               />
-            <WorkbenchView active={mode === "incident"} kind="incident">
+            <WorkbenchView active={!accountsOpen && mode === "incident"} kind="incident">
               <IncidentWorkbench
                 workspace={workspace}
                 onAction={acceptIncidentAction}
-                active={mode === "incident"}
+                active={!accountsOpen && mode === "incident"}
                 onConnect={openAccounts}
                 onRefresh={refresh}
                 disabled={expired}
@@ -1675,14 +1689,14 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
               />
             </WorkbenchView>
             {libraryOpen ? <ProjectLibrary disabled={disabled} csrf={workspace?.session.csrfToken ?? ""}
-              onRemoved={async active => { if (active) { applyFlow({ flow: null, action: null }); writeLocation("source", null); setEditingProject(true); } await refresh(); }}
+              onRemoved={async active => { if (active) { applyFlow({ flow: null, action: null }); setAccountsOpen(false); writeLocation("source", null); setEditingProject(true); } await refresh(); }}
               onExpired={onSessionExpired}
               onClose={() => { setLibraryOpen(false); requestAnimationFrame(() => libraryTrigger.current?.focus()); }}
               onNew={() => { setLibraryOpen(false); setEditingProject(true); navigate("source"); requestAnimationFrame(() => chooseProjectHeading.current?.focus()); }}
               onOpen={async id => {
                 if (!workspace || busy) return;
                 const saved = await api("/api/projects/library", decodeFlow, { csrf: workspace.session.csrfToken, body: { id } });
-                applyFlow(saved); await refresh(); setEditingProject(false); setMode("source"); writeLocation("source", saved.flow?.id ?? null);
+                applyFlow(saved); await refresh(); setEditingProject(false); setAccountsOpen(false); setMode("source"); writeLocation("source", saved.flow?.id ?? null);
                 setNotice("پروژه باز شد؛ انتشار تازه‌ای شروع نشده است.");
               }} /> : null}
             {folderOpen ? (
@@ -1706,22 +1720,22 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
               />
             ) : null}
             {accountsOpen ? (
-              <ConnectionDialog
+              <ConnectionPage
                 workspace={workspace}
                 purpose={mode}
                 onRefresh={refresh}
-                onGitHub={() => {
-                  setAccountsOpen(false);
+                onGitHub={(trigger) => {
+                  githubAccountReturn.current = trigger;
                   setGitHubOpen(true);
-                  restoreFocus.current = "accounts";
+                  restoreFocus.current = null;
                 }}
                 onClose={() => {
                   setAccountsOpen(false);
+                  writeLocation(mode, flow?.id ?? null);
                   restoreFocus.current = "accounts";
                 }}
-                onSignOut={() => {
-                  signOutReturnTarget.current = accountReturnTarget.current?.isConnected ? accountReturnTarget.current : accountsTrigger.current;
-                  setAccountsOpen(false);
+                onSignOut={(trigger) => {
+                  signOutReturnTarget.current = trigger;
                   setConfirmSignOut(true);
                 }}
                 onSessionExpired={onSessionExpired}
@@ -1750,8 +1764,13 @@ export function Workbench({ authMode = "operator" }: { authMode?: "operator" | "
                 onSelect={(selection, signal) => prepare(selection, "github", signal)}
                 onClose={(selected) => {
                   setGitHubOpen(false);
-                  if (!selected) setEditingProject(true);
-                  restoreFocus.current = accountReturnTarget.current ? "accounts" : selected ? null : "github";
+                  if (!selected && !accountsOpen) setEditingProject(true);
+                  const returnTarget = githubAccountReturn.current;
+                  githubAccountReturn.current = null;
+                  if (!selected && returnTarget?.isConnected) {
+                    restoreFocus.current = null;
+                    requestAnimationFrame(() => returnTarget.focus());
+                  } else restoreFocus.current = selected ? null : "github";
                 }}
                 onSessionExpired={onSessionExpired}
               />
