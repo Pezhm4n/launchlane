@@ -1,5 +1,11 @@
 # اصول طراحی Launchlane
 
+## خوانایی قیمت و آمادگی اتصال؛ ۲۰۲۶-۱۱-۰۴
+
+قیمت اصلی پلن یک عدد فارسی گروه‌بندی‌شده با جهت مستقل، واحد تومان کوچک‌تر و بازهٔ «در هر ساعت» است. برآوردهای۲۴ساعت/۳۰روز نیز عدد دقیق quote را نشان می‌دهند؛ کوتاه‌کردن با واژهٔ هزار/میلیون یا گردکردن نمایشی حذف می‌شود. کادر ابزار GitHub عنوان و توضیح کوتاه، ردیف اقدام مستقل و راهنمای نصب زیر disclosure دارد؛ فرمان نصب به دکمه نمی‌چسبد. بررسی آمادگی با حالت انتظار و بازگشت فوکوس به اتصال تمام می‌شود؛ آماده‌بودن ابزار به معنی ورود حساب نیست.
+
+این تصمیم رفتار قدیمی تصویر را تکمیل می‌کند: کپشن «برای دیدن مسیر کلیک کنید» حذف است؛ درخواست صریح کلیک/کیبورد/لمس بازپخش محدود دارد و reduced motion فقط حرکت محیطی را محدود می‌کند. بازپخش هیچ عملیات محصولی شروع نمی‌کند. رابط مرحله‌ای MCP از همان طرح موجود main و همان API مشترک استفاده می‌کند. دو تب و چت اختیاری حفظ می‌شوند.
+
 Compiled component review (2026-10-29): reuse the existing pnpm build card and publication decision. Show the selected member, original-root build, selected tests, remaining sections and separate publication decision. A component publication says "بخش انتخاب‌شده منتشر شد" and keeps the whole-project/data limitation visible. Technical manager/output/proof details stay in disclosures. The existing runner select is constrained inside its card at narrow widths; Docker no longer falls back to a Python label. No new layout/theme or workflow is introduced.
 
 

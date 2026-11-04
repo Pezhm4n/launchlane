@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { mkdir, lstat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { stripVTControlCharacters } from "node:util";
@@ -72,12 +73,9 @@ export async function githubEnvironment(
 }
 
 export function githubExecutable(config: Config): string {
-  return (
-    config.githubCliPath ||
-    (process.platform === "win32"
-      ? resolve(/* turbopackIgnore: true */ ".local/tools/github/gh.exe")
-      : "gh")
-  );
+  if (config.githubCliPath) return config.githubCliPath;
+  const bundled = resolve(/* turbopackIgnore: true */ ".local/tools/github/gh.exe");
+  return process.platform === "win32" && existsSync(bundled) ? bundled : "gh";
 }
 
 export function parseGhResponse(bytes: Buffer): GitHubResponse {

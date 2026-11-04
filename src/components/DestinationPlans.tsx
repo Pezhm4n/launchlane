@@ -17,30 +17,10 @@ export function planCostProjection(hourlyHundredthsToman: number) {
   const hourly = BigInt(hourlyHundredthsToman);
   return { day: formatHundredths(hourly * 24n), month: formatHundredths(hourly * 720n) };
 }
-function smallAmountWords(value: number): string {
-  const small = ["صفر", "یک", "دو", "سه", "چهار", "پنج", "شش", "هفت", "هشت", "نه", "ده", "یازده", "دوازده", "سیزده", "چهارده", "پانزده", "شانزده", "هفده", "هجده", "نوزده"],
-    tens = ["", "", "بیست", "سی", "چهل", "پنجاه", "شصت", "هفتاد", "هشتاد", "نود"],
-    hundreds = ["", "صد", "دویست", "سیصد", "چهارصد", "پانصد", "ششصد", "هفتصد", "هشتصد", "نهصد"];
-  if (value < 20) return small[value] ?? "";
-  const scale = value >= 1000 ? 1000 : value >= 100 ? 100 : 10, whole = Math.floor(value / scale), rest = value % scale,
-    prefix = scale === 1000 ? `${whole === 1 ? "" : `${small[whole]} `}هزار` : scale === 100 ? hundreds[whole] : tens[whole];
-  return `${prefix}${rest ? ` و ${smallAmountWords(rest)}` : ""}`;
-}
 export function readablePlanCost(hourlyHundredthsToman: number, hours: 1 | 24 | 720 = 1): string {
   if (!Number.isSafeInteger(hourlyHundredthsToman) || hourlyHundredthsToman < 0) throw new RangeError("Expected a nonnegative integer hourly quote");
   const total = BigInt(hourlyHundredthsToman) * BigInt(hours);
-  if (total === 0n) return "صفر تومن";
-  if (total < 100n) return "کمتر از یک تومن";
-  const rounded = (total + 50n) / 100n;
-  if (rounded < 10000n) return `حدود ${smallAmountWords(Number(rounded))} تومن`;
-  const scales = [[1000000000000n, "هزار میلیارد"], [1000000000n, "میلیارد"], [1000000n, "میلیون"], [1000n, "هزار"]] as const;
-  for (const [unit, label] of scales) {
-    const precision = unit === 1000n ? 1n : 10n, amount = (total * precision + unit * 50n) / (unit * 100n);
-    if (rounded < unit && amount < precision) continue;
-    const whole = amount / precision, fraction = amount % precision;
-    return `حدود ${integer.format(whole)}${fraction ? `${decimal}${integer.format(fraction)}` : ""} ${label} تومن`;
-  }
-  throw new RangeError("Expected a displayable quote");
+  return `${formatHundredths(total)} تومان`;
 }
 export function DestinationPlans({ recommendation, selected, disabled, onChange, changing }: {
   recommendation: DestinationRecommendation; selected: { planId: string; bundleId: string }; disabled: boolean;
@@ -68,8 +48,8 @@ export function DestinationPlans({ recommendation, selected, disabled, onChange,
               <span className={recommended ? styles.recommended : styles.region}>{recommended ? "پیشنهاد شروع" : offer.region === "iran" ? "ایران" : offer.region}</span>
             </span>
             <span className={styles.title}>{recommended ? "شروع کم‌هزینه" : `گزینهٔ ${number.format(index + 1)}`}</span>
-            <span className={styles.price}>{hourly}</span>
-            <span className={styles.unit}>برای هر ساعت</span>
+            <span className={styles.price}><bdi dir="ltr">{formatHundredths(BigInt(offer.hourlyHundredthsToman))}</bdi><span className={styles.currency}>تومان</span></span>
+            <span className={styles.unit}>در هر ساعت</span>
             <span className={styles.estimates}>
               <span className={styles.estimateLabel}>برآورد روشن‌ماندن پیوسته</span>
               <span className={styles.estimate}><span>۲۴ ساعت</span><span>{readablePlanCost(offer.hourlyHundredthsToman, 24)}</span></span>

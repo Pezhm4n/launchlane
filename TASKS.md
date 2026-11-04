@@ -1,5 +1,9 @@
 # برنامه اجرایی Launchlane
 
+## AC14/15/31 — خوانایی انتشار و همگام‌سازی نسخهٔ محلی؛ ۲۰۲۶-۱۱-۰۴
+
+قیمت پلن با عدد گروه‌بندی‌شده و تومان، بدون تقریب کلامی و با حفظ دقت quote نمایش داده می‌شود. آمادگی GitHub از ابزار نصب‌شده/PATH و مسیر صریح سرور بازیابی می‌شود؛ retry، حالت بررسی و راهنمای نصب از هم جدا و فوکوس اصلاح شده‌اند. ورود حساب خودکار نیست. نسخهٔ runtime-components که مالک روی۳۱۰۲ می‌دید، اصلاح تصویر و رابط MCP را نداشت؛ همان تغییرات محدود به آن منتقل و build آزموده‌شده روی همان نصب فعال شد. main: domain30، مرورگر23حالت؛ runtime: domain44، HTTP33، مرورگر57حالت؛ build/typecheck/lint با صفرerror در هر دو. این‌ها پذیرش محلی‌اند و آزمون OAuth/ابر نیستند. [شاهد، فرمان‌ها و مرزها](docs/evidence/publication-ui-local-runtime.md).
+
 Lifecycle controls, 2026-11-04: successful destination/publication receipts now reload the selected project controls without F5. Reproduced the stale-null regression before the fix; actual Chromium refresh/keyboard/three layouts, existing library lifecycle flow19states and HTTP48 pass. [Evidence](docs/evidence/lifecycle-refresh.md). No real cloud mutation.
 
 Liara sign-in, 2026-11-04. Optional remember boolean persists a revocable 30-day session in the existing cookie/Store. Omitted/false and operator sessions keep one hour. Domain21, HTTP48 and actual login browser8states/two actors pass, with synthetic provider. [Evidence](docs/evidence/remembered-login.md).

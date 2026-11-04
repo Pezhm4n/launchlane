@@ -26,6 +26,19 @@ async function inspect(name, width) {
   states.push({ name, width, axeViolations: 0, horizontalOverflow: false });
 }
 async function complete() { await page.waitForFunction(() => document.querySelector(".studio-launch-art")?.dataset.playing === "false"); }
+async function flight() {
+  await page.waitForFunction(() => document.querySelector(".studio-launch-art")?.dataset.playing === "true");
+  const lead = art.locator('[data-art-flight="lead"]');
+  const start = await lead.evaluate(node => ({ distance: getComputedStyle(node).offsetDistance, x: node.getBoundingClientRect().x }));
+  await page.waitForFunction(first => {
+    const node = document.querySelector('[data-art-flight="lead"]'), style = getComputedStyle(node);
+    return style.offsetDistance !== first.distance && Math.abs(node.getBoundingClientRect().x - first.x) > 2 && Number(style.opacity) > 0.5;
+  }, start);
+  await page.waitForFunction(() => {
+    const p = parseFloat(getComputedStyle(document.querySelector('[data-art-flight="lead"]')).offsetDistance);
+    return p > 35 && p < 85;
+  });
+}
 try {
   await page.goto(server.origin);
   await page.getByLabel("کلید ورود محلی", { exact: true }).fill(server.token);
@@ -33,6 +46,7 @@ try {
   await trigger.waitFor();
   await page.evaluate(async () => document.fonts.ready);
   await complete();
+  assert.equal(await page.getByText("برای دیدن مسیر کلیک کنید", { exact: true }).count(), 0);
   effects.length = 0;
   await page.mouse.move(0, 0);
   await inspect("rest", 1280);
@@ -45,14 +59,7 @@ try {
   await page.mouse.move(0, 0);
   await page.waitForFunction(() => document.querySelector(".studio-launch-art").style.getPropertyValue("--art-x") === "0");
   await trigger.click();
-  await page.waitForFunction(() => document.querySelector(".studio-launch-art")?.dataset.playing === "true");
-  const lead = art.locator('[data-art-flight="lead"]');
-  const a = await lead.evaluate(node => getComputedStyle(node).offsetDistance);
-  await page.waitForFunction(first => getComputedStyle(document.querySelector('[data-art-flight="lead"]')).offsetDistance !== first, a);
-  await page.waitForFunction(() => {
-    const p = parseFloat(getComputedStyle(document.querySelector('[data-art-flight="lead"]')).offsetDistance);
-    return p > 35 && p < 85;
-  });
+  await flight();
   await art.screenshot({ path: join(output, "after-flight.png") });
   await complete();
   assert.equal(await art.getAttribute("data-activated"), "true");
@@ -76,11 +83,22 @@ try {
   await trigger.click();
   await page.emulateMedia({ reducedMotion: "reduce" });
   await complete();
-  await trigger.click();
-  assert.equal(await art.getAttribute("data-playing"), "false");
+  await page.waitForFunction(() => !document.querySelector(".studio-launch-art").getAnimations({ subtree: true }).some(animation => animation.playState === "running"));
   const reduced = await art.evaluate(node => ({ running: node.getAnimations({ subtree: true }).filter(animation => animation.playState === "running").length,
     matrices: [...node.querySelectorAll("g[transform]")].map(group => getComputedStyle(group).transform !== "none") }));
   assert.equal(reduced.running, 0);assert.deepEqual(reduced.matrices, [true, true]);
+  for (const key of ["click", "Enter", "Space"]) {
+    if (key === "click") await trigger.click(); else await trigger.press(key);
+    await flight();
+    assert.equal(await art.locator(".studio-source-float").evaluate(node => getComputedStyle(node).transform), "none");
+    assert.equal(await art.locator(".studio-cloud-float").evaluate(node => getComputedStyle(node).transform), "none");
+    if (key === "click") await art.screenshot({ path: join(output, "after-reduced-flight.png") });
+    await complete();
+  }
+  for (let n = 0; n < 4; n++) await trigger.click();
+  await flight();
+  await complete();
+  assert.equal(await art.evaluate(node => node.getAnimations({ subtree: true }).filter(animation => animation.playState === "running").length), 0);
   await inspect("reduced-motion", 1280);
   await art.screenshot({ path: join(output, "after-reduced.png") });
 
@@ -115,12 +133,19 @@ try {
   await touchPage.getByRole("button", { name: "نمایش تعاملی مسیر پروژه تا لیارا", exact: true }).tap();
   await touchPage.waitForFunction(() => document.querySelector(".studio-launch-art")?.dataset.playing === "true");
   await touchPage.waitForFunction(() => document.querySelector(".studio-launch-art")?.dataset.playing === "false");
+  await touchPage.emulateMedia({ reducedMotion: "reduce" });
+  await touchPage.getByRole("button", { name: "نمایش تعاملی مسیر پروژه تا لیارا", exact: true }).tap();
+  await touchPage.waitForFunction(() => {
+    const node = document.querySelector('[data-art-flight="lead"]');
+    return Number(getComputedStyle(node).opacity) > 0.5 && parseFloat(getComputedStyle(node).offsetDistance) > 0;
+  });
+  await touchPage.waitForFunction(() => document.querySelector(".studio-launch-art")?.dataset.playing === "false");
   assert.equal(await touchArt.evaluate(node => Number(node.style.getPropertyValue("--art-x") || "0")), 0);
   await touch.close();
   assert.deepEqual(errors, []);
   assert.deepEqual(effects, []);assert.deepEqual(external, []);
   await writeFile(join(output, "report.json"), JSON.stringify({ states, normalFlight: true, rapidReplay: true, enterAndSpace: true, preferenceChange: true,
-    preservedProjection: true, pointerReset: true, touchReplay: true, unmountDuringFlight: true, effects, pageErrors: errors, externalRequests: external.length,
+    reducedExplicitPlayback: true, reducedIdleMotion: false, captionRemoved: true, preservedProjection: true, pointerReset: true, touchReplay: true, reducedTouchReplay: true, unmountDuringFlight: true, effects, pageErrors: errors, externalRequests: external.length,
     evidence: "Actual built product in disposable operator state; live model/provider gates off. No cloud writes or deployments." }, null, 2));
   console.log(JSON.stringify({ states: states.length, pageErrors: errors.length, externalRequests: external.length, output }));
 } finally { await context.close(); await browser.close(); await server.close(); }

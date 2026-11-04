@@ -15,6 +15,7 @@ import { ensure } from "../server/errors.ts";
 import { api, ClientError } from "./api.ts";
 import { FolderIcon } from "./FolderPicker.tsx";
 import { useDialogExit } from "./useDialogExit.ts";
+import styles from "./GitHubProjectPicker.module.css";
 
 const loginPending = (login: GitHubLoginView | null) =>
   Boolean(
@@ -43,6 +44,7 @@ export function GitHubProjectPicker({
     pending = useRef<AbortController | null>(null);
   const importControl = useRef<HTMLButtonElement>(null),
     cancelledImport = useRef(false);
+  const metadataPending = useRef<AbortController | null>(null), connectTrigger = useRef<HTMLButtonElement>(null), focusConnect = useRef(false);
   const exit = useDialogExit(dialog);
   const [connection, setConnection] = useState(initialConnection),
     [toolReady, setToolReady] = useState<boolean | null>(null),
@@ -51,6 +53,7 @@ export function GitHubProjectPicker({
     [error, setError] = useState<ClientError | null>(null),
     [notice, setNotice] = useState(""),
     [confirmDisconnect, setConfirmDisconnect] = useState(false);
+  const [checkingTool, setCheckingTool] = useState(false);
   const [query, setQuery] = useState(""),
     [appliedQuery, setAppliedQuery] = useState(""),
     [repos, setRepos] = useState<GitHubRepository[]>([]),
@@ -82,7 +85,9 @@ export function GitHubProjectPicker({
     [csrf],
   );
   const metadata = useCallback(async () => {
-    setError(null);
+    if (metadataPending.current) return;
+    const controller = new AbortController(); metadataPending.current = controller;
+    setError(null); setCheckingTool(true); setToolReady(null);
     try {
       const state = await api("/api/connections/github", (value) => {
         const row = object(value);
@@ -90,11 +95,14 @@ export function GitHubProjectPicker({
           connection: row.connection === null ? null : parseConnection(row.connection),
           toolReady: row.toolReady === true,
         };
-      });
+      }, { signal: controller.signal });
+      if (controller.signal.aborted) return;
       setToolReady(state.toolReady);
       setConnection(state.connection);
     } catch (error) {
-      fail(error);
+      if (!controller.signal.aborted) { setToolReady(false); fail(error); }
+    } finally {
+      if (metadataPending.current === controller) { metadataPending.current = null; setCheckingTool(false); }
     }
   }, [fail]);
   useEffect(() => {
@@ -103,9 +111,13 @@ export function GitHubProjectPicker({
     void metadata();
     return () => {
       pending.current?.abort();
+      metadataPending.current?.abort(); metadataPending.current = null;
       node?.close();
     };
   }, [metadata]);
+  useEffect(() => {
+    if (!checkingTool && toolReady && focusConnect.current) { focusConnect.current = false; connectTrigger.current?.focus(); }
+  }, [checkingTool, toolReady]);
   useEffect(() => {
     if (error) errorBox.current?.focus();
   }, [error]);
@@ -421,7 +433,8 @@ export function GitHubProjectPicker({
                 ) : null}
                 <button
                   type="button"
-                  disabled={busy !== null || toolReady !== true}
+                  ref={connectTrigger}
+                  disabled={busy !== null || checkingTool || toolReady !== true}
                   onClick={() => void connect()}
                 >
                   اتصال به GitHub
@@ -438,19 +451,19 @@ export function GitHubProjectPicker({
                 لغو ورود GitHub
               </button>
             ) : null}
-            {toolReady === null ? (
+            {checkingTool ? (
               <p role="status">در حال بررسی ابزار ورود…</p>
             ) : !toolReady ? (
-              <div className="note">
-                <p>
-                  ابزار رسمی ورود روی این نصب آماده نیست. پروژه محلی را می‌توانید انتخاب کنید. برای
-                  فعال‌کردن GitHub، مسئول نصب این فرمان را اجرا کند:
-                </p>
-                <code>npm run setup:github</code>
-                <button type="button" className="button-secondary" onClick={() => void metadata()}>
+              <section className={styles.setup} aria-labelledby="github-setup-title">
+                <div><h3 id="github-setup-title">ابزار ورود GitHub آماده نیست</h3>
+                  <p>آماده‌بودن ابزار این نصب تأیید نشد. اگر مسئول نصب آن را راه‌اندازی کرده، دوباره بررسی کنید؛ انتخاب پروژهٔ محلی هم در دسترس است.</p></div>
+                <div className={styles.setupActions}><button type="button" className="button-secondary" disabled={checkingTool}
+                  onClick={() => { focusConnect.current = true; void metadata(); }}>
                   بررسی دوباره ابزار ورود
-                </button>
-              </div>
+                </button></div>
+                <details><summary>راهنمای مسئول نصب</summary><p>در Windows این فرمان، ابزار رسمی و بررسی‌شده را در همین نصب آماده می‌کند. برای Linux، GitHub CLI نسخهٔ 2.103.0 باید در PATH یا مسیر تنظیم‌شدهٔ سرور در دسترس باشد. این کار به حساب GitHub وارد نمی‌شود.</p>
+                  <code className={styles.setupCommand} dir="ltr">npm run setup:github</code></details>
+              </section>
             ) : null}
           </>
         ) : (

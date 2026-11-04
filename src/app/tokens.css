@@ -1,4 +1,7 @@
 :root {
+  --color-field-hover: var(--color-elevated);
+  --radius-full: 999rem;
+  --shadow-sm: 0 var(--border-width) var(--space-1) color-mix(in srgb, var(--color-paper) 50%, transparent);
   interpolate-size: allow-keywords;
   --assistant-width: 26rem;
   --assistant-height: 38rem;

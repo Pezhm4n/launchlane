@@ -1,5 +1,17 @@
 # شواهد اعتبارسنجی Launchlane
 
+## Publication UI and actual local runtime — 2026-11-04
+
+Main72bebaf plus owned UI/config paths passed build/typecheck/lint (0 errors,
+48 warnings/22 infos), targeted domain30 and browser23states. Runtimeefd696c plus
+twenty focused paths passed build/typecheck/lint (0 errors,54 warnings/47 infos),
+targeted domain44, HTTP/HTTPS/stdio33 and browser57states. These are separate frozen
+candidates; no combined full-domain claim is made. Exact commands, retained tooling
+failure and synthetic/live distinctions are in [evidence](evidence/publication-ui-local-runtime.md).
+The tested runtime build mYYsfnnZ1CBUT64lkOzR6 is now served on the owner's existing
+HTTPS3102 task; health/entry200 and served JS/CSS hashes match the compiled manifest.
+Env bytes unchanged, no account login, real model call or cloud write.
+
 .NET/Docker, 2026-11-04 (AC19/24/26/28/31/32). Original locked ASP.NET10 now runs through Agent/web Docker6 before destination selection. Original SDK/tests/publish, public NuGet.Config and .slnx survive intake. Publication21 rebuilds the same source archive at Docker. [Scope and evidence](evidence/dotnet-docker.md). Native projects without Dockerfile, external NuGet packages, exact DLL delivery, data and complete14 remain open.
 
 Angular candidate1826b0a5, 2026-11-02: lint/typecheck/build, domain834/834, HTTP48/48, Angular3/3, pnpm/React8/8, actual Angular and prior pnpm web publications/20 layouts/replay/reload, guided54states passed under the shared OS lock. Runtime, Docker and Chromium actual; model/provider synthetic, cloudWrites0. [Short evidence](evidence/angular-compiled-component.md).
