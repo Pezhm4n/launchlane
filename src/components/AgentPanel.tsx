@@ -1060,7 +1060,7 @@ export function AgentPanel({
           {!chatOnly ? runSteps : null}
         </>
       ) : null}
-      {guided && projectId ? <ProjectLifecycle key={projectId} projectId={projectId} csrf={csrf} disabled={disabled || busy || active || environmentLocked || run?.state === "needs_approval"}
+      {guided && projectId ? <ProjectLifecycle key={`${projectId}:${run?.destination?.state === "succeeded" ? run.destination.id : ""}:${run?.publication?.state === "succeeded" ? run.publication.id : ""}`} projectId={projectId} csrf={csrf} disabled={disabled || busy || active || environmentLocked || run?.state === "needs_approval"}
         onLockChanged={setLifecycleLocked} onExpired={onExpired} onChanged={() => onProjectChanged(projectId)} /> : null}
       {!chatOnly || !run || !sameProject ? errorNotice : null}
       {!guided ? composer : null}

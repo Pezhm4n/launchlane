@@ -1,5 +1,7 @@
 # برنامه اجرایی Launchlane
 
+Lifecycle controls, 2026-11-04: successful destination/publication receipts now reload the selected project controls without F5. Reproduced the stale-null regression before the fix; actual Chromium refresh/keyboard/three layouts, existing library lifecycle flow19states and HTTP48 pass. [Evidence](docs/evidence/lifecycle-refresh.md). No real cloud mutation.
+
 Liara sign-in, 2026-11-04. Optional remember boolean persists a revocable 30-day session in the existing cookie/Store. Omitted/false and operator sessions keep one hour. Domain21, HTTP48 and actual login browser8states/two actors pass, with synthetic provider. [Evidence](docs/evidence/remembered-login.md).
 
 .NET/Docker, 2026-11-04 (AC19/24/26/28/31/32). Lint/typecheck/build, domain838, HTTP48, focused17, worker3 and both actual browser flows passed. Original locked ASP.NET10 now runs through Agent/web Docker6 before destination selection. Original SDK/tests/publish, public NuGet.Config and .slnx survive intake. Publication21 rebuilds the same source archive at Docker. [Scope and evidence](docs/evidence/dotnet-docker.md). Native projects without Dockerfile, external NuGet packages, exact DLL delivery, data and complete14 remain open.

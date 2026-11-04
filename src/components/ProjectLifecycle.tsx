@@ -54,7 +54,7 @@ export function ProjectLifecycle({ projectId, csrf, disabled, onLockChanged, onE
   const cost = action?.spec.version === 24 ? action.spec.cost : null;
   const uncertainDomain = action?.state === "uncertain" && action.spec.version === 24 && action.spec.operation === "enable_default_subdomain";
   if (!app && !removed && !error) return null;
-  return <details className={styles.panel}><summary><WorkspaceGlyph name="stop" />مدیریت مقصد در لیارا</summary>
+  return <details className={styles.panel}><summary><WorkspaceGlyph name="stop" /><span>مدیریت مقصد در لیارا</span><span className={styles.optionsHint}>روشن‌کردن، توقف و حذف</span></summary>
     <div className={styles.content} aria-busy={busy}>
       <h3>{removed ? "مقصد از لیارا حذف شد" : <>مدیریت <bdi>{app}</bdi></>}</h3>
       <p>{removed ? "حذف با خواندن دوبارهٔ لیارا تأیید شد. اکنون می‌توانید پروژه را از «پروژه‌های من» حذف کنید." : "برنامه را با پلن فعلی روشن یا متوقف کنید و نشانی عمومی آن را فعال کنید. هر تغییر ابتدا برای تصمیم شما بررسی می‌شود."}</p>
