@@ -6,6 +6,7 @@ These versioned records preserve the original decisions, source revisions, failu
 
 ## Records
 
+- [Destination price CI regression — 2026-11-04](#destination-price-ci)
 - [Account settings as a page — 2026-11-04](#accounts-page)
 - [انتخاب GitHub تا بررسی پروژه](#github-project-review)
 - [انتشار مرحله‌ای و اصلاح Node22](#guided-publication)
@@ -952,3 +953,13 @@ Local r7 passed changed-file lint, three chat13 runs and responsive47 using the
 unchanged r5 compiled application. Only harnesses and core-command order change;
 the fourteen suite members, assertions and timeouts are retained. Responsive/chat
 now run first so a new readiness failure is reported earlier in the core suite.
+
+<a id="destination-price-ci"></a>
+
+## Destination price CI regression — 2026-11-04
+
+[Linux CI on 048d41a](https://github.com/Pezhm4n/launchlane/actions/runs/41887373104/job/126775343684) passed lint/types/domain/build/HTTP, then stopped in `test-destination-browser.mjs` waiting for retired price copy. The UI had already changed in 9c38849 to exact grouped amounts and «در هر ساعت»; the aggregate's destination harness still expected approximate words and «برای هر ساعت». The unchanged failure was reproduced locally.
+
+The harness now checks hourly, 24-hour and 30-day amounts independently for each of the three fixture offers, inside its own radio label. Exact-cost disclosure, unmeasured capacity, disabled writes, expiry/cancellation, responsive/axe checks and the original timeout remain. No product runtime, price calculation or provider contract changes.
+
+Local Node24.18.0/Chromium used a fresh Webpack build of 048d41a, build ID `cCNNoRNBjrTxEw6WXTL3Q`; the only executable delta is this harness. Focused destination5, plan-choice14, six existing price/summary domain regressions and all fourteen `test:browser` suites passed. Typecheck passed; lint retained 52 existing warnings/47 infos with zero errors. This is synthetic-provider/local-browser evidence, not a new GitHub workflow or live cloud result.

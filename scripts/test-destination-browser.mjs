@@ -41,8 +41,23 @@ try {
   const card = page.locator(".destination-card");
   await card.getByRole("heading", { name: "ساخت مقصد تازه", exact: true }).waitFor();
   await card.getByRole("button", { name: "تأیید هزینه و ساخت مقصد", exact: true }).waitFor();
-  await card.getByText("برای هر ساعت", { exact: true }).first().waitFor();
-  await card.getByText("حدود پانصد و چهل تومن", { exact: true }).waitFor();
+  const plans = card.getByRole("group", { name: "پلن انتشار را انتخاب کنید", exact: true });
+  assert.equal(await plans.getByRole("radio").count(), 3);
+  // Independent fixture totals: plan=500/1000/1500 + basic=40 toman/hour.
+  // Keep hourly/day/month checks scoped to each offer; disclosure text alone is insufficient.
+  for (const expected of [
+    { plan: "starter", hourly: "۵۴۰", day: "۱۲٬۹۶۰ تومان", month: "۳۸۸٬۸۰۰ تومان" },
+    { plan: "growth", hourly: "۱٬۰۴۰", day: "۲۴٬۹۶۰ تومان", month: "۷۴۸٬۸۰۰ تومان" },
+    { plan: "scale", hourly: "۱٬۵۴۰", day: "۳۶٬۹۶۰ تومان", month: "۱٬۱۰۸٬۸۰۰ تومان" },
+  ]) {
+    const offer = plans.locator("label").filter({ has: page.getByRole("radio", { name: new RegExp(`^${expected.plan}،`) }) });
+    await offer.getByText("در هر ساعت", { exact: true }).waitFor();
+    await offer.getByText(expected.hourly, { exact: true }).waitFor();
+    await offer.getByText("تومان", { exact: true }).waitFor();
+    await offer.getByText(expected.day, { exact: true }).waitFor();
+    await offer.getByText(expected.month, { exact: true }).waitFor();
+    assert.doesNotMatch(await offer.textContent(), /حدود|تومن|هزار|میلیون/);
+  }
   await card.getByText("مبلغ دقیق پلن‌ها", { exact: true }).click();
   // Independent fixture: starter=500 + basic=40 toman/hour; 24/720 continuous hours.
   await card.getByText("هر ساعت: ۵۴۰ تومان؛ ۲۴ ساعت: ۱۲٬۹۶۰ تومان؛ ۳۰ روز: ۳۸۸٬۸۰۰ تومان", { exact: true }).waitFor();

@@ -37,7 +37,7 @@
 | A14 | منابع و دامنه | network/database/disk/env و راهنمای دامنه موجود؛ SQL/migration مقصد، DNS و persistence کامل باز |
 | A15 | بهینه‌سازی | مشاهده و گزارش محدود؛ نسبت‌دادن عملکرد/هزینه و اصلاح قابل‌سنجش باز |
 | A16 | MCP | facade مشترک، grants و bridge موجود؛ پذیرش مستقل همهٔ clientها و مأموریت‌ها باز |
-| A17 | کیفیت تعامل | responsive/keyboard/error/cancel/reload آزموده؛ reader/screen-reader تازه باز |
+| A17 | کیفیت تعامل | قیمت دقیق پلن‌ها و responsive/keyboard/error/cancel/reload آزموده؛ reader/screen-reader تازه باز |
 | A18 | ارزیابی زنده | چرخه‌های محدود با مصرف ثبت‌شده؛ پوشش تازهٔ تمام source/runtime/dataها باز |
 | A19 | candidate | baseline یکپارچهٔ ثبت‌شده؛ هر release به نصب و معیارهای همان revision نیاز دارد |
 
