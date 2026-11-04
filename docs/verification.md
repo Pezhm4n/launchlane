@@ -1,6 +1,6 @@
 # شواهد اعتبارسنجی Launchlane
 
-Unified primary checkout, 2026-11-04: source `f361346`, build `m5FSXET2TnE0UVFFqk-un`, Node24.18.0. Actual primary-folder ci/lint/types/build, domain893/893, HTTP50/50 and nine browser suites passed. [Commands, scope and retained failures](evidence/worktree-integration.md). Earlier entries retain their original revision/time scope; the manual3102 server is currently stopped.
+Unified primary checkout, 2026-11-04: source `f361346`, build `m5FSXET2TnE0UVFFqk-un`, Node24.18.0. Actual primary-folder ci/lint/types/build, domain893/893, HTTP50/50 and nine browser suites passed. [Commands, scope and retained failures](evidence/worktree-integration.md). Earlier entries retain their original revision/time scope. The manual HTTPS3102 server now runs this primary build with its existing private installation preserved.
 
 .NET/Docker, 2026-11-04 (AC19/24/26/28/31/32). Original locked ASP.NET10 now runs through Agent/web Docker6 before destination selection. Original SDK/tests/publish, public NuGet.Config and .slnx survive intake. Publication21 rebuilds the same source archive at Docker. [Scope and evidence](evidence/dotnet-docker.md). Native projects without Dockerfile, external NuGet packages, exact DLL delivery, data and complete14 remain open.
 
