@@ -1,4 +1,18 @@
 # شواهد اعتبارسنجی Launchlane
+## Explicit artwork playback with reduced motion — 2026-11-04
+
+The frozen `artwork-fix-20261104/candidate1` uses `4e4585e` plus only the artwork
+component, scoped styles and browser regression changes. Concurrent database WIP
+is excluded. Baseline Chromium reproduced `data-playing=false` after a reduced-motion
+click; the removed caption also failed the new regression on the original build.
+The final Webpack build, typecheck, lint (zero errors,48warnings/22infos), artwork browser suite (10 layout/accessibility states) and
+studio suite (43 states) passed. Actual packet position and opacity change is checked
+under both motion preferences; repeated activation, keyboard and touch are exercised.
+Idle reduced motion stays still and changing to reduced motion cancels playback.
+The artwork suite recorded zero page errors, external requests and interaction writes.
+Studio used two synthetic model requests and zero cloud writes. See the
+[follow-up evidence](evidence/interactive-launch-artwork.md) for commands and limits.
+
 ## Database target and continuity verification — 2026-11-04
 
 Frozen candidate `db-nov4-r5` from `7d37279` used Node 24.18.0 and the committed

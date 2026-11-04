@@ -49,7 +49,8 @@ export function LaunchArtwork() {
 
   function replay() {
     setSequence(value => value + 1);
-    setPlaying(!matchMedia("(prefers-reduced-motion: reduce)").matches);
+    // Explicit playback is finite; ambient movement still follows the OS preference.
+    setPlaying(true);
   }
 
   function finish(event: AnimationEvent<HTMLDivElement>) {
@@ -105,7 +106,6 @@ export function LaunchArtwork() {
           </g>
         </svg>
       </span>
-      <span className={styles.hint} aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M15.5 6a6 6 0 1 0 .3 7M16 2v5h-5" /></svg>برای دیدن مسیر کلیک کنید</span>
     </button>
   </div>;
 }

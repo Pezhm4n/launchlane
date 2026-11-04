@@ -1,5 +1,45 @@
 # Interactive launch illustration — 2026-10-28
 
+## Follow-up: explicit playback under reduced motion — 2026-11-04
+
+The original behavior below is historical. A fresh built Chromium baseline on
+`4e4585ee6f05885559684e37107d25af0b17509c` reproduced the reported static click with
+`prefers-reduced-motion: reduce`: JavaScript set `playing=false`, and the replay CSS
+was restricted to `no-preference`. The normal-motion baseline did play. This establishes
+a reproducible cause, not a read of the user's actual OS settings.
+
+Explicit click/Enter/Space/touch now plays the finite 1800ms light transfer, cloud glow
+and check reveal in either preference. Reduced motion still disables idle floating,
+pointer tilt, layer lifting and halo scaling; changing the preference to reduce cancels
+an active playback. Rapid activation restarts the existing scene and retains focus.
+The requested sentence and its unused styles were removed. No new dependency, API,
+provider call or publication path was introduced.
+
+Validation used a same-drive frozen snapshot at
+`I:/Computer/dev/starcoach/.launchlane-artwork-fix-20261104/candidate1`, Node24.18.0,
+Next16.4.2 and the existing installed lockfile dependencies. Concurrent database edits
+were replaced by their HEAD bytes only in this disposable validation copy. Main source,
+index, running servers, credentials and real state were preserved.
+
+- `npm run build -- --webpack`: passed, including TypeScript compilation.
+- `npm run typecheck`: passed on the final snapshot.
+- `npm run lint`: passed with zero errors,48warnings and22infos in the unchanged repository baseline; the three changed runtime/test files have no diagnostics.
+- `node node_modules/@biomejs/biome/bin/biome lint src/components/LaunchArtwork.tsx src/components/LaunchArtwork.module.css scripts/test-artwork-browser.mjs`: passed without diagnostics.
+- `node scripts/test-artwork-browser.mjs`: 10 layout/accessibility states passed; packet geometry, opacity and path progress change under both preferences, repeated replay, Enter/Space, touch, cancellation, unmount, responsive and enlarged text passed. Zero page errors, external requests or interaction writes.
+- `npm run test:studio`: 43 states passed, zero browser errors/external requests/cloud writes; two model calls used synthetic transport.
+
+Private baseline/probe output, failed-before regression, screenshots and final logs are
+in `.local/coordination/artwork-fix-20261104/`; final browser artifacts remain in the
+disposable snapshot. The generic design-kit self-test was rerun and again returned
+`12/52 checks passed = 23%`, exit1, including its unavailable Playwright dependency.
+It is a kit self-test, not a Launchlane score; the product's installed Chromium and
+axe checks above passed. No dependency was installed or assertion weakened to hide it.
+Graph discovery and coverage were unavailable (`Transport closed`); exact component,
+caller, styles and browser harness source were read instead. No domain/HTTP/Docker,
+live provider acceptance or deployment of the active product is claimed by this UI fix.
+
+## Original implementation and validation — 2026-10-28
+
 Scope: the existing source-to-cloud illustration in `WorkspaceIntro`, with no deployment, agent, provider or persistence behavior changes.
 
 ## Behavior
