@@ -18,10 +18,11 @@ export function WorkbenchNavigation({ activeKey, children }: {
     const nav = navigation.current;
     const pill = indicator.current;
     const selected = nav?.querySelector<HTMLElement>('[aria-current="page"]');
-    if (!nav || !pill || !selected) return;
+    if (!nav || !pill) return;
     document.documentElement.style.setProperty("--app-nav-height", `${nav.getBoundingClientRect().height}px`);
     const header = nav.closest(".app-top");
     if (header) document.documentElement.style.setProperty("--app-header-height", `${header.getBoundingClientRect().height}px`);
+    if (!selected) { animation.current?.cancel(); pill.style.opacity = "0"; target.current = null; return; }
     const parent = nav.getBoundingClientRect();
     const next = selected.getBoundingClientRect();
     const bounds = {

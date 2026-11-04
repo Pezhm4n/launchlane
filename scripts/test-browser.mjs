@@ -301,17 +301,17 @@ try {
     return route.fulfill({ json: { connection: liaraFixture } });
   });
   await page.getByRole("button", { name: "حساب‌ها", exact: true }).click();
-  const accounts = page.getByRole("dialog", { name: "حساب‌ها و دسترسی", exact: true });
+  const accounts = page.getByRole("region", { name: "حساب‌ها و دسترسی", exact: true });
   await accounts.getByLabel("کلید دسترسی لیارا", { exact: true }).waitFor();
   assert.equal(
     await accounts.getByRole("button", { name: "خروج از میز کار", exact: true }).isVisible(),
     true,
-    "mobile users must reach sign-out from the account dialog",
+    "mobile users must reach sign-out from the accounts page",
   );
   assert.equal(
-    await page.evaluate(() => getComputedStyle(document.documentElement).overflow),
-    "hidden",
-    "background page must not scroll behind a dialog",
+    await page.evaluate(() => getComputedStyle(document.documentElement).overflow === "hidden"),
+    false,
+    "accounts use normal document scrolling instead of a modal scroll lock",
   );
   await layout(360, "liara-connection-form");
   await accounts.getByLabel("کلید دسترسی لیارا", { exact: true }).fill("short");
@@ -354,7 +354,8 @@ try {
     store.getProbeOrigin(actorId, server.teamId, server.app),
     "https://sample.example.com",
   );
-  await closeDialog("حساب‌ها و دسترسی");
+  await accounts.getByRole("button", { name: "بازگشت به فضای پروژه", exact: true }).click();
+  await accounts.waitFor({ state: "detached" });
   assert.notEqual(
     await page.evaluate(() => getComputedStyle(document.documentElement).overflow),
     "hidden",
@@ -552,10 +553,14 @@ try {
   await page.goForward();
   await incidentTitle.waitFor();
 
+  const beforeSample = new URL(page.url()).searchParams.get("incident");
   await page.getByRole("button", { name: "امتحان با نمونه اختلال", exact: true }).click();
+  await page.waitForURL(url => url.searchParams.get("incident") !== beforeSample);
   await incidentReport.waitFor();
   await page.getByText("نمونه‌های دیگر یا شروع دوباره", { exact: true }).click();
-  await page.getByRole("button", { name: "نمونه مقایسه زمان پاسخ", exact: true }).press("Enter");
+  const latencySample = page.getByRole("button", { name: "نمونه مقایسه زمان پاسخ", exact: true });
+  await page.waitForFunction(button => !button.disabled, await latencySample.elementHandle());
+  await latencySample.press("Enter");
   const latency = page.getByRole("region", { name: "زمان پاسخ همین صفحه", exact: true });
   await latency.waitFor();
   assert.match(await latency.textContent(), /۸۷۰/);

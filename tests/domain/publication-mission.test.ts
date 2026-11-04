@@ -108,9 +108,11 @@ test("a publication tool cannot relax either the structured criterion or a prior
 });
 test("navigation has two destinations; missing, invalid and historical agent links map to publication preserving valid project", () => {
   const id = randomUUID();
-  for (const view of ["", "agent", "publish", "unsupported"]) assert.deepEqual(workbenchLocation(`?view=${view}&project=${id}`), { mode: "source", project: id });
-  assert.deepEqual(workbenchLocation(`?view=incident&project=${id}`), { mode: "incident", project: id });
-  assert.deepEqual(workbenchLocation("?view=publish&project=" + "-".repeat(36)), { mode: "source", project: null });
+  for (const view of ["", "agent", "publish", "unsupported"]) assert.deepEqual(workbenchLocation(`?view=${view}&project=${id}`), { mode: "source", accounts: false, project: id });
+  assert.deepEqual(workbenchLocation(`?view=incident&project=${id}`), { mode: "incident", accounts: false, project: id });
+  assert.deepEqual(workbenchLocation("?view=publish&project=" + "-".repeat(36)), { mode: "source", accounts: false, project: null });
+  assert.deepEqual(workbenchLocation(`?view=accounts&from=incident&project=${id}`), { mode: "incident", accounts: true, project: id });
+  for (const from of ["", "publish", "unsupported", "https://untrusted.test"]) assert.deepEqual(workbenchLocation(`?view=accounts&from=${from}&project=${id}`), { mode: "source", accounts: true, project: id });
 });
 test("optional questions have read tools only and cannot replace the durable publication view", async () => {
   const f = await agentFixture();

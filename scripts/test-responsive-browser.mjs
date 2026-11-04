@@ -97,7 +97,6 @@ try {
   }
   const dialogs = [
     { name: "library", trigger: "پروژه‌های من", title: "پروژه‌های من" },
-    { name: "accounts", trigger: "حساب‌ها", title: "حساب‌ها و دسترسی" },
   ];
   for (const item of dialogs) {
     await viewport(390);
@@ -115,6 +114,19 @@ try {
     await page.waitForFunction(node => node === document.activeElement, await page.getByRole("button", { name: item.trigger, exact: true }).elementHandle());
     assert.equal(await page.getByRole("button", { name: item.trigger, exact: true }).evaluate(node => node === document.activeElement), true, `${item.name}: return focus`);
   }
+  await viewport(390);
+  await page.getByRole("button", { name: "حساب‌ها", exact: true }).click();
+  const accounts = page.getByRole("region", { name: "حساب‌ها و دسترسی", exact: true });
+  await accounts.waitFor();
+  for (const width of [280, 390, 768, 1280]) await scan("accounts-page", width);
+  await scan("accounts-page", 390, { zoom: true });
+  await scan("accounts-page", 320, { zoom: true });
+  await scan("accounts-page", 640, { height: 360 });
+  await viewport(320, 540); await accounts.getByRole("button", { name: "بازگشت به فضای پروژه", exact: true }).focus();
+  await keyboard("accounts-page-keyboard", 16);
+  await accounts.getByRole("button", { name: "بازگشت به فضای پروژه", exact: true }).click();
+  await accounts.waitFor({ state: "detached" });
+  await page.waitForFunction(() => document.activeElement?.textContent.trim() === "حساب‌ها");
   // The mobile account menu and desktop header lead to the same cancellable
   // sign-out decision. Dismissing it must preserve the session and focus.
   for (const width of [280, 390, 1280]) {
@@ -123,7 +135,7 @@ try {
     const mobile = width < 768;
     const trigger = page.getByRole("button", { name: mobile ? "حساب‌ها" : "خروج", exact: true });
     await trigger.click();
-    if (mobile) await page.getByRole("dialog", { name: "حساب‌ها و دسترسی", exact: true }).getByRole("button", { name: "خروج از میز کار", exact: true }).click();
+    if (mobile) await page.getByRole("region", { name: "حساب‌ها و دسترسی", exact: true }).getByRole("button", { name: "خروج از میز کار", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "خروج از میز کار", exact: true });
     await dialog.getByText("برای ورود مجدد، کلید دسترسی محلی همین نصب مورد نیاز خواهد بود.", { exact: true }).waitFor();
     await scan("signout", width, { modal: true });
@@ -131,8 +143,9 @@ try {
     await viewport(640, 360, true); await keyboard("signout-keyboard", 12, true);
     await viewport(width);
     await page.keyboard.press("Escape"); await dialog.waitFor({ state: "detached" });
-    await page.waitForFunction(name => document.activeElement?.getAttribute("aria-label") === name || document.activeElement?.textContent?.trim() === name, mobile ? "حساب‌ها" : "خروج");
+    await page.waitForFunction(name => document.activeElement?.getAttribute("aria-label") === name || document.activeElement?.textContent?.trim() === name, mobile ? "خروج از میز کار" : "خروج");
     assert.equal((await page.request.get(`${server.origin}/api/workspace`)).status(), 200);
+    if (mobile) { await accounts.getByRole("button", { name: "بازگشت به فضای پروژه", exact: true }).click(); await accounts.waitFor({ state: "detached" }); }
   }
   await page.emulateMedia({ reducedMotion: "reduce" });
   await viewport(390);

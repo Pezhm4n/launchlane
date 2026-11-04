@@ -1586,9 +1586,6 @@ dialog[open]::backdrop {
   .project-picker-actions button {
     flex: 1 1 100%;
   }
-  .account-dialog .session-actions {
-    display: block;
-  }
 }
 .compact-status:empty {
   display: none;
@@ -1801,22 +1798,9 @@ dialog[open]::backdrop {
 .app-selection-feedback {
   color: var(--color-primary);
 }
-.session-actions {
-  display: none;
-}
-.account-dialog section + section,
-.account-secondary {
-  margin-block-start: var(--space-6);
-  padding-block-start: var(--space-5);
-}
-.account-dialog :where(form) button {
-  margin-block-start: var(--space-3);
-}
-.account-dialog :where(form) .hint {
-  margin-block: var(--space-2) var(--space-0);
-}
-.account-dialog .app-options {
-  display: grid;
+.header-actions [aria-current="page"] {
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
 }
 .login-challenge {
   display: grid;
