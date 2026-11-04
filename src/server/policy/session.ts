@@ -7,6 +7,7 @@ import type { Store } from "../persistence/store.ts";
 
 const COOKIE = "launchlane_session";
 const TTL = 60 * 60_000;
+const REMEMBERED_TTL = 30 * 24 * 60 * 60_000;
 
 export function safeEqual(a: string, b: string): boolean {
   const digest = (value: string) => createHash("sha256").update(value).digest();
@@ -65,14 +66,15 @@ export function login(
   return issueSession(actorId, config, store, now);
 }
 
-export function issueSession(actorId: string, config: Config, store: Store, now = Date.now()): { session: Session; cookie: string } {
+export function issueSession(actorId: string, config: Config, store: Store, now = Date.now(), remember = false): { session: Session; cookie: string } {
   ensure(config.authConfigured && /^[a-f0-9]{24}$/.test(actorId), "AUTH_UNCONFIGURED", "ورود در این نصب هنوز آماده نیست.", 503);
+  const ttl = config.authMode === "liara" && remember ? REMEMBERED_TTL : TTL;
   const id = randomBytes(24).toString("base64url");
   const session = {
     id,
     actorId,
     csrfToken: csrfFor(id, config.sessionSecret),
-    expiresAt: now + TTL,
+    expiresAt: now + ttl,
   };
   const payload = Buffer.from(
     JSON.stringify({ id, actorId, expiresAt: session.expiresAt }),
@@ -80,7 +82,7 @@ export function issueSession(actorId: string, config: Config, store: Store, now 
   store.saveSession(session);
   return {
     session,
-    cookie: `${COOKIE}=${payload}.${signature(payload, config.sessionSecret)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${TTL / 1000}${config.origin.startsWith("https:") ? "; Secure" : ""}`,
+    cookie: `${COOKIE}=${payload}.${signature(payload, config.sessionSecret)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${ttl / 1000}${config.origin.startsWith("https:") ? "; Secure" : ""}`,
   };
 }
 
@@ -117,7 +119,7 @@ export function requireSession(
       typeof raw.actorId === "string" &&
       typeof raw.expiresAt === "number" &&
       raw.expiresAt > now &&
-      raw.expiresAt <= now + TTL &&
+      raw.expiresAt <= now + (config.authMode === "liara" ? REMEMBERED_TTL : TTL) &&
       store.sessionExists(raw.id, raw.actorId, now),
     "AUTH_REQUIRED",
     "نشست منقضی یا لغو شده است؛ دوباره وارد شوید.",

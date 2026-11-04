@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readConfig } from "../../src/server/config.ts";
@@ -6,7 +9,7 @@ import { actorConfig } from "../../src/server/connections/actor-config.ts";
 import { liaraTeams, selectLiaraTeam } from "../../src/server/connections/liara-teams.ts";
 import { connectedLiaraAccountConfig } from "../../src/server/connections/liara.ts";
 import { openCredential } from "../../src/server/connections/credentials.ts";
-import { checkRequest, login, requireSession } from "../../src/server/policy/session.ts";
+import { checkRequest, issueSession, login, requireSession } from "../../src/server/policy/session.ts";
 import { Store } from "../../src/server/persistence/store.ts";
 import { AppError } from "../../src/server/errors.ts";
 import type { Transport } from "../../src/server/providers/http.ts";
@@ -109,4 +112,60 @@ test("durable account login limit precedes upstream call; forged Origin/Host are
     for (const headers of [{ host: "attacker.test", origin: config.origin }, { host: "launchlane.example.test", origin: "https://attacker.test" }])
       assert.throws(() => checkRequest(new Request(config.origin, { headers }), config, true));
   } finally { store.close(); }
+});
+
+
+test("remembered Liara sessions outlive the default hour, expire after thirty days and remain revocable", async () => {
+  const store = new Store(":memory:");
+  try {
+    const started = Date.now();
+    const result = await liaraSignIn(config, store, { operation: "login", email: "alice@example.test", password, remember: true }, AbortSignal.timeout(2000), fixture());
+    assert.ok("session" in result);
+    assert.ok(result.session.expiresAt >= started + 30 * 86400000);
+    assert.match(result.cookie, /Max-Age=2592000; Secure$/);
+    const request = new Request(config.origin, { headers: { host: "launchlane.example.test", cookie: result.cookie.split(";")[0] ?? "" } });
+    assert.equal(requireSession(request, config, store, false, started + 2 * 86400000).actorId, liaraActor(idA));
+    assert.throws(() => requireSession(request, config, store, false, result.session.expiresAt), code("AUTH_REQUIRED"));
+    store.revokeSession(result.session.id);
+    assert.throws(() => requireSession(request, config, store), code("AUTH_REQUIRED"));
+    const ordinary = await signIn(store);
+    assert.ok("session" in ordinary);
+    assert.match(ordinary.cookie, /Max-Age=3600; Secure$/);
+    const oldRequest = new Request(config.origin, { headers: { host: "launchlane.example.test", cookie: ordinary.cookie.split(";")[0] ?? "" } });
+    assert.throws(() => requireSession(oldRequest, config, store, false, ordinary.session.expiresAt), code("AUTH_REQUIRED"));
+    const operator = readConfig({ LAUNCHLANE_OPERATOR_TOKEN: "operator-test-".repeat(4), LAUNCHLANE_SESSION_SECRET: "session-test-".repeat(4) });
+    assert.match(issueSession(liaraActor(idA), operator, store, Date.now(), true).cookie, /Max-Age=3600$/);
+  } finally { store.close(); }
+});
+
+test("remember choice is a strict login boolean and never reaches Liara", async () => {
+  const store = new Store(":memory:"), calls: string[] = [];
+  try {
+    for (const remember of ["true", 30, {}, null]) {
+      await assert.rejects(liaraSignIn(config, store, { operation: "login", email: "alice@example.test", password, remember }, AbortSignal.timeout(1000), fixture({}, calls)), code("INVALID_INPUT"));
+    }
+    assert.deepEqual(calls, []);
+    await assert.rejects(liaraSignIn(config, store, { operation: "check", email: "alice@example.test", remember: true }, AbortSignal.timeout(1000), fixture()), code("INVALID_INPUT"));
+    const send: Transport = async (address, init) => {
+      if (typeof init.body === "string") assert.equal(Object.hasOwn(JSON.parse(init.body), "remember"), false);
+      return fixture()(address, init);
+    };
+    assert.ok("session" in await liaraSignIn(config, store, { operation: "login", email: "alice@example.test", password, remember: false }, AbortSignal.timeout(1000), send));
+  } finally { store.close(); }
+});
+
+
+test("remembered session survives reopening the same durable Store and signing secret", async () => {
+  const root = mkdtempSync(join(tmpdir(), "launchlane-login-persistence-")), path = join(root, "state.sqlite");
+  let store = new Store(path);
+  try {
+    const result = await liaraSignIn(config, store, { operation: "login", email: "alice@example.test", password, remember: true }, AbortSignal.timeout(2000), fixture());
+    assert.ok("session" in result);
+    const request = new Request(config.origin, { headers: { host: "launchlane.example.test", cookie: result.cookie.split(";")[0] ?? "" } });
+    store.close(); store = new Store(path);
+    assert.equal(requireSession(request, config, store, false, Date.now() + 7 * 86400000).id, result.session.id);
+    store.revokeSession(result.session.id);
+    store.close(); store = new Store(path);
+    assert.throws(() => requireSession(request, config, store), code("AUTH_REQUIRED"));
+  } finally { store.close(); rmSync(root, { recursive: true, force: true }); }
 });

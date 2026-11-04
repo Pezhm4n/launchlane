@@ -31,3 +31,7 @@
 @keyframes pulse { 50% { opacity:.25; transform:scale(.8); } }
 @media (prefers-reduced-motion:reduce) { .spinner { animation:none; } }
 @media (min-width:768px) { .layout { grid-template-columns:1.15fr 1fr; gap:var(--space-12); margin-block:var(--space-12); } .card { padding:var(--space-8); } }
+
+.form .remember { display:flex; align-items:center; gap:var(--space-2); min-block-size:var(--space-8); cursor:pointer; }
+.form .remember input { inline-size:var(--space-5); block-size:var(--space-5); margin:0; accent-color:var(--color-primary); }
+.rememberHelp { margin:0; color:var(--color-muted); font-size:var(--text-xs); }

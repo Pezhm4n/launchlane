@@ -16,7 +16,8 @@ export async function liaraSignIn(config: Config, store: Store, input: unknown, 
   ensure(config.authMode === "liara" && config.authConfigured, "AUTH_METHOD_DENIED", "ورود با حساب لیارا در این نصب فعال نیست.", 403);
   const row = object(input), operation = string(row.operation, 16);
   ensure(operation === "check" || operation === "login", "INVALID_OPERATION", "درخواست ورود معتبر نیست.");
-  exactKeys(row, operation === "check" ? ["operation", "email"] : ["operation", "email", "password", "totp"]);
+  exactKeys(row, operation === "check" ? ["operation", "email"] : ["operation", "email", "password", "totp", "remember"]);
+  ensure(row.remember === undefined || typeof row.remember === "boolean", "INVALID_INPUT", "انتخاب ماندگاری ورود معتبر نیست.");
   const email = string(row.email, 320).trim().toLowerCase();
   ensure(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email), "EMAIL_INVALID", "ایمیل حساب لیارا را کامل وارد کنید؛ مانند name@example.com.");
   const password = operation === "login" ? string(row.password, 1024) : "";
@@ -69,7 +70,7 @@ export async function liaraSignIn(config: Config, store: Store, input: unknown, 
     const view = previous?.view.status === "connected" ? { ...previous.view, ...identity, checkedAt: Date.now() } : {
       provider: "liara" as const, status: "connected" as const, ...identity, checkedAt: Date.now(), teamId: null, teamName: null, apps: [], selectedApp: null };
     saveLiaraConnection({ ...config, teamId: view.teamId ?? "" }, store, actor, token, view, true);
-    const signed = issueSession(actor, config, store);
+    const signed = issueSession(actor, config, store, Date.now(), row.remember === true);
     return { ...signed, twoFactorRequired: false };
   } catch (error) {
     if (bounded.aborted) throw new AppError(signal.aborted ? "CANCELLED" : "LIARA_TIMEOUT", "ورود کامل نشد؛ دوباره تلاش کنید.", signal.aborted ? 409 : 502, !signal.aborted);

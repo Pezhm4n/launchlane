@@ -18,7 +18,8 @@ async function layout(width, label) {
   assert.deepEqual(axe.violations.map(v => ({ id: v.id, targets: v.nodes.map(n => n.target) })), [], label);
   await page.screenshot({ path: join(output, `${label}-${width}.png`), fullPage: true }); states.push({ label, width, axeViolations: 0 });
 }
-async function credentials(email = "alice@example.test", password = "synthetic-browser-password") {
+async function credentials(email = "alice@example.test", password = "synthetic-browser-password", remember = false) {
+  await page.getByRole("checkbox", { name: "مرا به خاطر بسپار", exact: true }).setChecked(remember);
   await page.getByLabel("ایمیل حساب لیارا", { exact: true }).fill(email); await page.getByLabel("رمز عبور", { exact: true }).fill(password);
   await page.getByRole("button", { name: "ورود و ادامه", exact: true }).click();
 }
@@ -32,12 +33,15 @@ try {
   await page.getByRole("heading", { name: "ورود با حساب لیارا", exact: true }).waitFor();
   for (const width of [280, 320, 390, 768, 1280]) await layout(width, "login");
   assert.equal(await page.getByText("کلید ورود محلی", { exact: true }).count(), 0); assert.equal((await page.content()).includes("operator-access.txt"), false);
+  const remember = page.getByRole("checkbox", { name: "مرا به خاطر بسپار", exact: true });
+  assert.equal(await remember.isChecked(), false); await remember.focus(); await page.keyboard.press("Space");
+  assert.equal(await remember.isChecked(), true); await page.keyboard.press("Space");
   const pass = page.getByLabel("رمز عبور", { exact: true }); await pass.fill("visible-password-fixture");
   await page.getByRole("button", { name: "نمایش رمز عبور", exact: true }).click(); assert.equal(await pass.getAttribute("type"), "text");
   await page.getByRole("button", { name: "پنهان‌کردن رمز عبور", exact: true }).click(); assert.equal(await pass.getAttribute("type"), "password");
   await credentials("alice@example.test", "incorrect-fixture-password"); await page.getByRole("alert").filter({ hasText: "ورود تأیید نشد" }).waitFor();
   assert.equal(await pass.inputValue(), ""); await layout(320, "error");
-  await credentials("twofactor@example.test"); await page.getByLabel("کد تأیید دومرحله‌ای", { exact: true }).waitFor();
+  await credentials("twofactor@example.test", "synthetic-browser-password", true); await page.getByLabel("کد تأیید دومرحله‌ای", { exact: true }).waitFor();
   assert.equal(await page.getByLabel("کد تأیید دومرحله‌ای", { exact: true }).evaluate(n => n === document.activeElement), true);
   await layout(390, "two-factor"); await page.getByLabel("کد تأیید دومرحله‌ای", { exact: true }).fill("۱۲۳۴۵۶");
   assert.equal(await page.getByLabel("کد تأیید دومرحله‌ای", { exact: true }).inputValue(), "123456");
@@ -52,7 +56,15 @@ try {
   await folder.getByRole("button", { name: "بررسی این پروژه", exact: true }).click(); await folder.waitFor({ state: "detached" });
   const aliceProject = await page.evaluate(async () => (await (await fetch("/api/project-flows")).json()).flow.id);
   await page.reload(); assert.equal(await page.evaluate(async () => (await (await fetch("/api/project-flows")).json()).flow.id), aliceProject);
-  await layout(1280, "signed-in-project"); await signOut();
+  await layout(1280, "signed-in-project");
+  const cookie = (await context.cookies()).find(row => row.name === "launchlane_session");
+  assert.ok(cookie.expires * 1000 > Date.now() + 29 * 86400000);
+  const restored = await browser.newContext({ storageState: await context.storageState() });
+  try {
+    const response = await restored.request.get(server.origin + "/api/workspace"); assert.equal(response.status(), 200);
+    await signOut();
+    assert.equal((await restored.request.get(server.origin + "/api/workspace")).status(), 401);
+  } finally { await restored.close(); }
   await credentials("bob@example.test"); await page.getByRole("button", { name: "فضای باب", exact: true }).click();
   await page.getByRole("heading", { name: "کجا منتشر می‌کنید؟", exact: true }).waitFor({ state: "detached" });
   const isolation = await page.evaluate(async id => ({ current: (await (await fetch("/api/project-flows")).json()).flow, forbidden: (await fetch(`/api/project-flows?id=${id}`)).status,

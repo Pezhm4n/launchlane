@@ -7,6 +7,7 @@ import styles from "./LiaraSignIn.module.css";
 export function LiaraSignIn({ onSignedIn }: { onSignedIn: () => Promise<void> }) {
   const [email, setEmail] = useState(""), [password, setPassword] = useState(""), [totp, setTotp] = useState("");
   const [showPassword, setShowPassword] = useState(false), [twoFactor, setTwoFactor] = useState(false), [busy, setBusy] = useState(false);
+  const [remember, setRemember] = useState(false);
   const [error, setError] = useState<ClientError | null>(null), code = useRef<HTMLInputElement>(null), errorBox = useRef<HTMLDivElement>(null), pending = useRef(false);
   useEffect(() => { if (twoFactor) code.current?.focus(); }, [twoFactor]);
   useEffect(() => { if (error) errorBox.current?.focus(); }, [error]);
@@ -17,7 +18,7 @@ export function LiaraSignIn({ onSignedIn }: { onSignedIn: () => Promise<void> })
         const checked = await api("/api/session/liara", value => object(value).twoFactorRequired === true, { body: { operation: "check", email } });
         if (checked) { setTwoFactor(true); return; }
       }
-      await api("/api/session/liara", () => true, { body: { operation: "login", email, password, ...(twoFactor ? { totp } : {}) } });
+      await api("/api/session/liara", () => true, { body: { operation: "login", email, password, remember, ...(twoFactor ? { totp } : {}) } });
       setPassword(""); setTotp(""); setShowPassword(false);
       await onSignedIn();
     } catch (failure) {
@@ -47,6 +48,8 @@ export function LiaraSignIn({ onSignedIn }: { onSignedIn: () => Promise<void> })
           <button type="button" className="button-quiet" aria-label={showPassword ? "پنهان‌کردن رمز عبور" : "نمایش رمز عبور"} aria-pressed={showPassword} disabled={busy} onClick={() => setShowPassword(value => !value)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" />{showPassword ? <path d="m3 3 18 18" /> : null}</svg></button>
         </div>
         {twoFactor ? <div className={styles.challenge}><label htmlFor="liara-totp">کد تأیید دومرحله‌ای</label><p id="totp-help">کد شش‌رقمی برنامهٔ تأیید حساب لیارا را وارد کنید.</p><input ref={code} id="liara-totp" dir="ltr" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required value={totp} disabled={busy} aria-describedby="totp-help" onChange={event => setTotp(event.target.value.replace(/[۰-۹]/g, digit => String(digit.charCodeAt(0) - 1776)).replace(/[٠-٩]/g, digit => String(digit.charCodeAt(0) - 1632)))} /></div> : null}
+        <label className={styles.remember}><input type="checkbox" checked={remember} disabled={busy} aria-describedby="remember-help" onChange={event => setRemember(event.target.checked)} />مرا به خاطر بسپار</label>
+        <p id="remember-help" className={styles.rememberHelp}>با انتخاب این گزینه، ورود شما تا ۳۰ روز حفظ می‌شود.</p>
         <button type="submit" disabled={busy} className={styles.submit}>{busy ? <span className={styles.spinner} aria-hidden="true" /> : null}{busy ? "در حال بررسی حساب…" : twoFactor ? "تأیید کد و ورود" : "ورود و ادامه"}</button>
       </form>
       <p className={styles.privacy}>رمز شما در Launchlane ذخیره نمی‌شود. اتصال حساب برای دفعات بعد به‌صورت رمزگذاری‌شده نگه داشته می‌شود.</p>
