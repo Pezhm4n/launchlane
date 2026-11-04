@@ -119,12 +119,14 @@ test("existing build tool accepts only source-proven names and host-binds dispos
   const f = await fixture(); try {
     const definition = toolsForAgent(f.config, "build").find(tool => tool.function.name === "propose_project_build"); assert.ok(definition);
     const schema = object(object(definition.function.parameters.properties).compatibilityDatabase);
-    assert.deepEqual(Object.keys(object(schema.properties)).sort(), ["environmentKeys", "migration", "prepareArtifact", "requiredRelations", "runnerScript", "targets"]);
+    assert.deepEqual(Object.keys(object(schema.properties)).sort(), ["environmentKeys", "migration", "prepareArtifact", "requiredRelations", "runnerScript", "targets", "testSigningKeys"]);
     for (const bad of [
       { ...compatibilityDatabase, image: "postgres:latest" }, { ...compatibilityDatabase, url: fixtureValue },
       { ...compatibilityDatabase, purpose: "production" }, { ...compatibilityDatabase, environmentKeys: ["VITE_DATABASE_URL"] },
       { ...compatibilityDatabase, environmentKeys: ["UNKNOWN_DB_URL"] }, { ...compatibilityDatabase, requiredRelations: ["public.unknown"] },
       { ...compatibilityDatabase, requiredRelations: ["pg_catalog.pg_authid"] },
+      { ...compatibilityDatabase, testSigningKeys: ["JWT_SECRET"] },
+      { ...compatibilityDatabase, testSigningValues: [{ key: "JWT_SECRET", value: "not-allowed" }] },
     ]) await assert.rejects(propose(f, { ...args, compatibilityDatabase: bad }));
     const job = await propose(f, { ...args, compatibilityDatabase });
     assert.equal(job.state, "proposed"); assert.equal(job.baseRevision, f.flow.profile.sourceHash); assert.equal(job.afterTest, null);

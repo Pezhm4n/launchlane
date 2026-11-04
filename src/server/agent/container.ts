@@ -14,6 +14,8 @@ import { dockerEndpointHost, type LocalDockerEndpoint } from "./docker-engine.ts
 import type { PostgresFixtureBinding } from "./postgres-fixture.ts";
 import { assertPostgresWorkerBinding, disposableDatabaseProgram } from "./test-database.ts";
 import { abortable } from "../providers/http.ts";
+import { redact } from "../policy/redaction.ts";
+import { canGenerateSigningSecret } from "../../contracts/generated-secret.ts";
 import { blankSandboxProxyArguments, hasBlankSandboxProxies } from "./docker-proxy.ts";
 import { htmlWorkloadByteLimit } from "../../contracts/deployment.ts";
 import type { PostgresMigrationTestReceipt } from "../../contracts/postgres-migration-test.ts";
@@ -214,7 +216,7 @@ if(plan.version===9){await assertNoComponentDaemons(3000);verifyTestedComponent(
 clearTimeout(watchdog);process.exit(0)
 })().catch(error=>{console.error('Launchlane build check failed:',stage,error.message);process.exit({cache:74,install:71,build:72,workload:73,test:76}[stage]??75)});`;
 
-export type NodeBuildDependencies = { command?: typeof docker; endpoint?: LocalDockerEndpoint; fixture?: PostgresFixtureBinding; expectedJobId?: string; expectedSourceHash?: string; runnerPhase?: true };
+export type NodeBuildDependencies = { command?: typeof docker; endpoint?: LocalDockerEndpoint; fixture?: PostgresFixtureBinding; expectedJobId?: string; expectedSourceHash?: string; runnerPhase?: true; testSigningValues?: readonly EnvironmentVariable[] };
 export async function runContainerBuild(workspace: string, tarballs: string, value: ProjectBuildPlan, signal: AbortSignal,
   onCreated?: (id: string) => void | Promise<void>, environment: readonly EnvironmentVariable[] = [], options: NodeBuildDependencies = {}): Promise<ContainerBuildResult> {
   const plan = parseProjectBuildPlan(value), values = environmentVariables(environment);
@@ -226,6 +228,9 @@ export async function runContainerBuild(workspace: string, tarballs: string, val
   ensure(compatibility ? !!options.fixture && !!options.endpoint && values.length === 0 : options.fixture === undefined,
     "TEST_DATABASE_BINDING_CHANGED","آزمون ساختگی به namespace همان job و ورودی خالی از تنظیمات واقعی نیاز دارد.",409);
   if (options.fixture) assertPostgresWorkerBinding(options.fixture,options.expectedJobId,options.expectedSourceHash, plan.version === 7 && plan.testDatabase?.version === 2, plan.version === 7 && isRunnerTestDatabase(plan.testDatabase) ? plan.testDatabase.targets : undefined);
+  const signing = environmentVariables(options.testSigningValues ?? []), signingKeys = !options.runnerPhase && plan.version === 7 && isRunnerTestDatabase(plan.testDatabase) ? plan.testDatabase.testSigningKeys ?? [] : [];
+  ensure((compatibility || signing.length === 0) && signing.length === signingKeys.length && signing.every(row => canGenerateSigningSecret(row.key) && /^[a-f0-9]{64}$/.test(row.value)) &&
+    JSON.stringify(signing.map(row => row.key).sort()) === JSON.stringify([...signingKeys].sort()), "TEST_SIGNING_INPUT_CHANGED", "ورودی امضای ساختگی باید دقیقاً از نام‌های همین تصمیم و fixture بیاید.", 409);
   ensure(!options.runnerPhase || plan.version === 7 && isRunnerTestDatabase(plan.testDatabase), "MIGRATION_RUNNER_INVALID", "مرحلهٔ runner فقط برای طرح مستقل داده مجاز است.", 409);
   const raw = options.command ?? docker, host = options.endpoint ? dockerEndpointHost(options.endpoint) : null;
   const command: typeof docker = host ? (args,parent,maxBytes,input) => abortable(()=>raw(["--host",host,...args],parent,maxBytes,input),parent) : raw;
@@ -271,12 +276,13 @@ export async function runContainerBuild(workspace: string, tarballs: string, val
       const started = await command(["start", id], signal, 4096);
       ensure(started.exitCode === 0 && !started.signal, "SANDBOX_UNCERTAIN", "شروع محیط همین ساخت تأیید نشد؛ خروجی قابل انتشار نیست.", 409);
     }
-    const input = Buffer.from(JSON.stringify(compatibility ? {environment:[],testDatabase:options.fixture, ...(options.runnerPhase ? { runnerPhase: true } : {})} : values));
+    const input = Buffer.from(JSON.stringify(compatibility ? {environment:[],testDatabase:options.fixture, ...(signing.length ? { testSigningValues: signing } : {}), ...(options.runnerPhase ? { runnerPhase: true } : {})} : values));
     let result: CommandResult;
     try { result = await command(plan.version === 5 || plan.version === 7 || plan.version === 9 ? ["exec", "--interactive", id, "/usr/local/bin/node", "-e", ...(plan.version === 9
       ? ["process.argv[1]=require('node:fs').readFileSync('/tarballs/launchlane-component-plan.json','utf8');require('/tarballs/launchlane-component-build.cjs')"]
       : [buildProgram, "--", JSON.stringify(plan)])] : ["start", "--attach", "--interactive", id], signal, 32768, input); }
     finally { input.fill(0); }
+    if (signing.length) result = { ...result, output: redact(result.output, signing.map(row => row.value)) };
     if (plan.version === 5 || plan.version === 7 || plan.version === 9) {
       const inspected = await command(["inspect", "--format", "{{json .State}}", id], AbortSignal.timeout(5000), 4096);
       ensure(inspected.exitCode === 0, "SANDBOX_UNCERTAIN", "وضعیت محیط خروجی ساخت قابل بررسی نیست.", 409);
@@ -285,7 +291,7 @@ export async function runContainerBuild(workspace: string, tarballs: string, val
       const stopped = result.signal ?? (state.OOMKilled ? "OOM" : result.exitCode === 137 ? "SIGKILL" : null);
       const componentOutput = plan.version === 9 && result.exitCode === 0 && !stopped && !signal.aborted ? await exportComponentOutput(id, signal, values.filter(row => !isPublicClientEnvironmentKey(row.key)).map(row => row.value), options.endpoint) : undefined;
       const buildOutput = plan.version !== 9 && (!compatibility || plan.version === 7 && preparesDatabaseArtifact(plan.testDatabase) && !options.runnerPhase) && result.exitCode === 0 && !stopped && !signal.aborted ? await exportBuildOutput(id, plan.version === 7 ? plan.fullstack.outputDirectory : plan.frontend.outputDirectory, signal,
-        [...values.filter(row => !isPublicClientEnvironmentKey(row.key)).map(row => row.value), ...(compatibility ? ["launchlane_target_", "launchlane_app_", "launchlane_fixture", "launchlane_observer"] : [])], options.endpoint) : undefined;
+        [...values.filter(row => !isPublicClientEnvironmentKey(row.key)).map(row => row.value), ...signing.map(row => row.value), ...(compatibility ? ["launchlane_target_", "launchlane_app_", "launchlane_fixture", "launchlane_observer"] : [])], options.endpoint) : undefined;
       return { ...result, signal: stopped, exitCode: signal.aborted || stopped ? null : result.exitCode, containerId: id, image: plan.image,
         ...(buildOutput ? { buildOutput } : {}), ...(componentOutput ? { componentOutput } : {}) };
     }

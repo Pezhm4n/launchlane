@@ -1,6 +1,7 @@
 import { exactKeys, object } from "./validation.ts";
 import { ensure } from "../server/errors.ts";
 import { isPublicClientEnvironmentKey } from "./environment.ts";
+import { canGenerateSigningSecret } from "./generated-secret.ts";
 import { parsePostgresMigrationTest, type PostgresMigrationTest } from "./postgres-migration-test.ts";
 import { parsePostgresMigrationRunner, parsePostgresRunnerTargets, type PostgresMigrationRunner, type PostgresRunnerTarget } from "./postgres-runner-test.ts";
 
@@ -9,14 +10,14 @@ type LegacyTestDatabase = Readonly<{
   version: 1; kind: "postgresql"; purpose: "compatibility_test";
   image: typeof postgresTestImage; environmentKeys: readonly string[]; requiredRelations: readonly string[];
 }>;
-type RunnerDatabase = Omit<LegacyTestDatabase, "version"> & Readonly<{ version: 3; runner: PostgresMigrationRunner; targets: readonly PostgresRunnerTarget[] }>;
+type RunnerDatabase = Omit<LegacyTestDatabase, "version"> & Readonly<{ version: 3; runner: PostgresMigrationRunner; targets: readonly PostgresRunnerTarget[]; testSigningKeys?: readonly string[] }>;
 export type DisposableTestDatabase = LegacyTestDatabase | (Omit<LegacyTestDatabase, "version"> & Readonly<{ version: 2; migration: PostgresMigrationTest }>) |
   RunnerDatabase | (Omit<RunnerDatabase, "version" | "purpose"> & Readonly<{ version: 4; purpose: "prepare_artifact" }>);
 export function preparesDatabaseArtifact(plan: DisposableTestDatabase | undefined): boolean { return plan?.version === 4; }
 export function isRunnerTestDatabase(plan: DisposableTestDatabase | undefined): plan is Extract<DisposableTestDatabase, { version: 3 | 4 }> { return plan?.version === 3 || plan?.version === 4; }
 export function parseDisposableTestDatabase(value: unknown): DisposableTestDatabase {
   const row = object(value), runnerMode = row.version === 3 || row.version === 4;
-  exactKeys(row,["version","kind","purpose","image","environmentKeys","requiredRelations", ...(row.version === 2 ? ["migration"] : runnerMode ? ["runner", "targets"] : [])]);
+  exactKeys(row,["version","kind","purpose","image","environmentKeys","requiredRelations", ...(row.version === 2 ? ["migration"] : runnerMode ? ["runner", "targets", "testSigningKeys"] : [])]);
   ensure((row.version === 1 || row.version === 2 || runnerMode) && row.kind === "postgresql" && row.purpose === (row.version === 4 ? "prepare_artifact" : "compatibility_test") && row.image === postgresTestImage &&
     Array.isArray(row.environmentKeys) && row.environmentKeys.length > 0 && row.environmentKeys.length <= (runnerMode ? 16 : 8),
     "TEST_DATABASE_INVALID", "محیط داده باید PostgreSQL موقت و صرفاً برای آزمون سازگاری باشد.",409);
@@ -33,9 +34,15 @@ export function parseDisposableTestDatabase(value: unknown): DisposableTestDatab
   if (row.version === 1) return {version:1,...base};
   if (runnerMode) {
     const targets = parsePostgresRunnerTargets(row.targets), runner = parsePostgresMigrationRunner(row.runner);
+    const testSigningKeys = row.testSigningKeys === undefined ? undefined : (() => {
+      ensure(Array.isArray(row.testSigningKeys) && row.testSigningKeys.length > 0 && row.testSigningKeys.length <= 6 && row.testSigningKeys.every(key => typeof key === "string" && canGenerateSigningSecret(key)) && new Set(row.testSigningKeys).size === row.testSigningKeys.length,
+        "TEST_SIGNING_KEYS_INVALID", "فقط نام ورودی امضای آزمایشی مجاز است؛ مقدار یا credential واقعی پذیرفته نمی‌شود.", 409);
+      return [...row.testSigningKeys].sort();
+    })();
     ensure(JSON.stringify(base.environmentKeys) === JSON.stringify(targets.flatMap(target => target.environmentKeys).sort()) &&
       JSON.stringify(base.requiredRelations) === JSON.stringify([...new Set(targets.flatMap(target => target.requiredRelations))].sort()), "MIGRATION_TARGETS_INVALID", "خلاصهٔ اتصال و جدول‌ها باید دقیقاً از دیتابیس‌های مصوب بیاید.", 409);
-    return row.version === 4 ? { ...base, version: 4, purpose: "prepare_artifact", runner, targets } : { version: 3, ...base, runner, targets };
+    const setup = { runner, targets, ...(testSigningKeys ? { testSigningKeys } : {}) };
+    return row.version === 4 ? { ...base, version: 4, purpose: "prepare_artifact", ...setup } : { version: 3, ...base, ...setup };
   }
   const migration = parsePostgresMigrationTest(row.migration);
   ensure(migration.columns.every(column => base.requiredRelations.includes(column.relation)), "MIGRATION_ORACLE_INVALID", "ستون‌ها باید متعلق به جدول‌های مصوب آزمون باشند.", 409);

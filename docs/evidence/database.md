@@ -6,6 +6,8 @@ These versioned records preserve the original decisions, source revisions, failu
 
 ## Records
 
+- [Disposable application signing inputs](#disposable-application-inputs)
+
 - [Data-tested prepared artifacts — 2026-10-29](#data-tested-artifact)
 - [Disposable PostgreSQL fixture adapter — 2026-10-25](#disposable-postgres-fixture-20261025)
 - [Existing managed database selection — 2026-10-28](#existing-managed-database)
@@ -849,3 +851,97 @@ Five domain tests execute the program against real temporary SQLite databases. T
 The same program was used in the actual isolated Qadam build and its independent two-process persistence experiment. Those broader preparation/publication/Agent paths are separate working-tree capabilities and their own evidence is required. This commit alone does not connect or accept an entire deployment path.
 
 The adapter deliberately omits remote D1 access, sessions, replication, bookmarks and `exec`. It does not copy or reset an original application's database. A successful compatibility example is a product capability test, not a substitute for native mission execution, approved resources and actual public workload verification.
+
+
+<a id="disposable-application-inputs"></a>
+## Disposable application signing inputs
+
+Date: 2026-11-04. Decision: [ADR0051](../decisions/database.md#0051-disposable-application-signing-inputs).
+
+The shared `propose_project_build` tool accepts `compatibilityDatabase.testSigningKeys`
+only for original-runner v3/v4. Names must be signing/session inputs read by that
+source. The existing decision shows the names and temporary scope. Approval still
+binds the source, runner, independent oracles and complete build plan. Generated
+32-byte values remain stable across the two fresh application workers of one fixture, are sent
+through stdin and are filtered from receipts and compiled output.
+
+### Candidate and checks
+
+Candidate `disposable-app-r3` is based on `1af6a15`, with Node24.18.0 and the exact
+committed dependency lock. It includes the typed-port inspector, signing contract,
+shared proposal/job/worker wiring and their regressions. The private validation
+manifest records all changed source/test/script hashes. Its SHA256 is
+`799776ddccd340d2dd182ae21f23b303907eb2d949717c09c976c565c06189b1`.
+It contains no application credentials or source dumps. All checks below belong to
+this same r3 source snapshot. Later documentation integration adds no runtime or
+dependency change; its documentation checks are reported separately.
+
+| Check | Result and scope |
+| --- | --- |
+| Typecheck / lint / Webpack build | Passed; zero lint errors,52 existing warnings/47 infos |
+| Full domain | 899/899, no failures/skips/cancellations; synthetic provider/model transports |
+| HTTP | 50/50, including actual HTTPS/MCP browser access; provider/model synthetic |
+| Signing review and rejection | 15 actual Chromium layouts at280/320/390/768/1280, axe/overflow0, keyboard reject/replay409/reload; two synthetic model requests, no SQL/worker |
+| Guided publication regression | 57 actual Chromium states; synthetic integrations |
+| PostgreSQL/signing sandbox | 3/3 actual Docker cases: ordinary roles/schema/observer denial; signed application data across four fresh workers; known signing bytes in compiled output rejected with `BUILD_OUTPUT_SENSITIVE` |
+| Web to signing worker | Actual upload, imported schema, decision/approval, five containers, original SQL/API/data checks, two fresh applications, replay409 and reload;15 layouts, three synthetic model requests, browser errors/external requests0 |
+| Original Golestan runner regression | Actual unchanged runner/twelve SQL files through the shared proposal/approval/worker; separate AUTH/PROF targets,7+6 ledger-row checks, fresh API-harness writes/replay/two applications and selected compiled artifact |
+
+No real model request, provider write, deployment or production migration occurred.
+Database restart is not established by these cases. The Golestan regression's API
+is an explicit fixture using original schemas, not the complete original HTTP app.
+
+Focused checks passed: typed/string-converted ports retain their lexical scope;
+source-backed fullstack preparation needs no manual port; unsupported/mutated and
+shadowed expressions remain unknown; signing names need actual source reads; old
+canonical plans remain unchanged; missing/foreign/duplicate inputs are rejected;
+fresh fixture values differ; two application transports receive the same values while both runner transports receive none
+through stdin and redact them from output. These are domain/synthetic checks.
+
+The public browser reproducer supports `LAUNCHLANE_TEST_SIGNING_BROWSER=true` with
+`LAUNCHLANE_TEST_REJECT_BUILD=true` for actual upload/schema intake/decision review,
+keyboard rejection, replay409 and reload in five widths. This mode executes no worker
+or SQL. Without the reject flag, the original positive worker/oracle path is retained.
+Actual signing continuity and secret-output rejection have separate cases in
+`tests/sandbox/disposable-signing.test.ts`; the table separates those Docker results
+from the review-only browser case.
+
+### Golestan and remaining boundaries
+
+The original backend entry at corpus revision `f0d4f4499e7cf605bb2a2e33e530c4c6dcf237ed`
+has SHA256 `1de9ba07b04c93f007c42d25267032c3666b35d0412acc0caaa3494aacc06d7e`.
+The static inspector now resolves its typed `Number(process.env.PORT || '80')`
+listener to candidate80 without execution. A source-derived backend subset reaches
+fullstack preparation; that subset is not the complete original application.
+
+Initial complete-project intake stopped at `SENSITIVE_SOURCE` in three original
+test files. After the owner explicitly confirmed those public synthetic fixtures,
+an exact-hash, seven-day review in a disposable installation admitted them. Known
+private values remain blocked. No original test was removed or changed.
+All422 admitted files (12,201,417bytes) were copied without reading real environment
+files; original/copy source hashes both equal
+`8efda30dc844d8d2239dfccea20a26607d4e448091f84ce6be2b2631f11ac998`.
+The complete project selects8000 from its own configuration, preserves the root and
+guides packages, selects output`build` and retains all three original test scripts.
+
+Full original-app execution remains open: the source calls an exported migration
+function during startup but declares no standalone npm migration script. A typed,
+source-bound invocation adapter is the next missing contract. The existing scripted
+runner regression above does not close that boundary. No important deployed database,
+real project configuration, provider write or model allowance was used.
+
+### Retained failures and recovery
+
+R1's full domain run was898/899 because its old exact tool-field expectation omitted
+`testSigningKeys`. The expectation now includes the declared field, while arbitrary
+values and use outside original-runner mode remain rejected. R2's actual signing
+cases failed before API startup: an existing unchanged preflight forbids signing
+inputs in migration workers. The product now sends these inputs only to application
+workers; the original preflight, API tests and SQL remain unchanged. R3 passed all
+recorded gates. No assertion or timeout was relaxed to hide either failure.
+
+The local Docker engine initially timed out even on `/version`. The owner's explicit
+restart permission covered the shared runtime interruption. A normal official restart
+timed out; official forced stop/start recovered Linux engine access. Owned containers
+were cleaned and absence confirmed; no prune or individual unrelated-container
+operation was performed. Failed probes are not counted as runtime passes.

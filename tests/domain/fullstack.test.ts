@@ -63,6 +63,25 @@ function sourceFiles() {
 }
 async function writeFiles(root: string, files: readonly SourceFile[] = sourceFiles()) { for (const file of files) { const path = join(root, file.path); await mkdir(join(path, ".."), { recursive: true }); await writeFile(path, file.content); } }
 
+test("typed API listener and converted string port reach source-bound fullstack preparation without a manual port", async () => {
+  const f = await agentFixture();
+  try {
+    const files = sourceFiles().filter(file => !["liara.json", "Dockerfile"].includes(file.path)).map(file =>
+      file.path === "server/index.ts" ? { ...file, content: Buffer.from("import express from 'express';const app=express();const PORT:number=Number(process.env.PORT||'80');app.use(express.static('build'));app.listen(PORT,'0.0.0.0' as string);") }
+      : file.path === "frontend-server.cjs" ? { ...file, content: Buffer.from("// previous frontend entry is not the full API") } : file);
+    const root = join(f.workspace, "typed-api"); await writeFiles(root, files);
+    const before = await readFile(join(root, "server/index.ts"));
+    const flow = await prepareProjectFlow(f.config, f.store, f.session.actorId, { kind: "local", directory: "typed-api" }, AbortSignal.timeout(10000));
+    const captured = await captureProject(root, "."), plan = fullstackPreparation(captured.files, flow.profile);
+    assert.equal(flow.profile.port, 80); assert.equal(plan.port, 80);
+    assert.equal(plan.entryFile, "server/index.ts"); assert.equal(plan.startCommand, "tsx --tsconfig tsconfig.ai.json server/index.ts");
+    assert.deepEqual(plan.packageRoots, [".", "guides"]);
+    assert.ok(before.equals(await readFile(join(root, "server/index.ts"))));
+    assert.equal(f.store.db.prepare("SELECT count(*) n FROM actions").get()?.n, 0);
+    assert.equal(f.store.db.prepare("SELECT count(*) n FROM code_repair_jobs").get()?.n, 0);
+  } finally { f.close(); }
+});
+
 test("a nested frontend/API source can obtain its local preparation card before a cloud destination or generic publication program", async () => {
   const f = await agentFixture();try {
     const root = join(f.workspace, "fullstack");await writeFiles(root);

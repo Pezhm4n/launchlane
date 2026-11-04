@@ -12,7 +12,8 @@ import { AgentRepository } from "../src/server/agent/store.ts";
 
 // Real browser -> authenticated HTTP -> Agent/job -> real Docker/PostgreSQL -> UI.
 // Only the model transport is synthetic. There is no request/decision/receipt interception.
-const baselineMode = process.env.LAUNCHLANE_TEST_BASELINE_BROWSER === "true";
+const signingMode = process.env.LAUNCHLANE_TEST_SIGNING_BROWSER === "true";
+const baselineMode = signingMode || process.env.LAUNCHLANE_TEST_BASELINE_BROWSER === "true";
 const artifactMode = process.env.LAUNCHLANE_TEST_DATA_ARTIFACT_BROWSER === "true", runnerMode = baselineMode || artifactMode || process.env.LAUNCHLANE_TEST_RUNNER_BROWSER === "true", expectedText = runnerMode ? "Runner lifecycle" : "Migration lifecycle",
   retainedText = runnerMode ? "همان داده در همهٔ دیتابیس‌ها پس از اجرای دوبارهٔ runner و برنامه حفظ شد." : "همان داده پس از اجرای دوبارهٔ برنامه حفظ شد.";
 const server = await startTestServer({ agentFixture: true }), browser = await chromium.launch({ headless: true });
@@ -36,6 +37,10 @@ if (baselineMode) {
   await writeFile(join(fixture, ".env"), "JWT_SECRET=private_project_material_12345\n");
   const preflight = await readFile(join(fixture, "preflight.cjs"), "utf8");
   await writeFile(join(fixture, "preflight.cjs"), `${preflight}\nconst {Client}=require("pg");(async()=>{for(const key of ["AUTH_DB_URL","PROFILE_DB_URL"]){const c=new Client({connectionString:process.env[key]});await c.connect();try{await c.query("SELECT id FROM public.users LIMIT 0")}finally{await c.end()}}})().catch(e=>{console.error(e.message);process.exitCode=1});`);
+  if (signingMode) {
+    const server = await readFile(join(fixture, "server.cjs"), "utf8");
+    await writeFile(join(fixture, "server.cjs"), `const signing=process.env.JWT_SECRET;require('node:assert/strict').match(signing,/^[a-f0-9]{64}$/);\n${server}`);
+  }
 }
 async function layout(width, state) {
   await page.setViewportSize({ width, height: 844 }); await page.evaluate(() => document.fonts.ready);
@@ -112,7 +117,26 @@ try {
   assert.equal(proposed.state, "needs_approval"); assert.equal(proposed.repair.state, "proposed"); assert.deepEqual(proposed.repair.containerIds, []);
   assert.equal(proposed.repair.afterTest, null); assert.equal(proposed.repair.postgresFixtureId, undefined); assert.equal(await calls(), baselineMode ? 2 : 1);
   assert.equal(await page.locator(".optional-chat:visible").count(), 0);
+  if (signingMode) {
+    assert.deepEqual(proposed.repair.build.testDatabase.testSigningKeys, ["JWT_SECRET"]);
+    await review.getByText(/مقدار امضای تصادفی/).waitFor();
+    assert.ok(!(await review.textContent() ?? "").includes("private_project_material_12345"));
+  }
   if (runnerMode) for (const width of [280, 320, 390, 768, 1280]) await layout(width, "review");
+  if (process.env.LAUNCHLANE_TEST_REJECT_BUILD === "true") {
+    assert.ok(baselineMode, "reject-only case requires the schema intake fixture");
+    const response = page.waitForResponse(row => row.request().method() === "POST" && row.url().includes("/api/agent/runs/") && row.request().postDataJSON()?.decision === "reject");
+    const reject = journey.getByRole("button", { name: proposed.repair.validationOnly ? "رد آماده‌سازی" : "رد اصلاح", exact: true });
+    await reject.focus(); await reject.press("Enter"); assert.equal((await response).status(), 200); await reject.waitFor({ state: "detached" });
+    const result = repo.get(actor, proposed.id); assert.equal(result.state, "needs_input"); assert.equal(result.repair.state, "cancelled");
+    assert.deepEqual(result.repair.containerIds, []); assert.equal(result.repair.afterTest, null); assert.equal(result.repair.artifact, null); assert.equal(result.publication, null);
+    assert.ok(decision && decisionUrl && csrf); const replay = await context.request.post(decisionUrl, { headers: { origin: server.origin, "x-csrf-token": csrf }, data: decision }); assert.equal(replay.status(), 409);
+    await page.reload(); await page.locator(".publication-journey").waitFor(); assert.equal(await calls(), 2);
+    for (const width of [280, 320, 390, 768, 1280]) await layout(width, "rejected");
+    await page.screenshot({ path: join(output, "rejected-1280.png"), fullPage: true }); assert.deepEqual(errors, []); assert.deepEqual(external, []);
+    const summary = { scope: "schema intake and reviewed signing-key rejection; no worker or SQL", model: "synthetic", modelRequests: await calls(), workerExecutions: 0, cloudWrites: 0, replayStatus: replay.status(), layouts, output };
+    await writeFile(join(output, "results.json"), JSON.stringify(summary, null, 2)); console.log(JSON.stringify(summary));
+  } else {
   const approve = journey.getByRole("button", { name: proposed.repair.validationOnly ? "تأیید ساخت و بررسی برنامه" : "تأیید اصلاح و اجرای آزمون", exact: true }); await approve.focus(); await approve.press("Enter");
   await review.getByText(retainedText, { exact: true }).waitFor({ timeout: 300000 });
   await page.waitForFunction(() => !document.querySelector('.publication-journey [aria-busy="true"]'), null, { timeout: 30000 });
@@ -143,6 +167,7 @@ try {
   assert.deepEqual(errors, []); assert.deepEqual(external, []); await page.screenshot({ path: join(output, "migration-worker-390.png"), fullPage: true });
   const summary = { projectId, runId: proposed.id, sourceHash: flow.profile.sourceHash, model: "synthetic", modelRequests: await calls(), apiDecisions: 1, replayStatus: replay.status(), containerCount: result.repair.containerIds.length, migration: proof, cloudWrites: 0, reloadReplayed: false, errors, external, layouts };
   await writeFile(join(output, "results.json"), JSON.stringify(summary, null, 2)); console.log(JSON.stringify({ ...summary, output }));
+  }
 } catch (error) {
   const actor = createHash("sha256").update(server.token).digest("hex").slice(0, 24), flow = store?.getProjectFlow(actor), run = flow ? new AgentRepository(store).forProject(actor, flow.id, "publication") : null;
   await writeFile(join(output, "failure.json"), JSON.stringify({ error: String(error), state: run?.state, code: run?.errorCode, runId: run?.id, jobId: run?.repair?.id, containerIds: run?.repair?.containerIds, fixtureId: run?.repair?.postgresFixtureId, jobState: run?.repair?.state, jobError: run?.repair?.errorCode, events: run?.events, afterTest: run?.repair?.afterTest }, null, 2));

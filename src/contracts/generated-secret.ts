@@ -1,4 +1,5 @@
-const signingKeys = new Set(["SESSION_SECRET", "JWT_SECRET", "AUTH_SECRET", "NEXTAUTH_SECRET", "COOKIE_SECRET", "COOKIE_SIGNING_SECRET"]);
+export const signingSecretKeys = ["SESSION_SECRET", "JWT_SECRET", "AUTH_SECRET", "NEXTAUTH_SECRET", "COOKIE_SECRET", "COOKIE_SIGNING_SECRET"] as const;
+const signingKeys = new Set<string>(signingSecretKeys);
 
 /** An explicit convenience for fresh signing values, never credentials or encryption keys. */
 export function canGenerateSigningSecret(key: string): boolean { return signingKeys.has(key); }

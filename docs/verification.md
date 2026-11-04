@@ -13,6 +13,8 @@
 
 هر نتیجه فقط برای revision، artifact، تنظیمات و oracle همان گزارش معتبر است. گزارش تاریخیِ «در حال اجرا» وضعیت امروز یک سرور را تضمین نمی‌کند. یک test غیرفعال، prerequisite ناموجود یا نتیجهٔ نامعلوم pass نیست.
 
+داده و ورودی امضای برنامه، ۲۰۲۶-۱۱-۰۴: candidate r3 بر پایهٔ1af6a15 با manifest دقیق، domain899/899، HTTP50/50، typecheck/lint/build، مرورگر review15/guided57 و actual PostgreSQL/signing3/3 را گذراند. مسیر وب→پنج کانتینر و رگرسیون runner اصلی گلستان/۱۲SQL/artifact نیز روی همان source پاس شدند. ادغام مستندات807a32c و docs-check/سه تست آن مستقل‌اند؛ نتیجهٔ ترکیبی902 ادعا نمی‌شود. [فرمان‌ها، scope و failureهای نگه‌داشته‌شده](evidence/database.md#disposable-application-inputs). هیچ مصرف واقعی مدل، write ابری، migration تولیدی یا پذیرش کامل API اصلی انجام نشد.
+
 ## baseline یکپارچهٔ ثبت‌شده
 
 این اعداد، شاهد تاریخی source `f361346` در ۲۰۲۶-۱۱-۰۴ با Node24.18.0 هستند؛ نتیجهٔ خودکار HEAD آینده یا CI نیستند:

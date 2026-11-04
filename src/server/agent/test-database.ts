@@ -1,4 +1,7 @@
 import { baselineSource } from "./postgres-baseline.ts";
+import { randomBytes } from "node:crypto";
+import { signingSecretKeys } from "../../contracts/generated-secret.ts";
+import type { EnvironmentVariable } from "../../contracts/environment.ts";
 import { isRunnerTestDatabase, parseDisposableTestDatabase, type DisposableTestDatabase } from "../../contracts/test-database.ts";
 import type { ProjectProfile } from "../../contracts/domain.ts";
 import type { SourceFile } from "../workspace/inspect.ts";
@@ -17,6 +20,7 @@ export function validateTestDatabaseSource(files: readonly SourceFile[], profile
     "TEST_DATABASE_SOURCE_REQUIRED","source باید مصرف PostgreSQL در همین برنامهٔ کامل را مشخص کند.",409);
   const names = new Set(files.filter(file => /\.[cm]?[jt]sx?$/.test(file.path)).flatMap(file => sourceEnvironmentNames(file.content.toString("utf8"),file.path)));
   ensure(plan.environmentKeys.every(key => names.has(key)),"TEST_DATABASE_SOURCE_REQUIRED","نام ورودی دیتابیس باید در source یا آزمون همان نسخه خوانده شود.",409);
+  if (isRunnerTestDatabase(plan)) ensure((plan.testSigningKeys ?? []).every(key => names.has(key)), "TEST_SIGNING_SOURCE_REQUIRED", "نام ورودی امضای آزمایشی باید در همین source خوانده شود.", 409);
   const pkg = files.find(file => file.path === "package.json");
   ensure(pkg && typeof object(object(JSON.parse(pkg.content.toString("utf8"))).dependencies ?? {}).pg === "string",
     "TEST_DATABASE_DRIVER_REQUIRED","این برش آزمون به driver موجود pg در dependencyهای اصلی پروژه نیاز دارد؛ بسته‌ای خودکار اضافه نمی‌شود.",409);
@@ -28,6 +32,12 @@ export function validateTestDatabaseSource(files: readonly SourceFile[], profile
   }
   if (isRunnerTestDatabase(plan)) ensure(fingerprint(sourceMigrationRunner(files, plan.runner.script)) === fingerprint(plan.runner), "MIGRATION_RUNNER_CHANGED", "script و hookهای migration با source برابر نیستند.", 409);
   return plan;
+}
+
+/** Generated once per disposable fixture; never copied from project configuration or persisted. */
+export function disposableSigningValues(plan: DisposableTestDatabase): readonly EnvironmentVariable[] {
+  const checked = parseDisposableTestDatabase(plan);
+  return isRunnerTestDatabase(checked) ? (checked.testSigningKeys ?? []).map(key => ({ key, value: randomBytes(32).toString("hex") })) : [];
 }
 
 export function assertPostgresWorkerBinding(binding: PostgresFixtureBinding, jobId: string | undefined, sourceHash: string | undefined, migration = false, targets?: readonly PostgresRunnerTarget[]): void {
@@ -45,7 +55,9 @@ export function assertPostgresWorkerBinding(binding: PostgresFixtureBinding, job
 export const disposableDatabaseProgram = String.raw`function disposableDatabaseValues(plan,payload){
 const db=payload.testDatabase;if(!db||db.host!=='127.0.0.1'||db.port!==5432||db.database!=='launchlane_fixture'||db.user!==(plan.testDatabase.version===2?'launchlane_migration_app':'launchlane_fixture')||db.authentication!=='isolated_trust'||!Array.isArray(payload.environment)||payload.environment.length)throw Error('invalid isolated database input');
 if((plan.testDatabase.version===3||plan.testDatabase.version===4)){if(!Array.isArray(db.targets)||db.targets.length!==plan.testDatabase.targets.length)throw Error('invalid database targets');const values={};
-for(const [i,target] of plan.testDatabase.targets.entries()){const actual=db.targets[i];if(actual?.id!==target.id||actual.database!=='launchlane_target_'+i||actual.user!=='launchlane_app_'+i)throw Error('database target changed');for(const key of target.environmentKeys)values[key]='postgresql://'+actual.user+'@127.0.0.1:5432/'+actual.database}return values;}
+for(const [i,target] of plan.testDatabase.targets.entries()){const actual=db.targets[i];if(actual?.id!==target.id||actual.database!=='launchlane_target_'+i||actual.user!=='launchlane_app_'+i)throw Error('database target changed');for(const key of target.environmentKeys)values[key]='postgresql://'+actual.user+'@127.0.0.1:5432/'+actual.database}
+const expected=payload.runnerPhase===true?[]:plan.testDatabase.testSigningKeys||[],signing=payload.testSigningValues||[];if(!Array.isArray(signing)||signing.length!==expected.length||signing.length>6||new Set(signing.map(row=>row?.key)).size!==signing.length)throw Error('invalid disposable signing inputs');
+for(const row of signing){if(!expected.includes(row?.key)||!${JSON.stringify(signingSecretKeys)}.includes(row.key)||typeof row.value!=='string'||!/^[a-f0-9]{64}$/.test(row.value))throw Error('invalid disposable signing inputs');values[row.key]=row.value}return values;}
 const url='postgresql://'+db.user+'@127.0.0.1:5432/launchlane_fixture',values=Object.fromEntries(plan.testDatabase.environmentKeys.map(key=>[key,url]));
 if(plan.testDatabase.version===2)return values;
 return {...values,JWT_SECRET:require('node:crypto').randomBytes(32).toString('hex'),DB_MIGRATIONS_ENABLED:'true',AI_HISTORY_ENABLED:'true',SCRAPER_SYNC_ENABLED:'false',ALLOW_INSECURE_TLS:'true'};

@@ -45,5 +45,40 @@ test("comments and string data do not invent ports, while conflicting actual lis
     { ports: [3000], unresolved: false });
   assert.deepEqual(sourcePorts("const port=3000;server.listen(port);other.listen(8080);"), { ports: [3000, 8080], unresolved: false });
   assert.deepEqual(sourcePorts("const port=3000;server.listen(port);other.listen(dynamicPort);"), { ports: [3000], unresolved: true });
-  assert.deepEqual(sourcePorts("const port: number=3000;server.listen(port);"), { ports: [], unresolved: true });
+  assert.deepEqual(sourcePorts("const port: number=3000;server.listen(port);"), { ports: [3000], unresolved: false });
+});
+
+test("TypeScript listeners and explicit numeric conversion retain their lexical scope without executing source", () => {
+  for (const source of [
+    "const PORT: number=Number(process.env.PORT||'80');server.listen(PORT,'0.0.0.0' as string);",
+    "const fallback='80' as const;const port=Number(process.env.PORT??fallback);server.listen(port);",
+    "const port=+(process.env.PORT||'80');server.listen(port satisfies number);",
+    "const port=80 as number;server.listen(port!);",
+    "type Server={listen(port:number):void};declare const server:Server;const port=80;server.listen(port);",
+    "throw Error('must not execute');const port=Number('80');server.listen(port);",
+  ]) assert.deepEqual(sourcePorts(source), { ports: [80], unresolved: false }, source);
+});
+
+test("string sockets, ambient globals, typed shadowing and coercion outside an explicit conversion remain unknown", () => {
+  for (const source of [
+    "const port='80';server.listen(port);",
+    "const port=process.env.PORT||'80';server.listen(port);",
+    "server.listen('80');",
+    "declare const Number:(value:unknown)=>number;const port=Number('80');server.listen(port);",
+    "declare const process:{env:{PORT:string}};const port=Number(process.env.PORT||'80');server.listen(port);",
+    "import Number=require('./number');const port=Number('80');server.listen(port);",
+    "const Number=(value:string)=>8080;const port=Number('80');server.listen(port);",
+    "class Test{constructor(private Number:(v:string)=>number){server.listen(Number('80'))}}",
+    "namespace Number{export const x=1;}server.listen(Number('80'));",
+    "function start(process:{env:{PORT:string}}){server.listen(Number(process.env.PORT||'80'));}",
+    "const port=Number('65536');server.listen(port);",
+    "const port=Number('80/path');server.listen(port);",
+    "const port=Number('');server.listen(port);",
+    "const port=Number('80');port=8080;server.listen(port);",
+    "const port=Number('80');(port as number)=8080;server.listen(port);",
+    "(Number as unknown)=()=>8080;server.listen(Number('80'));",
+    "(globalThis as unknown).Number=()=>8080;server.listen(Number('80'));",
+    "(process as unknown).env.PORT='8080';server.listen(Number(process.env.PORT||'80'));",
+    "type Port=ReturnType<typeof server.listen>;server.listen(dynamic);",
+  ]) assert.deepEqual(sourcePorts(source), { ports: [], unresolved: true }, source);
 });

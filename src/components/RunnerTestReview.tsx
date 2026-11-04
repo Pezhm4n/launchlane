@@ -10,6 +10,7 @@ export function RunnerTestReview({ database, receipt }: { database: Extract<Disp
     <p className="note">{number.format(database.targets.length)} دیتابیس با role و ورودی اتصال جدا روی یک PostgreSQL موقت ساخته می‌شوند. این تصمیم فقط دادهٔ ساختگی همین آزمون را پوشش می‌دهد؛ ساخت منابع واقعی، migration تولیدی و انتشار تصمیم جدا دارند.</p>
     <p>پس از خواندن مستقل schema و داده، آزمون اصلی برنامه باید در هر دیتابیس مقدار تازه بنویسد. اجرای دوبارهٔ runner باید همان مقدار را حفظ کند؛ سپس یک برنامهٔ تازه نیز همان داده را می‌خواند.</p>
     <ul>{database.targets.map(target => <li key={target.id}><bdi>{target.id}</bdi> — {target.environmentKeys.map(key => <bdi key={key}> {key} </bdi>)}</li>)}</ul>
+    {database.testSigningKeys?.length ? <p>برای اجرای API، مقدار امضای تصادفی برای <bdi>{database.testSigningKeys.join("، ")}</bdi> فقط در همین آزمون ساخته می‌شود و میان دو اجرای تازهٔ برنامه ثابت می‌ماند. runner فقط اتصال‌های دیتابیس را می‌گیرد. این مقدار، تنظیمات واقعی پروژه نیست و وارد بستهٔ انتشار نمی‌شود.</p> : null}
     {database.targets.some(target => target.bootstrap) ? <section aria-label="پیش‌نیازهای دیتابیس آزمایشی">
       <h5>ساختار اولیهٔ داده</h5>
       <p>فقط فایل‌های ساختار انتخاب‌شده پیش از runner اصلی به هدف خودشان اعمال می‌شوند. نقش‌های کمکی ورود ندارند و به همین محیط دورریختنی محدودند.</p>

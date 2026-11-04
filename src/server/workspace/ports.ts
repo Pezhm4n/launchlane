@@ -1,4 +1,6 @@
-import acorn from "next/dist/compiled/acorn/acorn.js";
+import { createRequire } from "node:module";
+
+const parser: unknown = createRequire(import.meta.url)("next/dist/compiled/babel/parser.js");
 
 type Ast = Record<string, unknown> & { type: string };
 type Binding = { expression: Ast | null; declarationEnd: number; modified: boolean; scope: LexicalScope };
@@ -9,16 +11,26 @@ function isAst(value: unknown): value is Ast {
 function ast(value: unknown): Ast | null {
   return isAst(value) ? value : null;
 }
+function expression(node: Ast | null): Ast | null {
+  for (let depth = 0; node && ["TSAsExpression", "TSSatisfiesExpression", "TSNonNullExpression", "TSTypeAssertion"].includes(node.type); depth++) {
+    if (depth >= 32) return null;
+    node = ast(node.expression);
+  }
+  return node;
+}
 function nodes(value: unknown): Ast[] {
   return Array.isArray(value) ? value.flatMap((item) => { const node = ast(item); return node ? [node] : []; }) : [];
 }
 function children(node: Ast): Ast[] {
-  return Object.values(node).flatMap((value) => { const child = ast(value); return child ? [child] : nodes(value); });
+  return Object.entries(node).filter(([key]) => !["comments", "tokens", "loc", "extra", "typeAnnotation", "typeParameters", "returnType"].includes(key))
+    .flatMap(([, value]) => { const child = ast(value); return child ? [child] : nodes(value); });
 }
 function names(pattern: Ast | null): string[] {
+  pattern = expression(pattern);
   if (!pattern) return [];
   if (pattern.type === "Identifier" && typeof pattern.name === "string") return [pattern.name];
   if (pattern.type === "RestElement") return names(ast(pattern.argument));
+  if (pattern.type === "TSParameterProperty") return names(ast(pattern.parameter));
   if (pattern.type === "AssignmentPattern") return names(ast(pattern.left));
   if (pattern.type === "ArrayPattern") return nodes(pattern.elements).flatMap(names);
   if (pattern.type === "ObjectPattern") return nodes(pattern.properties).flatMap((property) =>
@@ -39,14 +51,16 @@ function unshadowedGlobal(scope: LexicalScope, name: string): boolean {
   return true;
 }
 function property(node: Ast | null): string | null {
+  node = expression(node);
   if (node?.type !== "MemberExpression") return null;
   const key = ast(node.property);
   return key?.type === "Identifier" && node.computed === false && typeof key.name === "string" ? key.name
     : key?.type === "Literal" && typeof key.value === "string" ? key.value : null;
 }
 function envPort(node: Ast | null, scope: LexicalScope): boolean {
+  node = expression(node);
   if (property(node) !== "PORT") return false;
-  const env = ast(node?.object), process = ast(env?.object);
+  const env = expression(ast(node?.object)), process = expression(ast(env?.object));
   return property(env) === "env" && process?.type === "Identifier" && process.name === "process" && unshadowedGlobal(scope, "process");
 }
 
@@ -54,8 +68,11 @@ function envPort(node: Ast | null, scope: LexicalScope): boolean {
 export function sourcePorts(source: string): { ports: number[]; unresolved: boolean } {
   let tree: Ast | null = null;
   for (const sourceType of ["module", "script"] as const) {
-    try { tree = ast(acorn.parse(source, { ecmaVersion: "latest", sourceType, allowHashBang: true })); break; }
-    catch { /* Syntax not supported by this JavaScript parser remains unknown. */ }
+    try {
+      if (parser && typeof parser === "object" && "parse" in parser && typeof parser.parse === "function")
+        tree = ast(parser.parse(source, { sourceType, plugins: ["typescript", "jsx", "estree"] }));
+      if (tree) break;
+    } catch { /* Unsupported syntax remains unknown. Source is never evaluated. */ }
   }
   if (!tree) return { ports: [], unresolved: /\blisten\s*(?:\?\.)?\s*\(/.test(source) };
   const root: LexicalScope = { parent: null, functionScope: true, opaque: false, bindings: new Map() },
@@ -69,11 +86,15 @@ export function sourcePorts(source: string): { ports: number[]; unresolved: bool
     if (!next) break;
     const node = next.node, parent = next.scope;
     if (all.length >= 200000) return { ports: [], unresolved: true };
+    if (["TSImportEqualsDeclaration", "TSDeclareFunction", "TSModuleDeclaration", "TSEnumDeclaration"].includes(node.type))
+      for (const name of names(ast(node.id))) bind(parent, name);
+    if (node.type.startsWith("TS") && !["TSAsExpression", "TSSatisfiesExpression", "TSNonNullExpression", "TSTypeAssertion", "TSParameterProperty", "TSModuleDeclaration", "TSModuleBlock", "TSEnumDeclaration"].includes(node.type)) continue;
     const isFunction = ["FunctionDeclaration", "FunctionExpression", "ArrowFunctionExpression"].includes(node.type);
     if (node.type === "FunctionDeclaration" || node.type === "ClassDeclaration")
       for (const name of names(ast(node.id))) bind(parent, name);
-    const boundary = isFunction || ["BlockStatement", "StaticBlock", "CatchClause", "ForStatement", "ForOfStatement", "ForInStatement", "SwitchStatement", "ClassDeclaration", "ClassExpression", "WithStatement"].includes(node.type);
-    const scope: LexicalScope = boundary ? { parent, functionScope: isFunction, opaque: node.type === "WithStatement" || node.type === "SwitchStatement", bindings: new Map() } : parent;
+    const opaque = ["WithStatement", "SwitchStatement", "TSModuleDeclaration", "TSEnumDeclaration"].includes(node.type);
+    const boundary = opaque || isFunction || ["BlockStatement", "StaticBlock", "CatchClause", "ForStatement", "ForOfStatement", "ForInStatement", "ClassDeclaration", "ClassExpression"].includes(node.type);
+    const scope: LexicalScope = boundary ? { parent, functionScope: isFunction, opaque, bindings: new Map() } : parent;
     scopes.set(node, scope); all.push(node);
     if (isFunction) {
       for (const parameter of nodes(node.params)) for (const name of names(parameter)) bind(scope, name);
@@ -99,33 +120,38 @@ export function sourcePorts(source: string): { ports: number[]; unresolved: bool
   for (const node of all) if (node.type === "AssignmentExpression" || node.type === "UpdateExpression") {
     const scope = scopes.get(node);
     if (!scope) continue;
-    const target = ast(node.type === "AssignmentExpression" ? node.left : node.argument);
+    const target = expression(ast(node.type === "AssignmentExpression" ? node.left : node.argument));
     if (envPort(target, scope)) envPortWritten = true;
-    const receiver = ast(target?.object), key = property(target);
+    const receiver = expression(ast(target?.object)), key = property(target);
     if (receiver?.type === "Identifier" && receiver.name === "globalThis" && unshadowedGlobal(scope, "globalThis") && key)
       globalWrites.add(key);
     for (const name of names(target)) {
       const binding = lookup(scope, name); if (binding) binding.modified = true; else globalWrites.add(name);
     }
   }
-  function number(node: Ast | null, scope: LexicalScope, seen = new Set<Binding>()): number | null {
+  function number(node: Ast | null, scope: LexicalScope, seen = new Set<Binding>(), coerce = false): number | null {
     if (!node) return null;
-    if (node.type === "Literal") return typeof node.value === "number" && Number.isSafeInteger(node.value) && node.value >= 0 && node.value <= 65535 ? node.value : null;
+    if (node.type === "Literal") {
+      const value = coerce && typeof node.value === "string" && /^[0-9]{1,5}$/.test(node.value) ? Number(node.value) : node.value;
+      return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && value <= 65535 ? value : null;
+    }
+    if (["TSAsExpression", "TSSatisfiesExpression", "TSNonNullExpression", "TSTypeAssertion"].includes(node.type))
+      return number(ast(node.expression), scope, seen, coerce);
     if (node.type === "Identifier" && typeof node.name === "string") {
       const binding = lookup(scope, node.name);
       if (!binding || binding.modified || seen.has(binding) || seen.size >= 32 ||
         typeof node.start !== "number" || node.start < binding.declarationEnd) return null;
       const next = new Set(seen); next.add(binding);
-      return number(binding.expression, binding.scope, next);
+      return number(binding.expression, binding.scope, next, coerce);
     }
     if (node.type === "LogicalExpression" && (node.operator === "||" || node.operator === "??") &&
       !envPortWritten && !globalWrites.has("process") && envPort(ast(node.left), scope))
-      return number(ast(node.right), scope, seen);
+      return number(ast(node.right), scope, seen, coerce);
     const callee = ast(node.callee), args = nodes(node.arguments);
     if (node.type === "CallExpression" && callee?.type === "Identifier" && callee.name === "Number" &&
       unshadowedGlobal(scope, "Number") && !globalWrites.has("Number") && args.length === 1)
-      return number(args[0] ?? null, scope, seen);
-    if (node.type === "UnaryExpression" && node.operator === "+") return number(ast(node.argument), scope, seen);
+      return number(args[0] ?? null, scope, seen, true);
+    if (node.type === "UnaryExpression" && node.operator === "+") return number(ast(node.argument), scope, seen, true);
     return null;
   }
   const ports = new Set<number>(); let unresolved = false;

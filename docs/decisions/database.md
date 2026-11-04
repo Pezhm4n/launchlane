@@ -6,6 +6,8 @@ These versioned records preserve the original decisions, source revisions, failu
 
 ## Records
 
+- [ADR0051 — Reviewed signing inputs for disposable application tests](#0051-disposable-application-signing-inputs)
+
 - [ADR 0032 — Managed database creation and private application binding](#0032-managed-database-and-private-binding)
 - [ADR 0033 — Source-bound migration and data-effect testing](#0033-source-bound-disposable-migrations)
 - [ADR 0034 — Original migration runners and separate disposable data targets](#0034-project-migration-runners-and-data-targets)
@@ -260,3 +262,56 @@ own ledger still owns migrations. A successful local receipt/artifact is not per
 to execute destination SQL or proof of the original complete Golestan application,
 production data compatibility or provider persistence. Destination migration needs
 its own exact resource/credential/runner authority and reconciliation contract.
+
+
+<a id="0051-disposable-application-signing-inputs"></a>
+## ADR0051 — Reviewed signing inputs for disposable application tests
+
+Date: 2026-11-04. Status: implemented; runtime acceptance is limited to recorded evidence.
+
+### Problem
+
+An application can need a session/JWT signing input before its original API tests
+can exercise database writes. Runner v3/v4 intentionally accepts no real project
+environment values. Reusing production configuration or silently injecting legacy
+flags would change that contract. TypeScript listener syntax and explicit numeric
+string conversion also prevented the Golestan backend entry from reaching preparation.
+
+### Decision
+
+The existing `compatibilityDatabase` original-runner mode accepts optional
+`testSigningKeys`. The host allows only the existing signing/session key names,
+requires a read of each name in the exact captured source and binds the sorted names
+to the existing build plan and approval. Values, encryption keys, arbitrary variables
+and provider credentials are not tool arguments. Historical plans without this field
+retain their canonical representation. Changing disposable prerequisites after a
+failed job requires a fresh decision and preserves all runner/API/data oracles.
+
+After the owned disposable fixture is established, the host generates 32 random
+bytes per declared key. The same in-memory values are used by both application workers only. A different fixture gets different values.
+Nothing is loaded from the real project environment or persisted as a signing input.
+Interrupted jobs retain the existing uncertain-execution barriers; recovery does not
+recreate this secret material and replay a possibly committed action.
+
+Values travel in the existing bounded stdin payload, never Docker arguments or the
+source archive. The host and fixed worker both validate the exact key set and format.
+Worker output is redacted before receipt persistence. The existing compiled-output
+reader also receives these private values and rejects matching bytes before issuing
+an output artifact. The review card shows names and explains their temporary scope.
+No additional policy, execution engine or cloud environment decision is introduced.
+
+Static port inspection reuses the TypeScript-capable parser already shipped with
+Next and used by other source inspectors. It preserves lexical shadowing, imports,
+ambient declarations, mutations and unresolved listeners. Decimal strings are treated
+as numeric candidates only under explicit `Number` or unary-plus conversion; a string
+passed directly to `listen` remains an unknown socket path. Parsing never executes
+source and does not replace the worker's actual workload check.
+
+### Limits
+
+This enables isolated application tests; it does not configure production signing,
+authorize destination migration or prove compatibility of existing data. The output
+fence checks known private bytes, not arbitrary transformations by source code.
+Complete original-project intake still requires the normal credential/source guards.
+Fresh Docker, original-app and provider acceptance must be recorded separately from
+domain, HTTP and review-only browser checks.

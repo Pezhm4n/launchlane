@@ -54,6 +54,7 @@ import { withPostgresFixture } from "./postgres-fixture.ts";
 import { runPostgresMigrationTest } from "./postgres-migration-test.ts";
 import { runPostgresRunnerTest } from "./postgres-runner-test.ts";
 import { isRunnerTestDatabase, preparesDatabaseArtifact } from "../../contracts/test-database.ts";
+import { disposableSigningValues } from "./test-database.ts";
 import { operatorDockerEndpoint } from "./docker-engine.ts";
 
 const patchTool: ToolDefinition = {
@@ -726,8 +727,9 @@ export class CodeRepairAdapter {
                     ...(isRunnerTestDatabase(build.testDatabase) ? { targets: build.testDatabase.targets.map(target => target.id) } : {}),
                     onCreated:containerId=>{record.job.postgresFixtureId=containerId;onCreated(containerId);}},
                     async(fixture,fixtureSignal,sql)=>{
+                      const testSigningValues = build.testDatabase ? disposableSigningValues(build.testDatabase) : [];
                       const run = (phase?: "runner" | "application") => runContainerBuild(record.workspace,tarballs,build,fixtureSignal,onCreated,[],
-                        {command,endpoint,fixture,expectedJobId:record.job.id,expectedSourceHash:source.profile.sourceHash, ...(phase === "runner" ? { runnerPhase: true } : {})});
+                        {command,endpoint,fixture,expectedJobId:record.job.id,expectedSourceHash:source.profile.sourceHash, ...(phase !== "runner" && testSigningValues.length ? { testSigningValues } : {}), ...(phase === "runner" ? { runnerPhase: true } : {})});
                       assertBaselineImports(this.config, this.store, actor, record.job.projectId, record.job.baseRevision, build.testDatabase);
                       if (isRunnerTestDatabase(build.testDatabase)) return runPostgresRunnerTest({ files: source.files, plan: build.testDatabase, fixture, sql, signal: fixtureSignal, take: () => budget.take("tool", fixtureSignal), run });
                       return build.testDatabase?.version === 2 ? runPostgresMigrationTest({ files: source.files, plan: build.testDatabase.migration, fixture, sql, signal: fixtureSignal,
