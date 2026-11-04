@@ -1,4 +1,5 @@
 import { sourcePhpRuntime } from "./php.ts";
+import { assertPublicNugetConfig, isNugetConfig } from "../../contracts/nuget-config.ts";
 import { parsePhpVerification } from "../../contracts/php-runtime.ts";
 import { frameworkPythonRuntime } from "./framework-python.ts";
 import { sourceGoRuntime } from "./go.ts";
@@ -212,6 +213,7 @@ async function scanProject(
         413,
       );
       const text = content.toString("utf8");
+      if (isNugetConfig(relativePath)) assertPublicNugetConfig(text);
       const contentHash = createHash("sha256").update(content).digest("hex");
       if (containsSourceCredential(text, options.secrets, relativePath)) {
         const review = fixtureReviews.find(review => review.path === relativePath && review.sha256 === contentHash);

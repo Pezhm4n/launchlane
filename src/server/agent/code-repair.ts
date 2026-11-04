@@ -38,7 +38,7 @@ import { parseProjectBuildPlan, projectBuildImage, type ProjectBuildPlan } from 
 import { validateBuildPlan, validateBuildRepairPaths } from "./build-policy.ts";
 import { downloadLockedTarballs, lockedTarballs, type TarballReader } from "./npm-source.ts";
 import { projectSecretValues } from "../environment/secrets.ts";
-import { buildEnvironmentValues, buildSourceEnvironment } from "../environment/build.ts";
+import { buildEnvironmentValues, buildSourceEnvironment, sourceBuildEnvironment } from "../environment/build.ts";
 import { connectedLiaraConfig } from "../connections/liara.ts";
 import { downloadPythonWheels, pythonRequirements, reusePythonWheels } from "./python-source.ts";
 import { runPythonBuild } from "./python-container.ts";
@@ -326,6 +326,11 @@ export class CodeRepairAdapter {
   private secrets(actor: string): string[] {
     return [...new Set([...privateValues(this.config), ...projectSecretValues(this.store, this.config.sessionSecret, actor)])];
   }
+  private checkDockerInputs(actor: string, projectId: string, build: ProjectBuildPlan | undefined): void {
+    if (build?.version !== 6 || build.environment) return;
+    ensure(!sourceBuildEnvironment(this.config, this.store, actor, projectId), "DOCKER_ENV_TARGET_REQUIRED",
+      "برای اجرای Docker با تنظیمات خصوصی ثبت‌شده، ابتدا مقصد و مرجع تنظیمات آن را تأیید کنید.", 409);
+  }
   private record(actor: string, id: string): RepairRecord {
     const row = this.store.db
       .prepare("SELECT data_json,state FROM code_repair_jobs WHERE actor_id=? AND id=?")
@@ -474,6 +479,7 @@ export class CodeRepairAdapter {
     const paths = new Set(captured.files.map((file) => file.path));
     if (!input.validationOnly) repairSourceFiles(captured.files, input.allowedPaths, input.testFiles);
     const build = input.build ? validateBuildPlan(captured.files, captured.profile, input.build) : undefined;
+    this.checkDockerInputs(actor, flow.id, build);
     ensure(!(build?.version===7 && build.testDatabase) || input.validationOnly || input.preparation?.version===2,
       "TEST_DATABASE_REPAIR_DENIED","این برش فقط آزمون سازگاری یا آماده‌سازی قطعی است؛ اصلاح مدل و انتشار را مجاز نمی‌کند.",409);
     ensure(build?.version !== 12 || input.validationOnly === true, "PHP_REPAIR_UNSUPPORTED", "این مسیر نصب و اجرای PHP را بدون ویرایش source بررسی می‌کند.", 409);
@@ -695,6 +701,7 @@ export class CodeRepairAdapter {
               checkParent();
               assertDockerExecutionSettled(this.store, record.job.id);
               if (build.version === 6) {
+                this.checkDockerInputs(actor, record.job.projectId, build);
                 record.job.dockerExecutionStarted = true; this.save(record);
                 try {
                   const result = await runDockerBuild(record.workspace, build, testSignal, onCreated, environment, undefined, {}, record.job.id);

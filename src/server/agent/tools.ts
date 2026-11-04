@@ -237,8 +237,9 @@ function registeredTools(config: Config): readonly ToolDefinition[] {
 export function toolsForConversation(config: Config): readonly ToolDefinition[] {
   return [...agentTools, ...(config.enableLiveLiara ? catalogTools : [])];
 }
-export function toolsForAgent(config: Config, preparation: "native" | "build" | "fullstack" | "framework" | "compiled" = "native", hasTarget = true, publicationProgram = false, persistentStorage = false, managedDatabase = false): readonly ToolDefinition[] {
+export function toolsForAgent(config: Config, preparation: "native" | "build" | "fullstack" | "framework" | "compiled" | "docker" = "native", hasTarget = true, publicationProgram = false, persistentStorage = false, managedDatabase = false): readonly ToolDefinition[] {
   // Offer the applicable preparation path without two competing tools for the same task.
+  const localBuild = ["docker", "fullstack", "framework", "compiled"].includes(preparation);
   const omitted = preparation === "native" ? "propose_project_build" : "propose_project_preparation";
   return registeredTools(config).filter(tool => tool.function.name !== omitted && tool.function.name !== (hasTarget ? "propose_network" : "read_metrics") &&
     (tool.function.name !== "propose_rollback" || hasTarget && !publicationProgram && !persistentStorage) &&
@@ -246,7 +247,7 @@ export function toolsForAgent(config: Config, preparation: "native" | "build" | 
     (tool.function.name !== "propose_disk" || hasTarget && persistentStorage) &&
     (tool.function.name !== "propose_database" || hasTarget && managedDatabase) &&
     (!managedDatabase || !["read_publications", "propose_rollback", "read_metrics"].includes(tool.function.name)) &&
-    !(publicationProgram && !hasTarget && (tool.function.name === "propose_publication" || preparation !== "fullstack" && preparation !== "framework" && preparation !== "compiled" && tool.function.name === "propose_project_build")));
+    !(publicationProgram && !hasTarget && (tool.function.name === "propose_publication" || !localBuild && tool.function.name === "propose_project_build")));
 }
 const preparationTool: ToolDefinition = { type: "function", function: {
   name: "propose_project_preparation",

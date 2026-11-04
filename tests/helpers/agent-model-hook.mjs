@@ -142,6 +142,12 @@ globalThis.fetch = async (input, init) => {
     if (last.role === "user") return reply("propose_project_build", { path: "/orders", status: 200, assertion: { kind: "text", contains: "73}" } });
     throw Error("Unexpected Go worker fixture transition");
   }
+  if (first.includes('نشانه الزامی صفحه: "invoice:73"')) {
+    if (last.role === "user" && last.content.startsWith("Host local preparation receipt"))
+      return final("reply", null, "اجرای Docker و پاسخ سفارش بررسی شد.");
+    if (last.role === "user") return reply("propose_project_build", { path: "/orders/summary", status: 200, assertion: { kind: "text", contains: "invoice:73" } });
+    throw Error("Unexpected isolated Docker fixture transition");
+  }
   if (first.includes('نشانه الزامی صفحه: "Workspace lifecycle"')) {
     if (body.messages.some(message => message.role === "user" && message.content.startsWith("Host workspace compile receipt")))
       return final("reply", null, "ساخت بسته‌ها با lock اصلی بررسی شد؛ تست، شروع سرویس، داده و انتشار هنوز تأیید نشده‌اند.");

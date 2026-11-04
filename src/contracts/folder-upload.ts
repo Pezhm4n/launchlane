@@ -1,4 +1,5 @@
 import { ensure } from "../server/errors.ts";
+import { assertPublicNugetConfig, isNugetConfig } from "./nuget-config.ts";
 import { excludedPath, sourceFileAllowed } from "./source-paths.ts";
 import { SOURCE_MAX_BYTES, SOURCE_MAX_FILES, sourceFileByteLimit, sourceFileLimitMessage } from "./source-limits.ts";
 import { isEnvironmentFile, environmentFileMaxBytes } from "./environment-files.ts";
@@ -41,5 +42,10 @@ export async function planDeviceFolder(files: readonly Readonly<{ webkitRelative
     ensure(file.size <= ignoreFileMaxBytes && inputs.length < ignoreFileMaxCount, "SOURCE_IGNORE_LIMIT", "قواعد بسته‌بندی پوشه بیش از سقف مجاز هستند.", 413);
     inputs.push({ path: parts.join("/"), content: await file.text() });
   }
-  return planFolderUpload(files.map(file => ({ path: file.webkitRelativePath, size: file.size })), inputs);
+  const plan = planFolderUpload(files.map(file => ({ path: file.webkitRelativePath, size: file.size })), inputs);
+  for (const entry of plan.files) {
+    const file = files[entry.index];
+    if (file && isNugetConfig(entry.path)) assertPublicNugetConfig(await file.text());
+  }
+  return plan;
 }

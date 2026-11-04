@@ -1,5 +1,6 @@
 import { sourceIgnore, type SourceIgnoreFile } from "../../contracts/source-ignore.ts";
 import { excludedPath } from "../../contracts/source-paths.ts";
+import { assertPublicNugetConfig, isNugetConfig } from "../../contracts/nuget-config.ts";
 import { AppError } from "../errors.ts";
 import type { SourceFile } from "./inspect.ts";
 
@@ -13,5 +14,9 @@ export function filterSourceFiles(files: readonly SourceFile[]): SourceFile[] {
     inputs.push({ path: file.path, content });
   }
   const ignored = sourceIgnore(inputs);
-  return files.filter(file => !file.path.split("/").some(excludedPath) && !ignored(file.path));
+  const kept = files.filter(file => !file.path.split("/").some(excludedPath) && !ignored(file.path));
+  for (const file of kept) {
+    if (isNugetConfig(file.path)) assertPublicNugetConfig(file.content.toString("utf8"));
+  }
+  return kept;
 }

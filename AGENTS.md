@@ -4,6 +4,8 @@ Read this file first. Then read [project-overview.md](project-overview.md), [the
 
 ## Current scope and truth
 
+- .NET/Docker, 2026-11-04 (AC19/24/26/28/31/32). Original locked ASP.NET10 now runs through Agent/web Docker6 before destination selection. Original SDK/tests/publish, public NuGet.Config and .slnx survive intake. Publication21 rebuilds the same source archive at Docker. [Scope and evidence](docs/evidence/dotnet-docker.md). Native projects without Dockerfile, external NuGet packages, exact DLL delivery, data and complete14 remain open.
+
 - Angular AOT browser components now use source-derived CLI configuration/output and the existing pnpm plan9/Docker22/publication40 path; exact bytes, original tests, actual Agent/web/Docker/Chromium and failure gates pass. Metadata reads are four-way bounded with unchanged byte/run quotas; SSR/topology/data/native cloud/full14 remain open. [Short evidence](docs/evidence/angular-compiled-component.md).
 
 - PHP/Laravel plan12 preserves Composer lock/hooks/PHPUnit, exports exact production vendor and tests fresh Apache. Existing receipt2/archive/Docker22/publication44 retain Agent/web approvals and journals. Composerless PHP, frontend/worker topology, other config/versions, source repair, data and live/full14 remain open. [ADR0050](docs/decisions/0050-installed-php-and-laravel-artifacts.md), [short evidence](docs/evidence/php-installed-runtime.md).
@@ -75,6 +77,8 @@ Run from the repository root with Node **24.15+ within 24.x** and npm. Dependenc
 | Python/native regressions | `node --test tests/sandbox/python-build.test.ts tests/sandbox/native-build.test.ts` | Docker Linux and both pinned images; four actual bounded cases, synthetic patch model, no provider credentials |
 | Flask/Django worker | `node --test --test-concurrency=1 tests/sandbox/framework-python.test.ts` | Actual locked Python3.12 install, original runners, Gunicorn/API and failure cases; no cloud/model writes |
 | Web to Flask/Django worker | `node scripts/test-framework-worker-browser.mjs` | Requires build, Chromium, pinned Python image and public PyPI reads; actual upload/mission/HTTP approval/worker/archive/replay/reload, synthetic model only |
+| ASP.NET Docker worker | `node --test --test-concurrency=1 tests/sandbox/dotnet-docker.test.ts` | Cached pinned SDK10.0.403/ASP.NET10.0.14 and Node22 verifier, original lock/tests and JSON failure cases |
+| Web to ASP.NET Docker | `node scripts/test-dotnet-docker-browser.mjs` then `node scripts/test-dotnet-docker-browser.mjs --publication` | Build/Chromium and cached images, actual Agent/web/worker/archive/local Docker/workload/replay, synthetic model/provider |
 | PHP/Laravel worker | `node --test --test-concurrency=1 tests/sandbox/php-build.test.ts` | Pinned PHP8.3.36/Apache, Composer2.11.1/unzip and public dist reads or exact public cache; original lock/hooks/PHPUnit, fresh installed runtime/archive, no model/cloud writes |
 | Web to PHP/Laravel publication | `node scripts/test-php-publication-browser.mjs` | Requires build/Chromium/pinned PHP image; actual upload/Agent/HTTP/worker/archive Docker/workload/replay/reload; use `LAUNCHLANE_TEST_PHP_FAMILY=laravel` for Laravel; model/provider synthetic |
 | Compiled Go worker | `node --test --test-concurrency=1 tests/sandbox/go-build.test.ts` | Pinned Node22 Linux image, exact Go1.25.14 tool/public module reads or hash-checked public test cache; original tests/compiled binary/fresh worker/archive Docker/Chromium, no model/cloud writes |

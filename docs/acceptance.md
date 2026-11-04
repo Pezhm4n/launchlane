@@ -1,5 +1,7 @@
 # معیارهای پذیرش محصول
 
+.NET/Docker, 2026-11-04 (AC19/24/26/28/31/32). Original locked ASP.NET10 now runs through Agent/web Docker6 before destination selection. Original SDK/tests/publish, public NuGet.Config and .slnx survive intake. Publication21 rebuilds the same source archive at Docker. [Scope and evidence](evidence/dotnet-docker.md). Native projects without Dockerfile, external NuGet packages, exact DLL delivery, data and complete14 remain open.
+
 Angular delta, 2026-11-02: actual AOT/original tests/compiled artifact/Agent/web/Docker/Chromium now pass the existing component route; runtime1826b0a5 passed domain834, HTTP48 and positive/negative/regression/browser gates. [Evidence and remaining boundaries](evidence/angular-compiled-component.md). This does not grant full-family or all14 production acceptance.
 
 PHP/Laravel, 2026-11-02 (AC19/24/26/28/31/32): actual locked install/original tests/fresh Apache/exact installed archive and Agent/web publication44 passed locally with synthetic cloud/model transports. [Evidence](evidence/php-installed-runtime.md); fourteen sandbox cases do not mean fourteen-family acceptance.

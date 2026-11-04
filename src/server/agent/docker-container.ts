@@ -51,6 +51,13 @@ export function dockerBuildSource(files: readonly SourceFile[], input: DockerBui
     const instruction = /^([A-Za-z]+)\s+(.+)$/.exec(line);
     ensure(instruction, "DOCKERFILE_UNSUPPORTED", "یکی از دستورهای Dockerfile قابل بررسی نیست.", 409);
     const verb = instruction[1]?.toUpperCase(), argument = instruction[2] ?? "";
+    if (verb === "ARG") {
+      // The original stage may select its .NET build configuration. An ARG
+      // before FROM, an inherited host value, or a proxy argument changes scope.
+      ensure(stageCount > 0 && /^BUILD_CONFIGURATION=(?:Release|Debug)$/.test(argument),
+        "DOCKERFILE_AUTHORITY_DENIED", "مقدار build configuration باید در خود stage مشخص باشد.", 403);
+      continue;
+    }
     ensure(verb && ["FROM", "RUN", "COPY", "ADD", "WORKDIR", "ENV", "USER", "EXPOSE", "CMD", "ENTRYPOINT", "LABEL", "SHELL", "STOPSIGNAL", "HEALTHCHECK", "MAINTAINER"].includes(verb) && !argument.includes("<<"),
       "DOCKERFILE_UNSUPPORTED", "دستور نیازمند اختیار جداگانه یا قالب پیچیده در Dockerfile وجود دارد؛ ساخت خودکار متوقف شد.", 409);
     if (verb === "FROM") {

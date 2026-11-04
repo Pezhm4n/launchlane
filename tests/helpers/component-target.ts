@@ -3,8 +3,9 @@ import { randomUUID } from "node:crypto";
 import { docker } from "../../src/server/agent/container.ts";
 
 /** Local target from the actual approved archive; no provider or source checkout is executed. */
-export async function componentTarget(bytes: Buffer, port = 8080, dockerfile = ".launchlane-component.Dockerfile") {
-  assert.ok([".launchlane-component.Dockerfile", ".launchlane-executable.Dockerfile", ".launchlane-php.Dockerfile"].includes(dockerfile));
+export async function componentTarget(bytes: Buffer, port = 8080, dockerfile = ".launchlane-component.Dockerfile", readinessPath = "/launchlane-build-proof.json") {
+  assert.ok(["Dockerfile", ".launchlane-component.Dockerfile", ".launchlane-executable.Dockerfile", ".launchlane-php.Dockerfile"].includes(dockerfile));
+  assert.match(readinessPath, /^\/(?:[a-zA-Z0-9._-]+\/)*[a-zA-Z0-9._-]+$/);
   const name = `launchlane-component-${randomUUID()}`, label = `ir.launchlane.component-test=${name}`;
   let id: string | undefined, imageBuilt = false;
   const cleanup = async () => {
@@ -25,7 +26,7 @@ export async function componentTarget(bytes: Buffer, port = 8080, dockerfile = "
     assert.equal((await docker(["start", id], AbortSignal.timeout(10000))).exitCode, 0);
     const published = await docker(["port", id, String(port)], AbortSignal.timeout(10000)); assert.equal(published.exitCode, 0); assert.match(published.output.trim(), /^127\.0\.0\.1:\d+$/);
     const origin = `http://${published.output.trim()}`;
-    for (let poll = 0; poll < 60; poll++) { try { const response = await fetch(`${origin}/launchlane-build-proof.json`); if (response.status === 200) return { origin, close: cleanup }; } catch { /* bounded startup */ } await new Promise(resolve => setTimeout(resolve, 100)); }
+    for (let poll = 0; poll < 60; poll++) { try { const response = await fetch(`${origin}${readinessPath}`, { redirect: "error" }); if (response.status === 200) return { origin, close: cleanup }; } catch { /* bounded startup */ } await new Promise(resolve => setTimeout(resolve, 100)); }
     const logs = await docker(["logs", id], AbortSignal.timeout(10000)); throw Error(`compiled target failed: ${logs.output}`);
   } catch (error) { await cleanup(); throw error; }
 }

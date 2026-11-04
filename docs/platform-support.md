@@ -1,5 +1,7 @@
 # وضعیت پلتفرم‌ها و مسیر انتشار
 
+.NET/Docker, 2026-11-04 (AC19/24/26/28/31/32). Original locked ASP.NET10 now runs through Agent/web Docker6 before destination selection. Original SDK/tests/publish, public NuGet.Config and .slnx survive intake. Publication21 rebuilds the same source archive at Docker. [Scope and evidence](evidence/dotnet-docker.md). Native projects without Dockerfile, external NuGet packages, exact DLL delivery, data and complete14 remain open.
+
 Angular delta, 2026-11-02: [actual Angular22 AOT, exact compiled pnpm artifact and web publication](evidence/angular-compiled-component.md) replace the missing compiler witness for one browser component. CLI configuration/output, scalar libc and bounded metadata preparation are source-aware; SSR/multiple apps/custom builders/data/native cloud/full14 remain open.
 
 PHP/Laravel delta, 2026-11-02: [actual Composer/PHPUnit/Apache and installed-artifact publication](evidence/php-installed-runtime.md) add an executor for explicitly configured PHP8.3/Composer projects and a real Laravel12 API. Native cloud, Composerless/WordPress, general versions/config, frontend/worker/data and full-family acceptance remain open.

@@ -1,3 +1,5 @@
+import { isNugetConfig } from "./nuget-config.ts";
+
 const excludedNames = new Set([
   ".git", ".hg", ".svn", ".idea", ".vscode", "node_modules", ".next", ".data", ".local", ".artifacts",
   ".agents", ".codex", ".claude", ".gemini", ".cursor", ".history", ".system_generated",
@@ -17,6 +19,7 @@ export function excludedPath(name: string): boolean {
 
 export function sourceFileAllowed(name: string): boolean {
   return /\.(?:py|php|go|mod|sum|cs|fs|vb|csproj|fsproj|vbproj|sln|props|targets|resx|razor|cshtml|sh|bash|java|rb|rs|c|cpp|h|hpp|tmpl|vue|svelte|astro|toml|cfg|[cm]?[jt]sx?|jsonc?|lock|mdx?|txt|sql|xml|webmanifest|html?|css|scss|svg|png|jpe?g|webp|avif|ico|woff2?|ttf|otf|ya?ml)$/i.test(name) ||
+    isNugetConfig(name) || /\.slnx$/i.test(name) ||
     ["Dockerfile", ".launchlane-component.Dockerfile", ".launchlane-executable.Dockerfile", ".launchlane-php.Dockerfile", ".launchlane-php.apache.conf", ".htaccess", ".user.ini", "php.ini", "phpunit.xml.dist", "go.work", "Procfile", "artisan", "Gemfile", "Rakefile", "Makefile", ".dockerignore", ".gitignore"].includes(name) ||
     /^(?:LICENSE|LICENCE|COPYING|NOTICE)(?:[-.][A-Z0-9-]+)?$/i.test(name);
 }

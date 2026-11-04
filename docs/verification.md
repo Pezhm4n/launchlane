@@ -1,5 +1,7 @@
 # شواهد اعتبارسنجی Launchlane
 
+.NET/Docker, 2026-11-04 (AC19/24/26/28/31/32). Original locked ASP.NET10 now runs through Agent/web Docker6 before destination selection. Original SDK/tests/publish, public NuGet.Config and .slnx survive intake. Publication21 rebuilds the same source archive at Docker. [Scope and evidence](evidence/dotnet-docker.md). Native projects without Dockerfile, external NuGet packages, exact DLL delivery, data and complete14 remain open.
+
 Angular candidate1826b0a5, 2026-11-02: lint/typecheck/build, domain834/834, HTTP48/48, Angular3/3, pnpm/React8/8, actual Angular and prior pnpm web publications/20 layouts/replay/reload, guided54states passed under the shared OS lock. Runtime, Docker and Chromium actual; model/provider synthetic, cloudWrites0. [Short evidence](evidence/angular-compiled-component.md).
 
 PHP/Laravel, 2026-11-02: final runtime326cec88 passed lint/typecheck/build, domain829/829, HTTP48/48, sandbox14/14, both actual web-worker/archive/publication/replay/reload flows (20layouts), Go/pnpm publication regressions and guided54states. [Exact scope/failures](evidence/php-installed-runtime.md); models/providers are synthetic, with zero real model/cloud writes and no live/full14/data acceptance.
